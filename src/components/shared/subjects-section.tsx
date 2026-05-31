@@ -1407,7 +1407,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               </button>
             </motion.div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {/* "All Courses" card — always first */}
               <motion.div variants={cardVariants}>
                 <div
@@ -1415,25 +1415,40 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     setFilterCategory('');
                     setCategoriesView(false);
                   }}
-                  className="group cursor-pointer rounded-2xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/30 dark:to-sky-800/20 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
+                  className="group cursor-pointer rounded-xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/30 dark:to-sky-800/20 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden hover:-translate-y-0.5 h-[136px] flex flex-col"
                 >
-                  <div className="h-1.5 bg-sky-500" />
-                  <div className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-600 text-white shrink-0">
-                        <BookOpen className="h-4.5 w-4.5" />
+                  <div className="h-1 bg-sky-500 shrink-0" />
+                  <div className="p-3 flex flex-col justify-between flex-1 min-h-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 text-white shrink-0">
+                        <BookOpen className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="font-bold text-foreground text-sm leading-tight truncate">
                           {t('subjects.allCourses')}
                         </h3>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <BookOpen className="h-3 w-3 text-sky-600 dark:text-sky-400" />
-                          <span className="text-[11px] font-medium text-sky-700 dark:text-sky-400">
-                            {t('subjects.courseCount', { count: subjects.length })}
-                          </span>
-                        </div>
+                        <span className="text-[11px] font-medium text-sky-700 dark:text-sky-400">
+                          {t('subjects.courseCount', { count: subjects.length })}
+                        </span>
                       </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {subjects.length > 0 ? (
+                        <>
+                          {subjects.slice(0, 3).map(s => (
+                            <span key={s.id} className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-sky-100/80 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 truncate max-w-[90px]">
+                              {s.name.length > 10 ? s.name.substring(0, 10) + '…' : s.name}
+                            </span>
+                          ))}
+                          {subjects.length > 3 && (
+                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-sky-100/80 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
+                              +{subjects.length - 3}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-sky-600/60 dark:text-sky-400/50 italic">{t('subjects.emptyCategory')}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1441,6 +1456,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               {categories.map((cat) => {
                 const courseCount = subjects.filter(s => s.category_id === cat.id).length;
                 const catColor = cat.color || '#0369A1';
+                const catSubjects = subjects.filter(s => s.category_id === cat.id);
                 return (
                   <motion.div key={cat.id} variants={cardVariants}>
                     <div
@@ -1448,52 +1464,49 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                         setFilterCategory(cat.id);
                         setCategoriesView(false);
                       }}
-                      className="group cursor-pointer rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
+                      className="group cursor-pointer rounded-xl border bg-card shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden hover:-translate-y-0.5 h-[136px] flex flex-col"
                     >
                       {/* Color bar */}
-                      <div className="h-1.5" style={{ backgroundColor: catColor }} />
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="h-1 shrink-0" style={{ backgroundColor: catColor }} />
+                      <div className="p-3 flex flex-col justify-between flex-1 min-h-0">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div
-                              className="flex h-9 w-9 items-center justify-center rounded-lg text-white shrink-0"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-white shrink-0"
                               style={{ backgroundColor: catColor }}
                             >
-                              <FolderTree className="h-4.5 w-4.5" />
+                              <FolderTree className="h-4 w-4" />
                             </div>
                             <div className="min-w-0 flex-1">
                               <h3 className="font-bold text-foreground text-sm leading-tight truncate">
                                 {getCategoryName(cat)}
                               </h3>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <BookOpen className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[11px] text-muted-foreground">
-                                  {t('subjects.courseCount', { count: courseCount })}
-                                </span>
-                              </div>
+                              <span className="text-[11px] text-muted-foreground">
+                                {t('subjects.courseCount', { count: courseCount })}
+                              </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-0.5 shrink-0">
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setNewCategoryNameAr(cat.name_ar); setNewCategoryNameEn(cat.name_en || ''); setNewCategoryColor(cat.color || SUBJECT_COLORS[0]); setCategoryModalOpen(true); }}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <Pencil className="h-3 w-3" />
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); setDeleteCategoryConfirm(cat); }}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              className="p-1 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-3 w-3" />
                             </button>
                           </div>
                         </div>
-                        {courseCount > 0 && (
-                          <div className="mt-3 pt-2.5 border-t border-border">
-                            <div className="flex flex-wrap gap-1">
-                              {subjects.filter(s => s.category_id === cat.id).slice(0, 3).map(s => (
-                                <span key={s.id} className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-                                  {s.name.length > 12 ? s.name.substring(0, 12) + '…' : s.name}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {courseCount > 0 ? (
+                            <>
+                              {catSubjects.slice(0, 3).map(s => (
+                                <span key={s.id} className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground truncate max-w-[90px]">
+                                  {s.name.length > 10 ? s.name.substring(0, 10) + '…' : s.name}
                                 </span>
                               ))}
                               {courseCount > 3 && (
@@ -1501,9 +1514,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   +{courseCount - 3}
                                 </span>
                               )}
-                            </div>
-                          </div>
-                        )}
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground/60 italic">{t('subjects.emptyCategory')}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -1512,6 +1527,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               {/* "Uncategorized" card */}
               {(() => {
                 const uncategorizedCount = subjects.filter(s => !s.category_id).length;
+                const uncategorizedSubjects = subjects.filter(s => !s.category_id);
                 if (uncategorizedCount === 0) return null;
                 return (
                   <motion.div variants={cardVariants}>
@@ -1520,25 +1536,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                         setFilterCategory('__none__');
                         setCategoriesView(false);
                       }}
-                      className="group cursor-pointer rounded-2xl border border-dashed bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
+                      className="group cursor-pointer rounded-xl border border-dashed bg-card shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden hover:-translate-y-0.5 h-[136px] flex flex-col"
                     >
-                      <div className="h-1.5 bg-gray-300 dark:bg-gray-700" />
-                      <div className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">
-                            <BookOpen className="h-4.5 w-4.5" />
+                      <div className="h-1 bg-gray-300 dark:bg-gray-700 shrink-0" />
+                      <div className="p-3 flex flex-col justify-between flex-1 min-h-0">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">
+                            <BookOpen className="h-4 w-4" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <h3 className="font-bold text-foreground text-sm leading-tight truncate">
                               {t('subjects.withoutCategory')}
                             </h3>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <BookOpen className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-[11px] text-muted-foreground">
-                                {t('subjects.courseCount', { count: uncategorizedCount })}
-                              </span>
-                            </div>
+                            <span className="text-[11px] text-muted-foreground">
+                              {t('subjects.courseCount', { count: uncategorizedCount })}
+                            </span>
                           </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {uncategorizedSubjects.slice(0, 3).map(s => (
+                            <span key={s.id} className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground truncate max-w-[90px]">
+                              {s.name.length > 10 ? s.name.substring(0, 10) + '…' : s.name}
+                            </span>
+                          ))}
+                          {uncategorizedCount > 3 && (
+                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+                              +{uncategorizedCount - 3}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
