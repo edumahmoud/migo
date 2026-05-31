@@ -11,6 +11,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -72,6 +73,7 @@ export default function AppHeader({
   const { myStatus, init: initStatusStore } = useStatusStore();
   const { t, direction } = useTranslations();
   const { locale, setLocale } = useLocaleStore();
+  const { updateProfile } = useAuthStore();
 
   // Initialize status store with userId (critical for Supabase Presence)
   useEffect(() => {
@@ -280,7 +282,7 @@ export default function AppHeader({
                       </div>
                       <div className="flex gap-1">
                         <button
-                          onClick={() => setLocale('ar')}
+                          onClick={() => { setLocale('ar'); updateProfile({ locale: 'ar' }); }}
                           className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
                             locale === 'ar'
                               ? 'bg-sky-600 text-white shadow-sm'
@@ -290,7 +292,7 @@ export default function AppHeader({
                           {t('common.arabic')}
                         </button>
                         <button
-                          onClick={() => setLocale('en')}
+                          onClick={() => { setLocale('en'); updateProfile({ locale: 'en' }); }}
                           className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
                             locale === 'en'
                               ? 'bg-sky-600 text-white shadow-sm'

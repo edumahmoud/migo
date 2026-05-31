@@ -963,7 +963,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const data = await res.json();
           if (data.profile) {
             set({ user: data.profile as UserProfile });
-            applyProfileLocale(data.profile as UserProfile);
             return;
           }
         }
@@ -978,7 +977,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       if (profile) {
         set({ user: profile as UserProfile });
-        applyProfileLocale(profile as UserProfile);
         return;
       }
 
@@ -990,7 +988,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const data = await res2.json();
         if (data.profile) {
           set({ user: { ...user, ...data.profile } as UserProfile });
-          applyProfileLocale({ ...user, ...data.profile } as UserProfile);
         }
       }
     } catch {
