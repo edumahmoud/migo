@@ -3768,7 +3768,12 @@
     "categoriesDesc": "Organize courses into categories for quick access",
     "newCategory": "New Category",
     "courseCount": "{count} courses",
-    "coursesInCategory": "Courses in this category"
+    "coursesInCategory": "Courses in this category",
+    "allCourses": "All Courses",
+    "allCoursesDesc": "View all courses without filtering",
+    "emptyCategory": "No courses in this category",
+    "emptyCategoryDesc": "Add a new course to this category",
+    "addCourseToCategory": "Add Course to Category"
   },
   "videos": {
     "all": "All",

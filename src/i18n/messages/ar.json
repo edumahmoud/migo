@@ -3768,7 +3768,12 @@
     "categoriesDesc": "تنظيم المقررات في تصنيفات للوصول السريع",
     "newCategory": "تصنيف جديد",
     "courseCount": "{count} مقرر",
-    "coursesInCategory": "المقررات في هذا التصنيف"
+    "coursesInCategory": "المقررات في هذا التصنيف",
+    "allCourses": "كل المقررات",
+    "allCoursesDesc": "عرض جميع المقررات بدون تصنيف",
+    "emptyCategory": "لا توجد مقررات في هذا التصنيف",
+    "emptyCategoryDesc": "أضف مقرراً جديداً لهذا التصنيف",
+    "addCourseToCategory": "أضف مقرر للتصنيف"
   },
   "videos": {
     "all": "الكل",

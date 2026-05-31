@@ -1382,6 +1382,35 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {/* "All Courses" card — always first */}
+              <motion.div variants={cardVariants}>
+                <div
+                  onClick={() => {
+                    setFilterCategory('');
+                    setCategoriesView(false);
+                  }}
+                  className="group cursor-pointer rounded-2xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/30 dark:to-sky-800/20 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
+                >
+                  <div className="h-2 bg-sky-500" />
+                  <div className="p-5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white shrink-0 mb-3">
+                      <BookOpen className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-bold text-foreground text-sm leading-tight mb-1">
+                      {t('subjects.allCourses')}
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                      {t('subjects.allCoursesDesc')}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <BookOpen className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                      <span className="text-xs font-medium text-sky-700 dark:text-sky-400">
+                        {t('subjects.courseCount', { count: subjects.length })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
               {categories.map((cat) => {
                 const courseCount = subjects.filter(s => s.category_id === cat.id).length;
                 const catColor = cat.color || '#0369A1';
@@ -1805,6 +1834,30 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     </motion.div>
                   );
                 })}
+              </motion.div>
+            )}
+
+            {/* ─── Empty Category State (teacher: inside a category with no courses) ─── */}
+            {!loadingSubjects && role === 'teacher' && approvedSubjects.length === 0 && filterCategory && subjects.length > 0 && !categoriesView && (
+              <motion.div
+                variants={cardVariants}
+                className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-b from-emerald-50/50 dark:from-emerald-900/20 to-transparent py-16"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-800/40 mb-4">
+                  <FolderTree className="h-8 w-8 text-emerald-700 dark:text-emerald-400" />
+                </div>
+                <p className="text-lg font-bold text-foreground mb-1">{t('subjects.emptyCategory')}</p>
+                <p className="text-sm text-muted-foreground mb-5">{t('subjects.emptyCategoryDesc')}</p>
+                <button
+                  onClick={() => {
+                    setNewSubjectCategory(filterCategory === '__none__' ? '' : filterCategory);
+                    setCreateSubjectOpen(true);
+                  }}
+                  className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t('subjects.addCourseToCategory')}
+                </button>
               </motion.div>
             )}
 
