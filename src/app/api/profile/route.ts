@@ -17,7 +17,7 @@ function isValidName(name: string): boolean {
 }
 
 const VALID_GENDERS = ['male', 'female'];
-const VALID_TITLES = ['teacher', 'dr', 'prof', 'assoc_prof', 'assist_prof', 'lecturer', 'teaching_assist'];
+const VALID_TITLES = ['teacher', 'dr', 'instructor', 'prof', 'assoc_prof', 'assist_prof', 'lecturer', 'teaching_assist'];
 
 export async function POST(request: NextRequest) {
   try {
