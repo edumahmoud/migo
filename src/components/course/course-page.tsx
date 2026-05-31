@@ -388,23 +388,32 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   }, [role, subject?.teacher_id]);
 
   // -------------------------------------------------------
-  // Supabase Realtime: subscribe to subject metadata changes
-  // (e.g., teacher pauses/unpauses from another session, or
-  //  co-teacher changes the state)
+  // Supabase Realtime: subscribe to subject changes (UPDATE/DELETE)
+  // Uses selectedSubjectId (available immediately) instead of subject?.id
+  // Re-fetches full subject on UPDATE for data consistency
   // -------------------------------------------------------
   useEffect(() => {
-    if (!subject?.id) return;
+    if (!selectedSubjectId) return;
+
     const channel = supabase
-      .channel(`subject-meta-${subject.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subjects', filter: `id=eq.${subject.id}` }, (payload) => {
-        const updated = payload.new as Subject;
-        if (updated) {
-          setSubject(prev => prev ? { ...prev, ...updated } : prev);
-        }
+      .channel(`subject-meta-${selectedSubjectId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subjects', filter: `id=eq.${selectedSubjectId}` }, () => {
+        // Re-fetch full subject to ensure data consistency (payload.new may be partial)
+        supabase.from('subjects').select('*').eq('id', selectedSubjectId).single()
+          .then(({ data }) => {
+            if (data) setSubject(prev => prev ? { ...prev, ...(data as Subject) } : (data as Subject));
+          });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subjects', filter: `id=eq.${selectedSubjectId}` }, () => {
+        toast.info(t('course.toastSubjectDeleted'));
+        setSelectedSubjectId(null);
+        setCourseTab('overview');
+        setSubject(null);
       })
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
-  }, [subject?.id]);
+  }, [selectedSubjectId]);
 
   // -------------------------------------------------------
   // BroadcastChannel for cross-tab pause/unpause sync
@@ -422,37 +431,6 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     bc.addEventListener('message', handleMessage);
     return () => { bc.removeEventListener('message', handleMessage); bc.close(); };
   }, [subject?.id]);
-
-  // -------------------------------------------------------
-  // Realtime: listen for subject UPDATE/DELETE to refresh without page reload
-  // -------------------------------------------------------
-  useEffect(() => {
-    if (!selectedSubjectId) return;
-
-    const channel = supabase
-      .channel(`course-subject-${selectedSubjectId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'subjects', filter: `id=eq.${selectedSubjectId}` },
-        (payload) => {
-          const updated = payload.new as Subject;
-          setSubject((prev) => (prev ? { ...prev, ...updated } : prev));
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'subjects', filter: `id=eq.${selectedSubjectId}` },
-        () => {
-          toast.info(t('course.toastSubjectDeleted'));
-          handleBack();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [selectedSubjectId]);
 
   // -------------------------------------------------------
   // Handle back navigation

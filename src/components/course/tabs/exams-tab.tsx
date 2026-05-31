@@ -1062,11 +1062,12 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       const studentNameKey = t('exams.excelStudentName');
       const scoreKey = t('exams.excelScore');
 
-      // Build header: Student Name | Q1 | Q2 | ... | Qn | Score
+      // Build header: Student Name | Q1: question text | Q2: question text | ... | Score
       const headers: string[] = [studentNameKey];
       questions.forEach((q, idx) => {
         const typeLabel = q.type === 'mcq' ? '☁' : q.type === 'boolean' ? '✓✗' : q.type === 'completion' ? '✍' : '🔗';
-        headers.push(`${t('exams.excelQuestion')}${idx + 1} ${typeLabel}`);
+        const questionText = (q.question || '').substring(0, 60); // Truncate long questions for header readability
+        headers.push(`${t('exams.excelQuestion')}${idx + 1}: ${questionText}${q.question && q.question.length > 60 ? '...' : ''} ${typeLabel}`);
       });
       headers.push(scoreKey);
 
@@ -1096,11 +1097,11 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
       const detailWs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
-      // Set column widths
-      detailWs['!cols'] = headers.map((_, i) => {
+      // Set column widths — match header text length for question columns
+      detailWs['!cols'] = headers.map((h, i) => {
         if (i === 0) return { wch: 25 };
         if (i === headers.length - 1) return { wch: 12 };
-        return { wch: 20 };
+        return { wch: Math.min(50, Math.max(20, h.length + 2)) };
       });
 
       // Conditional formatting: correct = green, incorrect = red
