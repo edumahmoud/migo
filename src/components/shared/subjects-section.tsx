@@ -228,9 +228,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [filterCategory, setFilterCategory] = useState<string>('');
 
   // ─── Categories view state ───
-  // Teacher: default to categories view (show categories first, courses on drill-down)
-  // Student: always start with courses view
-  const [categoriesView, setCategoriesView] = useState(role === 'teacher');
+  // Default: show all courses; user can toggle to categories view
+  const [categoriesView, setCategoriesView] = useState(false);
 
   // ─── Categories state ───
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1178,31 +1177,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
-          {/* Breadcrumb when inside a category or all-courses view */}
-          {!categoriesView && role === 'teacher' ? (
+          {/* Breadcrumb when inside a category */}
+          {!categoriesView && role === 'teacher' && filterCategory ? (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { setFilterCategory(''); setCategoriesView(true); }}
+                onClick={() => { setFilterCategory(''); }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
-                <h2 className="text-2xl font-bold">{t('nav.subjects')}</h2>
+                <h2 className="text-2xl font-bold">{t('subjects.allCourses')}</h2>
               </button>
-              <ChevronLeft className={`h-5 w-5 text-muted-foreground ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+              <ChevronLeft className={`h-4 w-4 text-muted-foreground ${direction === 'rtl' ? '' : 'rotate-180'}`} />
               <h2 className="text-2xl font-bold text-foreground">
                 {filterCategory === '__none__'
                   ? t('subjects.withoutCategory')
-                  : filterCategory
-                    ? (() => {
-                        const cat = categories.find(c => c.id === filterCategory);
-                        return cat ? getCategoryName(cat) : '';
-                      })()
-                    : t('subjects.allCourses')
+                  : (() => {
+                      const cat = categories.find(c => c.id === filterCategory);
+                      return cat ? getCategoryName(cat) : '';
+                    })()
                 }
               </h2>
             </div>
           ) : (
             <h2 className="text-2xl font-bold text-foreground">
-              {categoriesView ? t('subjects.categoriesTitle') : t('nav.subjects')}
+              {categoriesView
+                ? t('subjects.categoriesTitle')
+                : role === 'teacher'
+                  ? t('subjects.allCourses')
+                  : t('nav.subjects')
+              }
             </h2>
           )}
           <p className="text-muted-foreground mt-1 text-sm">
@@ -1210,7 +1212,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               ? t('subjects.categoriesDesc')
               : filterCategory && role === 'teacher'
                 ? t('subjects.coursesInCategory')
-                : role === 'teacher' ? t('course.coursePage') : t('course.enrolledStudents')}
+                : role === 'teacher'
+                  ? t('subjects.allCoursesDesc')
+                  : t('course.enrolledStudents')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1250,6 +1254,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             <button
               onClick={() => {
                 if (categoriesView) {
+                  setFilterCategory('');
                   setCategoriesView(false);
                 } else {
                   setFilterCategory('');
@@ -1258,12 +1263,26 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               }}
               className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium transition-all active:scale-[0.97] ${
                 categoriesView
-                  ? 'border-sky-400 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
-                  : 'border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20'
+                  ? 'border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20'
+                  : 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
               }`}
             >
-              <FolderTree className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('subjects.categories')}</span>
+              {categoriesView
+                ? <BookOpen className="h-4 w-4" />
+                : <FolderTree className="h-4 w-4" />
+              }
+              <span className="hidden sm:inline">
+                {categoriesView
+                  ? `${t('subjects.allCourses')} (${subjects.length})`
+                  : t('subjects.categories')
+                }
+              </span>
+              <span className="sm:hidden">
+                {categoriesView
+                  ? `${subjects.length}`
+                  : t('subjects.categories')
+                }
+              </span>
             </button>
           )}
         </div>

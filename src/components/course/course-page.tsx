@@ -767,7 +767,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
                 aria-label={t('course.backToSubjects')}
               >
-                <ChevronLeft className={`h-5 w-5 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                <ChevronLeft className={`h-5 w-5 ${direction === 'rtl' ? '' : 'rotate-180'}`} />
               </button>
               {/* Breadcrumb: Subjects » Category Name */}
               <div className="flex items-center gap-1.5 min-w-0 text-white/70 text-xs truncate">
@@ -779,7 +779,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   if (!cat) return null;
                   return (
                     <>
-                      <ChevronLeft className={`h-3 w-3 shrink-0 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                      <ChevronLeft className={`h-3 w-3 shrink-0 ${direction === 'rtl' ? '' : 'rotate-180'}`} />
                       <span className="truncate">{getCategoryName(cat)}</span>
                     </>
                   );
