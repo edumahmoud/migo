@@ -228,7 +228,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [filterCategory, setFilterCategory] = useState<string>('');
 
   // ─── Categories view state ───
-  const [categoriesView, setCategoriesView] = useState(false); // Show categories grid instead of courses
+  // Teacher: default to categories view (show categories first, courses on drill-down)
+  // Student: always start with courses view
+  const [categoriesView, setCategoriesView] = useState(role === 'teacher');
 
   // ─── Categories state ───
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1180,7 +1182,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           {filterCategory && !categoriesView && role === 'teacher' ? (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { setFilterCategory(''); }}
+                onClick={() => { setFilterCategory(''); setCategoriesView(true); }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 <h2 className="text-2xl font-bold">{t('nav.subjects')}</h2>
