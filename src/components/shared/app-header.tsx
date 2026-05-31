@@ -158,7 +158,7 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className={`fixed top-0 end-0 z-40 h-14 md:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border transition-[inset-inline-start] duration-300 ease-in-out ${
+    <header className={`fixed top-0 start-0 end-0 z-40 h-14 md:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border transition-[inset-inline-start] duration-300 ease-in-out ${
       sidebarCollapsed ? 'md:start-[68px]' : 'md:start-64'
     }`} dir={direction}>
       <div className="flex h-full items-center justify-between px-2 md:px-5">
