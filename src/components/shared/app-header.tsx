@@ -42,6 +42,7 @@ interface AppHeaderProps {
 // Labels are i18n keys resolved via t()
 const ACADEMIC_TITLES = [
   { value: 'teacher', labelKey: 'titles.teacher', femaleLabelKey: 'titles.teacherFemale' },
+  { value: 'instructor', labelKey: 'titles.instructor', femaleLabelKey: 'titles.instructorFemale' },
   { value: 'dr', labelKey: 'titles.dr', femaleLabelKey: 'titles.drFemale' },
   { value: 'prof', labelKey: 'titles.prof', femaleLabelKey: 'titles.profFemale' },
   { value: 'assoc_prof', labelKey: 'titles.assocProf', femaleLabelKey: 'titles.assocProfFemale' },

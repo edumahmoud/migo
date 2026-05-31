@@ -1273,13 +1273,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               }
               <span className="hidden sm:inline">
                 {categoriesView
-                  ? `${t('subjects.allCourses')} (${subjects.length})`
+                  ? t('subjects.allCourses')
                   : t('subjects.categories')
                 }
               </span>
               <span className="sm:hidden">
                 {categoriesView
-                  ? `${subjects.length}`
+                  ? t('subjects.allCourses')
                   : t('subjects.categories')
                 }
               </span>
@@ -1485,13 +1485,17 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                         </div>
                         {courseCount > 0 && (
                           <div className="mt-3 pt-3 border-t border-border">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <p className="text-[11px] text-muted-foreground truncate">
-                                {subjects.filter(s => s.category_id === cat.id).map(s => s.name).join(' ، ')}
-                              </p>
-                              <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
-                                {courseCount}
-                              </span>
+                            <div className="flex flex-wrap gap-1">
+                              {subjects.filter(s => s.category_id === cat.id).slice(0, 3).map(s => (
+                                <span key={s.id} className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                                  {s.name.length > 12 ? s.name.substring(0, 12) + '…' : s.name}
+                                </span>
+                              ))}
+                              {courseCount > 3 && (
+                                <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground">
+                                  +{courseCount - 3}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )}
