@@ -1060,22 +1060,26 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       // ─── Sheet 2: Per-student answers matrix (one row per student, questions as columns) ───
       const questions = quiz.questions || [];
       const studentNameKey = t('exams.excelStudentName');
+      const emailKey = t('exams.excelEmail');
+      const submissionTimeKey = t('exams.excelCompletionDate');
       const scoreKey = t('exams.excelScore');
 
-      // Build header: Student Name | Q1: question text | Q2: question text | ... | Score
-      const headers: string[] = [studentNameKey];
+      // Build header: Student Name | Email | Q1: question text | Q2: question text | ... | Submission Time | Score
+      const headers: string[] = [studentNameKey, emailKey];
       questions.forEach((q, idx) => {
         const typeLabel = q.type === 'mcq' ? '☁' : q.type === 'boolean' ? '✓✗' : q.type === 'completion' ? '✍' : '🔗';
         const questionText = (q.question || '').substring(0, 60); // Truncate long questions for header readability
         headers.push(`${t('exams.excelQuestion')}${idx + 1}: ${questionText}${q.question && q.question.length > 60 ? '...' : ''} ${typeLabel}`);
       });
+      headers.push(submissionTimeKey);
       headers.push(scoreKey);
 
       // Build data rows — one row per student
       const rows: (string | number)[][] = qScores.map((s) => {
         const student = subjectStudents.find((st) => st.id === s.student_id);
         const studentName = student?.name || '—';
-        const row: (string | number)[] = [studentName];
+        const studentEmail = student?.email || '—';
+        const row: (string | number)[] = [studentName, studentEmail];
 
         questions.forEach((_, idx) => {
           const ua = s.user_answers?.[idx];
@@ -1091,6 +1095,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
           }
         });
 
+        row.push(formatDate(s.completed_at, locale));
         row.push(`${s.score}/${s.total}`);
         return row;
       });
@@ -1100,6 +1105,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       // Set column widths — match header text length for question columns
       detailWs['!cols'] = headers.map((h, i) => {
         if (i === 0) return { wch: 25 };
+        if (i === 1) return { wch: 30 }; // Email column
+        if (i === headers.length - 2) return { wch: 18 }; // Submission time column
         if (i === headers.length - 1) return { wch: 12 };
         return { wch: Math.min(50, Math.max(20, h.length + 2)) };
       });
@@ -1107,7 +1114,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       // Conditional formatting: correct = green, incorrect = red
       qScores.forEach((s, rowIdx) => {
         questions.forEach((_, qIdx) => {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: qIdx + 1 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: qIdx + 2 }); // +2 because col 0=name, col 1=email
           const cell = detailWs[cellRef];
           if (!cell) return;
           const ua = s.user_answers?.[qIdx];
