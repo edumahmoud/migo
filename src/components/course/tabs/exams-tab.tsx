@@ -1095,7 +1095,17 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
           }
         });
 
-        row.push(formatDate(s.completed_at, locale));
+        // Format submission time with date + time
+        const submissionTime = s.completed_at
+          ? new Date(s.completed_at).toLocaleString(locale === 'en' ? 'en-US' : 'ar-SA', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '—';
+        row.push(submissionTime);
         row.push(`${s.score}/${s.total}`);
         return row;
       });
