@@ -1028,34 +1028,55 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   // -------------------------------------------------------
   const handleExportQuizResults = async (quiz: Quiz) => {
     try {
-      const XLSX = await import('xlsx');
+      const ExcelJS = await import('exceljs');
       const qScores = scores.filter((s) => s.quiz_id === quiz.id);
       if (qScores.length === 0) {
         toast.error(t('exams.toastNoResultsExport'));
         return;
       }
-      const wb = XLSX.utils.book_new();
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Migo LMS';
 
       // ─── Sheet 1: Summary ───
-      const summaryData = qScores.map((s) => {
-        const student = subjectStudents.find((st) => st.id === s.student_id);
-        return {
-          [t('exams.excelStudentName')]: student?.name || '—',
-          [t('exams.excelEmail')]: student?.email || '—',
-          [t('exams.excelScore')]: `${s.score}/${s.total}`,
-          [t('exams.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
-          [t('exams.excelCompletionDate')]: formatDate(s.completed_at, locale),
-        };
-      });
-      const summaryWs = XLSX.utils.json_to_sheet(summaryData);
-
-      // Auto-size columns for summary sheet
-      const summaryColWidths = Object.keys(summaryData[0] || {}).map((key) => ({
-        wch: Math.max(key.length + 2, ...summaryData.map((row) => String(row[key as keyof typeof row] || '').length + 2)),
+      const summarySheet = wb.addWorksheet(t('exams.excelSummarySheet'));
+      const summaryHeaders = [
+        t('exams.excelStudentName'),
+        t('exams.excelEmail'),
+        t('exams.excelScore'),
+        t('exams.excelPercentage'),
+        t('exams.excelCompletionDate'),
+      ];
+      summarySheet.columns = summaryHeaders.map((h) => ({
+        header: h,
+        key: h,
+        width: Math.max(h.length + 4, 18),
       }));
-      summaryWs['!cols'] = summaryColWidths;
 
-      XLSX.utils.book_append_sheet(wb, summaryWs, t('exams.excelSummarySheet'));
+      // Style summary header row
+      summarySheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      summarySheet.getRow(1).alignment = { horizontal: 'center' };
+
+      qScores.forEach((s) => {
+        const student = subjectStudents.find((st) => st.id === s.student_id);
+        summarySheet.addRow({
+          [summaryHeaders[0]]: student?.name || '—',
+          [summaryHeaders[1]]: student?.email || '—',
+          [summaryHeaders[2]]: `${s.score}/${s.total}`,
+          [summaryHeaders[3]]: `${scorePercentage(s.score, s.total)}%`,
+          [summaryHeaders[4]]: formatDate(s.completed_at, locale),
+        });
+      });
+
+      // Auto-fit summary column widths
+      summarySheet.columns.forEach((col, i) => {
+        let maxLen = summaryHeaders[i].length;
+        summarySheet.eachRow((row) => {
+          const cellVal = row.getCell(i + 1).text || '';
+          maxLen = Math.max(maxLen, cellVal.length);
+        });
+        col.width = maxLen + 4;
+      });
 
       // ─── Sheet 2: Per-student answers matrix (one row per student, questions as columns) ───
       const questions = quiz.questions || [];
@@ -1064,38 +1085,50 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       const submissionTimeKey = t('exams.excelCompletionDate');
       const scoreKey = t('exams.excelScore');
 
-      // Build header: Student Name | Email | Q1: question text | Q2: question text | ... | Submission Time | Score
-      const headers: string[] = [studentNameKey, emailKey];
+      // Build header labels
+      const headerLabels: string[] = [studentNameKey, emailKey];
       questions.forEach((q, idx) => {
         const typeLabel = q.type === 'mcq' ? '☁' : q.type === 'boolean' ? '✓✗' : q.type === 'completion' ? '✍' : '🔗';
-        const questionText = (q.question || '').substring(0, 60); // Truncate long questions for header readability
-        headers.push(`${t('exams.excelQuestion')}${idx + 1}: ${questionText}${q.question && q.question.length > 60 ? '...' : ''} ${typeLabel}`);
+        const questionText = (q.question || '').substring(0, 60);
+        headerLabels.push(`${t('exams.excelQuestion')}${idx + 1}: ${questionText}${q.question && q.question.length > 60 ? '...' : ''} ${typeLabel}`);
       });
-      headers.push(submissionTimeKey);
-      headers.push(scoreKey);
+      headerLabels.push(submissionTimeKey);
+      headerLabels.push(scoreKey);
 
-      // Build data rows — one row per student
-      const rows: (string | number)[][] = qScores.map((s) => {
+      const detailSheet = wb.addWorksheet(t('exams.excelDetailSheet'));
+      detailSheet.columns = headerLabels.map((h, i) => ({
+        header: h,
+        key: `col${i}`,
+        width: i === 0 ? 25 : i === 1 ? 30 : i === headerLabels.length - 2 ? 20 : i === headerLabels.length - 1 ? 12 : Math.min(50, Math.max(20, h.length + 2)),
+      }));
+
+      // Style detail header row
+      const headerRow = detailSheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+      headerRow.alignment = { horizontal: 'center', wrapText: true };
+      headerRow.height = 30;
+
+      // Build data rows with conditional formatting
+      qScores.forEach((s) => {
         const student = subjectStudents.find((st) => st.id === s.student_id);
-        const studentName = student?.name || '—';
-        const studentEmail = student?.email || '—';
-        const row: (string | number)[] = [studentName, studentEmail];
+        const rowValues: (string | number)[] = [student?.name || '—', student?.email || '—'];
 
         questions.forEach((_, idx) => {
           const ua = s.user_answers?.[idx];
           if (!ua) {
-            row.push('—');
+            rowValues.push('—');
           } else if (ua.type === 'matching' && typeof ua.answer === 'object') {
             const pairs = Object.entries(ua.answer as Record<string, string>)
               .map(([k, v]) => `${k}→${v}`)
               .join(', ');
-            row.push(pairs);
+            rowValues.push(pairs);
           } else {
-            row.push(String(ua.answer));
+            rowValues.push(String(ua.answer));
           }
         });
 
-        // Format submission time with date + time
+        // Submission time
         const submissionTime = s.completed_at
           ? new Date(s.completed_at).toLocaleString(locale === 'en' ? 'en-US' : 'ar-SA', {
               year: 'numeric',
@@ -1105,45 +1138,69 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
               minute: '2-digit',
             })
           : '—';
-        row.push(submissionTime);
-        row.push(`${s.score}/${s.total}`);
-        return row;
-      });
+        rowValues.push(submissionTime);
+        rowValues.push(`${s.score}/${s.total}`);
 
-      const detailWs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const addedRow = detailSheet.addRow(rowValues);
 
-      // Set column widths — match header text length for question columns
-      detailWs['!cols'] = headers.map((h, i) => {
-        if (i === 0) return { wch: 25 };
-        if (i === 1) return { wch: 30 }; // Email column
-        if (i === headers.length - 2) return { wch: 18 }; // Submission time column
-        if (i === headers.length - 1) return { wch: 12 };
-        return { wch: Math.min(50, Math.max(20, h.length + 2)) };
-      });
-
-      // Conditional formatting: correct = green, incorrect = red
-      qScores.forEach((s, rowIdx) => {
+        // Apply conditional formatting: green for correct, red for wrong
         questions.forEach((_, qIdx) => {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: qIdx + 2 }); // +2 because col 0=name, col 1=email
-          const cell = detailWs[cellRef];
-          if (!cell) return;
+          const cell = addedRow.getCell(qIdx + 3); // +3: col 1=name, col 2=email, questions start at col 3
           const ua = s.user_answers?.[qIdx];
           if (ua) {
-            cell.s = {
-              font: { color: { rgb: ua.isCorrect ? '16A34A' : 'DC2626' }, bold: !ua.isCorrect },
-              fill: ua.isCorrect
-                ? { fgColor: { rgb: 'DCFCE7' } }
-                : { fgColor: { rgb: 'FEE2E2' } },
-            };
+            if (ua.isCorrect) {
+              // Correct answer: green background, green font
+              cell.font = { color: { argb: 'FF16A34A' }, bold: false };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+            } else {
+              // Wrong answer: red background, red bold font
+              cell.font = { color: { argb: 'FFDC2626' }, bold: true };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+            }
           }
+        });
+
+        // Style score column
+        const scoreCell = addedRow.getCell(headerLabels.length);
+        scoreCell.font = { bold: true };
+      });
+
+      // Add borders to all cells in detail sheet
+      detailSheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+            left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+            bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+            right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          };
         });
       });
 
-      XLSX.utils.book_append_sheet(wb, detailWs, t('exams.excelDetailSheet'));
+      // Also add borders to summary sheet
+      summarySheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+            left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+            bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+            right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          };
+        });
+      });
 
-      XLSX.writeFile(wb, `${quiz.title}_${t('exams.exportResults')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      // Generate file and trigger download
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${quiz.title}_${t('exams.exportResults')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
       toast.success(t('exams.toastExportSuccess'));
-    } catch {
+    } catch (err) {
+      console.error('Excel export error:', err);
       toast.error(t('exams.toastExportFailed'));
     }
   };
