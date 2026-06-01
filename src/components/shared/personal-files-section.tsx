@@ -29,6 +29,8 @@ import {
   FolderPlus,
   Folder as FolderIcon,
   ChevronLeft,
+  ChevronRight,
+  Home,
   Info,
   CheckSquare,
   Square,
@@ -2191,21 +2193,34 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       </motion.div>
 
       {/* Folder breadcrumb */}
-      {currentFolderId && (
-        <motion.div variants={itemVariants} className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentFolderId(null)}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      <AnimatePresence>
+        {currentFolderId && (
+          <motion.div
+            variants={itemVariants}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2"
           >
-            <ChevronLeft className={`h-4 w-4 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
-            {t('files.allFiles')}
-          </button>
-          <span className="text-muted-foreground">/</span>
-          <span className="text-sm font-medium text-foreground">
-            {folders.find(f => f.id === currentFolderId)?.name || ''}
-          </span>
-        </motion.div>
-      )}
+            {/* Root / Home */}
+            <button
+              onClick={() => { setCurrentFolderId(null); if (categoryFilter === 'folders') setCategoryFilter('all'); }}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+            >
+              <Home className="h-3.5 w-3.5" />
+              <span>{t('files.allFiles')}</span>
+            </button>
+            {/* Separator */}
+            <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground/50 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+            {/* Current folder */}
+            <div className="flex items-center gap-1.5 rounded-md bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-sm font-medium text-amber-800 dark:text-amber-300">
+              <FolderIcon className="h-3.5 w-3.5" />
+              <span>{folders.find(f => f.id === currentFolderId)?.name || ''}</span>
+              <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70">({filteredFiles.length})</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Select mode toggle / Select all + count */}
       {!loadingFiles && filteredFiles.length > 0 && (
