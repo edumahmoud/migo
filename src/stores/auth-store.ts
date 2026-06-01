@@ -478,10 +478,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // skip this update to avoid overwriting the correct profile with a fallback.
         // On page refresh, currentUser is null so INITIAL_SESSION still processes normally.
         // During login, signInWithEmail sets the user first, so we skip the duplicate.
+        //
+        // CRITICAL: This guard is essential to prevent the race condition where
+        // a delayed INITIAL_SESSION event from Supabase overwrites the correct
+        // DB-fetched profile (with role=teacher) with a fallback profile
+        // (with role from app_metadata, which defaults to 'student').
+        // This causes the dashboard to redirect after ~2 seconds.
         const currentUser = get().user;
         if (currentUser && currentUser.id === session.user.id && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
           // User already set for this session — skip to avoid race condition
-          console.log(`[Auth] ${event} skipped — user already set`);
+          console.log(`[Auth] ${event} skipped — user already set (role: ${currentUser.role})`);
           return;
         }
 
@@ -677,9 +683,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       // Clear the flag after a longer delay to ensure both SIGNED_IN and
       // INITIAL_SESSION events have been processed (or skipped by our guard).
-      // 500ms was too short — Supabase can fire INITIAL_SESSION with a delay
-      // that exceeds 500ms, causing it to overwrite the correct profile.
-      setTimeout(() => { _loginInProgress = false; }, 2000);
+      // 2s was too short — Supabase can fire INITIAL_SESSION with a delay
+      // that exceeds 2s, causing it to overwrite the correct profile with a fallback.
+      setTimeout(() => { _loginInProgress = false; }, 5000);
     }
   },
   
@@ -810,7 +816,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       return { error: 'حدث خطأ غير متوقع أثناء التسجيل' };
     } finally {
-      setTimeout(() => { _loginInProgress = false; }, 2000);
+      // Clear the flag after a longer delay to ensure both SIGNED_IN and
+      // INITIAL_SESSION events have been processed (or skipped by our guard).
+      // 2s was too short — Supabase can fire INITIAL_SESSION with a delay
+      // that exceeds 2s, causing it to overwrite the correct profile with a fallback.
+      setTimeout(() => { _loginInProgress = false; }, 5000);
     }
   },
   
