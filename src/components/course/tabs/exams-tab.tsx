@@ -296,6 +296,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteQuizConfirmId, setDeleteQuizConfirmId] = useState<string | null>(null);
 
+  // ─── Duplicate quiz ───
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+
   // ─── Quiz toggles ───
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
 
@@ -982,6 +985,55 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       setQuizzes(previousQuizzes); // Revert on failure
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Duplicate quiz
+  // -------------------------------------------------------
+  const handleDuplicateQuiz = async (quiz: Quiz) => {
+    setDuplicatingId(quiz.id);
+    try {
+      const newTitle = t('exams.duplicateTitle', { title: quiz.title });
+      const quizData: Record<string, unknown> = {
+        title: newTitle,
+        questions: quiz.questions || [],
+        duration: quiz.duration ?? null,
+        show_results: quiz.show_results ?? true,
+        show_review: quiz.show_review ?? true,
+        allow_retake: quiz.allow_retake ?? false,
+        // New quiz starts as active (no schedule, not finished)
+        is_finished: false,
+        scheduled_date: null,
+        scheduled_time: null,
+        user_id: profile.id,
+        subject_id: subjectId,
+      };
+
+      // Optimistic: add to local state immediately
+      const tempId = `temp-dup-${Date.now()}`;
+      const optimisticQuiz = {
+        ...quizData,
+        id: tempId,
+        created_at: new Date().toISOString(),
+      } as Quiz;
+      setQuizzes(prev => [optimisticQuiz, ...prev]);
+      toast.success(t('exams.toastQuizDuplicated'));
+
+      const { data: insertedData, error } = await supabase.from('quizzes').insert(quizData).select();
+      if (error) {
+        toast.error(t('exams.toastQuizDuplicateFailed'));
+        setQuizzes(prev => prev.filter(q => q.id !== tempId));
+      } else if (insertedData && insertedData.length > 0) {
+        const realQuiz = { ...insertedData[0], questions: Array.isArray(insertedData[0].questions) ? insertedData[0].questions : [] } as Quiz;
+        setQuizzes(prev => prev.map(q => q.id === tempId ? realQuiz : q));
+      } else {
+        fetchData();
+      }
+    } catch {
+      toast.error(t('exams.toastQuizDuplicateFailed'));
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -2075,6 +2127,20 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             >
               <Pencil className="h-4 w-4 md:h-3.5 md:w-3.5" />
               <span className="md:hidden">{t('exams.edit')}</span>
+            </button>
+            {/* Duplicate */}
+            <button
+              onClick={() => handleDuplicateQuiz(quiz)}
+              disabled={duplicatingId === quiz.id}
+              className="flex items-center gap-1.5 rounded-lg border border-violet-200 dark:border-violet-900/60 bg-violet-50 dark:bg-violet-900/15 px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/25 transition-colors disabled:opacity-50 md:border-0 md:bg-transparent md:dark:bg-transparent md:px-0 md:py-0 md:h-7 md:w-7 md:justify-center md:rounded-md md:text-muted-foreground md:hover:bg-violet-50 md:dark:hover:bg-violet-50 md:hover:text-violet-700 md:text-sm md:font-normal"
+              title={t('exams.duplicate')}
+            >
+              {duplicatingId === quiz.id ? (
+                <Loader2 className="h-4 w-4 animate-spin md:h-3.5 md:w-3.5" />
+              ) : (
+                <Copy className="h-4 w-4 md:h-3.5 md:w-3.5" />
+              )}
+              <span className="md:hidden">{t('exams.duplicate')}</span>
             </button>
             {/* Delete */}
             <button
