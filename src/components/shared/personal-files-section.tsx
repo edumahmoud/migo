@@ -408,7 +408,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // ─── Folder picker modal state (for move/copy) ───
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [folderPickerMode, setFolderPickerMode] = useState<'move' | 'copy'>('move');
-  const [folderPickerFileId, setFolderPickerFileId] = useState<string | null>(null);
+  const [folderPickerFileIds, setFolderPickerFileIds] = useState<string[]>([]);
   const [folderPickerCurrentParentId, setFolderPickerCurrentParentId] = useState<string | null>(null); // navigation within modal
   const [folderPickerProgress, setFolderPickerProgress] = useState<number | null>(null); // 0-100 progress for move/copy
 
@@ -1293,6 +1293,86 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
+  // Bulk move files to folder
+  // -------------------------------------------------------
+  const handleBulkMoveToFolder = async (fileIds: string[], targetFolderId: string | null) => {
+    setFolderPickerProgress(5);
+    try {
+      const total = fileIds.length;
+      for (let i = 0; i < total; i++) {
+        const fileId = fileIds[i];
+        setFolderPickerProgress(Math.round(((i) / total) * 90) + 5);
+        const { error } = await supabase
+          .from('user_files')
+          .update({ folder_id: targetFolderId })
+          .eq('id', fileId);
+        if (!error) {
+          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, folder_id: targetFolderId } : f));
+        }
+      }
+      setFolderPickerProgress(100);
+      toast.success(t('files.toastBulkFileMoved', { count: total }));
+    } catch {
+      toast.error(t('files.toastFileMoveFailed'));
+    } finally {
+      setTimeout(() => {
+        setFolderPickerProgress(null);
+        setFolderPickerOpen(false);
+        setFolderPickerCurrentParentId(null);
+        setSelectedFileIds(new Set());
+        setSelectionMode(false);
+      }, 600);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Bulk copy files to folder
+  // -------------------------------------------------------
+  const handleBulkCopyToFolder = async (fileIds: string[], targetFolderId: string | null) => {
+    setFolderPickerProgress(5);
+    try {
+      const total = fileIds.length;
+      const newFiles: UserFile[] = [];
+      for (let i = 0; i < total; i++) {
+        const fileId = fileIds[i];
+        const sourceFile = files.find(f => f.id === fileId);
+        if (!sourceFile) continue;
+        setFolderPickerProgress(Math.round(((i) / total) * 85) + 5);
+        const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = sourceFile;
+        const newFile = { ...rest, folder_id: targetFolderId, file_name: sourceFile.file_name };
+        const { data, error } = await supabase
+          .from('user_files')
+          .insert(newFile)
+          .select()
+          .single();
+        if (!error && data) {
+          newFiles.push(data as UserFile);
+        }
+      }
+      setFolderPickerProgress(95);
+      if (newFiles.length > 0) {
+        setFiles(prev => {
+          const existingIds = new Set(prev.map(f => f.id));
+          const uniqueNew = newFiles.filter(f => !existingIds.has(f.id));
+          return [...uniqueNew, ...prev];
+        });
+      }
+      setFolderPickerProgress(100);
+      toast.success(t('files.toastBulkFileCopied', { count: total }));
+    } catch {
+      toast.error(t('files.toastFileCopyFailed'));
+    } finally {
+      setTimeout(() => {
+        setFolderPickerProgress(null);
+        setFolderPickerOpen(false);
+        setFolderPickerCurrentParentId(null);
+        setSelectedFileIds(new Set());
+        setSelectionMode(false);
+      }, 600);
+    }
+  };
+
+  // -------------------------------------------------------
   // Share files with selected users (using server API to bypass RLS issues)
   // -------------------------------------------------------
   const handleShareWithSelected = async () => {
@@ -2128,7 +2208,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <DropdownMenuSeparator />
                 {/* Move to folder */}
                 <DropdownMenuItem
-                  onClick={() => { setFolderPickerMode('move'); setFolderPickerFileId(file.id); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
+                  onClick={() => { setFolderPickerMode('move'); setFolderPickerFileIds([file.id]); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
                   className="cursor-pointer"
                 >
                   <FolderIcon className="h-4 w-4 me-2" />
@@ -2136,7 +2216,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </DropdownMenuItem>
                 {/* Copy to folder */}
                 <DropdownMenuItem
-                  onClick={() => { setFolderPickerMode('copy'); setFolderPickerFileId(file.id); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
+                  onClick={() => { setFolderPickerMode('copy'); setFolderPickerFileIds([file.id]); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
                   className="cursor-pointer"
                 >
                   <Copy className="h-4 w-4 me-2" />
@@ -2572,6 +2652,22 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       <Trash2 className="h-4 w-4 me-2" />
                       {t('common.delete')}
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => { setFolderPickerMode('move'); setFolderPickerFileIds(Array.from(selectedFileIds)); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
+                      className="cursor-pointer"
+                    >
+                      <FolderIcon className="h-4 w-4 me-2" />
+                      {t('files.moveToFolder')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => { setFolderPickerMode('copy'); setFolderPickerFileIds(Array.from(selectedFileIds)); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
+                      className="cursor-pointer"
+                    >
+                      <Copy className="h-4 w-4 me-2" />
+                      {t('files.copyToFolder')}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
                       <DropdownMenuItem
                         onClick={() => handleBulkVisibility('public')}
@@ -4137,14 +4233,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       </AlertDialog>
 
       {/* Folder Picker Modal (for Move/Copy) */}
-      <Dialog open={folderPickerOpen} onOpenChange={(open) => { if (!open && folderPickerProgress === null) { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); } }}>
+      <Dialog open={folderPickerOpen} onOpenChange={(open) => { if (!open && folderPickerProgress === null) { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); setFolderPickerFileIds([]); } }}>
         <DialogContent dir={direction} className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${folderPickerMode === 'move' ? 'bg-sky-100 dark:bg-sky-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
                 {folderPickerMode === 'move' ? <FolderIcon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" /> : <Copy className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
               </div>
-              {folderPickerMode === 'move' ? t('files.moveToFolder') : t('files.copyToFolder')}
+              {folderPickerMode === 'move'
+                ? (folderPickerFileIds.length > 1 ? t('files.bulkMoveToFolder', { count: folderPickerFileIds.length }) : t('files.moveToFolder'))
+                : (folderPickerFileIds.length > 1 ? t('files.bulkCopyToFolder', { count: folderPickerFileIds.length }) : t('files.copyToFolder'))
+              }
             </DialogTitle>
           </DialogHeader>
 
@@ -4154,7 +4253,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <Progress value={folderPickerProgress} className={`h-2 ${folderPickerMode === 'move' ? '[&>div]:bg-sky-500' : '[&>div]:bg-emerald-500'}`} />
               <p className="text-xs text-muted-foreground text-center">
                 {folderPickerProgress < 100
-                  ? (folderPickerMode === 'move' ? t('files.movingFile') : t('files.copyingFile'))
+                  ? (folderPickerMode === 'move'
+                      ? (folderPickerFileIds.length > 1 ? t('files.movingFiles', { count: folderPickerFileIds.length }) : t('files.movingFile'))
+                      : (folderPickerFileIds.length > 1 ? t('files.copyingFiles', { count: folderPickerFileIds.length }) : t('files.copyingFile')))
                   : t('files.operationComplete')}
               </p>
             </div>
@@ -4199,13 +4300,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <DialogScrollArea className="min-h-[200px] max-h-[400px]">
             {/* Root option — move/copy to root (no folder) */}
             {folderPickerCurrentParentId === null && folderPickerMode === 'move' && (() => {
-              const file = files.find(f => f.id === folderPickerFileId);
-              return file?.folder_id ? true : false;
+              // Show root option if any of the selected files are currently in a folder
+              return folderPickerFileIds.some(fid => files.find(f => f.id === fid)?.folder_id);
             })() && (
               <button
                 onClick={() => {
-                  if (folderPickerFileId) {
-                    handleMoveFileToFolder(folderPickerFileId, null);
+                  if (folderPickerFileIds.length === 1) {
+                    handleMoveFileToFolder(folderPickerFileIds[0], null);
+                  } else {
+                    handleBulkMoveToFolder(folderPickerFileIds, null);
                   }
                 }}
                 disabled={folderPickerProgress !== null}
@@ -4222,11 +4325,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {folderPickerCurrentParentId && (
               <button
                 onClick={() => {
-                  if (folderPickerFileId) {
+                  if (folderPickerFileIds.length === 1) {
                     if (folderPickerMode === 'move') {
-                      handleMoveFileToFolder(folderPickerFileId, folderPickerCurrentParentId);
+                      handleMoveFileToFolder(folderPickerFileIds[0], folderPickerCurrentParentId);
                     } else {
-                      handleCopyFileToFolder(folderPickerFileId, folderPickerCurrentParentId);
+                      handleCopyFileToFolder(folderPickerFileIds[0], folderPickerCurrentParentId);
+                    }
+                  } else {
+                    if (folderPickerMode === 'move') {
+                      handleBulkMoveToFolder(folderPickerFileIds, folderPickerCurrentParentId);
+                    } else {
+                      handleBulkCopyToFolder(folderPickerFileIds, folderPickerCurrentParentId);
                     }
                   }
                 }}
@@ -4248,7 +4357,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </div>
             ) : (
               getSubFolders(folderPickerCurrentParentId).map((folder) => {
-                const isCurrentFileFolder = files.find(f => f.id === folderPickerFileId)?.folder_id === folder.id;
+                // For move: disable folder if ALL selected files are already in this folder
+                const isCurrentFileFolder = folderPickerMode === 'move' && folderPickerFileIds.length > 0 && folderPickerFileIds.every(fid => files.find(f => f.id === fid)?.folder_id === folder.id);
                 return (
                   <button
                     key={folder.id}
@@ -4300,7 +4410,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
           <DialogFooter>
             <button
-              onClick={() => { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); setNewFolderName(''); }}
+              onClick={() => { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); setNewFolderName(''); setFolderPickerFileIds([]); }}
               className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               {t('common.cancel')}

@@ -2399,6 +2399,12 @@ export const en: TranslationDict = {
     moveHere: 'Move Here',
     copyHere: 'Copy Here',
     noSubFolders: 'No subfolders',
+    bulkMoveToFolder: 'Move {count} files to folder',
+    bulkCopyToFolder: 'Copy {count} files to folder',
+    movingFiles: 'Moving {count} files...',
+    copyingFiles: 'Copying {count} files...',
+    toastBulkFileMoved: '{count} files moved successfully',
+    toastBulkFileCopied: '{count} files copied successfully',
   },
 
   // ─── Offline ───

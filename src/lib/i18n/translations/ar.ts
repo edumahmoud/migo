@@ -2411,6 +2411,12 @@ export const ar: TranslationDict = {
     moveHere: 'نقل إلى هنا',
     copyHere: 'نسخ هنا',
     noSubFolders: 'لا توجد مجلدات فرعية',
+    bulkMoveToFolder: 'نقل {count} ملفات إلى مجلد',
+    bulkCopyToFolder: 'نسخ {count} ملفات إلى مجلد',
+    movingFiles: 'جارٍ نقل {count} ملفات...',
+    copyingFiles: 'جارٍ نسخ {count} ملفات...',
+    toastBulkFileMoved: 'تم نقل {count} ملفات بنجاح',
+    toastBulkFileCopied: 'تم نسخ {count} ملفات بنجاح',
   },
 
   // ─── Offline ───
