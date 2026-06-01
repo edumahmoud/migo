@@ -2405,6 +2405,7 @@ export const en: TranslationDict = {
     copyingFiles: 'Copying {count} files...',
     toastBulkFileMoved: '{count} files moved successfully',
     toastBulkFileCopied: '{count} files copied successfully',
+    existingFiles: 'Existing files',
   },
 
   // ─── Offline ───

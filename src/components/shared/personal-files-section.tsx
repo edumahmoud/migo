@@ -2394,7 +2394,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           return (
             <button
               key={cat}
-              onClick={() => { setCategoryFilter(cat); if (cat !== 'folders' && cat !== 'all') setCurrentFolderId(null); }}
+              onClick={() => { setCategoryFilter(cat); if (cat !== 'folders') setCurrentFolderId(null); }}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 isActive
                   ? isFolderCat
@@ -4350,34 +4350,67 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             )}
 
             {/* Folder list at current level */}
-            {getSubFolders(folderPickerCurrentParentId).length === 0 ? (
+            {getSubFolders(folderPickerCurrentParentId).length === 0 && files.filter(f => (f.folder_id ?? null) === folderPickerCurrentParentId).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                 <FolderIcon className="h-8 w-8 mb-2 opacity-40" />
                 <p className="text-xs">{t('files.noSubFolders')}</p>
               </div>
             ) : (
-              getSubFolders(folderPickerCurrentParentId).map((folder) => {
-                // For move: disable folder if ALL selected files are already in this folder
-                const isCurrentFileFolder = folderPickerMode === 'move' && folderPickerFileIds.length > 0 && folderPickerFileIds.every(fid => files.find(f => f.id === fid)?.folder_id === folder.id);
-                return (
-                  <button
-                    key={folder.id}
-                    onClick={() => setFolderPickerCurrentParentId(folder.id)}
-                    disabled={folderPickerMode === 'move' && isCurrentFileFolder}
-                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                      isCurrentFileFolder && folderPickerMode === 'move'
-                        ? 'opacity-40 cursor-not-allowed'
-                        : 'hover:bg-muted cursor-pointer'
-                    }`}
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 shrink-0">
-                      <FolderIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-                    </div>
-                    <span className="truncate flex-1 text-start">{folder.name}</span>
-                    <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
-                  </button>
-                );
-              })
+              <>
+                {/* Sub-folders */}
+                {getSubFolders(folderPickerCurrentParentId).map((folder) => {
+                  // For move: disable folder if ALL selected files are already in this folder
+                  const isCurrentFileFolder = folderPickerMode === 'move' && folderPickerFileIds.length > 0 && folderPickerFileIds.every(fid => files.find(f => f.id === fid)?.folder_id === folder.id);
+                  const subFileCount = files.filter(f => f.folder_id === folder.id).length;
+                  return (
+                    <button
+                      key={folder.id}
+                      onClick={() => setFolderPickerCurrentParentId(folder.id)}
+                      disabled={folderPickerMode === 'move' && isCurrentFileFolder}
+                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                        isCurrentFileFolder && folderPickerMode === 'move'
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:bg-muted cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 shrink-0">
+                        <FolderIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                      </div>
+                      <span className="truncate flex-1 text-start">{folder.name}</span>
+                      {subFileCount > 0 && (
+                        <span className="text-[10px] text-muted-foreground shrink-0">{t('files.folderFileCount', { count: subFileCount })}</span>
+                      )}
+                      <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                    </button>
+                  );
+                })}
+                {/* Files inside current folder */}
+                {(() => {
+                  const folderFiles = files.filter(f => (f.folder_id ?? null) === folderPickerCurrentParentId && !folderPickerFileIds.includes(f.id));
+                  if (folderFiles.length === 0) return null;
+                  return (
+                    <>
+                      <div className="flex items-center gap-2 px-1 pt-2 pb-1">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{t('files.existingFiles')}</span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      {folderFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted shrink-0">
+                            {getFileIcon(file.file_type)}
+                          </div>
+                          <span className="truncate flex-1 text-start text-muted-foreground">{file.file_name}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{formatFileSize(file.file_size)}</span>
+                        </div>
+                      ))}
+                    </>
+                  );
+                })()}
+              </>
             )}
           </DialogScrollArea>
 

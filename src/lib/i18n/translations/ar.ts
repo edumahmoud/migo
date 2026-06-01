@@ -2417,6 +2417,7 @@ export const ar: TranslationDict = {
     copyingFiles: 'جارٍ نسخ {count} ملفات...',
     toastBulkFileMoved: 'تم نقل {count} ملفات بنجاح',
     toastBulkFileCopied: 'تم نسخ {count} ملفات بنجاح',
+    existingFiles: 'الملفات الموجودة',
   },
 
   // ─── Offline ───
