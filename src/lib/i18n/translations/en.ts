@@ -2388,7 +2388,13 @@ export const en: TranslationDict = {
     toastFolderDeleteFailed: 'An error occurred while deleting the folder',
     toastFileMoved: 'File moved successfully',
     toastFileMoveFailed: 'An error occurred while moving the file',
+    toastFileCopied: 'File copied successfully',
+    toastFileCopyFailed: 'An error occurred while copying the file',
     toastFolderNameRequired: 'Please enter a folder name',
+    copyToFolder: 'Copy to Folder',
+    moveHere: 'Move Here',
+    copyHere: 'Copy Here',
+    noSubFolders: 'No subfolders',
   },
 
   // ─── Offline ───

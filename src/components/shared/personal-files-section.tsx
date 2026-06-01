@@ -37,6 +37,7 @@ import {
   Maximize2,
   EyeOff,
   Users,
+  Copy,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -51,6 +52,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogScrollArea,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -394,6 +403,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
 
+  // ─── Folder picker modal state (for move/copy) ───
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [folderPickerMode, setFolderPickerMode] = useState<'move' | 'copy'>('move');
+  const [folderPickerFileId, setFolderPickerFileId] = useState<string | null>(null);
+  const [folderPickerCurrentParentId, setFolderPickerCurrentParentId] = useState<string | null>(null); // navigation within modal
+
   // -------------------------------------------------------
   // Fetch my files
   // -------------------------------------------------------
@@ -611,6 +626,35 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   }, [profile.id, fetchFiles]);
 
   // -------------------------------------------------------
+  // Real-time subscription for user_folders
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`user-folders-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        const newFolder = payload.new as UserFolder;
+        if (newFolder) {
+          setFolders(prev => [...prev, newFolder].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        const updated = payload.new as UserFolder;
+        if (updated) {
+          setFolders(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f).sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        const deletedId = payload.old?.id;
+        if (deletedId) {
+          setFolders(prev => prev.filter(f => f.id !== deletedId));
+          if (currentFolderId === deletedId) setCurrentFolderId(null);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile.id, currentFolderId]);
+
+  // -------------------------------------------------------
   // Fetch file share & course counts (batch)
   // -------------------------------------------------------
   const fetchFileCounts = useCallback(async (fileList: UserFile[]) => {
@@ -724,6 +768,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const rootFilesCount = useMemo(() => {
     return files.filter(f => !f.folder_id).length;
   }, [files]);
+
+  // Compute sub-folders for a given parent (null = root)
+  const getSubFolders = useCallback((parentId: string | null) => {
+    return folders.filter(f => (f.parent_folder_id ?? null) === parentId);
+  }, [folders]);
+
+  // Folders visible in current view (root or inside a folder)
+  const visibleFolders = useMemo(() => {
+    return getSubFolders(currentFolderId);
+  }, [currentFolderId, getSubFolders]);
 
   // -------------------------------------------------------
   // Open upload modal
@@ -1056,16 +1110,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   // Create folder
   // -------------------------------------------------------
-  const handleCreateFolder = async () => {
+  const handleCreateFolder = async (parentFolderId?: string | null) => {
     if (!newFolderName.trim()) {
       toast.error(t('files.toastFolderNameRequired'));
       return;
     }
     setCreatingFolder(true);
     try {
+      const insertData: { user_id: string; name: string; parent_folder_id?: string | null } = {
+        user_id: profile.id,
+        name: newFolderName.trim(),
+      };
+      if (parentFolderId) {
+        insertData.parent_folder_id = parentFolderId;
+      }
       const { data, error } = await supabase
         .from('user_folders')
-        .insert({ user_id: profile.id, name: newFolderName.trim() })
+        .insert(insertData)
         .select()
         .single();
       if (error) {
@@ -1156,6 +1217,35 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     } catch {
       toast.error(t('files.toastFileMoveFailed'));
+    }
+  };
+
+  // -------------------------------------------------------
+  // Copy file to folder (creates a new user_files record)
+  // -------------------------------------------------------
+  const handleCopyFileToFolder = async (fileId: string, targetFolderId: string | null) => {
+    try {
+      const sourceFile = files.find(f => f.id === fileId);
+      if (!sourceFile) return;
+      const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = sourceFile;
+      const newFile = {
+        ...rest,
+        folder_id: targetFolderId,
+        file_name: sourceFile.file_name,
+      };
+      const { data, error } = await supabase
+        .from('user_files')
+        .insert(newFile)
+        .select()
+        .single();
+      if (error) {
+        toast.error(t('files.toastFileCopyFailed'));
+      } else if (data) {
+        setFiles(prev => [data as UserFile, ...prev]);
+        toast.success(t('files.toastFileCopied'));
+      }
+    } catch {
+      toast.error(t('files.toastFileCopyFailed'));
     }
   };
 
@@ -1995,24 +2085,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <DropdownMenuSeparator />
                 {/* Move to folder */}
                 <DropdownMenuItem
-                  onClick={() => handleMoveFileToFolder(file.id, null)}
+                  onClick={() => { setFolderPickerMode('move'); setFolderPickerFileId(file.id); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
                   className="cursor-pointer"
-                  disabled={!file.folder_id}
                 >
                   <FolderIcon className="h-4 w-4 me-2" />
-                  {t('files.moveToRoot')}
+                  {t('files.moveToFolder')}
                 </DropdownMenuItem>
-                {folders.map(folder => (
-                  <DropdownMenuItem
-                    key={folder.id}
-                    onClick={() => handleMoveFileToFolder(file.id, folder.id)}
-                    className="cursor-pointer"
-                    disabled={file.folder_id === folder.id}
-                  >
-                    <FolderIcon className="h-4 w-4 me-2" />
-                    {folder.name}
-                  </DropdownMenuItem>
-                ))}
+                {/* Copy to folder */}
+                <DropdownMenuItem
+                  onClick={() => { setFolderPickerMode('copy'); setFolderPickerFileId(file.id); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
+                  className="cursor-pointer"
+                >
+                  <Copy className="h-4 w-4 me-2" />
+                  {t('files.copyToFolder')}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setConfirmDeleteId(file.id)}
@@ -2200,24 +2286,49 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2"
+            className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2 overflow-x-auto"
           >
             {/* Root / Home */}
             <button
               onClick={() => { setCurrentFolderId(null); if (categoryFilter === 'folders') setCategoryFilter('all'); }}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
             >
               <Home className="h-3.5 w-3.5" />
               <span>{t('files.allFiles')}</span>
             </button>
-            {/* Separator */}
-            <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground/50 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
-            {/* Current folder */}
-            <div className="flex items-center gap-1.5 rounded-md bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-sm font-medium text-amber-800 dark:text-amber-300">
-              <FolderIcon className="h-3.5 w-3.5" />
-              <span>{folders.find(f => f.id === currentFolderId)?.name || ''}</span>
-              <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70">({filteredFiles.length})</span>
-            </div>
+            {/* Path segments */}
+            {(() => {
+              const path: UserFolder[] = [];
+              let cur: string | null | undefined = currentFolderId;
+              const visited = new Set<string>();
+              while (cur) {
+                if (visited.has(cur)) break;
+                visited.add(cur);
+                const folder = folders.find(f => f.id === cur);
+                if (!folder) break;
+                path.unshift(folder);
+                cur = folder.parent_folder_id;
+              }
+              return path.map((f, idx) => (
+                <span key={f.id} className="flex items-center gap-1.5 shrink-0">
+                  <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground/50 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                  {idx === path.length - 1 ? (
+                    <div className="flex items-center gap-1.5 rounded-md bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-sm font-medium text-amber-800 dark:text-amber-300">
+                      <FolderIcon className="h-3.5 w-3.5" />
+                      <span>{f.name}</span>
+                      <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70">({filteredFiles.length})</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setCurrentFolderId(f.id)}
+                      className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    >
+                      {f.name}
+                    </button>
+                  )}
+                </span>
+              ));
+            })()}
           </motion.div>
         )}
       </AnimatePresence>
@@ -2262,10 +2373,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </motion.div>
       )}
 
-      {/* Folders grid (root level only — visible in 'all' and 'folders' tabs) */}
-      {currentFolderId === null && activeTab === 'my-files' && (categoryFilter === 'all' || categoryFilter === 'folders') && folders.length > 0 && (
+      {/* Folders grid — only in 'folders' tab or when inside a folder */}
+      {activeTab === 'my-files' && (categoryFilter === 'folders' || currentFolderId !== null) && visibleFolders.length > 0 && (
         <motion.div variants={containerVariants} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {folders.map((folder) => (
+          {visibleFolders.map((folder) => (
             <motion.div key={folder.id} variants={itemVariants}>
               <div
                 onClick={() => { setCurrentFolderId(folder.id); if (categoryFilter === 'folders') setCategoryFilter('all'); }}
@@ -2315,7 +2426,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       )}
 
       {/* Folders tab empty state */}
-      {categoryFilter === 'folders' && currentFolderId === null && folders.length === 0 && (
+      {categoryFilter === 'folders' && activeTab === 'my-files' && visibleFolders.length === 0 && (
         <motion.div
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15 py-16"
@@ -3969,6 +4080,169 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Folder Picker Modal (for Move/Copy) */}
+      <Dialog open={folderPickerOpen} onOpenChange={(open) => { if (!open) { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); } }}>
+        <DialogContent dir={direction} className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${folderPickerMode === 'move' ? 'bg-sky-100 dark:bg-sky-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}`}>
+                {folderPickerMode === 'move' ? <FolderIcon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" /> : <Copy className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
+              </div>
+              {folderPickerMode === 'move' ? t('files.moveToFolder') : t('files.copyToFolder')}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Breadcrumb inside modal */}
+          <div className="flex items-center gap-1 text-xs px-1">
+            <button
+              onClick={() => setFolderPickerCurrentParentId(null)}
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${folderPickerCurrentParentId === null ? 'text-foreground font-medium bg-muted' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+            >
+              <Home className="h-3 w-3" />
+              {t('files.rootFolder')}
+            </button>
+            {(() => {
+              // Build path from root to current parent
+              const path: UserFolder[] = [];
+              let current = folderPickerCurrentParentId;
+              const visited = new Set<string>();
+              while (current) {
+                if (visited.has(current)) break;
+                visited.add(current);
+                const folder = folders.find(f => f.id === current);
+                if (!folder) break;
+                path.unshift(folder);
+                current = folder.parent_folder_id;
+              }
+              return path.map((f) => (
+                <span key={f.id} className="flex items-center gap-1">
+                  <ChevronRight className={`h-3 w-3 text-muted-foreground/50 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                  <button
+                    onClick={() => setFolderPickerCurrentParentId(f.id)}
+                    className={`rounded px-1.5 py-0.5 transition-colors ${f.id === folderPickerCurrentParentId ? 'text-foreground font-medium bg-muted' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                  >
+                    {f.name}
+                  </button>
+                </span>
+              ));
+            })()}
+          </div>
+
+          <DialogScrollArea className="min-h-[200px] max-h-[400px]">
+            {/* Root option — move/copy to root (no folder) */}
+            {folderPickerCurrentParentId === null && folderPickerMode === 'move' && (() => {
+              const file = files.find(f => f.id === folderPickerFileId);
+              return file?.folder_id ? true : false;
+            })() && (
+              <button
+                onClick={() => {
+                  if (folderPickerFileId) {
+                    handleMoveFileToFolder(folderPickerFileId, null);
+                    setFolderPickerOpen(false);
+                    setFolderPickerCurrentParentId(null);
+                  }
+                }}
+                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+                  <Home className="h-4 w-4" />
+                </div>
+                {t('files.moveToRoot')}
+              </button>
+            )}
+
+            {/* Current folder option — select this folder as target */}
+            {folderPickerCurrentParentId && (
+              <button
+                onClick={() => {
+                  if (folderPickerFileId) {
+                    if (folderPickerMode === 'move') {
+                      handleMoveFileToFolder(folderPickerFileId, folderPickerCurrentParentId);
+                    } else {
+                      handleCopyFileToFolder(folderPickerFileId, folderPickerCurrentParentId);
+                    }
+                    setFolderPickerOpen(false);
+                    setFolderPickerCurrentParentId(null);
+                  }
+                }}
+                className="w-full flex items-center gap-3 rounded-lg border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors mb-2"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                  <FolderIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                </div>
+                {folderPickerMode === 'move' ? t('files.moveHere') : t('files.copyHere')}
+              </button>
+            )}
+
+            {/* Folder list at current level */}
+            {getSubFolders(folderPickerCurrentParentId).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <FolderIcon className="h-8 w-8 mb-2 opacity-40" />
+                <p className="text-xs">{t('files.noSubFolders')}</p>
+              </div>
+            ) : (
+              getSubFolders(folderPickerCurrentParentId).map((folder) => {
+                const isCurrentFileFolder = files.find(f => f.id === folderPickerFileId)?.folder_id === folder.id;
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => setFolderPickerCurrentParentId(folder.id)}
+                    disabled={folderPickerMode === 'move' && isCurrentFileFolder}
+                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                      isCurrentFileFolder && folderPickerMode === 'move'
+                        ? 'opacity-40 cursor-not-allowed'
+                        : 'hover:bg-muted cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 shrink-0">
+                      <FolderIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                    </div>
+                    <span className="truncate flex-1 text-start">{folder.name}</span>
+                    <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                  </button>
+                );
+              })
+            )}
+          </DialogScrollArea>
+
+          {/* Quick create folder */}
+          <div className="flex items-center gap-2 border-t pt-3">
+            <div className="relative flex-1">
+              <FolderIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                className="ps-8 h-8 text-xs"
+                placeholder={t('files.folderNamePlaceholder')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newFolderName.trim()) {
+                    handleCreateFolder(folderPickerCurrentParentId);
+                  }
+                }}
+              />
+            </div>
+            <button
+              onClick={() => { if (newFolderName.trim()) handleCreateFolder(folderPickerCurrentParentId); }}
+              disabled={creatingFolder || !newFolderName.trim()}
+              className="flex items-center gap-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white px-3 h-8 text-xs font-medium disabled:opacity-50 transition-colors shrink-0"
+            >
+              {creatingFolder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderPlus className="h-3.5 w-3.5" />}
+              {t('files.createFolder')}
+            </button>
+          </div>
+
+          <DialogFooter>
+            <button
+              onClick={() => { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); setNewFolderName(''); }}
+              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              {t('common.cancel')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* File upload progress is now shown globally via FileUploadIndicator in layout.tsx */}
     </div>
