@@ -93,9 +93,9 @@ const itemVariants = {
 // -------------------------------------------------------
 // File type categories
 // -------------------------------------------------------
-type FileCategory = 'all' | 'images' | 'documents' | 'videos' | 'audio' | 'other';
+type FileCategory = 'all' | 'folders' | 'images' | 'documents' | 'videos' | 'audio' | 'other';
 
-const FILE_CATEGORIES: FileCategory[] = ['all', 'images', 'documents', 'videos', 'audio', 'other'];
+const FILE_CATEGORIES: FileCategory[] = ['all', 'folders', 'images', 'documents', 'videos', 'audio', 'other'];
 
 function getFileCategory(fileType: string): FileCategory {
   const lower = fileType.toLowerCase();
@@ -260,6 +260,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Category label mapping for i18n
   const categoryLabels: Record<FileCategory, string> = {
     all: t('files.categoryAll'),
+    folders: t('files.categoryFolders'),
     images: t('files.categoryImages'),
     documents: t('files.categoryDocuments'),
     videos: t('files.categoryVideos'),
@@ -2164,19 +2165,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Category filter tabs */}
       <motion.div variants={itemVariants} className="flex items-center gap-2 overflow-x-auto pb-1">
         {FILE_CATEGORIES.map((cat) => {
-          const count = cat === 'all' ? files.length : files.filter((f) => getFileCategory(f.file_type) === cat).length;
+          const count = cat === 'all' ? files.length : cat === 'folders' ? folders.length : files.filter((f) => getFileCategory(f.file_type) === cat).length;
+          const isFolderCat = cat === 'folders';
+          const isActive = categoryFilter === cat;
           return (
             <button
               key={cat}
-              onClick={() => setCategoryFilter(cat)}
+              onClick={() => { setCategoryFilter(cat); if (cat !== 'folders' && cat !== 'all') setCurrentFolderId(null); }}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
-                categoryFilter === cat
-                  ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
+                isActive
+                  ? isFolderCat
+                    ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-800 dark:text-amber-400'
+                    : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
+              {isFolderCat && <FolderIcon className="h-3 w-3" />}
               {categoryLabels[cat]}
-              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`}>
+              <span className={`text-[10px] ${isActive ? (isFolderCat ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400') : 'text-muted-foreground'}`}>
                 ({count})
               </span>
             </button>
@@ -2241,13 +2247,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </motion.div>
       )}
 
-      {/* Folders grid (root level only) */}
-      {currentFolderId === null && activeTab === 'my-files' && folders.length > 0 && (
+      {/* Folders grid (root level only — visible in 'all' and 'folders' tabs) */}
+      {currentFolderId === null && activeTab === 'my-files' && (categoryFilter === 'all' || categoryFilter === 'folders') && folders.length > 0 && (
         <motion.div variants={containerVariants} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {folders.map((folder) => (
             <motion.div key={folder.id} variants={itemVariants}>
               <div
-                onClick={() => setCurrentFolderId(folder.id)}
+                onClick={() => { setCurrentFolderId(folder.id); if (categoryFilter === 'folders') setCategoryFilter('all'); }}
                 className="group relative flex flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-800/60 cursor-pointer transition-all"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
@@ -2293,8 +2299,22 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </motion.div>
       )}
 
-      {/* Files grid */}
-      {loadingFiles ? (
+      {/* Folders tab empty state */}
+      {categoryFilter === 'folders' && currentFolderId === null && folders.length === 0 && (
+        <motion.div
+          variants={itemVariants}
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15 py-16"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40 mb-4">
+            <FolderIcon className="h-8 w-8 text-amber-600 dark:text-amber-500" />
+          </div>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('files.noFoldersYet')}</p>
+          <p className="text-sm text-muted-foreground">{t('files.createFolderHint')}</p>
+        </motion.div>
+      )}
+
+      {/* Files grid (hidden when 'folders' tab is selected) */}
+      {categoryFilter !== 'folders' && (loadingFiles ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
@@ -2322,7 +2342,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div key={file.id}>{renderFileCard(file)}</div>
           ))}
         </motion.div>
-      )}
+      ))}
 
       {/* Bulk Action Bar */}
       <AnimatePresence>
