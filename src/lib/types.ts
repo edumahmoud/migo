@@ -178,8 +178,16 @@ export interface UserFile {
   storage_path?: string; // Supabase Storage path for direct SDK access (more reliable than public URL)
   assignment_id?: string;
   visibility?: 'public' | 'private';
+  folder_id?: string | null; // FK to user_folders — null means root level
   created_at: string;
   updated_at: string;
+}
+
+export interface UserFolder {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
 }
 
 export interface FileShare {

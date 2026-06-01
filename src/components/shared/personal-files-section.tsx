@@ -27,6 +27,8 @@ import {
   Lock,
   Globe,
   FolderPlus,
+  Folder as FolderIcon,
+  ChevronLeft,
   Info,
   CheckSquare,
   Square,
@@ -46,7 +48,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import type { UserProfile, UserFile, FileShare, Subject } from '@/lib/types';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import type { UserProfile, UserFile, UserFolder, FileShare, Subject } from '@/lib/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTranslations } from '@/i18n/use-translations';
 import UserAvatar, { getRoleLabel, getTitleLabel, formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -366,6 +378,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // ─── Shared file recipients modal ───
   const [showRecipientsFile, setShowRecipientsFile] = useState<SharedFileWithInfo | null>(null);
 
+  // ─── Folder state ───
+  const [folders, setFolders] = useState<UserFolder[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = root
+  const [newFolderName, setNewFolderName] = useState('');
+  const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameFolderValue, setRenameFolderValue] = useState('');
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
+  const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+
   // -------------------------------------------------------
   // Fetch my files
   // -------------------------------------------------------
@@ -386,6 +410,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       console.error('Fetch files error:', err);
     } finally {
       setLoadingFiles(false);
+    }
+  }, [profile.id]);
+
+  // -------------------------------------------------------
+  // Fetch my folders
+  // -------------------------------------------------------
+  const fetchFolders = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_folders')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('name');
+      if (!error && data) {
+        setFolders(data as UserFolder[]);
+      }
+    } catch (err) {
+      console.error('Fetch folders error:', err);
     }
   }, [profile.id]);
 
@@ -524,11 +566,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   useEffect(() => {
     const init = async () => {
       await fetchFiles();
-      // Also fetch shared files on mount so the count badge appears immediately
+      fetchFolders();
       fetchSharedFiles();
     };
     init();
-  }, [fetchFiles, fetchSharedFiles]);
+  }, [fetchFiles, fetchFolders, fetchSharedFiles]);
 
   // -------------------------------------------------------
   // Real-time subscription for user_files (personal files)
@@ -648,6 +690,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const filteredFiles = useMemo(() => {
     let result = files;
+    // Filter by current folder
+    result = result.filter((f) => (f.folder_id ?? null) === currentFolderId);
     // Filter by visibility
     if (visibilityFilter === 'public') {
       result = result.filter((f) => f.visibility === 'public');
@@ -659,7 +703,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       result = result.filter((f) => getFileCategory(f.file_type) === categoryFilter);
     }
     return result;
-  }, [files, categoryFilter, visibilityFilter]);
+  }, [files, categoryFilter, visibilityFilter, currentFolderId]);
+
+  // Compute file count per folder (for display on folder cards)
+  const folderFileCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const f of files) {
+      if (f.folder_id) {
+        counts[f.folder_id] = (counts[f.folder_id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [files]);
+
+  // Root-level files count (not in any folder)
+  const rootFilesCount = useMemo(() => {
+    return files.filter(f => !f.folder_id).length;
+  }, [files]);
 
   // -------------------------------------------------------
   // Open upload modal
@@ -986,6 +1046,112 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     } catch {
       toast.error(t('common.errorUnexpected'));
+    }
+  };
+
+  // -------------------------------------------------------
+  // Create folder
+  // -------------------------------------------------------
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      toast.error(t('files.toastFolderNameRequired'));
+      return;
+    }
+    setCreatingFolder(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_folders')
+        .insert({ user_id: profile.id, name: newFolderName.trim() })
+        .select()
+        .single();
+      if (error) {
+        toast.error(t('files.toastFolderCreateFailed'));
+      } else if (data) {
+        setFolders(prev => [...prev, data as UserFolder].sort((a, b) => a.name.localeCompare(b.name)));
+        toast.success(t('files.toastFolderCreated'));
+        setNewFolderName('');
+      }
+    } catch {
+      toast.error(t('files.toastFolderCreateFailed'));
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Rename folder
+  // -------------------------------------------------------
+  const handleRenameFolder = async (folderId: string) => {
+    if (!renameFolderValue.trim()) return;
+    setRenamingFolder(true);
+    try {
+      const { error } = await supabase
+        .from('user_folders')
+        .update({ name: renameFolderValue.trim() })
+        .eq('id', folderId);
+      if (error) {
+        toast.error(t('files.toastFolderRenameFailed'));
+      } else {
+        setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: renameFolderValue.trim() } : f).sort((a, b) => a.name.localeCompare(b.name)));
+        toast.success(t('files.toastFolderRenamed'));
+      }
+    } catch {
+      toast.error(t('files.toastFolderRenameFailed'));
+    } finally {
+      setRenamingFolder(false);
+      setRenamingFolderId(null);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Delete folder (moves files to root)
+  // -------------------------------------------------------
+  const handleDeleteFolder = async (folderId: string) => {
+    setDeletingFolderId(folderId);
+    try {
+      // Move all files in this folder to root (folder_id = null)
+      await supabase
+        .from('user_files')
+        .update({ folder_id: null })
+        .eq('folder_id', folderId);
+      // Delete the folder
+      const { error } = await supabase
+        .from('user_folders')
+        .delete()
+        .eq('id', folderId);
+      if (error) {
+        toast.error(t('files.toastFolderDeleteFailed'));
+      } else {
+        setFolders(prev => prev.filter(f => f.id !== folderId));
+        setFiles(prev => prev.map(f => f.folder_id === folderId ? { ...f, folder_id: null } : f));
+        if (currentFolderId === folderId) setCurrentFolderId(null);
+        toast.success(t('files.toastFolderDeleted'));
+      }
+    } catch {
+      toast.error(t('files.toastFolderDeleteFailed'));
+    } finally {
+      setDeletingFolderId(null);
+      setConfirmDeleteFolderId(null);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Move file to folder
+  // -------------------------------------------------------
+  const handleMoveFileToFolder = async (fileId: string, targetFolderId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('user_files')
+        .update({ folder_id: targetFolderId })
+        .eq('id', fileId);
+      if (error) {
+        toast.error(t('files.toastFileMoveFailed'));
+      } else {
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, folder_id: targetFolderId } : f));
+        toast.success(t('files.toastFileMoved'));
+      }
+    } catch {
+      toast.error(t('files.toastFileMoveFailed'));
     }
   };
 
@@ -1823,6 +1989,27 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   )}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {/* Move to folder */}
+                <DropdownMenuItem
+                  onClick={() => handleMoveFileToFolder(file.id, null)}
+                  className="cursor-pointer"
+                  disabled={!file.folder_id}
+                >
+                  <FolderIcon className="h-4 w-4 me-2" />
+                  {t('files.moveToRoot')}
+                </DropdownMenuItem>
+                {folders.map(folder => (
+                  <DropdownMenuItem
+                    key={folder.id}
+                    onClick={() => handleMoveFileToFolder(file.id, folder.id)}
+                    className="cursor-pointer"
+                    disabled={file.folder_id === folder.id}
+                  >
+                    <FolderIcon className="h-4 w-4 me-2" />
+                    {folder.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setConfirmDeleteId(file.id)}
                   className="text-rose-600 dark:text-rose-500 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-900/20/30"
@@ -1849,7 +2036,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             </span>
           </div>
 
-          {/* Row 3: Badges - visibility + share count + course assignment count */}
+          {/* Row 3: Badges - visibility + share count + course assignment count + folder */}
           <div className="flex items-center gap-1.5 flex-wrap mt-2">
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
               file.visibility === 'public'
@@ -1859,6 +2046,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
               {file.visibility === 'public' ? t('files.public') : t('files.private')}
             </span>
+            {!currentFolderId && file.folder_id && (() => {
+              const folder = folders.find(f => f.id === file.folder_id);
+              return folder ? (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 flex items-center gap-0.5">
+                  <FolderIcon className="h-2.5 w-2.5" />
+                  {folder.name}
+                </span>
+              ) : null;
+            })()}
             {shareCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-800 dark:text-violet-200 px-2 py-0.5 text-[10px] font-medium">
                 <Users className="h-3 w-3" />
@@ -1918,6 +2114,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <p className="text-muted-foreground mt-1">{t('files.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setNewFolderName(''); setCreateFolderDialogOpen(true); }}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-amber-300 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+            {t('files.newFolder')}
+          </button>
           <button
             onClick={openUploadModal}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 active:bg-sky-900 touch-manipulation"
@@ -1980,6 +2183,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         })}
       </motion.div>
 
+      {/* Folder breadcrumb */}
+      {currentFolderId && (
+        <motion.div variants={itemVariants} className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentFolderId(null)}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className={`h-4 w-4 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+            {t('files.allFiles')}
+          </button>
+          <span className="text-muted-foreground">/</span>
+          <span className="text-sm font-medium text-foreground">
+            {folders.find(f => f.id === currentFolderId)?.name || ''}
+          </span>
+        </motion.div>
+      )}
+
       {/* Select mode toggle / Select all + count */}
       {!loadingFiles && filteredFiles.length > 0 && (
         <motion.div variants={itemVariants} className="flex items-center gap-3">
@@ -2017,6 +2237,58 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </button>
             </>
           )}
+        </motion.div>
+      )}
+
+      {/* Folders grid (root level only) */}
+      {currentFolderId === null && activeTab === 'my-files' && folders.length > 0 && (
+        <motion.div variants={containerVariants} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {folders.map((folder) => (
+            <motion.div key={folder.id} variants={itemVariants}>
+              <div
+                onClick={() => setCurrentFolderId(folder.id)}
+                className="group relative flex flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-800/60 cursor-pointer transition-all"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
+                  <FolderIcon className="h-7 w-7 text-amber-600 dark:text-amber-500" />
+                </div>
+                <div className="text-center min-w-0 w-full">
+                  <p className="text-sm font-semibold text-foreground truncate">{folder.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{t('files.folderFileCount', { count: folderFileCounts[folder.id] || 0 })}</p>
+                </div>
+                {/* Folder actions dropdown */}
+                <div className="absolute top-2 end-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <DropdownMenu dir={direction}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted transition-colors"
+                      >
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem
+                        onClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderValue(folder.name); }}
+                        className="cursor-pointer"
+                      >
+                        <Pencil className="h-4 w-4 me-2" />
+                        {t('files.renameFolder')}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={e => { e.stopPropagation(); setConfirmDeleteFolderId(folder.id); }}
+                        className="text-rose-600 dark:text-rose-500 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4 me-2" />
+                        {t('files.deleteFolder')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </motion.div>
       )}
 
@@ -3554,6 +3826,93 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {renderPreviewModal()}
       {renderBulkShareModal()}
       {renderRecipientsModal()}
+
+      {/* Create Folder Dialog */}
+      <AlertDialog open={createFolderDialogOpen} onOpenChange={(open) => { if (!open) setCreateFolderDialogOpen(false); }}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('files.createFolder')}</AlertDialogTitle>
+          </AlertDialogHeader>
+          <input
+            type="text"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+            placeholder={t('files.folderNamePlaceholder')}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newFolderName.trim()) handleCreateFolder();
+            }}
+          />
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel onClick={() => { setNewFolderName(''); setCreateFolderDialogOpen(false); }}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleCreateFolder();
+              }}
+              disabled={creatingFolder || !newFolderName.trim()}
+            >
+              {creatingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : t('files.createFolder')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rename Folder Dialog */}
+      <AlertDialog open={!!renamingFolderId} onOpenChange={(open) => { if (!open) setRenamingFolderId(null); }}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('files.renameFolder')}</AlertDialogTitle>
+          </AlertDialogHeader>
+          <input
+            type="text"
+            value={renameFolderValue}
+            onChange={(e) => setRenameFolderValue(e.target.value)}
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+            placeholder={t('files.folderNamePlaceholder')}
+            autoFocus
+          />
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (renamingFolderId) handleRenameFolder(renamingFolderId);
+              }}
+              disabled={renamingFolder}
+            >
+              {renamingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.save')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Folder Confirmation Dialog */}
+      <AlertDialog open={!!confirmDeleteFolderId} onOpenChange={(open) => { if (!open) setConfirmDeleteFolderId(null); }}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('files.deleteFolder')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('files.deleteFolderConfirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmDeleteFolderId) handleDeleteFolder(confirmDeleteFolderId);
+              }}
+              disabled={!!deletingFolderId}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingFolderId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* File upload progress is now shown globally via FileUploadIndicator in layout.tsx */}
     </div>
