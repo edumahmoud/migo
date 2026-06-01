@@ -38,6 +38,8 @@ import {
   EyeOff,
   Users,
   Copy,
+  LayoutGrid,
+  Archive,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -408,6 +410,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [folderPickerMode, setFolderPickerMode] = useState<'move' | 'copy'>('move');
   const [folderPickerFileId, setFolderPickerFileId] = useState<string | null>(null);
   const [folderPickerCurrentParentId, setFolderPickerCurrentParentId] = useState<string | null>(null); // navigation within modal
+  const [folderPickerProgress, setFolderPickerProgress] = useState<number | null>(null); // 0-100 progress for move/copy
 
   // -------------------------------------------------------
   // Fetch my files
@@ -634,7 +637,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
         const newFolder = payload.new as UserFolder;
         if (newFolder) {
-          setFolders(prev => [...prev, newFolder].sort((a, b) => a.name.localeCompare(b.name)));
+          // Avoid duplicate if handleCreateFolder already added it
+          setFolders(prev => {
+            if (prev.some(f => f.id === newFolder.id)) return prev;
+            return [...prev, newFolder].sort((a, b) => a.name.localeCompare(b.name));
+          });
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
@@ -1121,8 +1128,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         user_id: profile.id,
         name: newFolderName.trim(),
       };
-      if (parentFolderId) {
-        insertData.parent_folder_id = parentFolderId;
+      // Use currentFolderId as parent if no explicit parentFolderId is provided
+      const effectiveParentId = parentFolderId !== undefined ? parentFolderId : currentFolderId;
+      if (effectiveParentId) {
+        insertData.parent_folder_id = effectiveParentId;
       }
       const { data, error } = await supabase
         .from('user_folders')
@@ -1132,9 +1141,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (error) {
         toast.error(t('files.toastFolderCreateFailed'));
       } else if (data) {
-        setFolders(prev => [...prev, data as UserFolder].sort((a, b) => a.name.localeCompare(b.name)));
+        // Avoid duplicate if realtime already added it
+        setFolders(prev => {
+          if (prev.some(f => f.id === data.id)) return prev;
+          return [...prev, data as UserFolder].sort((a, b) => a.name.localeCompare(b.name));
+        });
         toast.success(t('files.toastFolderCreated'));
         setNewFolderName('');
+        // Auto-close the create folder dialog
+        setCreateFolderDialogOpen(false);
       }
     } catch {
       toast.error(t('files.toastFolderCreateFailed'));
@@ -1159,12 +1174,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       } else {
         setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: renameFolderValue.trim() } : f).sort((a, b) => a.name.localeCompare(b.name)));
         toast.success(t('files.toastFolderRenamed'));
+        // Auto-close the rename dialog
+        setRenamingFolderId(null);
       }
     } catch {
       toast.error(t('files.toastFolderRenameFailed'));
     } finally {
       setRenamingFolder(false);
-      setRenamingFolderId(null);
     }
   };
 
@@ -1204,7 +1220,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Move file to folder
   // -------------------------------------------------------
   const handleMoveFileToFolder = async (fileId: string, targetFolderId: string | null) => {
+    setFolderPickerProgress(10);
     try {
+      setFolderPickerProgress(40);
       const { error } = await supabase
         .from('user_files')
         .update({ folder_id: targetFolderId })
@@ -1212,11 +1230,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (error) {
         toast.error(t('files.toastFileMoveFailed'));
       } else {
+        setFolderPickerProgress(80);
         setFiles(prev => prev.map(f => f.id === fileId ? { ...f, folder_id: targetFolderId } : f));
+        setFolderPickerProgress(100);
         toast.success(t('files.toastFileMoved'));
       }
     } catch {
       toast.error(t('files.toastFileMoveFailed'));
+    } finally {
+      // Close modal after a brief delay to show the 100% progress
+      setTimeout(() => {
+        setFolderPickerProgress(null);
+        setFolderPickerOpen(false);
+        setFolderPickerCurrentParentId(null);
+      }, 400);
     }
   };
 
@@ -1224,15 +1251,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Copy file to folder (creates a new user_files record)
   // -------------------------------------------------------
   const handleCopyFileToFolder = async (fileId: string, targetFolderId: string | null) => {
+    setFolderPickerProgress(10);
     try {
       const sourceFile = files.find(f => f.id === fileId);
       if (!sourceFile) return;
+      setFolderPickerProgress(30);
       const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = sourceFile;
       const newFile = {
         ...rest,
         folder_id: targetFolderId,
         file_name: sourceFile.file_name,
       };
+      setFolderPickerProgress(50);
       const { data, error } = await supabase
         .from('user_files')
         .insert(newFile)
@@ -1241,11 +1271,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (error) {
         toast.error(t('files.toastFileCopyFailed'));
       } else if (data) {
-        setFiles(prev => [data as UserFile, ...prev]);
+        setFolderPickerProgress(90);
+        // Avoid duplicate if realtime already added it
+        setFiles(prev => {
+          if (prev.some(f => f.id === data.id)) return prev;
+          return [data as UserFile, ...prev];
+        });
+        setFolderPickerProgress(100);
         toast.success(t('files.toastFileCopied'));
       }
     } catch {
       toast.error(t('files.toastFileCopyFailed'));
+    } finally {
+      // Close modal after a brief delay to show the 100% progress
+      setTimeout(() => {
+        setFolderPickerProgress(null);
+        setFolderPickerOpen(false);
+        setFolderPickerCurrentParentId(null);
+      }, 400);
     }
   };
 
@@ -2256,6 +2299,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           const count = cat === 'all' ? files.length : cat === 'folders' ? folders.length : files.filter((f) => getFileCategory(f.file_type) === cat).length;
           const isFolderCat = cat === 'folders';
           const isActive = categoryFilter === cat;
+          // Icon for each category tab
+          const getCategoryIcon = () => {
+            switch (cat) {
+              case 'all': return <LayoutGrid className="h-3.5 w-3.5" />;
+              case 'folders': return <FolderIcon className="h-3.5 w-3.5" />;
+              case 'images': return <ImageIcon className="h-3.5 w-3.5" />;
+              case 'documents': return <FileText className="h-3.5 w-3.5" />;
+              case 'videos': return <FileVideo className="h-3.5 w-3.5" />;
+              case 'audio': return <FileAudio className="h-3.5 w-3.5" />;
+              case 'other': return <Archive className="h-3.5 w-3.5" />;
+            }
+          };
           return (
             <button
               key={cat}
@@ -2268,7 +2323,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
-              {isFolderCat && <FolderIcon className="h-3 w-3" />}
+              {getCategoryIcon()}
               {categoryLabels[cat]}
               <span className={`text-[10px] ${isActive ? (isFolderCat ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400') : 'text-muted-foreground'}`}>
                 ({count})
@@ -2288,13 +2343,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             exit={{ opacity: 0, y: -4 }}
             className="flex items-center gap-1.5 rounded-lg border bg-muted/40 px-3 py-2 overflow-x-auto"
           >
-            {/* Root / Home */}
+            {/* Root / Home — goes back to all folders view */}
             <button
-              onClick={() => { setCurrentFolderId(null); if (categoryFilter === 'folders') setCategoryFilter('all'); }}
+              onClick={() => { setCurrentFolderId(null); setCategoryFilter('folders'); }}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
             >
               <Home className="h-3.5 w-3.5" />
-              <span>{t('files.allFiles')}</span>
+              <span>{t('files.allFolders')}</span>
             </button>
             {/* Path segments */}
             {(() => {
@@ -3975,23 +4030,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {renderRecipientsModal()}
 
       {/* Create Folder Dialog */}
-      <AlertDialog open={createFolderDialogOpen} onOpenChange={(open) => { if (!open) setCreateFolderDialogOpen(false); }}>
+      <AlertDialog open={createFolderDialogOpen} onOpenChange={(open) => { if (!open) { setCreateFolderDialogOpen(false); setNewFolderName(''); } }}>
         <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                <FolderPlus className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <FolderPlus className="h-5 w-5 text-amber-600 dark:text-amber-500" />
               </div>
               {t('files.createFolder')}
             </AlertDialogTitle>
           </AlertDialogHeader>
           <div className="relative">
-            <FolderIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <FolderIcon className="absolute start-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-amber-500 dark:text-amber-400" />
             <Input
               type="text"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              className="ps-9 h-10"
+              className="ps-10 h-12 text-base rounded-lg border-amber-200 dark:border-amber-800/40 focus-visible:ring-amber-400"
               placeholder={t('files.folderNamePlaceholder')}
               autoFocus
               onKeyDown={(e) => {
@@ -4020,19 +4075,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                <Pencil className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <Pencil className="h-5 w-5 text-amber-600 dark:text-amber-500" />
               </div>
               {t('files.renameFolder')}
             </AlertDialogTitle>
           </AlertDialogHeader>
           <div className="relative">
-            <FolderIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <FolderIcon className="absolute start-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-amber-500 dark:text-amber-400" />
             <Input
               type="text"
               value={renameFolderValue}
               onChange={(e) => setRenameFolderValue(e.target.value)}
-              className="ps-9 h-10"
+              className="ps-10 h-12 text-base rounded-lg border-amber-200 dark:border-amber-800/40 focus-visible:ring-amber-400"
               placeholder={t('files.folderNamePlaceholder')}
               autoFocus
               onKeyDown={(e) => {
@@ -4082,7 +4137,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       </AlertDialog>
 
       {/* Folder Picker Modal (for Move/Copy) */}
-      <Dialog open={folderPickerOpen} onOpenChange={(open) => { if (!open) { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); } }}>
+      <Dialog open={folderPickerOpen} onOpenChange={(open) => { if (!open && folderPickerProgress === null) { setFolderPickerOpen(false); setFolderPickerCurrentParentId(null); } }}>
         <DialogContent dir={direction} className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -4092,6 +4147,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {folderPickerMode === 'move' ? t('files.moveToFolder') : t('files.copyToFolder')}
             </DialogTitle>
           </DialogHeader>
+
+          {/* Progress bar for move/copy operation */}
+          {folderPickerProgress !== null && (
+            <div className="space-y-1.5">
+              <Progress value={folderPickerProgress} className={`h-2 ${folderPickerMode === 'move' ? '[&>div]:bg-sky-500' : '[&>div]:bg-emerald-500'}`} />
+              <p className="text-xs text-muted-foreground text-center">
+                {folderPickerProgress < 100
+                  ? (folderPickerMode === 'move' ? t('files.movingFile') : t('files.copyingFile'))
+                  : t('files.operationComplete')}
+              </p>
+            </div>
+          )}
 
           {/* Breadcrumb inside modal */}
           <div className="flex items-center gap-1 text-xs px-1">
@@ -4139,11 +4206,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 onClick={() => {
                   if (folderPickerFileId) {
                     handleMoveFileToFolder(folderPickerFileId, null);
-                    setFolderPickerOpen(false);
-                    setFolderPickerCurrentParentId(null);
                   }
                 }}
-                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted transition-colors"
+                disabled={folderPickerProgress !== null}
+                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
                   <Home className="h-4 w-4" />
@@ -4162,11 +4228,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     } else {
                       handleCopyFileToFolder(folderPickerFileId, folderPickerCurrentParentId);
                     }
-                    setFolderPickerOpen(false);
-                    setFolderPickerCurrentParentId(null);
                   }
                 }}
-                className="w-full flex items-center gap-3 rounded-lg border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors mb-2"
+                disabled={folderPickerProgress !== null}
+                className="w-full flex items-center gap-3 rounded-lg border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors mb-2 disabled:opacity-50"
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
                   <FolderIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" />
