@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -3831,19 +3832,27 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       <AlertDialog open={createFolderDialogOpen} onOpenChange={(open) => { if (!open) setCreateFolderDialogOpen(false); }}>
         <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('files.createFolder')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <FolderPlus className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+              </div>
+              {t('files.createFolder')}
+            </AlertDialogTitle>
           </AlertDialogHeader>
-          <input
-            type="text"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-            placeholder={t('files.folderNamePlaceholder')}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newFolderName.trim()) handleCreateFolder();
-            }}
-          />
+          <div className="relative">
+            <FolderIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              className="ps-9 h-10"
+              placeholder={t('files.folderNamePlaceholder')}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newFolderName.trim()) handleCreateFolder();
+              }}
+            />
+          </div>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
             <AlertDialogCancel onClick={() => { setNewFolderName(''); setCreateFolderDialogOpen(false); }}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
@@ -3852,6 +3861,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 handleCreateFolder();
               }}
               disabled={creatingFolder || !newFolderName.trim()}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
             >
               {creatingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : t('files.createFolder')}
             </AlertDialogAction>
@@ -3863,16 +3873,27 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       <AlertDialog open={!!renamingFolderId} onOpenChange={(open) => { if (!open) setRenamingFolderId(null); }}>
         <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('files.renameFolder')}</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <Pencil className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+              </div>
+              {t('files.renameFolder')}
+            </AlertDialogTitle>
           </AlertDialogHeader>
-          <input
-            type="text"
-            value={renameFolderValue}
-            onChange={(e) => setRenameFolderValue(e.target.value)}
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-            placeholder={t('files.folderNamePlaceholder')}
-            autoFocus
-          />
+          <div className="relative">
+            <FolderIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              value={renameFolderValue}
+              onChange={(e) => setRenameFolderValue(e.target.value)}
+              className="ps-9 h-10"
+              placeholder={t('files.folderNamePlaceholder')}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && renameFolderValue.trim() && renamingFolderId) handleRenameFolder(renamingFolderId);
+              }}
+            />
+          </div>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
@@ -3880,7 +3901,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 e.preventDefault();
                 if (renamingFolderId) handleRenameFolder(renamingFolderId);
               }}
-              disabled={renamingFolder}
+              disabled={renamingFolder || !renameFolderValue.trim()}
             >
               {renamingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.save')}
             </AlertDialogAction>
