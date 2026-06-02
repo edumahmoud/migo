@@ -156,6 +156,54 @@ try {
   // MySQL may already be registered or unavailable in some environments
 }
 
+// ─── Custom Image Extension (width + alignment) ────────────────────────────
+const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('width') || element.style.width || null,
+        renderHTML: (attributes) => {
+          if (!attributes.width) return {}
+          return { width: attributes.width, style: `width: ${attributes.width}` }
+        },
+      },
+      'data-align': {
+        default: 'center',
+        parseHTML: (element) => element.getAttribute('data-align') || 'center',
+        renderHTML: (attributes) => {
+          return { 'data-align': attributes['data-align'] }
+        },
+      },
+    }
+  },
+})
+
+// ─── Custom YouTube Extension (width + alignment) ────────────────────────────
+const CustomYoutube = Youtube.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: '100%',
+        parseHTML: (element) => element.style.width || element.getAttribute('width') || '100%',
+        renderHTML: (attributes) => {
+          if (!attributes.width || attributes.width === '100%') return {}
+          return { style: `width: ${attributes.width}` }
+        },
+      },
+      'data-align': {
+        default: 'center',
+        parseHTML: (element) => element.getAttribute('data-align') || 'center',
+        renderHTML: (attributes) => {
+          return { 'data-align': attributes['data-align'] }
+        },
+      },
+    }
+  },
+})
+
 // ─── Preset Colors ──────────────────────────────────────────────────────────
 const TEXT_COLORS = [
   '#000000', '#434343', '#666666', '#999999', '#b7b7b7', '#cccccc',
@@ -267,6 +315,113 @@ async function uploadImageToSupabase(
   return urlData?.publicUrl || null
 }
 
+// ─── MediaSelection Toolbar ──────────────────────────────────────────────
+// Floating toolbar that appears when an image or YouTube video is selected
+function MediaToolbar({ editor }: { editor: Editor }) {
+  const isImage = editor.isActive('image')
+  const isYoutube = editor.isActive('youtube')
+
+  if (!isImage && !isYoutube) return null
+
+  const nodeType = isImage ? 'image' : 'youtube'
+  const currentWidth = editor.getAttributes(nodeType).width || (isImage ? '100%' : '100%')
+  const currentAlign = editor.getAttributes(nodeType)['data-align'] || 'center'
+
+  const sizeOptions = [
+    { label: 'S', value: '25%', tooltip: 'Small (25%)' },
+    { label: 'M', value: '50%', tooltip: 'Medium (50%)' },
+    { label: 'L', value: '75%', tooltip: 'Large (75%)' },
+    { label: 'F', value: '100%', tooltip: 'Full Width' },
+  ]
+
+  const alignOptions = [
+    { value: 'left', icon: AlignLeft, tooltip: 'Align Left' },
+    { value: 'center', icon: AlignCenter, tooltip: 'Align Center' },
+    { value: 'right', icon: AlignRight, tooltip: 'Align Right' },
+  ]
+
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border bg-background px-1.5 py-1 shadow-lg">
+      {/* Size buttons */}
+      {sizeOptions.map((opt) => (
+        <Tooltip key={opt.value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().updateAttributes(nodeType, { width: opt.value }).run()
+              }}
+              className={cn(
+                'inline-flex items-center justify-center h-7 w-7 rounded text-xs font-bold transition-colors',
+                'hover:bg-muted',
+                currentWidth === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                currentWidth !== opt.value && 'text-foreground'
+              )}
+            >
+              {opt.label}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            {opt.tooltip}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* Alignment buttons */}
+      {alignOptions.map((opt) => (
+        <Tooltip key={opt.value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().updateAttributes(nodeType, { 'data-align': opt.value }).run()
+              }}
+              className={cn(
+                'inline-flex items-center justify-center h-7 w-7 rounded transition-colors',
+                'hover:bg-muted',
+                currentAlign === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                currentAlign !== opt.value && 'text-foreground'
+              )}
+            >
+              <opt.icon className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            {opt.tooltip}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* Delete button */}
+      {(isImage || isYoutube) && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().deleteSelection().run()
+              }}
+              className="inline-flex items-center justify-center h-7 w-7 rounded text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            {isImage ? 'Delete Image' : 'Delete Video'}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 export default function RichTextEditor({
   content,
@@ -302,14 +457,14 @@ export default function RichTextEditor({
           class: 'text-sky-600 underline cursor-pointer',
         },
       }),
-      Image.configure({
+      CustomImage.configure({
         inline: false,
         allowBase64: true,
         HTMLAttributes: {
-          class: 'rounded-lg max-w-full h-auto cursor-resize',
+          class: 'rounded-lg h-auto',
         },
       }),
-      Youtube.configure({
+      CustomYoutube.configure({
         inline: false,
         nocookie: true,
         HTMLAttributes: {
@@ -369,7 +524,7 @@ export default function RichTextEditor({
       }
       const url = await uploadImageToSupabase(file, subjectId, userId)
       if (url && editor) {
-        editor.chain().focus().setImage({ src: url }).run()
+        editor.chain().focus().setImage({ src: url, width: '100%', 'data-align': 'center' }).run()
       }
     },
     [editor, subjectId, userId]
@@ -394,6 +549,22 @@ export default function RichTextEditor({
     },
     [handleImageUpload]
   )
+
+  // Update editor content when the content prop changes
+  React.useEffect(() => {
+    if (editor && content && !editable) {
+      try {
+        const currentContent = editor.getJSON()
+        // Only update if content actually changed (deep comparison via JSON string)
+        if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
+          editor.commands.setContent(content)
+        }
+      } catch {
+        // Fallback: always set content if comparison fails
+        editor.commands.setContent(content)
+      }
+    }
+  }, [content, editor, editable])
 
   if (!editor) return null
 
@@ -622,14 +793,24 @@ export default function RichTextEditor({
     </div>
   )
 
+  const mediaToolbar = (
+    <MediaToolbar editor={editor} />
+  )
+
   const editorContent = (
-    <EditorContent
-      editor={editor}
-      className={cn(
-        'prose-editor-wrapper min-h-[400px] flex-1',
-        isFullscreen ? 'p-8' : 'p-6'
-      )}
-    />
+    <div className="relative flex-1 min-h-0">
+      <EditorContent
+        editor={editor}
+        className={cn(
+          'prose-editor-wrapper min-h-[400px] h-full',
+          isFullscreen ? 'p-8' : 'p-6'
+        )}
+      />
+      {/* Floating media toolbar */}
+      <div className="absolute top-2 start-2 z-20">
+        {mediaToolbar}
+      </div>
+    </div>
   )
 
   // ─── Hidden file input for image upload ───────────────────────────────────
@@ -1043,7 +1224,7 @@ function ImagePopover({
 
   const handleInsertFromUrl = () => {
     if (!url) return
-    editor.chain().focus().setImage({ src: url }).run()
+    editor.chain().focus().setImage({ src: url, width: '100%', 'data-align': 'center' }).run()
     setOpen(false)
     setUrl('')
   }

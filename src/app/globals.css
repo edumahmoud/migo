@@ -894,8 +894,30 @@ body.quiz-capture-detected {
   border-radius: 0.5rem;
   max-width: 100%;
   height: auto;
-  cursor: resize;
   margin: 0.75rem 0;
+  transition: width 0.2s ease;
+}
+
+/* Images with explicit width via style attribute */
+.prose-editor img[style*="width"] {
+  max-width: none;
+}
+
+/* Image alignment */
+.prose-editor img[data-align="left"] {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.prose-editor img[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+
+.prose-editor img[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .prose-editor img.ProseMirror-selectednode {
@@ -962,6 +984,22 @@ body.quiz-capture-detected {
   outline: 2px solid #0284c7;
   outline-offset: 2px;
   border-radius: 0.5rem;
+}
+
+/* YouTube alignment */
+.prose-editor .youtube-embed-wrapper[data-align="left"] {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.prose-editor .youtube-embed-wrapper[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose-editor .youtube-embed-wrapper[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 /* Placeholder */
