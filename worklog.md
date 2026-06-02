@@ -38,3 +38,28 @@ Stage Summary:
 - Breadcrumb in subjects-section now shows for all non-category views: "المقررات » كل المقررات" or "المقررات » {اسم التصنيف}" or "المقررات » بدون تصنيف"
 - Course page now has breadcrumb: "المقررات » {اسم التصنيف}" (with course name as h1 below), giving full path: المقررات » التصنيف » المقرر
 - Files modified: src/components/shared/subjects-section.tsx, src/components/course/course-page.tsx
+
+---
+Task ID: 3
+Agent: main
+Task: Fix fullscreen editor overlap and columns stacking vertically
+
+Work Log:
+- Analyzed uploaded screenshot showing toolbar overlapping content in fullscreen mode
+- Identified root cause: CSS rule `[data-slot="dialog-content"] { max-height: calc(85dvh - 4rem) !important; }` was being applied to fullscreen dialog too
+- Identified columns stacking issue: CSS flex display not being applied with enough specificity; inline styles needed as backup
+- Fixed fullscreen dialog: Added `.fullscreen-editor-dialog` class and excluded it from the mobile modal max-height CSS override using `:not(.fullscreen-editor-dialog)`
+- Fixed fullscreen dialog positioning: Used `!important` overrides for `!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !max-h-screen` to override DialogContent's default centering with `top-[50%] translate-y-[-50%] max-h-[85dvh]`
+- Fixed toolbar: Changed from always-sticky to conditional: `sticky top-0` in normal mode, `shrink-0` in fullscreen (toolbar stays fixed at top, editor scrolls below)
+- Fixed columns: Added inline `style` attribute to `renderHTML()` for both Columns and Column nodes as belt-and-suspenders approach
+- Added CSS `!important` to columns flex properties: `display: flex !important; flex-direction: row !important;` and `flex: 1 1 0% !important;`
+- Fixed editorContent min-height: Only apply `min-h-[400px]` in normal mode, not fullscreen
+- Added CSS for fullscreen tiptap wrapper: `min-height: unset; height: 100%` inside `.fullscreen-editor-dialog`
+- Lint check passes with zero errors
+
+Stage Summary:
+- Fullscreen dialog now fills the entire screen without overlap from toolbar
+- Toolbar stays at top in fullscreen, content scrolls below
+- Mobile modal CSS override no longer restricts fullscreen dialog height
+- Columns now render side-by-side with both inline styles and CSS !important as backup
+- Files modified: src/app/globals.css, src/components/editor/rich-text-editor.tsx

@@ -596,8 +596,9 @@
    These rules ensure modals (z-50) leave space at the bottom for scrolling. */
 @media (max-width: 768px) {
   /* Radix Dialog content — constrain height and add bottom padding
-     so the scrollable area doesn't extend behind the bottom nav */
-  [data-slot="dialog-content"] {
+     so the scrollable area doesn't extend behind the bottom nav.
+     Exclude fullscreen editor dialog which has its own sizing. */
+  [data-slot="dialog-content"]:not(.fullscreen-editor-dialog) {
     max-height: calc(85dvh - 4rem) !important;
     padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
@@ -1044,10 +1045,17 @@ body.quiz-capture-detected {
   min-height: 400px;
 }
 
+/* Fullscreen editor: tiptap fills available space */
+.fullscreen-editor-dialog .prose-editor-wrapper .tiptap {
+  min-height: unset;
+  height: 100%;
+}
+
 /* ─── Columns Layout ─────────────────────────────────────────────────────── */
 .prose-editor .editor-columns,
 .prose-editor-wrapper .editor-columns {
-  display: flex;
+  display: flex !important;
+  flex-direction: row !important;
   gap: 1rem;
   margin: 0.75rem 0;
   width: 100%;
@@ -1055,7 +1063,7 @@ body.quiz-capture-detected {
 
 .prose-editor .editor-column,
 .prose-editor-wrapper .editor-column {
-  flex: 1;
+  flex: 1 1 0% !important;
   min-width: 0;
   padding: 0.5rem;
   border-radius: 0.5rem;

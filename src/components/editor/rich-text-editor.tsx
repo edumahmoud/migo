@@ -229,7 +229,7 @@ const Column = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['div', { ...HTMLAttributes, 'data-column': '', class: 'editor-column' }, 0]
+    return ['div', { ...HTMLAttributes, 'data-column': '', class: 'editor-column', style: 'flex: 1 1 0%; min-width: 0;' }, 0]
   },
 })
 
@@ -257,7 +257,7 @@ const Columns = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['div', { ...HTMLAttributes, 'data-columns': '', class: 'editor-columns' }, 0]
+    return ['div', { ...HTMLAttributes, 'data-columns': '', class: 'editor-columns', style: 'display: flex; flex-direction: row; gap: 1rem; width: 100%;' }, 0]
   },
 
   addCommands() {
@@ -833,8 +833,9 @@ export default function RichTextEditor({
   const toolbarContent = (
     <div
       className={cn(
-        'sticky top-0 z-10 flex flex-wrap items-center gap-0.5 bg-background border-b px-2 py-1.5',
-        isFullscreen && 'px-4'
+        'z-10 flex flex-wrap items-center gap-0.5 bg-background border-b px-2 py-1.5',
+        !isFullscreen && 'sticky top-0',
+        isFullscreen && 'px-4 shrink-0'
       )}
     >
       {/* 1. Undo / Redo */}
@@ -1045,8 +1046,8 @@ export default function RichTextEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          'prose-editor-wrapper min-h-[400px] h-full',
-          isFullscreen ? 'p-8' : 'p-6'
+          'prose-editor-wrapper h-full',
+          isFullscreen ? 'p-8' : 'p-6 min-h-[400px]'
         )}
       />
       {/* Floating media toolbar (BubbleMenu positions itself) */}
@@ -1085,7 +1086,7 @@ export default function RichTextEditor({
       {/* Fullscreen dialog */}
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent
-          className="max-w-full w-screen h-screen max-h-screen rounded-none border-0 p-0 flex flex-col"
+          className="fullscreen-editor-dialog !fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !max-w-full !w-screen !h-screen !max-h-screen !rounded-none !border-0 !p-0 !shadow-none flex flex-col overflow-hidden"
           showCloseButton={false}
         >
           <DialogHeader className="sr-only">
