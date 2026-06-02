@@ -88,13 +88,13 @@ import {
 } from '@/components/ui/tooltip'
 
 // ─── Text Direction Extension ──────────────────────────────────────────────
-// Adds `dir` attribute to paragraph and heading nodes so RTL/LTR works properly
+// Adds `dir` attribute to paragraph, heading, and codeBlock nodes so RTL/LTR works properly
 const TextDirectionExtension = Extension.create({
   name: 'textDirection',
 
   addOptions() {
     return {
-      types: ['heading', 'paragraph'],
+      types: ['heading', 'paragraph', 'codeBlock'],
     }
   },
 
@@ -517,7 +517,8 @@ export default function RichTextEditor({
         }}
         isActive={
           (editor.isActive('paragraph') && editor.getAttributes('paragraph').dir === 'rtl') ||
-          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'rtl')
+          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'rtl') ||
+          (editor.isActive('codeBlock') && editor.getAttributes('codeBlock').dir === 'rtl')
         }
         tooltip="RTL Direction"
       >
@@ -529,7 +530,8 @@ export default function RichTextEditor({
         }}
         isActive={
           (editor.isActive('paragraph') && editor.getAttributes('paragraph').dir === 'ltr') ||
-          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'ltr')
+          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'ltr') ||
+          (editor.isActive('codeBlock') && editor.getAttributes('codeBlock').dir === 'ltr')
         }
         tooltip="LTR Direction"
       >
@@ -1475,99 +1477,110 @@ function CodeBlockPopover({
   dir: 'rtl' | 'ltr'
 }) {
   const [open, setOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const isInCodeBlock = editor.isActive('codeBlock')
   const currentLang = editor.getAttributes('codeBlock').language || 'plaintext'
   const currentLangLabel = CODE_LANGUAGES.find((l) => l.value === currentLang)?.label || currentLang
 
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    // Use pointerdown for immediate response
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => document.removeEventListener('pointerdown', handleClickOutside)
+  }, [open])
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <div className="relative" ref={dropdownRef}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              className={cn(
-                'inline-flex items-center justify-center h-8 rounded-md transition-colors',
-                'hover:bg-muted',
-                isInCodeBlock && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
-                isInCodeBlock ? 'w-auto px-2 gap-1' : 'w-8'
-              )}
-            >
-              <Code className="h-4 w-4" />
-              {isInCodeBlock && (
-                <span className="text-[10px] font-medium max-w-[60px] truncate">{currentLangLabel}</span>
-              )}
-            </button>
-          </PopoverTrigger>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen((prev) => !prev)}
+            className={cn(
+              'inline-flex items-center justify-center h-8 rounded-md transition-colors',
+              'hover:bg-muted',
+              isInCodeBlock && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+              isInCodeBlock ? 'w-auto px-2 gap-1' : 'w-8'
+            )}
+          >
+            <Code className="h-4 w-4" />
+            {isInCodeBlock && (
+              <span className="text-[10px] font-medium max-w-[60px] truncate">{currentLangLabel}</span>
+            )}
+          </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
           Code Block
         </TooltipContent>
       </Tooltip>
-      <PopoverContent
-        className="w-48 p-1 max-h-72 overflow-y-auto"
-        align={dir === 'rtl' ? 'end' : 'start'}
-        sideOffset={4}
-        onInteractOutside={(e) => {
-          // Prevent closing when clicking inside the editor or toolbar
-          const target = e.target as HTMLElement
-          if (
-            target?.closest('.ProseMirror') ||
-            target?.closest('[data-radix-popper-content-wrapper]') ||
-            target?.closest('.rich-text-editor')
-          ) {
-            e.preventDefault()
-          }
-        }}
-      >
-        {!isInCodeBlock ? (
-          <button
-            type="button"
-            onClick={() => {
-              editor.chain().focus().toggleCodeBlock().run()
-              setOpen(false)
-            }}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-          >
-            <Code className="h-4 w-4" />
-            <span>Insert Code Block</span>
-          </button>
-        ) : (
-          <>
-            <Label className="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Language</Label>
-            {CODE_LANGUAGES.map((lang) => (
-              <button
-                key={lang.value}
-                type="button"
-                onClick={() => {
-                  editor.chain().focus().updateAttributes('codeBlock', { language: lang.value }).run()
-                  setOpen(false)
-                }}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
-                  currentLang === lang.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
-                )}
-              >
-                <span>{lang.label}</span>
-                {currentLang === lang.value && <Check className="h-3 w-3 ms-auto" />}
-              </button>
-            ))}
-            <Separator className="my-1" />
+
+      {/* Custom dropdown - avoids Radix Popover focus conflicts with TipTap editor */}
+      {open && (
+        <div
+          className={cn(
+            'absolute top-full z-50 mt-1 w-48 rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+            'max-h-72 overflow-y-auto',
+            dir === 'rtl' ? 'right-0' : 'left-0'
+          )}
+        >
+          {!isInCodeBlock ? (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 editor.chain().focus().toggleCodeBlock().run()
                 setOpen(false)
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Remove Code Block</span>
+              <Code className="h-4 w-4" />
+              <span>Insert Code Block</span>
             </button>
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
+          ) : (
+            <>
+              <Label className="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Language</Label>
+              {CODE_LANGUAGES.map((lang) => (
+                <button
+                  key={lang.value}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    editor.chain().updateAttributes('codeBlock', { language: lang.value }).run()
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+                    currentLang === lang.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                  )}
+                >
+                  <span>{lang.label}</span>
+                  {currentLang === lang.value && <Check className="h-3 w-3 ms-auto" />}
+                </button>
+              ))}
+              <Separator className="my-1" />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  editor.chain().focus().toggleCodeBlock().run()
+                  setOpen(false)
+                }}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-muted"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Remove Code Block</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
