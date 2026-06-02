@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Save,
   Eye,
-  Send,
   Clock,
   FileText,
   Check,
@@ -24,7 +23,6 @@ import {
   Globe,
   Lock,
   BookMarked,
-  FileCheck,
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { supabase } from '@/lib/supabase';
@@ -398,9 +396,11 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
     if (!editingLesson) return;
     try {
       const headers = await getAuthHeaders();
+      const isUnpublish = editingLesson.status === 'published';
       const res = await fetch(`/api/lessons/${editingLesson.id}/publish`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({ unpublish: isUnpublish }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -797,30 +797,6 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                 )}
                 {tc('save') || 'Save'}
               </Button>
-
-              {/* Publish / Unpublish button */}
-              <Button
-                size="sm"
-                onClick={handlePublish}
-                disabled={saving}
-                className={
-                  editingLesson.status === 'published'
-                    ? 'text-xs h-8 bg-amber-600 hover:bg-amber-700 text-white'
-                    : 'text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white'
-                }
-              >
-                {editingLesson.status === 'published' ? (
-                  <>
-                    <Lock className="h-3.5 w-3.5 me-1" />
-                    {t('unpublish') || 'Unpublish'}
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-3.5 w-3.5 me-1" />
-                    {t('publish') || 'Publish'}
-                  </>
-                )}
-              </Button>
             </div>
           </div>
 
@@ -832,7 +808,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                   {editingLesson.title}
                 </h1>
                 <div
-                  className="prose prose-sm dark:prose-invert max-w-none"
+                  className="prose-editor max-w-none"
                   dangerouslySetInnerHTML={{ __html: editorHtml || '' }}
                 />
               </div>
@@ -996,6 +972,70 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                           >
                             <Copy className="h-4 w-4 me-2" />
                             {t('duplicate') || 'Duplicate'}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const isUnpublish = lesson.status === 'published';
+                              try {
+                                const headers = await getAuthHeaders();
+                                const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
+                                  method: 'POST',
+                                  headers,
+                                  body: JSON.stringify({ unpublish: isUnpublish }),
+                                });
+                                if (!res.ok) {
+                                  const data = await res.json().catch(() => ({}));
+                                  toast.error(data.error || t('publishFailed') || 'Failed to update publish status');
+                                  return;
+                                }
+                                const data = await res.json();
+                                const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
+                                setLessons((prev) =>
+                                  prev.map((l) =>
+                                    l.id === lesson.id
+                                      ? {
+                                          ...l,
+                                          status: newStatus,
+                                          published_at: newStatus === 'published' ? new Date().toISOString() : null,
+                                        }
+                                      : l
+                                  )
+                                );
+                                if (editingLesson?.id === lesson.id) {
+                                  setEditingLesson((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          status: newStatus,
+                                          published_at: newStatus === 'published' ? new Date().toISOString() : null,
+                                        }
+                                      : prev
+                                  );
+                                }
+                                toast.success(
+                                  newStatus === 'published'
+                                    ? t('lessonPublished') || 'Lesson published'
+                                    : t('lessonUnpublished') || 'Lesson unpublished'
+                                );
+                              } catch (err) {
+                                console.error('Error toggling publish:', err);
+                                toast.error(t('publishFailed') || 'Failed to update publish status');
+                              }
+                            }}
+                          >
+                            {lesson.status === 'published' ? (
+                              <>
+                                <Lock className="h-4 w-4 me-2" />
+                                {t('unpublish') || 'Unpublish'}
+                              </>
+                            ) : (
+                              <>
+                                <Globe className="h-4 w-4 me-2" />
+                                {t('publish') || 'Publish'}
+                              </>
+                            )}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem

@@ -209,6 +209,7 @@ export interface UserFolder {
   user_id: string;
   name: string;
   parent_folder_id: string | null;
+  visibility?: 'public' | 'private';
   created_at: string;
 }
 
@@ -515,6 +516,8 @@ export interface StickyNoteData {
   color: string;
   position_x: number;
   position_y: number;
+  width?: number;
+  height?: number;
   is_minimized: boolean;
   created_at: string;
   updated_at: string;

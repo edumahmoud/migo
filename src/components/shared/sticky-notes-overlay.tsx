@@ -7,6 +7,14 @@ import { useAuthStore } from '@/stores/auth-store';
 import type { StickyNoteData } from '@/lib/types';
 
 // -------------------------------------------------------
+// Defaults & constraints
+// -------------------------------------------------------
+const DEFAULT_NOTE_WIDTH = 280;
+const DEFAULT_NOTE_HEIGHT = 200;
+const MIN_NOTE_WIDTH = 180;
+const MIN_NOTE_HEIGHT = 120;
+
+// -------------------------------------------------------
 // Position & visibility storage
 // -------------------------------------------------------
 const POS_PREFIX = 'attendo_sticky_pos_';
@@ -171,20 +179,28 @@ function StickyNoteCard({
     const stored = getStoredVisibility(note.id);
     return stored !== null ? !stored : note.is_minimized;
   });
+  const initialWidth = note.width ?? DEFAULT_NOTE_WIDTH;
+  const initialHeight = note.height ?? DEFAULT_NOTE_HEIGHT;
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     const stored = getStoredPosition(note.id);
     if (stored) {
       return {
-        x: Math.min(stored.x, window.innerWidth - 280),
-        y: Math.min(stored.y, window.innerHeight - 150),
+        x: Math.min(stored.x, window.innerWidth - initialWidth),
+        y: Math.min(stored.y, window.innerHeight - initialHeight),
       };
     }
     return { x: note.position_x, y: note.position_y };
   });
   const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(note.content);
+  const [size, setSize] = useState<{ w: number; h: number }>(() => ({
+    w: initialWidth,
+    h: initialHeight,
+  }));
   const dragOffset = useRef({ x: 0, y: 0 });
+  const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   // Mouse drag
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -197,7 +213,7 @@ function StickyNoteCard({
   useEffect(() => {
     if (!dragging) return;
     const handleMouseMove = (e: MouseEvent) => {
-      const newX = Math.max(0, Math.min(e.clientX - dragOffset.current.x, window.innerWidth - 280));
+      const newX = Math.max(0, Math.min(e.clientX - dragOffset.current.x, window.innerWidth - size.w));
       const newY = Math.max(0, Math.min(e.clientY - dragOffset.current.y, window.innerHeight - 100));
       setPosition({ x: newX, y: newY });
     };
@@ -209,7 +225,7 @@ function StickyNoteCard({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
-  }, [dragging, note.id, position, onUpdate]);
+  }, [dragging, note.id, position, size.w, onUpdate]);
 
   // Touch drag
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -223,7 +239,7 @@ function StickyNoteCard({
     if (!dragging) return;
     const handleTouchMove = (e: TouchEvent) => {
       const touch = e.touches[0];
-      const newX = Math.max(0, Math.min(touch.clientX - dragOffset.current.x, window.innerWidth - 280));
+      const newX = Math.max(0, Math.min(touch.clientX - dragOffset.current.x, window.innerWidth - size.w));
       const newY = Math.max(0, Math.min(touch.clientY - dragOffset.current.y, window.innerHeight - 100));
       setPosition({ x: newX, y: newY });
     };
@@ -235,7 +251,62 @@ function StickyNoteCard({
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
     window.addEventListener('touchend', handleTouchEnd);
     return () => { window.removeEventListener('touchmove', handleTouchMove); window.removeEventListener('touchend', handleTouchEnd); };
-  }, [dragging, note.id, position, onUpdate]);
+  }, [dragging, note.id, position, size.w, onUpdate]);
+
+  // Mouse resize
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing(true);
+    resizeStart.current = { x: e.clientX, y: e.clientY, w: size.w, h: size.h };
+  }, [size]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const isRTL = direction === 'rtl';
+      const dx = isRTL ? resizeStart.current.x - e.clientX : e.clientX - resizeStart.current.x;
+      const dy = e.clientY - resizeStart.current.y;
+      setSize({
+        w: Math.max(MIN_NOTE_WIDTH, resizeStart.current.w + dx),
+        h: Math.max(MIN_NOTE_HEIGHT, resizeStart.current.h + dy),
+      });
+    };
+    const handleMouseUp = () => {
+      setResizing(false);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+  }, [resizing, direction]);
+
+  // Touch resize
+  const handleResizeTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation();
+    const touch = e.touches[0];
+    setResizing(true);
+    resizeStart.current = { x: touch.clientX, y: touch.clientY, w: size.w, h: size.h };
+  }, [size]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      const isRTL = direction === 'rtl';
+      const dx = isRTL ? resizeStart.current.x - touch.clientX : touch.clientX - resizeStart.current.x;
+      const dy = touch.clientY - resizeStart.current.y;
+      setSize({
+        w: Math.max(MIN_NOTE_WIDTH, resizeStart.current.w + dx),
+        h: Math.max(MIN_NOTE_HEIGHT, resizeStart.current.h + dy),
+      });
+    };
+    const handleTouchEnd = () => {
+      setResizing(false);
+    };
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd);
+    return () => { window.removeEventListener('touchmove', handleTouchMove); window.removeEventListener('touchend', handleTouchEnd); };
+  }, [resizing, direction]);
 
   // Save edited content
   const handleSaveContent = useCallback(() => {
@@ -265,10 +336,10 @@ function StickyNoteCard({
 
   return (
     <div
-      className={`fixed z-[60] w-64 rounded-xl shadow-xl border ${colors.border} ${colors.bg} ${colors.text} transition-shadow ${
-        dragging ? 'shadow-2xl cursor-grabbing' : 'shadow-lg cursor-grab'
+      className={`fixed z-[60] flex flex-col rounded-xl shadow-xl border ${colors.border} ${colors.bg} ${colors.text} transition-shadow group ${
+        dragging ? 'shadow-2xl cursor-grabbing' : resizing ? 'shadow-2xl' : 'shadow-lg cursor-grab'
       }`}
-      style={{ left: position.x, top: position.y }}
+      style={{ left: position.x, top: position.y, width: size.w, height: size.h }}
       dir={direction}
     >
       {/* Header / drag handle */}
@@ -304,28 +375,52 @@ function StickyNoteCard({
       </div>
 
       {/* Content */}
-      {editing ? (
-        <div className="px-2 py-1.5">
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            onBlur={handleSaveContent}
-            onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleSaveContent(); }}
-            autoFocus
-            rows={3}
-            className={`w-full rounded border ${colors.inputBorder} ${colors.inputBg} px-2 py-1 text-xs ${colors.text} resize-none focus:outline-none focus:ring-1 focus:ring-current`}
-            dir={direction}
-          />
-          <p className={`text-[8px] ${colors.hintText} mt-0.5`}>Ctrl+Enter to save</p>
-        </div>
-      ) : (
-        <div
-          className="px-3 py-2.5 max-h-32 overflow-y-auto custom-scrollbar cursor-text"
-          onDoubleClick={() => { setEditing(true); setEditContent(note.content); }}
+      <div className="flex-1 overflow-hidden">
+        {editing ? (
+          <div className="px-2 py-1.5 h-full flex flex-col">
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onBlur={handleSaveContent}
+              onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleSaveContent(); }}
+              autoFocus
+              rows={3}
+              className={`w-full flex-1 rounded border ${colors.inputBorder} ${colors.inputBg} px-2 py-1 text-xs ${colors.text} resize-none focus:outline-none focus:ring-1 focus:ring-current`}
+              dir={direction}
+            />
+            <p className={`text-[8px] ${colors.hintText} mt-0.5`}>Ctrl+Enter to save</p>
+          </div>
+        ) : (
+          <div
+            className="px-3 py-2.5 overflow-y-auto custom-scrollbar cursor-text"
+            style={{ maxHeight: size.h - 44 }}
+            onDoubleClick={() => { setEditing(true); setEditContent(note.content); }}
+          >
+            <p className="text-xs leading-relaxed whitespace-pre-wrap">{note.content}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Resize handle */}
+      <div
+        className={`absolute bottom-0 ${direction === 'rtl' ? 'left-0' : 'right-0'} w-5 h-5 cursor-${direction === 'rtl' ? 'sw' : 'se'}-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-end ${direction === 'rtl' ? 'justify-start' : 'justify-end'}`}
+        onMouseDown={handleResizeMouseDown}
+        onTouchStart={handleResizeTouchStart}
+        aria-label="Resize"
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          className={`${colors.hintText} ${direction === 'rtl' ? 'rotate-90' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
         >
-          <p className="text-xs leading-relaxed whitespace-pre-wrap">{note.content}</p>
-        </div>
-      )}
+          <line x1="11" y1="6" x2="6" y2="11" />
+          <line x1="11" y1="2" x2="2" y2="11" />
+        </svg>
+      </div>
     </div>
   );
 }

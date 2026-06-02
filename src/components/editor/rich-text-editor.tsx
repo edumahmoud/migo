@@ -16,7 +16,7 @@ import TableHeader from '@tiptap/extension-table-header'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import Color from '@tiptap/extension-color'
-import { TextStyle } from '@tiptap/extension-text-style'
+import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
 
@@ -56,6 +56,8 @@ import {
   MinusCircle,
   Type,
   X,
+  ArrowLeftToLine,
+  ArrowRightToLine,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -275,6 +277,8 @@ export default function RichTextEditor({
       }),
       Color,
       TextStyle,
+      FontSize,
+      FontFamily,
       Typography,
     ],
     onUpdate: ({ editor: e }) => {
@@ -325,6 +329,21 @@ export default function RichTextEditor({
 
   if (!editor) return null
 
+  // ─── Read-only mode: render content without toolbar ──────────────────────
+  if (!editable) {
+    return (
+      <div
+        className="rich-text-editor rounded-xl border bg-white dark:bg-card overflow-hidden"
+        dir={dir}
+      >
+        <EditorContent
+          editor={editor}
+          className="prose-editor-wrapper p-6"
+        />
+      </div>
+    )
+  }
+
   // ─── Toolbar & Editor Content (shared between normal & fullscreen) ────────
   const toolbarContent = (
     <div
@@ -353,6 +372,12 @@ export default function RichTextEditor({
 
       {/* 2. Heading Dropdown */}
       <HeadingDropdown editor={editor} dir={dir} />
+
+      <ToolbarDivider />
+
+      {/* Font Size & Font Family Dropdowns */}
+      <FontSizeDropdown editor={editor} dir={dir} />
+      <FontFamilyDropdown editor={editor} dir={dir} />
 
       <ToolbarDivider />
 
@@ -417,6 +442,36 @@ export default function RichTextEditor({
         <AlignRight className="h-4 w-4" />
       </ToolbarButton>
 
+      {/* Text Direction (RTL/LTR) */}
+      <ToolbarButton
+        onClick={() => {
+          const currentDir = editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir
+          if (currentDir === 'rtl') {
+            editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
+          } else {
+            editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
+          }
+        }}
+        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'rtl'}
+        tooltip="RTL Direction"
+      >
+        <ArrowRightToLine className="h-4 w-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => {
+          const currentDir = editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir
+          if (currentDir === 'ltr') {
+            editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
+          } else {
+            editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
+          }
+        }}
+        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'ltr' && (editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) !== undefined}
+        tooltip="LTR Direction"
+      >
+        <ArrowLeftToLine className="h-4 w-4" />
+      </ToolbarButton>
+
       <ToolbarDivider />
 
       {/* 6. Lists */}
@@ -460,13 +515,7 @@ export default function RichTextEditor({
 
       {/* 8. Table / Code Block / Quote / HR */}
       <TablePopover editor={editor} dir={dir} />
-      <ToolbarButton
-        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-        isActive={editor.isActive('codeBlock')}
-        tooltip="Code Block"
-      >
-        <Code className="h-4 w-4" />
-      </ToolbarButton>
+      <CodeBlockPopover editor={editor} dir={dir} />
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
         isActive={editor.isActive('blockquote')}
@@ -1153,6 +1202,284 @@ function TablePopover({
             </>
           )}
         </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── Font Size Dropdown ────────────────────────────────────────────────────
+const FONT_SIZE_OPTIONS = [
+  { label: '12', value: '12px' },
+  { label: '14', value: '14px' },
+  { label: '16', value: '16px' },
+  { label: '18', value: '18px' },
+  { label: '20', value: '20px' },
+  { label: '24', value: '24px' },
+  { label: '28', value: '28px' },
+  { label: '32', value: '32px' },
+  { label: '36', value: '36px' },
+  { label: '48', value: '48px' },
+]
+
+function FontSizeDropdown({
+  editor,
+  dir,
+}: {
+  editor: Editor
+  dir: 'rtl' | 'ltr'
+}) {
+  const [open, setOpen] = useState(false)
+  const currentFontSize = editor.getAttributes('textStyle').fontSize || ''
+
+  const currentLabel = currentFontSize
+    ? FONT_SIZE_OPTIONS.find((o) => o.value === currentFontSize)?.label || currentFontSize.replace('px', '')
+    : '\u2014'
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
+                'hover:bg-muted',
+                currentFontSize && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+              )}
+            >
+              <span className="w-6 text-center">{currentLabel}</span>
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Font Size
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-32 p-1"
+        align={dir === 'rtl' ? 'end' : 'start'}
+        sideOffset={4}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            editor.chain().focus().unsetFontSize().run()
+            setOpen(false)
+          }}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+            !currentFontSize && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+          )}
+        >
+          <span>Default</span>
+          {!currentFontSize && <Check className="h-3 w-3 ms-auto" />}
+        </button>
+        {FONT_SIZE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => {
+              editor.chain().focus().setFontSize(opt.value).run()
+              setOpen(false)
+            }}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+              currentFontSize === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+            )}
+          >
+            <span>{opt.label}</span>
+            {currentFontSize === opt.value && <Check className="h-3 w-3 ms-auto" />}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── Font Family Dropdown ──────────────────────────────────────────────────
+const FONT_FAMILY_OPTIONS = [
+  { label: 'Default', value: '' },
+  { label: 'Arial', value: 'Arial, sans-serif' },
+  { label: 'Georgia', value: 'Georgia, serif' },
+  { label: 'Courier New', value: "'Courier New', monospace" },
+  { label: 'Times New Roman', value: "'Times New Roman', serif" },
+  { label: 'Verdana', value: 'Verdana, sans-serif' },
+  { label: 'Tahoma', value: 'Tahoma, sans-serif' },
+]
+
+function FontFamilyDropdown({
+  editor,
+  dir,
+}: {
+  editor: Editor
+  dir: 'rtl' | 'ltr'
+}) {
+  const [open, setOpen] = useState(false)
+  const currentFontFamily = editor.getAttributes('textStyle').fontFamily || ''
+
+  const currentLabel = currentFontFamily
+    ? FONT_FAMILY_OPTIONS.find((o) => o.value === currentFontFamily)?.label || 'Custom'
+    : 'Default'
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
+                'hover:bg-muted max-w-[120px]',
+                currentFontFamily && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+              )}
+            >
+              <span className="truncate max-w-[80px]">{currentLabel}</span>
+              <ChevronDown className="h-3 w-3 opacity-60 shrink-0" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Font Family
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-44 p-1"
+        align={dir === 'rtl' ? 'end' : 'start'}
+        sideOffset={4}
+      >
+        {FONT_FAMILY_OPTIONS.map((opt) => (
+          <button
+            key={opt.value || 'default'}
+            type="button"
+            onClick={() => {
+              if (opt.value) {
+                editor.chain().focus().setFontFamily(opt.value).run()
+              } else {
+                editor.chain().focus().unsetFontFamily().run()
+              }
+              setOpen(false)
+            }}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+              currentFontFamily === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+            )}
+            style={opt.value ? { fontFamily: opt.value } : undefined}
+          >
+            <span>{opt.label}</span>
+            {currentFontFamily === opt.value && <Check className="h-3 w-3 ms-auto" />}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ─── Code Block Popover with Language Selector ─────────────────────────────
+const CODE_LANGUAGES = [
+  { label: 'Plain Text', value: 'plaintext' },
+  { label: 'JavaScript', value: 'javascript' },
+  { label: 'TypeScript', value: 'typescript' },
+  { label: 'Python', value: 'python' },
+  { label: 'HTML', value: 'html' },
+  { label: 'CSS', value: 'css' },
+  { label: 'Java', value: 'java' },
+  { label: 'C++', value: 'cpp' },
+  { label: 'SQL', value: 'sql' },
+  { label: 'Bash', value: 'bash' },
+  { label: 'JSON', value: 'json' },
+]
+
+function CodeBlockPopover({
+  editor,
+  dir,
+}: {
+  editor: Editor
+  dir: 'rtl' | 'ltr'
+}) {
+  const [open, setOpen] = useState(false)
+  const isInCodeBlock = editor.isActive('codeBlock')
+  const currentLang = editor.getAttributes('codeBlock').language || 'plaintext'
+  const currentLangLabel = CODE_LANGUAGES.find((l) => l.value === currentLang)?.label || currentLang
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'inline-flex items-center justify-center h-8 rounded-md transition-colors',
+                'hover:bg-muted',
+                isInCodeBlock && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                isInCodeBlock ? 'w-auto px-2 gap-1' : 'w-8'
+              )}
+            >
+              <Code className="h-4 w-4" />
+              {isInCodeBlock && (
+                <span className="text-[10px] font-medium max-w-[60px] truncate">{currentLangLabel}</span>
+              )}
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Code Block
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-48 p-1"
+        align={dir === 'rtl' ? 'end' : 'start'}
+        sideOffset={4}
+      >
+        {!isInCodeBlock ? (
+          <button
+            type="button"
+            onClick={() => {
+              editor.chain().focus().toggleCodeBlock().run()
+              setOpen(false)
+            }}
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+          >
+            <Code className="h-4 w-4" />
+            <span>Insert Code Block</span>
+          </button>
+        ) : (
+          <>
+            <Label className="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Language</Label>
+            {CODE_LANGUAGES.map((lang) => (
+              <button
+                key={lang.value}
+                type="button"
+                onClick={() => {
+                  editor.chain().focus().updateAttributes('codeBlock', { language: lang.value }).run()
+                  setOpen(false)
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+                  currentLang === lang.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                )}
+              >
+                <span>{lang.label}</span>
+                {currentLang === lang.value && <Check className="h-3 w-3 ms-auto" />}
+              </button>
+            ))}
+            <Separator className="my-1" />
+            <button
+              type="button"
+              onClick={() => {
+                editor.chain().focus().toggleCodeBlock().run()
+                setOpen(false)
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-muted"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Remove Code Block</span>
+            </button>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )

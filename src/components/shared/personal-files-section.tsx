@@ -107,9 +107,9 @@ const itemVariants = {
 // -------------------------------------------------------
 // File type categories
 // -------------------------------------------------------
-type FileCategory = 'all' | 'folders' | 'images' | 'documents' | 'videos' | 'audio' | 'other';
+type FileCategory = 'folders' | 'all' | 'images' | 'documents' | 'videos' | 'audio' | 'other';
 
-const FILE_CATEGORIES: FileCategory[] = ['all', 'folders', 'images', 'documents', 'videos', 'audio', 'other'];
+const FILE_CATEGORIES: FileCategory[] = ['folders', 'all', 'images', 'documents', 'videos', 'audio', 'other'];
 
 function getFileCategory(fileType: string): FileCategory {
   const lower = fileType.toLowerCase();
@@ -284,7 +284,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // ─── Tab state ───
   const [activeTab, setActiveTab] = useState<'my-files' | 'shared'>('my-files');
-  const [categoryFilter, setCategoryFilter] = useState<FileCategory>('all');
+  const [categoryFilter, setCategoryFilter] = useState<FileCategory>('folders');
   const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'public' | 'private'>('all');
 
   // ─── My files state ───
@@ -399,6 +399,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [folders, setFolders] = useState<UserFolder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = root
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderVisibility, setNewFolderVisibility] = useState<'public' | 'private'>('public');
   const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
@@ -805,8 +806,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // Folders visible in current view (root or inside a folder)
   const visibleFolders = useMemo(() => {
-    return getSubFolders(currentFolderId);
-  }, [currentFolderId, getSubFolders]);
+    let result = getSubFolders(currentFolderId);
+    // Apply visibility filter when in folders tab
+    if (categoryFilter === 'folders') {
+      if (visibilityFilter === 'public') {
+        result = result.filter(f => f.visibility === 'public');
+      } else if (visibilityFilter === 'private') {
+        result = result.filter(f => f.visibility !== 'public');
+      }
+    }
+    return result;
+  }, [currentFolderId, getSubFolders, categoryFilter, visibilityFilter, folders]);
 
   // -------------------------------------------------------
   // Open upload modal
@@ -1146,9 +1156,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     }
     setCreatingFolder(true);
     try {
-      const insertData: { user_id: string; name: string; parent_folder_id?: string | null } = {
+      const insertData: { user_id: string; name: string; parent_folder_id?: string | null; visibility?: string } = {
         user_id: profile.id,
         name: newFolderName.trim(),
+        visibility: newFolderVisibility,
       };
       // Use currentFolderId as parent if no explicit parentFolderId is provided
       const effectiveParentId = parentFolderId !== undefined ? parentFolderId : currentFolderId;
@@ -1170,6 +1181,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         });
         toast.success(t('files.toastFolderCreated'));
         setNewFolderName('');
+        setNewFolderVisibility('public');
         // Auto-close the create folder dialog
         setCreateFolderDialogOpen(false);
       }
@@ -1177,6 +1189,44 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       toast.error(t('files.toastFolderCreateFailed'));
     } finally {
       setCreatingFolder(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Change folder visibility
+  // -------------------------------------------------------
+  const handleFolderVisibilityChange = async (folderId: string, newVisibility: 'public' | 'private') => {
+    try {
+      const { error } = await supabase
+        .from('user_folders')
+        .update({ visibility: newVisibility })
+        .eq('id', folderId);
+      if (error) {
+        toast.error(t('files.toastFolderUpdateFailed'));
+        return;
+      }
+      // Update local state
+      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, visibility: newVisibility } : f));
+      // If changing to private, auto-change all files in this folder to private
+      if (newVisibility === 'private') {
+        const filesInFolder = files.filter(f => f.folder_id === folderId && f.visibility !== 'private');
+        if (filesInFolder.length > 0) {
+          for (const file of filesInFolder) {
+            await supabase
+              .from('user_files')
+              .update({ visibility: 'private' })
+              .eq('id', file.id);
+          }
+          setFiles(prev => prev.map(f => f.folder_id === folderId ? { ...f, visibility: 'private' } : f));
+          toast.success(t('files.toastFolderAndFilesPrivate'));
+        } else {
+          toast.success(t('files.toastFolderVisibilityChanged'));
+        }
+      } else {
+        toast.success(t('files.toastFolderVisibilityChanged'));
+      }
+    } catch {
+      toast.error(t('files.toastFolderUpdateFailed'));
     }
   };
 
@@ -1245,15 +1295,26 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setFolderPickerProgress(10);
     try {
       setFolderPickerProgress(40);
+      // Check if target folder is private — auto-change file visibility
+      const updateData: Record<string, unknown> = { folder_id: targetFolderId };
+      if (targetFolderId) {
+        const targetFolder = folders.find(f => f.id === targetFolderId);
+        if (targetFolder?.visibility === 'private') {
+          const file = files.find(f => f.id === fileId);
+          if (file && file.visibility !== 'private') {
+            updateData.visibility = 'private';
+          }
+        }
+      }
       const { error } = await supabase
         .from('user_files')
-        .update({ folder_id: targetFolderId })
+        .update(updateData)
         .eq('id', fileId);
       if (error) {
         toast.error(t('files.toastFileMoveFailed'));
       } else {
         setFolderPickerProgress(80);
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, folder_id: targetFolderId } : f));
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, ...updateData } : f));
         setFolderPickerProgress(100);
         toast.success(t('files.toastFileMoved'));
       }
@@ -1321,15 +1382,26 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setFolderPickerProgress(5);
     try {
       const total = fileIds.length;
+      // Check if target folder is private
+      const targetFolder = targetFolderId ? folders.find(f => f.id === targetFolderId) : null;
+      const isPrivateFolder = targetFolder?.visibility === 'private';
       for (let i = 0; i < total; i++) {
         const fileId = fileIds[i];
         setFolderPickerProgress(Math.round(((i) / total) * 90) + 5);
+        const updateData: Record<string, unknown> = { folder_id: targetFolderId };
+        // Auto-change file visibility when moving to private folder
+        if (isPrivateFolder) {
+          const file = files.find(f => f.id === fileId);
+          if (file && file.visibility !== 'private') {
+            updateData.visibility = 'private';
+          }
+        }
         const { error } = await supabase
           .from('user_files')
-          .update({ folder_id: targetFolderId })
+          .update(updateData)
           .eq('id', fileId);
         if (!error) {
-          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, folder_id: targetFolderId } : f));
+          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, ...updateData } : f));
         }
       }
       setFolderPickerProgress(100);
@@ -2451,13 +2523,32 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </div>
       </motion.div>
 
-      {/* Visibility filter tabs — only shown when "All" category is active */}
-      {categoryFilter === 'all' && (
-        <motion.div variants={itemVariants} className="flex items-center gap-2">
-          {([
-            { key: 'all' as const, label: t('files.categoryAll'), icon: null, count: files.length },
-            { key: 'public' as const, label: t('files.public'), icon: <Globe className="h-3 w-3" />, count: files.filter((f) => f.visibility === 'public').length },
-            { key: 'private' as const, label: t('files.private'), icon: <Lock className="h-3 w-3" />, count: files.filter((f) => f.visibility !== 'public').length },
+      {/* Visibility filter tabs — shown in all tabs with tab-relative counts */}
+      <motion.div variants={itemVariants} className="flex items-center gap-2">
+        {(() => {
+          // Calculate visibility counts relative to the current tab
+          let baseFiles = files;
+          if (currentFolderId !== null) {
+            baseFiles = baseFiles.filter((f) => (f.folder_id ?? null) === currentFolderId);
+          }
+          if (categoryFilter !== 'all' && categoryFilter !== 'folders') {
+            baseFiles = baseFiles.filter((f) => getFileCategory(f.file_type) === categoryFilter);
+          }
+
+          const allCount = categoryFilter === 'folders'
+            ? (currentFolderId ? visibleFolders.length : folders.length)
+            : baseFiles.length;
+          const publicCount = categoryFilter === 'folders'
+            ? (currentFolderId ? visibleFolders.filter(f => f.visibility === 'public').length : folders.filter(f => f.visibility === 'public').length)
+            : baseFiles.filter((f) => f.visibility === 'public').length;
+          const privateCount = categoryFilter === 'folders'
+            ? (currentFolderId ? visibleFolders.filter(f => f.visibility !== 'public').length : folders.filter(f => f.visibility !== 'public').length)
+            : baseFiles.filter((f) => f.visibility !== 'public').length;
+
+          return ([
+            { key: 'all' as const, label: t('files.categoryAll'), icon: null, count: allCount },
+            { key: 'public' as const, label: t('files.public'), icon: <Globe className="h-3 w-3" />, count: publicCount },
+            { key: 'private' as const, label: t('files.private'), icon: <Lock className="h-3 w-3" />, count: privateCount },
           ]).map((vf) => (
             <button
               key={vf.key}
@@ -2478,9 +2569,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 ({vf.count})
               </span>
             </button>
-          ))}
-        </motion.div>
-      )}
+          ));
+        })()}
+      </motion.div>
 
       {/* Category filter tabs */}
       <motion.div variants={itemVariants} className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -2661,7 +2752,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </div>
                 <div className="text-center min-w-0 w-full">
                   <p className="text-sm font-semibold text-foreground truncate">{folder.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{t('files.folderFileCount', { count: folderFileCounts[folder.id] || 0 })}</p>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <p className="text-[10px] text-muted-foreground">{t('files.folderFileCount', { count: folderFileCounts[folder.id] || 0 })}</p>
+                    {folder.visibility === 'private' && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[8px] font-medium bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500">
+                        <Lock className="h-2 w-2" />
+                        {t('files.private')}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {/* Folder actions dropdown */}
                 <div className="absolute top-2 end-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2674,13 +2773,26 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         <MoreVertical className="h-3.5 w-3.5" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuContent align="end" className="w-48">
                       <DropdownMenuItem
                         onClick={e => { e.stopPropagation(); setRenamingFolderId(folder.id); setRenameFolderValue(folder.name); }}
                         className="cursor-pointer"
                       >
                         <Pencil className="h-4 w-4 me-2" />
                         {t('files.renameFolder')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={e => {
+                          e.stopPropagation();
+                          const newVis = folder.visibility === 'private' ? 'public' : 'private';
+                          handleFolderVisibilityChange(folder.id, newVis);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        {folder.visibility === 'private'
+                          ? <><Globe className="h-4 w-4 me-2" />{t('files.makePublic')}</>
+                          : <><Lock className="h-4 w-4 me-2" />{t('files.makePrivate')}</>
+                        }
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
