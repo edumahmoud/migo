@@ -165,6 +165,27 @@ export interface LectureNote {
 }
 
 // =====================================================
+// Lessons
+// =====================================================
+
+export type LessonStatus = 'draft' | 'published';
+
+export interface Lesson {
+  id: string;
+  subject_id: string;
+  title: string;
+  content_json: Record<string, unknown> | null;
+  content_html: string | null;
+  status: LessonStatus;
+  published_at: string | null;
+  published_json: Record<string, unknown> | null;
+  order_index: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// =====================================================
 // Files & Sharing
 // =====================================================
 
@@ -616,7 +637,7 @@ export interface BankQuestion {
 // =====================================================
 
 // Course page tab types
-export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams' | 'polls';
+export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams' | 'polls' | 'lessons';
 
 // Extended lecture type with attendance info
 export interface LectureWithAttendance extends Lecture {

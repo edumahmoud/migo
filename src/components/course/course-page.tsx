@@ -55,6 +55,7 @@ const ChatTab = lazy(() => import('@/components/course/tabs/chat-tab'));
 const StudentsTab = lazy(() => import('@/components/course/tabs/students-tab'));
 const TeamsTab = lazy(() => import('@/components/course/tabs/teams-tab'));
 const PollsTab = lazy(() => import('@/components/shared/polls-section'));
+const LessonsTab = lazy(() => import('@/components/course/tabs/lessons-tab'));
 
 // Tab loading fallback
 function TabLoader() {
@@ -95,6 +96,7 @@ const TABS: TabConfig[] = [
   { id: 'students', labelKey: 'course.tabStudents', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
   { id: 'teams', labelKey: 'course.tabTeams', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
   { id: 'polls', labelKey: 'course.tabPolls', icon: <BarChart3 className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'lessons', labelKey: 'course.tabLessons', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
 ];
 
 // -------------------------------------------------------
@@ -716,6 +718,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           </SectionErrorBoundary>
         )}
         {courseTab === 'polls' && <PollsTab profile={profile} role={role} subjectId={subject.id} subject={subject} />}
+        {courseTab === 'lessons' && <LessonsTab profile={profile} role={role} subject={subject} />}
       </Suspense>
     );
   };
