@@ -745,16 +745,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const filteredFiles = useMemo(() => {
     let result = files;
-    // Filter by current folder
-    result = result.filter((f) => (f.folder_id ?? null) === currentFolderId);
+    // "All" tab with no folder context = show ALL files flat (no folder filter)
+    // Inside a folder (currentFolderId set) = show only files in that folder
+    // Other category tabs with no folder = show that type across all folders
+    if (currentFolderId !== null) {
+      result = result.filter((f) => (f.folder_id ?? null) === currentFolderId);
+    }
     // Filter by visibility
     if (visibilityFilter === 'public') {
       result = result.filter((f) => f.visibility === 'public');
     } else if (visibilityFilter === 'private') {
       result = result.filter((f) => f.visibility !== 'public');
     }
-    // Filter by category
-    if (categoryFilter !== 'all') {
+    // Filter by category (not 'all' and not 'folders')
+    if (categoryFilter !== 'all' && categoryFilter !== 'folders') {
       result = result.filter((f) => getFileCategory(f.file_type) === categoryFilter);
     }
     return result;
