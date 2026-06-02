@@ -89,7 +89,11 @@ import {
 // ─── Lowlight instance for code block syntax highlighting ───────────────────
 const lowlight = createLowlight(common)
 // Register MySQL as an alias of SQL for syntax highlighting
-lowlight.register('mysql', common.sql)
+try {
+  lowlight.register('mysql', common.sql)
+} catch {
+  // MySQL may already be registered or unavailable in some environments
+}
 
 // ─── Preset Colors ──────────────────────────────────────────────────────────
 const TEXT_COLORS = [

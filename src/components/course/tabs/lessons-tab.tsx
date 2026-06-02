@@ -263,23 +263,30 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   // Real-time subscription for lessons
   // -------------------------------------------------------
   useEffect(() => {
-    const channel = supabase
-      .channel(`subject-lessons-${subject.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'lessons',
-          filter: `subject_id=eq.${subject.id}`,
-        },
-        () => {
-          fetchLessons();
-        }
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`subject-lessons-${subject.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'lessons',
+            filter: `subject_id=eq.${subject.id}`,
+          },
+          () => {
+            fetchLessons();
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.error('Error setting up lessons realtime subscription:', err);
+    }
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [subject.id, fetchLessons]);
 
