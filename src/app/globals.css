@@ -889,8 +889,9 @@ body.quiz-capture-detected {
   color: #7dd3fc;
 }
 
-/* Images */
-.prose-editor img {
+/* Images - shared between editor and read-only view */
+.prose-editor img,
+.prose-editor-wrapper img {
   border-radius: 0.5rem;
   max-width: 100%;
   height: auto;
@@ -898,24 +899,28 @@ body.quiz-capture-detected {
   transition: width 0.2s ease;
 }
 
-/* Images with explicit width via style attribute */
-.prose-editor img[style*="width"] {
-  max-width: none;
+/* Images with explicit width via style attribute - constrain to container */
+.prose-editor img[style*="width"],
+.prose-editor-wrapper img[style*="width"] {
+  max-width: 100%;
 }
 
 /* Image alignment */
-.prose-editor img[data-align="left"] {
+.prose-editor img[data-align="left"],
+.prose-editor-wrapper img[data-align="left"] {
   margin-right: auto;
   margin-left: 0;
 }
 
-.prose-editor img[data-align="center"] {
+.prose-editor img[data-align="center"],
+.prose-editor-wrapper img[data-align="center"] {
   margin-left: auto;
   margin-right: auto;
   display: block;
 }
 
-.prose-editor img[data-align="right"] {
+.prose-editor img[data-align="right"],
+.prose-editor-wrapper img[data-align="right"] {
   margin-left: auto;
   margin-right: 0;
 }
@@ -959,8 +964,9 @@ body.quiz-capture-detected {
   font-weight: 600;
 }
 
-/* YouTube embed */
-.prose-editor .youtube-embed-wrapper {
+/* YouTube embed - shared between editor and read-only view */
+.prose-editor .youtube-embed-wrapper,
+.prose-editor-wrapper .youtube-embed-wrapper {
   position: relative;
   padding-bottom: 56.25%;
   height: 0;
@@ -970,7 +976,8 @@ body.quiz-capture-detected {
   border-radius: 0.5rem;
 }
 
-.prose-editor .youtube-embed-wrapper iframe {
+.prose-editor .youtube-embed-wrapper iframe,
+.prose-editor-wrapper .youtube-embed-wrapper iframe {
   position: absolute;
   top: 0;
   inset-inline-start: 0;
@@ -987,19 +994,28 @@ body.quiz-capture-detected {
 }
 
 /* YouTube alignment */
-.prose-editor .youtube-embed-wrapper[data-align="left"] {
+.prose-editor .youtube-embed-wrapper[data-align="left"],
+.prose-editor-wrapper .youtube-embed-wrapper[data-align="left"] {
   margin-right: auto;
   margin-left: 0;
 }
 
-.prose-editor .youtube-embed-wrapper[data-align="center"] {
+.prose-editor .youtube-embed-wrapper[data-align="center"],
+.prose-editor-wrapper .youtube-embed-wrapper[data-align="center"] {
   margin-left: auto;
   margin-right: auto;
 }
 
-.prose-editor .youtube-embed-wrapper[data-align="right"] {
+.prose-editor .youtube-embed-wrapper[data-align="right"],
+.prose-editor-wrapper .youtube-embed-wrapper[data-align="right"] {
   margin-left: auto;
   margin-right: 0;
+}
+
+/* YouTube width control */
+.prose-editor .youtube-embed-wrapper[style*="width"],
+.prose-editor-wrapper .youtube-embed-wrapper[style*="width"] {
+  max-width: 100%;
 }
 
 /* Placeholder */

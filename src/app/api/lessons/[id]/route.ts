@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Fetch the existing lesson
     const { data: existingLesson, error: fetchError } = await supabaseServer
       .from('lessons')
-      .select('id, created_by')
+      .select('id, created_by, status')
       .eq('id', lessonId)
       .single();
 
@@ -84,6 +84,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         );
       }
       updateData.content_html = body.content_html;
+    }
+
+    // If the lesson is already published and content_json is being updated,
+    // also update published_json so students see the latest content
+    if (body.content_json !== undefined && existingLesson.status === 'published') {
+      updateData.published_json = body.content_json;
     }
 
     // Ensure at least one field is being updated (besides updated_at)

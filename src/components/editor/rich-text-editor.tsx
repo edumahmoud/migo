@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState, useEffect } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -162,23 +163,25 @@ const CustomImage = Image.extend({
     return {
       ...this.parent?.(),
       width: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('width') || element.style.width || null,
-        renderHTML: (attributes) => {
+        default: '100%',
+        parseHTML: (element) => element.getAttribute('width') || element.style.width || '100%',
+        renderHTML: (attributes: Record<string, unknown>) => {
           if (!attributes.width) return {}
-          return { width: attributes.width, style: `width: ${attributes.width}` }
+          return { width: attributes.width as string, style: `width: ${attributes.width}` }
         },
       },
       'data-align': {
         default: 'center',
         parseHTML: (element) => element.getAttribute('data-align') || 'center',
-        renderHTML: (attributes) => {
-          return { 'data-align': attributes['data-align'] }
+        renderHTML: (attributes: Record<string, unknown>) => {
+          return { 'data-align': attributes['data-align'] as string }
         },
       },
     }
   },
 })
+
+const setImageOptions = (opts: { src: string; width?: string; 'data-align'?: string }) => opts as any
 
 // ─── Custom YouTube Extension (width + alignment) ────────────────────────────
 const CustomYoutube = Youtube.extend({
@@ -315,8 +318,8 @@ async function uploadImageToSupabase(
   return urlData?.publicUrl || null
 }
 
-// ─── MediaSelection Toolbar ──────────────────────────────────────────────
-// Floating toolbar that appears when an image or YouTube video is selected
+// ─── MediaSelection Toolbar (BubbleMenu) ──────────────────────────────────
+// Floating toolbar that appears near the selected image or YouTube video
 function MediaToolbar({ editor }: { editor: Editor }) {
   const isImage = editor.isActive('image')
   const isYoutube = editor.isActive('youtube')
@@ -324,7 +327,7 @@ function MediaToolbar({ editor }: { editor: Editor }) {
   if (!isImage && !isYoutube) return null
 
   const nodeType = isImage ? 'image' : 'youtube'
-  const currentWidth = editor.getAttributes(nodeType).width || (isImage ? '100%' : '100%')
+  const currentWidth = editor.getAttributes(nodeType).width || '100%'
   const currentAlign = editor.getAttributes(nodeType)['data-align'] || 'center'
 
   const sizeOptions = [
@@ -341,7 +344,14 @@ function MediaToolbar({ editor }: { editor: Editor }) {
   ]
 
   return (
-    <div className="flex items-center gap-0.5 rounded-lg border bg-background px-1.5 py-1 shadow-lg">
+    <BubbleMenu
+      editor={editor}
+      shouldShow={({ editor: e }: { editor: Editor }) => {
+        return e.isActive('image') || e.isActive('youtube')
+      }}
+      updateDelay={0}
+      className="flex items-center gap-0.5 rounded-lg border bg-background px-1.5 py-1 shadow-lg"
+    >
       {/* Size buttons */}
       {sizeOptions.map((opt) => (
         <Tooltip key={opt.value}>
@@ -367,6 +377,9 @@ function MediaToolbar({ editor }: { editor: Editor }) {
           </TooltipContent>
         </Tooltip>
       ))}
+
+      {/* Custom width input */}
+      <CustomWidthInput editor={editor} nodeType={nodeType} currentWidth={currentWidth} />
 
       <Separator orientation="vertical" className="h-5 mx-1" />
 
@@ -399,26 +412,101 @@ function MediaToolbar({ editor }: { editor: Editor }) {
       <Separator orientation="vertical" className="h-5 mx-1" />
 
       {/* Delete button */}
-      {(isImage || isYoutube) && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                editor.chain().focus().deleteSelection().run()
-              }}
-              className="inline-flex items-center justify-center h-7 w-7 rounded text-destructive transition-colors hover:bg-destructive/10"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="text-xs">
-            {isImage ? 'Delete Image' : 'Delete Video'}
-          </TooltipContent>
-        </Tooltip>
-      )}
-    </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              editor.chain().focus().deleteSelection().run()
+            }}
+            className="inline-flex items-center justify-center h-7 w-7 rounded text-destructive transition-colors hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          {isImage ? 'Delete Image' : 'Delete Video'}
+        </TooltipContent>
+      </Tooltip>
+    </BubbleMenu>
+  )
+}
+
+// ─── Custom Width Input ──────────────────────────────────────────────────
+function CustomWidthInput({ editor, nodeType, currentWidth }: { editor: Editor; nodeType: string; currentWidth: string }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  const handleApply = useCallback(() => {
+    const val = inputValue.trim()
+    if (!val) {
+      setIsEditing(false)
+      return
+    }
+    // Allow values like "50%", "75%", "100%", "300px", "500"
+    let widthValue = val
+    if (/^\d+$/.test(val)) {
+      // Pure number → treat as percentage
+      widthValue = val + '%'
+    }
+    editor.chain().focus().updateAttributes(nodeType, { width: widthValue }).run()
+    setIsEditing(false)
+  }, [editor, nodeType, inputValue])
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            handleApply()
+          } else if (e.key === 'Escape') {
+            setIsEditing(false)
+          }
+        }}
+        onBlur={handleApply}
+        onMouseDown={(e) => e.preventDefault()}
+        placeholder="50%"
+        className="h-7 w-12 rounded border bg-background px-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-sky-500"
+      />
+    )
+  }
+
+  // Display current width as a clickable button
+  const displayValue = currentWidth || '100%'
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setInputValue(displayValue.replace('%', ''))
+            setIsEditing(true)
+          }}
+          className="inline-flex items-center justify-center h-7 px-1.5 rounded text-xs font-mono transition-colors hover:bg-muted text-foreground"
+        >
+          {displayValue}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="text-xs">
+        Click to set custom width (e.g. 40%, 300px)
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -524,7 +612,7 @@ export default function RichTextEditor({
       }
       const url = await uploadImageToSupabase(file, subjectId, userId)
       if (url && editor) {
-        editor.chain().focus().setImage({ src: url, width: '100%', 'data-align': 'center' }).run()
+        editor.chain().focus().setImage(setImageOptions({ src: url, width: '100%', 'data-align': 'center' })).run()
       }
     },
     [editor, subjectId, userId]
@@ -793,10 +881,6 @@ export default function RichTextEditor({
     </div>
   )
 
-  const mediaToolbar = (
-    <MediaToolbar editor={editor} />
-  )
-
   const editorContent = (
     <div className="relative flex-1 min-h-0">
       <EditorContent
@@ -806,10 +890,8 @@ export default function RichTextEditor({
           isFullscreen ? 'p-8' : 'p-6'
         )}
       />
-      {/* Floating media toolbar */}
-      <div className="absolute top-2 start-2 z-20">
-        {mediaToolbar}
-      </div>
+      {/* Floating media toolbar (BubbleMenu positions itself) */}
+      <MediaToolbar editor={editor} />
     </div>
   )
 
@@ -1224,7 +1306,7 @@ function ImagePopover({
 
   const handleInsertFromUrl = () => {
     if (!url) return
-    editor.chain().focus().setImage({ src: url, width: '100%', 'data-align': 'center' }).run()
+    editor.chain().focus().setImage(setImageOptions({ src: url, width: '100%', 'data-align': 'center' })).run()
     setOpen(false)
     setUrl('')
   }
