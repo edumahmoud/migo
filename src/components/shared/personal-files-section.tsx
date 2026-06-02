@@ -380,6 +380,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // ─── Multi-select state ───
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -1341,6 +1342,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         setFolderPickerOpen(false);
         setFolderPickerCurrentParentId(null);
         setSelectedFileIds(new Set());
+        setSelectedFolderIds(new Set());
         setSelectionMode(false);
       }, 600);
     }
@@ -1388,6 +1390,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         setFolderPickerOpen(false);
         setFolderPickerCurrentParentId(null);
         setSelectedFileIds(new Set());
+        setSelectedFolderIds(new Set());
         setSelectionMode(false);
       }, 600);
     }
@@ -1948,13 +1951,74 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Toggle select all
+  // Toggle select all — applies to the currently active tab's items
   // -------------------------------------------------------
+  const isInFolderTab = categoryFilter === 'folders' && currentFolderId === null;
+
   const toggleSelectAll = () => {
-    if (selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0) {
-      setSelectedFileIds(new Set());
+    if (isInFolderTab) {
+      // In folders tab: select/deselect folders
+      if (selectedFolderIds.size === visibleFolders.length && visibleFolders.length > 0) {
+        setSelectedFolderIds(new Set());
+      } else {
+        setSelectedFolderIds(new Set(visibleFolders.map(f => f.id)));
+      }
     } else {
-      setSelectedFileIds(new Set(filteredFiles.map(f => f.id)));
+      // In other tabs: select/deselect files
+      if (selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0) {
+        setSelectedFileIds(new Set());
+      } else {
+        setSelectedFileIds(new Set(filteredFiles.map(f => f.id)));
+      }
+    }
+  };
+
+  // Total selected count (files + folders)
+  const totalSelectedCount = selectedFileIds.size + selectedFolderIds.size;
+
+  // Toggle folder selection
+  const toggleFolderSelection = (folderId: string) => {
+    setSelectedFolderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId); else next.add(folderId);
+      return next;
+    });
+  };
+
+  // -------------------------------------------------------
+  // Bulk delete folders
+  // -------------------------------------------------------
+  const handleBulkFolderDelete = async () => {
+    if (selectedFolderIds.size === 0) return;
+    setBulkActionLoading(true);
+    try {
+      let deletedCount = 0;
+      for (const folderId of selectedFolderIds) {
+        // Move all files in this folder to root
+        await supabase
+          .from('user_files')
+          .update({ folder_id: null })
+          .eq('folder_id', folderId);
+        // Delete the folder
+        const { error } = await supabase
+          .from('user_folders')
+          .delete()
+          .eq('id', folderId);
+        if (!error) {
+          deletedCount++;
+        }
+      }
+      // Update local state
+      setFolders(prev => prev.filter(f => !selectedFolderIds.has(f.id)));
+      setFiles(prev => prev.map(f => selectedFolderIds.has(f.folder_id || '') ? { ...f, folder_id: null } : f));
+      if (currentFolderId && selectedFolderIds.has(currentFolderId)) setCurrentFolderId(null);
+      toast.success(t('files.toastFolderDeleted'));
+      setSelectedFolderIds(new Set());
+      setConfirmBulkDelete(false);
+    } catch {
+      toast.error(t('files.toastFolderDeleteFailed'));
+    } finally {
+      setBulkActionLoading(false);
     }
   };
 
@@ -2439,7 +2503,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           return (
             <button
               key={cat}
-              onClick={() => { setCategoryFilter(cat); if (cat !== 'folders') setCurrentFolderId(null); }}
+              onClick={() => { setCategoryFilter(cat); if (cat !== 'folders') setCurrentFolderId(null); setSelectedFolderIds(new Set()); }}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 isActive
                   ? isFolderCat
@@ -2514,7 +2578,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       </AnimatePresence>
 
       {/* Select mode toggle / Select all + count */}
-      {!loadingFiles && filteredFiles.length > 0 && (
+      {!loadingFiles && (filteredFiles.length > 0 || (isInFolderTab && visibleFolders.length > 0)) && (
         <motion.div variants={itemVariants} className="flex items-center gap-3">
           {!selectionMode ? (
             <button
@@ -2530,20 +2594,27 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 onClick={toggleSelectAll}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-                  <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                ) : (
-                  <Square className="h-4 w-4" />
-                )}
+                {isInFolderTab
+                  ? (selectedFolderIds.size === visibleFolders.length && visibleFolders.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    ))
+                  : (selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    ))
+                }
                 {t('course.selectAll')}
               </button>
-              {selectedFileIds.size > 0 && (
+              {totalSelectedCount > 0 && (
                 <span className="text-xs text-sky-700 dark:text-sky-400 font-medium">
-                  {t('files.selectedCount', { count: selectedFileIds.size })}
+                  {t('files.selectedCount', { count: totalSelectedCount })}
                 </span>
               )}
               <button
-                onClick={() => { setSelectionMode(false); setSelectedFileIds(new Set()); }}
+                onClick={() => { setSelectionMode(false); setSelectedFileIds(new Set()); setSelectedFolderIds(new Set()); }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 {t('common.cancel')}
@@ -2559,9 +2630,32 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           {visibleFolders.map((folder) => (
             <motion.div key={folder.id} variants={itemVariants}>
               <div
-                onClick={() => { setCurrentFolderId(folder.id); if (categoryFilter === 'folders') setCategoryFilter('all'); }}
-                className="group relative flex flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-800/60 cursor-pointer transition-all"
+                onClick={() => {
+                  if (selectionMode && isInFolderTab) {
+                    toggleFolderSelection(folder.id);
+                  } else {
+                    setCurrentFolderId(folder.id); if (categoryFilter === 'folders') setCategoryFilter('all');
+                  }
+                }}
+                className={`group relative flex flex-col items-center justify-center gap-2 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-800/60 cursor-pointer transition-all ${
+                  selectionMode && isInFolderTab && selectedFolderIds.has(folder.id) ? 'border-sky-400 dark:border-sky-600 ring-1 ring-sky-400/30' : ''
+                }`}
               >
+                {/* Checkbox for multi-select in folder tab — only visible in selection mode */}
+                {selectionMode && isInFolderTab && (
+                  <div className="absolute top-2 start-2 z-10">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleFolderSelection(folder.id); }}
+                      className={`flex items-center justify-center rounded-md transition-colors ${
+                        selectedFolderIds.has(folder.id)
+                          ? 'text-sky-700 dark:text-sky-400'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {selectedFolderIds.has(folder.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                    </button>
+                  </div>
+                )}
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
                   <FolderIcon className="h-7 w-7 text-amber-600 dark:text-amber-500" />
                 </div>
@@ -2652,7 +2746,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
       {/* Bulk Action Bar */}
       <AnimatePresence>
-        {selectedFileIds.size > 0 && (
+        {totalSelectedCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -2661,118 +2755,159 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={direction}
           >
             <span className="text-sm font-medium text-foreground whitespace-nowrap">
-              {t('files.selectedCount', { count: selectedFileIds.size })}
+              {t('files.selectedCount', { count: totalSelectedCount })}
             </span>
             <div className="h-6 w-px bg-border" />
-            {confirmBulkDelete ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-rose-600 dark:text-rose-500 font-medium">{t('files.deleteSelectedFiles')}</span>
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={bulkActionLoading}
-                  className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-60"
-                >
-                  {bulkActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.confirm')}
-                </button>
-                <button
-                  onClick={() => setConfirmBulkDelete(false)}
-                  className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
-                >
-                  {t('common.cancel')}
-                </button>
-              </div>
+
+            {/* Folder bulk actions */}
+            {selectedFolderIds.size > 0 ? (
+              confirmBulkDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-rose-600 dark:text-rose-500 font-medium">{t('files.deleteFolder')}</span>
+                  <button
+                    onClick={handleBulkFolderDelete}
+                    disabled={bulkActionLoading}
+                    className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {bulkActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.confirm')}
+                  </button>
+                  <button
+                    onClick={() => setConfirmBulkDelete(false)}
+                    className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setConfirmBulkDelete(true)}
+                    className="flex items-center gap-1 rounded-md bg-rose-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-rose-700 transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    {t('common.delete')}
+                  </button>
+                  <button
+                    onClick={() => setSelectedFolderIds(new Set())}
+                    className="flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-3 py-1.5 text-xs font-medium hover:bg-muted/80 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    {t('files.cancelSelection')}
+                  </button>
+                </>
+              )
             ) : (
-              <>
-                <DropdownMenu dir={direction}>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
-                      {t('files.bulkActions')}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem
-                      onClick={() => setConfirmBulkDelete(true)}
-                      className="text-rose-600 dark:text-rose-500 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-900/20/30 cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4 me-2" />
-                      {t('common.delete')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => { setFolderPickerMode('move'); setFolderPickerFileIds(Array.from(selectedFileIds)); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
-                      className="cursor-pointer"
-                    >
-                      <FolderIcon className="h-4 w-4 me-2" />
-                      {t('files.moveToFolder')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => { setFolderPickerMode('copy'); setFolderPickerFileIds(Array.from(selectedFileIds)); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
-                      className="cursor-pointer"
-                    >
-                      <Copy className="h-4 w-4 me-2" />
-                      {t('files.copyToFolder')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
+              /* File bulk actions (existing) */
+              confirmBulkDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-rose-600 dark:text-rose-500 font-medium">{t('files.deleteSelectedFiles')}</span>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={bulkActionLoading}
+                    className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {bulkActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.confirm')}
+                  </button>
+                  <button
+                    onClick={() => setConfirmBulkDelete(false)}
+                    className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <DropdownMenu dir={direction}>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
+                        {t('files.bulkActions')}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
                       <DropdownMenuItem
-                        onClick={() => handleBulkVisibility('public')}
-                        disabled={bulkActionLoading}
+                        onClick={() => setConfirmBulkDelete(true)}
+                        className="text-rose-600 dark:text-rose-500 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-900/20/30 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4 me-2" />
+                        {t('common.delete')}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => { setFolderPickerMode('move'); setFolderPickerFileIds(Array.from(selectedFileIds)); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
                         className="cursor-pointer"
                       >
-                        <Globe className="h-4 w-4 me-2" />
-                        {t('files.makePublic')}
+                        <FolderIcon className="h-4 w-4 me-2" />
+                        {t('files.moveToFolder')}
                       </DropdownMenuItem>
-                    )}
-                    {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility === 'public') && (
                       <DropdownMenuItem
-                        onClick={() => handleBulkVisibility('private')}
-                        disabled={bulkActionLoading}
+                        onClick={() => { setFolderPickerMode('copy'); setFolderPickerFileIds(Array.from(selectedFileIds)); setFolderPickerCurrentParentId(null); setFolderPickerOpen(true); }}
                         className="cursor-pointer"
                       >
-                        <Lock className="h-4 w-4 me-2" />
-                        {t('files.makePrivate')}
+                        <Copy className="h-4 w-4 me-2" />
+                        {t('files.copyToFolder')}
                       </DropdownMenuItem>
-                    )}
-                    {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
+                      <DropdownMenuSeparator />
+                      {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
+                        <DropdownMenuItem
+                          onClick={() => handleBulkVisibility('public')}
+                          disabled={bulkActionLoading}
+                          className="cursor-pointer"
+                        >
+                          <Globe className="h-4 w-4 me-2" />
+                          {t('files.makePublic')}
+                        </DropdownMenuItem>
+                      )}
+                      {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility === 'public') && (
+                        <DropdownMenuItem
+                          onClick={() => handleBulkVisibility('private')}
+                          disabled={bulkActionLoading}
+                          className="cursor-pointer"
+                        >
+                          <Lock className="h-4 w-4 me-2" />
+                          {t('files.makePrivate')}
+                        </DropdownMenuItem>
+                      )}
+                      {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
+                        <DropdownMenuItem
+                          onClick={() => openAssignModal(null, true)}
+                          className="cursor-pointer"
+                        >
+                          <FolderPlus className="h-4 w-4 me-2" />
+                          {t('files.assignToCourses')}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
-                        onClick={() => openAssignModal(null, true)}
+                        onClick={async () => {
+                          for (const fileId of selectedFileIds) {
+                            const file = files.find(f => f.id === fileId);
+                            if (file) await handleDownload(file);
+                          }
+                        }}
                         className="cursor-pointer"
                       >
-                        <FolderPlus className="h-4 w-4 me-2" />
-                        {t('files.assignToCourses')}
+                        <Download className="h-4 w-4 me-2" />
+                        {t('files.download')}
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      onClick={async () => {
-                        for (const fileId of selectedFileIds) {
-                          const file = files.find(f => f.id === fileId);
-                          if (file) await handleDownload(file);
-                        }
-                      }}
-                      className="cursor-pointer"
-                    >
-                      <Download className="h-4 w-4 me-2" />
-                      {t('files.download')}
-                    </DropdownMenuItem>
-                    {Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
-                      <DropdownMenuItem
-                        onClick={() => openBulkShareModal()}
-                        className="cursor-pointer"
-                      >
-                        <Share2 className="h-4 w-4 me-2" />
-                        {t('files.shareWithUsers')}
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <button
-                  onClick={() => setSelectedFileIds(new Set())}
-                  className="flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-3 py-1.5 text-xs font-medium hover:bg-muted/80 transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                  {t('files.cancelSelection')}
-                </button>
-              </>
+                      {Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
+                        <DropdownMenuItem
+                          onClick={() => openBulkShareModal()}
+                          className="cursor-pointer"
+                        >
+                          <Share2 className="h-4 w-4 me-2" />
+                          {t('files.shareWithUsers')}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <button
+                    onClick={() => setSelectedFileIds(new Set())}
+                    className="flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-3 py-1.5 text-xs font-medium hover:bg-muted/80 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    {t('files.cancelSelection')}
+                  </button>
+                </>
+              )
             )}
           </motion.div>
         )}
