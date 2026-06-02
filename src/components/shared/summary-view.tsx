@@ -1097,9 +1097,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         allow_retake: quizAllowRetake,
       };
 
-      if (teacherMode && summary?.subject_id) {
-        quizPayload.subject_id = summary.subject_id;
-      }
+      // Summary quizzes are independent from courses — do NOT link subject_id
 
       const saveRes = await fetch('/api/quizzes', {
         method: 'POST',

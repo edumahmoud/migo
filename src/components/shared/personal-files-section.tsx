@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -783,6 +784,22 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Compute sub-folders for a given parent (null = root)
   const getSubFolders = useCallback((parentId: string | null) => {
     return folders.filter(f => (f.parent_folder_id ?? null) === parentId);
+  }, [folders]);
+
+  // Resolve the full folder path from root to a given folder (for tooltip display)
+  const getFolderPath = useCallback((folderId: string): { rootFolder: UserFolder | null; path: UserFolder[] } => {
+    const path: UserFolder[] = [];
+    let cur: string | null = folderId;
+    const visited = new Set<string>();
+    while (cur) {
+      if (visited.has(cur)) break; // cycle protection
+      visited.add(cur);
+      const folder = folders.find(f => f.id === cur);
+      if (!folder) break;
+      path.unshift(folder);
+      cur = folder.parent_folder_id;
+    }
+    return { rootFolder: path.length > 0 ? path[0] : null, path };
   }, [folders]);
 
   // Folders visible in current view (root or inside a folder)
@@ -2264,13 +2281,35 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {file.visibility === 'public' ? t('files.public') : t('files.private')}
             </span>
             {!currentFolderId && file.folder_id && (() => {
-              const folder = folders.find(f => f.id === file.folder_id);
-              return folder ? (
-                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 flex items-center gap-0.5">
-                  <FolderIcon className="h-2.5 w-2.5" />
-                  {folder.name}
-                </span>
-              ) : null;
+              const { rootFolder, path } = getFolderPath(file.folder_id);
+              if (!rootFolder) return null;
+              const displayName = rootFolder.name;
+              const fullPath = path.map(f => f.name).join(' / ');
+              const hasNestedPath = path.length > 1;
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentFolderId(rootFolder.id);
+                        setCategoryFilter('all');
+                      }}
+                      className="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 flex items-center gap-0.5 hover:bg-amber-200 dark:hover:bg-amber-700/50 transition-colors cursor-pointer"
+                    >
+                      <FolderIcon className="h-2.5 w-2.5" />
+                      {displayName}
+                      {hasNestedPath && <span className="text-[8px] opacity-60">…</span>}
+                    </button>
+                  </TooltipTrigger>
+                  {hasNestedPath && (
+                    <TooltipContent side="bottom" className="text-xs max-w-[250px]">
+                      {fullPath}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              );
             })()}
             {shareCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-800 dark:text-violet-200 px-2 py-0.5 text-[10px] font-medium">
@@ -2348,34 +2387,36 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </div>
       </motion.div>
 
-      {/* Visibility filter tabs */}
-      <motion.div variants={itemVariants} className="flex items-center gap-2">
-        {([
-          { key: 'all' as const, label: t('files.categoryAll'), icon: null, count: files.length },
-          { key: 'public' as const, label: t('files.public'), icon: <Globe className="h-3 w-3" />, count: files.filter((f) => f.visibility === 'public').length },
-          { key: 'private' as const, label: t('files.private'), icon: <Lock className="h-3 w-3" />, count: files.filter((f) => f.visibility !== 'public').length },
-        ]).map((vf) => (
-          <button
-            key={vf.key}
-            onClick={() => setVisibilityFilter(vf.key)}
-            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
-              visibilityFilter === vf.key
-                ? vf.key === 'public'
-                  ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
-                  : vf.key === 'private'
-                    ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500'
-                    : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {vf.icon}
-            {vf.label}
-            <span className={`text-[10px] ${visibilityFilter === vf.key ? (vf.key === 'private' ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400') : 'text-muted-foreground'}`}>
-              ({vf.count})
-            </span>
-          </button>
-        ))}
-      </motion.div>
+      {/* Visibility filter tabs — only shown when "All" category is active */}
+      {categoryFilter === 'all' && (
+        <motion.div variants={itemVariants} className="flex items-center gap-2">
+          {([
+            { key: 'all' as const, label: t('files.categoryAll'), icon: null, count: files.length },
+            { key: 'public' as const, label: t('files.public'), icon: <Globe className="h-3 w-3" />, count: files.filter((f) => f.visibility === 'public').length },
+            { key: 'private' as const, label: t('files.private'), icon: <Lock className="h-3 w-3" />, count: files.filter((f) => f.visibility !== 'public').length },
+          ]).map((vf) => (
+            <button
+              key={vf.key}
+              onClick={() => setVisibilityFilter(vf.key)}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
+                visibilityFilter === vf.key
+                  ? vf.key === 'public'
+                    ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
+                    : vf.key === 'private'
+                      ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500'
+                      : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {vf.icon}
+              {vf.label}
+              <span className={`text-[10px] ${visibilityFilter === vf.key ? (vf.key === 'private' ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400') : 'text-muted-foreground'}`}>
+                ({vf.count})
+              </span>
+            </button>
+          ))}
+        </motion.div>
+      )}
 
       {/* Category filter tabs */}
       <motion.div variants={itemVariants} className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -4363,19 +4404,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <>
                 {/* Sub-folders */}
                 {getSubFolders(folderPickerCurrentParentId).map((folder) => {
-                  // For move: disable folder if ALL selected files are already in this folder
-                  const isCurrentFileFolder = folderPickerMode === 'move' && folderPickerFileIds.length > 0 && folderPickerFileIds.every(fid => files.find(f => f.id === fid)?.folder_id === folder.id);
                   const subFileCount = files.filter(f => f.folder_id === folder.id).length;
                   return (
                     <button
                       key={folder.id}
                       onClick={() => setFolderPickerCurrentParentId(folder.id)}
-                      disabled={folderPickerMode === 'move' && isCurrentFileFolder}
-                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                        isCurrentFileFolder && folderPickerMode === 'move'
-                          ? 'opacity-40 cursor-not-allowed'
-                          : 'hover:bg-muted cursor-pointer'
-                      }`}
+                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-muted cursor-pointer"
                     >
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 shrink-0">
                         <FolderIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" />

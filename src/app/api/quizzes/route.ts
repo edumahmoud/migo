@@ -328,9 +328,7 @@ export async function PUT(request: NextRequest) {
       newQuizData.duration = preservedSettings.duration;
     }
 
-    if (preservedSettings.subject_id) {
-      newQuizData.subject_id = preservedSettings.subject_id;
-    }
+    // Summary quizzes are independent from courses — do NOT preserve subject_id
 
     const { data: newQuiz, error: insertError } = await supabaseServer
       .from('quizzes')
