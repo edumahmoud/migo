@@ -9,14 +9,14 @@ import Highlight from '@tiptap/extension-highlight'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
-import Table from '@tiptap/extension-table'
+import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import Color from '@tiptap/extension-color'
-import TextStyle from '@tiptap/extension-text-style'
+import { TextStyle } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
 
@@ -111,11 +111,11 @@ const HIGHLIGHT_COLORS = [
 // ─── Props ──────────────────────────────────────────────────────────────────
 export interface RichTextEditorProps {
   content: any // TipTap JSON content
-  onChange: (json: any, html: string) => void
+  onChange?: (json: any, html: string) => void
   placeholder?: string
   editable?: boolean
-  subjectId: string // For image upload path
-  userId: string // For image upload path
+  subjectId?: string // For image upload path
+  userId?: string // For image upload path
   dir?: 'rtl' | 'ltr'
 }
 
@@ -278,7 +278,7 @@ export default function RichTextEditor({
       Typography,
     ],
     onUpdate: ({ editor: e }) => {
-      onChange(e.getJSON(), e.getHTML())
+      onChange?.(e.getJSON(), e.getHTML())
     },
     editorProps: {
       attributes: {
@@ -291,6 +291,10 @@ export default function RichTextEditor({
   // ─── Image upload handler ─────────────────────────────────────────────────
   const handleImageUpload = useCallback(
     async (file: File) => {
+      if (!subjectId || !userId) {
+        toast.error('Image upload requires subjectId and userId.')
+        return
+      }
       const url = await uploadImageToSupabase(file, subjectId, userId)
       if (url && editor) {
         editor.chain().focus().setImage({ src: url }).run()

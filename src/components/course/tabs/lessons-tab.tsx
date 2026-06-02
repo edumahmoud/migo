@@ -633,11 +633,11 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         {/* Lesson content */}
         <motion.div variants={itemVariants}>
           <RichTextEditor
-            initialContent={
+            content={
               viewingLesson.published_json || viewingLesson.content_json
             }
-            readOnly
-            className="min-h-[400px]"
+            editable={false}
+            dir={direction === 'rtl' ? 'rtl' : 'ltr'}
           />
         </motion.div>
       </motion.div>
@@ -838,13 +838,14 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               </div>
             ) : (
               <RichTextEditor
-                initialContent={editorContent}
+                content={editorContent}
                 onChange={handleEditorChange}
                 placeholder={
                   t('startWriting') || 'Start writing your lesson...'
                 }
-                minHeight="100%"
-                className="border-0 focus-within:ring-0 h-full"
+                subjectId={subject.id}
+                userId={profile.id}
+                dir={direction === 'rtl' ? 'rtl' : 'ltr'}
               />
             )}
           </div>
@@ -977,7 +978,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                             <MoreVertical className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" dir={direction}>
+                        <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
