@@ -88,6 +88,8 @@ import {
 
 // ─── Lowlight instance for code block syntax highlighting ───────────────────
 const lowlight = createLowlight(common)
+// Register MySQL as an alias of SQL for syntax highlighting
+lowlight.register('mysql', common.sql)
 
 // ─── Preset Colors ──────────────────────────────────────────────────────────
 const TEXT_COLORS = [
@@ -1383,11 +1385,14 @@ const CODE_LANGUAGES = [
   { label: 'JavaScript', value: 'javascript' },
   { label: 'TypeScript', value: 'typescript' },
   { label: 'Python', value: 'python' },
-  { label: 'HTML', value: 'html' },
-  { label: 'CSS', value: 'css' },
+  { label: 'PHP', value: 'php' },
+  { label: 'C#', value: 'csharp' },
   { label: 'Java', value: 'java' },
   { label: 'C++', value: 'cpp' },
+  { label: 'HTML', value: 'html' },
+  { label: 'CSS', value: 'css' },
   { label: 'SQL', value: 'sql' },
+  { label: 'MySQL', value: 'mysql' },
   { label: 'Bash', value: 'bash' },
   { label: 'JSON', value: 'json' },
 ]
