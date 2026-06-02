@@ -1044,6 +1044,80 @@ body.quiz-capture-detected {
   min-height: 400px;
 }
 
+/* ─── Columns Layout ─────────────────────────────────────────────────────── */
+.prose-editor .editor-columns,
+.prose-editor-wrapper .editor-columns {
+  display: flex;
+  gap: 1rem;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.prose-editor .editor-column,
+.prose-editor-wrapper .editor-column {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px dashed var(--border);
+  transition: border-color 0.2s;
+}
+
+.prose-editor .editor-column:hover,
+.prose-editor-wrapper .editor-column:hover {
+  border-color: #0284c7;
+}
+
+/* Column content inherits prose styles */
+.prose-editor .editor-column p,
+.prose-editor-wrapper .editor-column p {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.prose-editor .editor-column p:first-child,
+.prose-editor-wrapper .editor-column p:first-child {
+  margin-top: 0;
+}
+
+.prose-editor .editor-column img,
+.prose-editor-wrapper .editor-column img {
+  max-width: 100%;
+}
+
+/* Responsive: stack columns on mobile */
+@media (max-width: 640px) {
+  .prose-editor .editor-columns,
+  .prose-editor-wrapper .editor-columns {
+    flex-direction: column;
+  }
+}
+
+/* ─── Image Float ──────────────────────────────────────────────────────────── */
+.prose-editor img[data-float="left"],
+.prose-editor-wrapper img[data-float="left"] {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.prose-editor img[data-float="right"],
+.prose-editor-wrapper img[data-float="right"] {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Clearfix for floated images */
+.prose-editor p::after,
+.prose-editor-wrapper p::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
 /* Table resize handle */
 .prose-editor .column-resize-handle {
   position: absolute;

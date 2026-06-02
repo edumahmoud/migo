@@ -20,7 +20,9 @@ import Color from '@tiptap/extension-color'
 import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
-import { Extension } from '@tiptap/core'
+import { Extension, Node } from '@tiptap/core'
+import { ReactNodeViewRenderer } from '@tiptap/react'
+import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 
 import {
   Bold,
@@ -60,6 +62,9 @@ import {
   X,
   ArrowLeftToLine,
   ArrowRightToLine,
+  Columns2,
+  Columns3,
+  FlipHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -157,7 +162,7 @@ try {
   // MySQL may already be registered or unavailable in some environments
 }
 
-// ─── Custom Image Extension (width + alignment) ────────────────────────────
+// ─── Custom Image Extension (width + alignment + float) ───────────────────
 const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -177,11 +182,19 @@ const CustomImage = Image.extend({
           return { 'data-align': attributes['data-align'] as string }
         },
       },
+      'data-float': {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-float') || null,
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes['data-float']) return {}
+          return { 'data-float': attributes['data-float'] as string }
+        },
+      },
     }
   },
 })
 
-const setImageOptions = (opts: { src: string; width?: string; 'data-align'?: string }) => opts as any
+const setImageOptions = (opts: { src: string; width?: string; 'data-align'?: string; 'data-float'?: string | null }) => opts as any
 
 // ─── Custom YouTube Extension (width + alignment) ────────────────────────────
 const CustomYoutube = Youtube.extend({
@@ -206,6 +219,94 @@ const CustomYoutube = Youtube.extend({
     }
   },
 })
+
+// ─── Column Node (single column inside Columns) ───────────────────────────
+const Column = Node.create({
+  name: 'column',
+  content: 'block+',
+  isolating: true,
+
+  parseHTML() {
+    return [{ tag: 'div[data-column]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { ...HTMLAttributes, 'data-column': '', class: 'editor-column' }, 0]
+  },
+})
+
+// ─── Columns Node (multi-column layout container) ─────────────────────────
+const Columns = Node.create({
+  name: 'columns',
+  group: 'block',
+  content: 'column+',
+  defining: true,
+
+  addAttributes() {
+    return {
+      cols: {
+        default: 2,
+        parseHTML: (element) => parseInt(element.getAttribute('data-cols') || '2', 10),
+        renderHTML: (attributes) => {
+          return { 'data-cols': String(attributes.cols) }
+        },
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-columns]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { ...HTMLAttributes, 'data-columns': '', class: 'editor-columns' }, 0]
+  },
+
+  addCommands() {
+    return {
+      insertColumns:
+        (cols: number = 2) =>
+        ({ tr, dispatch, editor }: any) => {
+          const columnType = editor.schema.nodes.column
+          const columnsType = editor.schema.nodes.columns
+          if (!columnType || !columnsType) return false
+
+          const columnCount = Math.min(Math.max(cols, 2), 3)
+          // Build the right number of column children
+          const columnNodes = Array.from({ length: columnCount }, () =>
+            columnType.create(null, editor.schema.nodes.paragraph.create())
+          )
+          const columnsNode = columnsType.create({ cols: columnCount }, columnNodes)
+
+          if (dispatch) {
+            const { from } = tr.selection
+            dispatch(tr.replaceSelectionWith(columnsNode, false))
+          }
+          return true
+        },
+    } as any
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(({ node }) => {
+      const cols = node.attrs.cols || 2
+      return (
+        <NodeViewWrapper className={cn('editor-columns', `editor-columns-${cols}`)}>
+          <NodeViewContent className="editor-columns-content" />
+        </NodeViewWrapper>
+      )
+    })
+  },
+})
+
+// Module augmentation for insertColumns command
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    columns: {
+      insertColumns: (cols?: number) => ReturnType
+    }
+  }
+}
 
 // ─── Preset Colors ──────────────────────────────────────────────────────────
 const TEXT_COLORS = [
@@ -329,6 +430,7 @@ function MediaToolbar({ editor }: { editor: Editor }) {
   const nodeType = isImage ? 'image' : 'youtube'
   const currentWidth = editor.getAttributes(nodeType).width || '100%'
   const currentAlign = editor.getAttributes(nodeType)['data-align'] || 'center'
+  const currentFloat = editor.getAttributes(nodeType)['data-float'] || null
 
   const sizeOptions = [
     { label: 'S', value: '25%', tooltip: 'Small (25%)' },
@@ -343,6 +445,12 @@ function MediaToolbar({ editor }: { editor: Editor }) {
     { value: 'right', icon: AlignRight, tooltip: 'Align Right' },
   ]
 
+  // Float is only available for images
+  const floatOptions = isImage ? [
+    { value: 'left', tooltip: 'Float Left (text wraps around)' },
+    { value: 'right', tooltip: 'Float Right (text wraps around)' },
+  ] : []
+
   return (
     <BubbleMenu
       editor={editor}
@@ -350,7 +458,7 @@ function MediaToolbar({ editor }: { editor: Editor }) {
         return e.isActive('image') || e.isActive('youtube')
       }}
       updateDelay={0}
-      className="flex items-center gap-0.5 rounded-lg border bg-background px-1.5 py-1 shadow-lg"
+      className="flex flex-wrap items-center gap-0.5 rounded-lg border bg-background px-1.5 py-1 shadow-lg"
     >
       {/* Size buttons */}
       {sizeOptions.map((opt) => (
@@ -410,6 +518,67 @@ function MediaToolbar({ editor }: { editor: Editor }) {
       ))}
 
       <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* Float buttons (images only) */}
+      {floatOptions.length > 0 && (
+        <>
+          {floatOptions.map((opt) => (
+            <Tooltip key={`float-${opt.value}`}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (currentFloat === opt.value) {
+                      // Toggle off: remove float
+                      editor.chain().focus().updateAttributes(nodeType, { 'data-float': null, 'data-align': 'center' }).run()
+                    } else {
+                      // Set float and auto-adjust width to 50% for better text wrapping
+                      editor.chain().focus().updateAttributes(nodeType, {
+                        'data-float': opt.value,
+                        'data-align': opt.value,
+                        width: currentWidth === '100%' ? '50%' : currentWidth,
+                      }).run()
+                    }
+                  }}
+                  className={cn(
+                    'inline-flex items-center justify-center h-7 w-7 rounded transition-colors',
+                    'hover:bg-muted',
+                    currentFloat === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                    currentFloat !== opt.value && 'text-foreground'
+                  )}
+                >
+                  <FlipHorizontal className={cn('h-3.5 w-3.5', opt.value === 'right' && 'rotate-180')} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                {opt.tooltip}
+              </TooltipContent>
+            </Tooltip>
+          ))}
+          {/* Remove float button */}
+          {currentFloat && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    editor.chain().focus().updateAttributes(nodeType, { 'data-float': null, 'data-align': 'center' }).run()
+                  }}
+                  className="inline-flex items-center justify-center h-7 w-7 rounded text-xs font-bold transition-colors hover:bg-muted text-muted-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Remove Float
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <Separator orientation="vertical" className="h-5 mx-1" />
+        </>
+      )}
 
       {/* Delete button */}
       <Tooltip>
@@ -576,6 +745,8 @@ export default function RichTextEditor({
           class: 'border border-border p-2 min-w-[80px] bg-muted font-semibold',
         },
       }),
+      Columns,
+      Column,
       CodeBlockLowlight.configure({
         lowlight,
         HTMLAttributes: {
@@ -838,8 +1009,9 @@ export default function RichTextEditor({
 
       <ToolbarDivider />
 
-      {/* 8. Table / Code Block / Quote / HR */}
+      {/* 8. Table / Columns / Code Block / Quote / HR */}
       <TablePopover editor={editor} dir={dir} />
+      <ColumnsPopover editor={editor} dir={dir} />
       <CodeBlockPopover editor={editor} dir={dir} />
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
@@ -1389,6 +1561,133 @@ function ImagePopover({
   )
 }
 
+// ─── Columns Popover ─────────────────────────────────────────────────────────
+function ColumnsPopover({
+  editor,
+  dir,
+}: {
+  editor: Editor
+  dir: 'rtl' | 'ltr'
+}) {
+  const [open, setOpen] = useState(false)
+  const isInColumns = editor.isActive('columns')
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              className={cn(
+                'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
+                'hover:bg-muted',
+                isInColumns && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+              )}
+            >
+              <Columns2 className="h-4 w-4" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Columns
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-52 p-3"
+        align={dir === 'rtl' ? 'end' : 'start'}
+        sideOffset={4}
+      >
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Columns Layout</Label>
+
+          {!isInColumns ? (
+            <div className="space-y-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().insertColumns(2).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns2 className="h-4 w-4" />
+                2 Columns
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().insertColumns(3).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns3 className="h-4 w-4" />
+                3 Columns
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().updateAttributes('columns', { cols: 2 }).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns2 className="h-4 w-4" />
+                Switch to 2 Columns
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().updateAttributes('columns', { cols: 3 }).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns3 className="h-4 w-4" />
+                Switch to 3 Columns
+              </Button>
+              <Separator className="my-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-xs gap-2 text-destructive hover:text-destructive"
+                onClick={() => {
+                  // Delete the columns block
+                  const { from } = editor.state.selection
+                  const $pos = editor.state.doc.resolve(from)
+                  for (let d = $pos.depth; d > 0; d--) {
+                    const node = $pos.node(d)
+                    if (node.type.name === 'columns') {
+                      editor.chain().focus().deleteRange({
+                        from: $pos.before(d),
+                        to: $pos.after(d),
+                      }).run()
+                      break
+                    }
+                  }
+                  setOpen(false)
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Columns
+              </Button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // ─── Table Popover ──────────────────────────────────────────────────────────
 function TablePopover({
   editor,
@@ -1749,7 +2048,7 @@ function CodeBlockPopover({
   React.useEffect(() => {
     if (!open) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as globalThis.Node)) {
         setOpen(false)
       }
     }
