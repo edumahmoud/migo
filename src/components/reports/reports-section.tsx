@@ -1880,7 +1880,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
                           <button
                             onClick={() => setReplyAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="absolute top-0.5 start-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-0.5 start-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                           >
                             <Trash2 className="h-2.5 w-2.5" />
                           </button>

@@ -956,7 +956,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                         <DropdownMenuTrigger asChild>
                           <button
                             onClick={(e) => e.stopPropagation()}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </button>

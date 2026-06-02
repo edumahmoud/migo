@@ -418,7 +418,7 @@ export default function NotificationBell() {
                             e.stopPropagation();
                             clearNotification(notif.id);
                           }}
-                          className="touch-target opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 transition-all"
+                          className="touch-target opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 transition-all"
                           aria-label={t('notifications.deleteNotification')}
                         >
                           <Trash2 className="h-3 w-3" />

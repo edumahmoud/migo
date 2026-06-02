@@ -2763,7 +2763,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </div>
                 </div>
                 {/* Folder actions dropdown */}
-                <div className="absolute top-2 end-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-2 end-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <DropdownMenu dir={direction}>
                     <DropdownMenuTrigger asChild>
                       <button

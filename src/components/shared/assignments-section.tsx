@@ -1095,7 +1095,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
                   {/* Teacher actions */}
                   {role === 'teacher' && (
-                    <div className="absolute top-3 start-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 start-3 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
                         className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:text-sky-700 dark:hover:text-sky-300"

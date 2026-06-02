@@ -1322,7 +1322,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                       <button
                         onClick={e => { e.stopPropagation(); handleDeleteBank(bank.id); }}
                         disabled={deletingBankId === bank.id}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       >
                         {deletingBankId === bank.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
@@ -1549,7 +1549,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   <button
                     onClick={() => handleDeleteQuestion(q.id)}
                     disabled={deletingQuestionId === q.id}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   >
                     {deletingQuestionId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
