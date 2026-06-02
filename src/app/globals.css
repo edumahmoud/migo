@@ -1085,6 +1085,12 @@ body.quiz-capture-detected {
   max-width: 100%;
 }
 
+/* 3-column layout: equal widths */
+.prose-editor .editor-columns[data-cols="3"] .editor-column,
+.prose-editor-wrapper .editor-columns[data-cols="3"] .editor-column {
+  flex: 1;
+}
+
 /* Responsive: stack columns on mobile */
 @media (max-width: 640px) {
   .prose-editor .editor-columns,

@@ -21,8 +21,6 @@ import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
 import { Extension, Node } from '@tiptap/core'
-import { ReactNodeViewRenderer } from '@tiptap/react'
-import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 
 import {
   Bold,
@@ -285,17 +283,6 @@ const Columns = Node.create({
           return true
         },
     } as any
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(({ node }) => {
-      const cols = node.attrs.cols || 2
-      return (
-        <NodeViewWrapper className={cn('editor-columns', `editor-columns-${cols}`)}>
-          <NodeViewContent className="editor-columns-content" />
-        </NodeViewWrapper>
-      )
-    })
   },
 })
 
@@ -1080,18 +1067,20 @@ export default function RichTextEditor({
 
   return (
     <>
-      {/* Normal mode editor */}
-      <div
-        className={cn(
-          'rich-text-editor rounded-xl border bg-white dark:bg-card overflow-hidden',
-          'flex flex-col'
-        )}
-        dir={dir}
-      >
-        {toolbarContent}
-        {editorContent}
-        {fileInput}
-      </div>
+      {/* Normal mode editor (hidden when fullscreen) */}
+      {!isFullscreen && (
+        <div
+          className={cn(
+            'rich-text-editor rounded-xl border bg-white dark:bg-card overflow-hidden',
+            'flex flex-col'
+          )}
+          dir={dir}
+        >
+          {toolbarContent}
+          {editorContent}
+          {fileInput}
+        </div>
+      )}
 
       {/* Fullscreen dialog */}
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
@@ -1103,15 +1092,17 @@ export default function RichTextEditor({
             <DialogTitle>Fullscreen Editor</DialogTitle>
             <DialogDescription>Edit content in fullscreen mode</DialogDescription>
           </DialogHeader>
-          <div
-            className="flex flex-col flex-1 min-h-0 overflow-hidden"
-            dir={dir}
-          >
-            {toolbarContent}
-            <div className="flex-1 overflow-y-auto">
-              {editorContent}
+          {isFullscreen && (
+            <div
+              className="flex flex-col flex-1 min-h-0 overflow-hidden"
+              dir={dir}
+            >
+              {toolbarContent}
+              <div className="flex-1 overflow-y-auto">
+                {editorContent}
+              </div>
             </div>
-          </div>
+          )}
           {fileInput}
         </DialogContent>
       </Dialog>
