@@ -19,6 +19,7 @@ import Color from '@tiptap/extension-color'
 import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
+import { Extension } from '@tiptap/core'
 
 import {
   Bold,
@@ -85,6 +86,36 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip'
+
+// ─── Text Direction Extension ──────────────────────────────────────────────
+// Adds `dir` attribute to paragraph and heading nodes so RTL/LTR works properly
+const TextDirectionExtension = Extension.create({
+  name: 'textDirection',
+
+  addOptions() {
+    return {
+      types: ['heading', 'paragraph'],
+    }
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          dir: {
+            default: null,
+            parseHTML: (element) => element.getAttribute('dir'),
+            renderHTML: (attributes) => {
+              if (!attributes.dir) return {}
+              return { dir: attributes.dir }
+            },
+          },
+        },
+      },
+    ]
+  },
+})
 
 // ─── Lowlight instance for code block syntax highlighting ───────────────────
 const lowlight = createLowlight(common)
@@ -286,6 +317,7 @@ export default function RichTextEditor({
       FontSize,
       FontFamily,
       Typography,
+      TextDirectionExtension,
     ],
     onUpdate: ({ editor: e }) => {
       onChange?.(e.getJSON(), e.getHTML())
@@ -451,12 +483,7 @@ export default function RichTextEditor({
       {/* Text Direction (RTL/LTR) */}
       <ToolbarButton
         onClick={() => {
-          const currentDir = editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir
-          if (currentDir === 'rtl') {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
-          } else {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
-          }
+          editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
         }}
         isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'rtl'}
         tooltip="RTL Direction"
@@ -465,14 +492,9 @@ export default function RichTextEditor({
       </ToolbarButton>
       <ToolbarButton
         onClick={() => {
-          const currentDir = editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir
-          if (currentDir === 'ltr') {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
-          } else {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
-          }
+          editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
         }}
-        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'ltr' && (editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) !== undefined}
+        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'ltr'}
         tooltip="LTR Direction"
       >
         <ArrowLeftToLine className="h-4 w-4" />
@@ -1414,7 +1436,7 @@ function CodeBlockPopover({
   const currentLangLabel = CODE_LANGUAGES.find((l) => l.value === currentLang)?.label || currentLang
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
@@ -1442,6 +1464,13 @@ function CodeBlockPopover({
         className="w-48 p-1"
         align={dir === 'rtl' ? 'end' : 'start'}
         sideOffset={4}
+        onInteractOutside={(e) => {
+          // Prevent closing when clicking inside the editor
+          const target = e.target as HTMLElement
+          if (target?.closest('.ProseMirror') || target?.closest('[data-radix-popper-content-wrapper]')) {
+            e.preventDefault()
+          }
+        }}
       >
         {!isInCodeBlock ? (
           <button
