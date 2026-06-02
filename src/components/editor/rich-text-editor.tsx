@@ -115,6 +115,36 @@ const TextDirectionExtension = Extension.create({
       },
     ]
   },
+
+  addCommands() {
+    return {
+      setTextDirection:
+        (direction: string) =>
+        ({ tr, state, dispatch }) => {
+          const { from, to } = state.selection
+          let applicable = false
+          const types = this.options.types as string[]
+
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            if (types.includes(node.type.name)) {
+              applicable = true
+              if (dispatch) {
+                tr.setNodeMarkup(pos, undefined, {
+                  ...node.attrs,
+                  dir: direction,
+                })
+              }
+            }
+          })
+
+          if (dispatch && applicable) {
+            dispatch(tr.scrollIntoView())
+          }
+
+          return applicable
+        },
+    }
+  },
 })
 
 // ─── Lowlight instance for code block syntax highlighting ───────────────────
@@ -483,18 +513,24 @@ export default function RichTextEditor({
       {/* Text Direction (RTL/LTR) */}
       <ToolbarButton
         onClick={() => {
-          editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
+          editor.chain().focus().setTextDirection('rtl').run()
         }}
-        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'rtl'}
+        isActive={
+          (editor.isActive('paragraph') && editor.getAttributes('paragraph').dir === 'rtl') ||
+          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'rtl')
+        }
         tooltip="RTL Direction"
       >
         <ArrowRightToLine className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         onClick={() => {
-          editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
+          editor.chain().focus().setTextDirection('ltr').run()
         }}
-        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'ltr'}
+        isActive={
+          (editor.isActive('paragraph') && editor.getAttributes('paragraph').dir === 'ltr') ||
+          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'ltr')
+        }
         tooltip="LTR Direction"
       >
         <ArrowLeftToLine className="h-4 w-4" />
@@ -678,6 +714,7 @@ function HeadingDropdown({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
                 'hover:bg-muted',
@@ -740,6 +777,7 @@ function ColorPickerPopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted'
@@ -817,6 +855,7 @@ function HighlightPickerPopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -918,6 +957,7 @@ function LinkPopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -1013,6 +1053,7 @@ function ImagePopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -1102,6 +1143,7 @@ function TablePopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -1270,6 +1312,7 @@ function FontSizeDropdown({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
                 'hover:bg-muted',
@@ -1358,6 +1401,7 @@ function FontFamilyDropdown({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
                 'hover:bg-muted max-w-[120px]',
@@ -1436,12 +1480,13 @@ function CodeBlockPopover({
   const currentLangLabel = CODE_LANGUAGES.find((l) => l.value === currentLang)?.label || currentLang
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={false}>
+    <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -1461,13 +1506,17 @@ function CodeBlockPopover({
         </TooltipContent>
       </Tooltip>
       <PopoverContent
-        className="w-48 p-1"
+        className="w-48 p-1 max-h-72 overflow-y-auto"
         align={dir === 'rtl' ? 'end' : 'start'}
         sideOffset={4}
         onInteractOutside={(e) => {
-          // Prevent closing when clicking inside the editor
+          // Prevent closing when clicking inside the editor or toolbar
           const target = e.target as HTMLElement
-          if (target?.closest('.ProseMirror') || target?.closest('[data-radix-popper-content-wrapper]')) {
+          if (
+            target?.closest('.ProseMirror') ||
+            target?.closest('[data-radix-popper-content-wrapper]') ||
+            target?.closest('.rich-text-editor')
+          ) {
             e.preventDefault()
           }
         }}
