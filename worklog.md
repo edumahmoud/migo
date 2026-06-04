@@ -277,3 +277,33 @@ Stage Summary:
 - Risk calculation mechanism is transparent with exact point values
 - Each role gets customized tips (student: focus on weakest component; teacher: use filters for at-risk students)
 - Dialog is scrollable and properly sized for the detailed content
+---
+Task ID: teacher-dashboard-overview-activity
+Agent: main
+Task: Change "Performance Overview" indicators to aggregate course/teacher indicators, and change "Recent Activity" to show teacher actions only
+
+Work Log:
+- Read and analyzed the teacher-dashboard.tsx code (Performance Overview with bar/pie charts, Recent Activity with student-centric activities)
+- Added new imports: computeSubjectPerformance, getPerformanceLevelConfig, getRiskLevelConfig, getGrowthTrendConfig, useLocaleStore, Progress, Badge
+- Added `aggregateStats` useMemo computing: avgAttendance, avgEfficiency, avgDiscipline, atRiskCount, advancedCount, improvingCount, decliningCount, performanceDistribution
+- Added `subjectAggregateData` useMemo computing per-subject aggregate performance with avg performance and at-risk count
+- Replaced Performance Overview section with:
+  - Aggregate KPI row (avg attendance, avg efficiency, avg discipline, avg performance)
+  - Student Level Distribution with horizontal bar visualization (excellent/veryGood/good/acceptable/weak)
+  - Risk & Growth Summary (at-risk count, advanced count, improving trend, declining trend)
+  - Per-Course Indicators with status badges, progress bars, student count, and at-risk warnings
+- Changed "Detailed Analysis" button to navigate to 'tracking' section instead of 'analytics'
+- Replaced Recent Activity section with teacher-centric activities:
+  - Courses created (from teacherSubjects)
+  - Quizzes created (from quizzes)
+  - Assignments created (from teacherAssignments with subject name)
+  - Attendance sessions created (from teacherAttendanceSessions with subject name)
+- Removed student-centric activities (quiz completions, graded submissions, student scores)
+- All labels are bilingual using locale variable
+- Lint check passes cleanly
+- TypeScript compilation has no errors
+
+Stage Summary:
+- Performance Overview now shows aggregate indicators for all students combined: KPIs, distribution, risk/growth summary, and per-course indicators
+- Recent Activity now shows only teacher actions (course/quiz/assignment/session creation)
+- Both sections are fully bilingual (Arabic/English)

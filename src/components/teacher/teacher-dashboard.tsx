@@ -47,7 +47,10 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { computeAllMetrics, calculatePercentile } from '@/lib/performance-calculator';
+import { computeAllMetrics, computeSubjectPerformance, calculatePercentile, getPerformanceLevelConfig, getRiskLevelConfig, getGrowthTrendConfig, type PerformanceLevel, type RiskLevel } from '@/lib/performance-calculator';
+import { useLocaleStore } from '@/i18n/locale-store';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
@@ -152,6 +155,7 @@ function questionTypeLabel(type: string, t: (key: string) => string): string {
 export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboardProps) {
   // ─── i18n ───
   const { t, direction } = useTranslations();
+  const locale = useLocaleStore((s) => s.locale);
 
   // ─── Stores ───
   const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
@@ -652,6 +656,62 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     const total = allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.overallPerformance, 0);
     return Math.round(total / allStudentMetrics.length);
   }, [allStudentMetrics]);
+
+  // Derived: aggregate stats for dashboard overview (all students combined)
+  const aggregateStats = useMemo(() => {
+    if (allStudentMetrics.length === 0) {
+      return { avgAttendance: 0, avgEfficiency: 0, avgDiscipline: 0, atRiskCount: 0, advancedCount: 0, improvingCount: 0, decliningCount: 0, performanceDistribution: { excellent: 0, veryGood: 0, good: 0, acceptable: 0, weak: 0 } };
+    }
+    const avgAttendance = Math.round(allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.attendanceScore, 0) / allStudentMetrics.length);
+    const avgEfficiency = Math.round(allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.efficiency, 0) / allStudentMetrics.length);
+    const avgDiscipline = Math.round(allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.disciplineScore, 0) / allStudentMetrics.length);
+    const atRiskCount = allStudentMetrics.filter(({ metrics }) => metrics.riskLevel === 'atRisk' || metrics.riskLevel === 'concern').length;
+    const advancedCount = allStudentMetrics.filter(({ metrics }) => metrics.overallPerformance >= 80).length;
+    const improvingCount = allStudentMetrics.filter(({ metrics }) => metrics.growthTrend === 'improving').length;
+    const decliningCount = allStudentMetrics.filter(({ metrics }) => metrics.growthTrend === 'declining').length;
+    const performanceDistribution = {
+      excellent: allStudentMetrics.filter(({ metrics }) => metrics.performanceLevel === 'excellent').length,
+      veryGood: allStudentMetrics.filter(({ metrics }) => metrics.performanceLevel === 'veryGood').length,
+      good: allStudentMetrics.filter(({ metrics }) => metrics.performanceLevel === 'good').length,
+      acceptable: allStudentMetrics.filter(({ metrics }) => metrics.performanceLevel === 'acceptable').length,
+      weak: allStudentMetrics.filter(({ metrics }) => metrics.performanceLevel === 'weak').length,
+    };
+    return { avgAttendance, avgEfficiency, avgDiscipline, atRiskCount, advancedCount, improvingCount, decliningCount, performanceDistribution };
+  }, [allStudentMetrics]);
+
+  // Derived: per-subject aggregate performance for dashboard overview
+  const subjectAggregateData = useMemo(() => {
+    return teacherSubjects.map(subject => {
+      const subjectScores = scores.filter(s => {
+        const quiz = quizzes.find(q => q.id === s.quiz_id);
+        return quiz?.subject_id === subject.id;
+      });
+      const subjectStudentIds = new Set(subjectScores.map(s => s.student_id));
+      const subjectAssignments = teacherAssignments.filter(a => a.subject_id === subject.id);
+      const subjectSessions = teacherAttendanceSessions.filter(s => s.subject_id === subject.id);
+      const subjectRecords = teacherAttendanceRecords.filter(r => subjectSessions.some(s => s.id === r.session_id));
+      const subjectSubs = teacherSubmissions.filter(s => subjectAssignments.some(a => a.id === s.assignment_id));
+
+      // Compute average across all students in this subject
+      const subjectStudentMetrics = students
+        .filter(s => subjectStudentIds.has(s.id))
+        .map(student => computeAllMetrics({
+          scores: subjectScores.map(s => ({ score: s.score, total: s.total, completed_at: s.completed_at, student_id: s.student_id })),
+          attendanceSessions: subjectSessions.map(s => ({ id: s.id })),
+          attendanceRecords: subjectRecords.map(r => ({ session_id: r.session_id, student_id: r.student_id, attendance_status: r.attendance_status })),
+          submissions: subjectSubs.map(s => ({ assignment_id: s.assignment_id, student_id: s.student_id, score: s.score, status: s.status, submitted_at: s.submitted_at || new Date().toISOString() })),
+          assignments: subjectAssignments.map(a => ({ id: a.id, max_score: a.max_score, due_date: a.due_date })),
+          studentId: student.id,
+        }));
+
+      const avgPerformance = subjectStudentMetrics.length > 0
+        ? Math.round(subjectStudentMetrics.reduce((sum, m) => sum + m.overallPerformance, 0) / subjectStudentMetrics.length)
+        : 0;
+      const atRiskCount = subjectStudentMetrics.filter(m => m.riskLevel === 'atRisk' || m.riskLevel === 'concern').length;
+
+      return { subject, studentCount: subjectStudentIds.size, avgPerformance, atRiskCount };
+    });
+  }, [teacherSubjects, scores, quizzes, students, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, teacherSubmissions]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -1222,7 +1282,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Performance Overview Charts (2/3) */}
+        {/* Performance Overview — Aggregate Course & Teacher Indicators (2/3) */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
@@ -1231,106 +1291,138 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {t('teacher.performanceOverview')}
               </h3>
               <button
-                onClick={() => setActiveSection('analytics')}
+                onClick={() => setActiveSection('tracking')}
                 className="text-xs text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
               >
                 {t('teacher.detailedAnalysis')}
                 <ChevronLeft className="h-3 w-3" />
               </button>
             </div>
-            <div className="p-4">
-              {scores.length === 0 && teacherSubmissions.length === 0 ? (
+            <div className="p-4 space-y-5">
+              {allStudentMetrics.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground text-sm">
                   <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
                   {t('teacher.noPerformanceData')}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Bar chart: avg performance per quiz */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-3">{t('teacher.avgPerQuiz')}</p>
-                    {barChartData.length === 0 ? (
-                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">{t('teacher.noQuizzesYet')}</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={barChartData.slice(-6)} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                          <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
-                          <Tooltip
-                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
-                            formatter={(value) => [`${value}%`, t('teacher.chartAverage')]}
-                          />
-                          <Bar dataKey="avg" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
+                <>
+                  {/* ── Aggregate KPI Row ── */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
+                      <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
+                      <p className="text-xl font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الكفاءة' : 'Avg Efficiency'}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
+                      <p className="text-xl font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الانضباط' : 'Avg Discipline'}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
+                      <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
+                    </div>
                   </div>
-                  {/* Pie chart: grade distribution */}
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-3">{t('teacher.scoreDistribution')}</p>
-                    {pieChartData.length === 0 ? (
-                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">{t('teacher.noScoresYet')}</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                          <Pie
-                            data={pieChartData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={45}
-                            outerRadius={75}
-                            paddingAngle={3}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            {pieChartData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
-                            formatter={(value, name) => [value, name]}
-                          />
-                          <Legend
-                            iconType="circle"
-                            iconSize={8}
-                            wrapperStyle={{ fontSize: 11, paddingTop: 6 }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )}
+
+                  {/* ── Performance Distribution + Growth/Risk Row ── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Performance Level Distribution */}
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'توزيع مستويات الطلاب' : 'Student Level Distribution'}</p>
+                      <div className="space-y-2">
+                        {[
+                          { level: 'excellent', count: aggregateStats.performanceDistribution.excellent, color: 'bg-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-900/10', textColor: 'text-emerald-700 dark:text-emerald-400', label: locale === 'ar' ? 'ممتاز' : 'Excellent' },
+                          { level: 'veryGood', count: aggregateStats.performanceDistribution.veryGood, color: 'bg-sky-500', bgColor: 'bg-sky-50 dark:bg-sky-900/10', textColor: 'text-sky-700 dark:text-sky-400', label: locale === 'ar' ? 'جيد جداً' : 'Very Good' },
+                          { level: 'good', count: aggregateStats.performanceDistribution.good, color: 'bg-teal-500', bgColor: 'bg-teal-50 dark:bg-teal-900/10', textColor: 'text-teal-700 dark:text-teal-400', label: locale === 'ar' ? 'جيد' : 'Good' },
+                          { level: 'acceptable', count: aggregateStats.performanceDistribution.acceptable, color: 'bg-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-900/10', textColor: 'text-amber-700 dark:text-amber-400', label: locale === 'ar' ? 'مقبول' : 'Acceptable' },
+                          { level: 'weak', count: aggregateStats.performanceDistribution.weak, color: 'bg-rose-500', bgColor: 'bg-rose-50 dark:bg-rose-900/10', textColor: 'text-rose-700 dark:text-rose-400', label: locale === 'ar' ? 'ضعيف' : 'Weak' },
+                        ].map(item => {
+                          const pct = allStudentMetrics.length > 0 ? Math.round((item.count / allStudentMetrics.length) * 100) : 0;
+                          return (
+                            <div key={item.level} className="flex items-center gap-2">
+                              <span className={`h-2 w-2 rounded-full ${item.color} shrink-0`} />
+                              <span className="text-xs text-foreground w-16 shrink-0">{item.label}</span>
+                              <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden">
+                                <div className={`h-full rounded-full ${item.color}`} style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className={`text-xs font-bold ${item.textColor} w-10 text-end`}>{item.count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Risk & Growth Summary */}
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'ملخص الخطورة والنمو' : 'Risk & Growth Summary'}</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30">
+                          <span className="text-xs text-foreground">{locale === 'ar' ? 'طلاب في خطر / قلق' : 'At Risk / Concern'}</span>
+                          <span className="text-sm font-bold text-rose-700 dark:text-rose-400">{aggregateStats.atRiskCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+                          <span className="text-xs text-foreground">{locale === 'ar' ? 'طلاب متقدمون (≥80%)' : 'Advanced (≥80%)'}</span>
+                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.advancedCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30">
+                          <span className="text-xs text-foreground">{locale === 'ar' ? 'اتجاه تحسن' : 'Improving Trend'}</span>
+                          <span className="text-sm font-bold text-teal-700 dark:text-teal-400">{aggregateStats.improvingCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                          <span className="text-xs text-foreground">{locale === 'ar' ? 'اتجاه تراجع' : 'Declining Trend'}</span>
+                          <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{aggregateStats.decliningCount}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-              {/* Performance breakdown mini-stats */}
-              {scores.length > 0 && (
-                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-teal-600 dark:text-teal-500">
-                      {scores.filter((s) => scorePercentage(s.score, s.total) >= 75).length}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{t('teacher.passing75')}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-amber-600 dark:text-amber-500">
-                      {scores.filter((s) => { const p = scorePercentage(s.score, s.total); return p >= 60 && p < 75; }).length}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{t('teacher.acceptable6074')}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-rose-600 dark:text-rose-500">
-                      {scores.filter((s) => scorePercentage(s.score, s.total) < 60).length}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{t('teacher.failingBelow60')}</p>
-                  </div>
-                </div>
+
+                  {/* ── Per-Course Indicators ── */}
+                  {subjectAggregateData.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'مؤشرات المقررات' : 'Course Indicators'}</p>
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                        {subjectAggregateData.map(({ subject, studentCount, avgPerformance: subAvg, atRiskCount }) => {
+                          const statusConfig = subAvg >= 80
+                            ? { label: locale === 'ar' ? 'متقدم' : 'Advanced', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/60', dotClass: 'bg-emerald-500' }
+                            : subAvg >= 60
+                            ? { label: locale === 'ar' ? 'على المسار' : 'On Track', className: 'bg-sky-50 text-sky-700 dark:bg-sky-900/15 dark:text-sky-400 border-sky-100 dark:border-sky-900/60', dotClass: 'bg-sky-500' }
+                            : subAvg >= 40
+                            ? { label: locale === 'ar' ? 'يحتاج متابعة' : 'Needs Attention', className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-100 dark:border-amber-900/60', dotClass: 'bg-amber-500' }
+                            : { label: locale === 'ar' ? 'في خطر' : 'At Risk', className: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400 border-rose-100 dark:border-rose-900/60', dotClass: 'bg-rose-500' };
+                          return (
+                            <div key={subject.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800/60 hover:bg-muted/20 transition-colors">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-900/20 ring-1 ring-violet-100 dark:ring-violet-900/40">
+                                <BookOpen className="h-4 w-4 text-violet-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-foreground truncate">{subject.name}</span>
+                                  <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${statusConfig.className}`}>{statusConfig.label}</Badge>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <Progress value={subAvg} className="h-1 flex-1" />
+                                  <span className="text-[10px] font-bold text-muted-foreground">{subAvg}%</span>
+                                </div>
+                              </div>
+                              <div className="text-end shrink-0">
+                                <p className="text-[10px] text-muted-foreground">{studentCount} {locale === 'ar' ? 'طالب' : 'stu'}</p>
+                                {atRiskCount > 0 && <p className="text-[10px] font-medium text-rose-600">{atRiskCount} ⚠</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         </motion.div>
 
-        {/* Recent Activity (1/3) */}
+        {/* Recent Activity — Teacher Actions Only (1/3) */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
@@ -1341,58 +1433,63 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             </div>
             <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
               {(() => {
-                // Build a unified activity feed from scores, quizzes, submissions
-                type ActivityItem = {
+                type TeacherActivityItem = {
                   id: string;
-                  type: 'quiz_completed' | 'quiz_created' | 'assignment_graded';
+                  type: 'course_created' | 'quiz_created' | 'assignment_created' | 'session_created';
                   title: string;
                   subtitle: string;
-                  pct?: number;
                   date: string;
                   icon: React.ReactNode;
                 };
-                const activities: ActivityItem[] = [];
+                const activities: TeacherActivityItem[] = [];
 
-                // Recent quiz completions (scores)
-                scores.slice(0, 8).forEach((score) => {
-                  const pct = scorePercentage(score.score, score.total);
-                  const student = students.find((s) => s.id === score.student_id);
+                // Courses created by teacher
+                teacherSubjects.forEach((subject) => {
                   activities.push({
-                    id: `score-${score.id}`,
-                    type: 'quiz_completed',
-                    title: score.quiz_title,
-                    subtitle: student?.name || t('roles.student'),
-                    pct,
-                    date: score.completed_at,
-                    icon: <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />,
+                    id: `subject-${subject.id}`,
+                    type: 'course_created',
+                    title: subject.name,
+                    subtitle: locale === 'ar' ? 'إنشاء مقرر' : 'Course Created',
+                    date: subject.created_at,
+                    icon: <BookOpen className="h-3.5 w-3.5 text-violet-500" />,
                   });
                 });
 
-                // Recent quizzes created
-                quizzes.slice(0, 5).forEach((quiz) => {
+                // Quizzes created by teacher
+                quizzes.forEach((quiz) => {
                   activities.push({
                     id: `quiz-${quiz.id}`,
                     type: 'quiz_created',
                     title: quiz.title,
-                    subtitle: t('teacher.newQuiz'),
+                    subtitle: locale === 'ar' ? 'إنشاء اختبار' : 'Quiz Created',
                     date: quiz.created_at,
                     icon: <ClipboardList className="h-3.5 w-3.5 text-sky-500" />,
                   });
                 });
 
-                // Recent graded submissions
-                teacherSubmissions.filter(s => s.score !== null).slice(0, 5).forEach((sub) => {
-                  const student = students.find((s) => s.id === sub.student_id);
-                  const assignment = teacherAssignments.find((a) => a.id === sub.assignment_id);
-                  const subPct = assignment && assignment.max_score > 0 ? Math.round((sub.score! / assignment.max_score) * 100) : undefined;
+                // Assignments created by teacher
+                teacherAssignments.forEach((assignment) => {
+                  const sub = teacherSubjects.find(s => s.id === assignment.subject_id);
                   activities.push({
-                    id: `sub-${sub.id}`,
-                    type: 'assignment_graded',
-                    title: assignment ? t('evaluateAssignment') : t('evaluate'),
-                    subtitle: student?.name || t('roles.student'),
-                    pct: subPct,
-                    date: '',
+                    id: `assignment-${assignment.id}`,
+                    type: 'assignment_created',
+                    title: sub ? sub.name : (locale === 'ar' ? 'مهمة' : 'Assignment'),
+                    subtitle: locale === 'ar' ? 'إنشاء مهمة' : 'Assignment Created',
+                    date: assignment.due_date || '',
                     icon: <Award className="h-3.5 w-3.5 text-amber-500" />,
+                  });
+                });
+
+                // Attendance sessions created by teacher
+                teacherAttendanceSessions.forEach((session) => {
+                  const sub = teacherSubjects.find(s => s.id === session.subject_id);
+                  activities.push({
+                    id: `session-${session.id}`,
+                    type: 'session_created',
+                    title: sub ? sub.name : (locale === 'ar' ? 'جلسة حضور' : 'Attendance Session'),
+                    subtitle: locale === 'ar' ? 'تسجيل حضور' : 'Attendance Session',
+                    date: session.id, // sessions may not have a date field, use id as fallback
+                    icon: <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />,
                   });
                 });
 
@@ -1415,7 +1512,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
                 return (
                   <div className="divide-y">
-                    {activities.slice(0, 10).map((activity) => (
+                    {activities.slice(0, 12).map((activity) => (
                       <div key={activity.id} className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors">
                         <div className="shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-muted/50">
                           {activity.icon}
@@ -1424,11 +1521,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           <p className="text-sm font-medium text-foreground truncate">{activity.title}</p>
                           <p className="text-xs text-muted-foreground truncate">{activity.subtitle}</p>
                         </div>
-                        {activity.pct !== undefined && (
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${pctColorClass(activity.pct)}`}>
-                            {activity.pct}%
-                          </span>
-                        )}
                       </div>
                     ))}
                   </div>
