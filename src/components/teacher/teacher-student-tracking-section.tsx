@@ -15,6 +15,14 @@ import {
   Cell,
   BarChart,
   Bar,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  LineChart,
+  Line,
+  Legend,
 } from 'recharts';
 import {
   Activity,
@@ -44,6 +52,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  LayoutDashboard,
+  GraduationCap,
+  AlertOctagon,
+  BarChartHorizontal,
+  ChevronLeft,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -307,6 +320,8 @@ export default function TeacherStudentTrackingSection({
   const [showInstructions, setShowInstructions] = useState(false);
   const [activeCourseTab, setActiveCourseTab] = useState<string | 'overview'>('overview');
   const [trendPeriod, setTrendPeriod] = useState<'monthly' | 'quarterly' | 'semester'>('monthly');
+  const [activeTrackingTab, setActiveTrackingTab] = useState<'overview' | 'courses' | 'students' | 'attendance' | 'risk'>('overview');
+  const [courseDrillDown, setCourseDrillDown] = useState<string | null>(null);
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
@@ -731,6 +746,128 @@ export default function TeacherStudentTrackingSection({
     return { improved, declined, stable };
   }, [trendAnalysisData]);
 
+  // ─── Course comparison data for bar chart ───
+  const courseComparisonData = useMemo(() => {
+    return perCourseRankings.map(({ subject, all }) => {
+      const avg = all.length > 0
+        ? Math.round(all.reduce((sum, s) => sum + s.metrics.overallPerformance, 0) / all.length)
+        : 0;
+      const avgAtt = all.length > 0
+        ? Math.round(all.reduce((sum, s) => sum + s.metrics.attendanceScore, 0) / all.length)
+        : 0;
+      const atRisk = all.filter(s => s.metrics.riskLevel === 'atRisk' || s.metrics.riskLevel === 'concern').length;
+      const difficulty = Math.max(0, 100 - avg); // higher difficulty = lower avg
+      return { name: subject.name.length > 15 ? subject.name.slice(0, 15) + '…' : subject.name, fullName: subject.name, avg, avgAtt, atRisk, difficulty, studentCount: all.length, subjectId: subject.id };
+    }).sort((a, b) => b.avg - a.avg);
+  }, [perCourseRankings]);
+
+  // ─── Attendance distribution for pie chart ───
+  const attendanceDistributionData = useMemo(() => {
+    let present = 0, late = 0, absent = 0, partial = 0;
+    teacherAttendanceRecords.forEach(r => {
+      if (r.attendance_status === 'present') present++;
+      else if (r.attendance_status === 'late') late++;
+      else if (r.attendance_status === 'absent') absent++;
+      else if (r.attendance_status === 'partial') partial++;
+    });
+    const total = present + late + absent + partial;
+    if (total === 0) return [];
+    return [
+      { name: locale === 'ar' ? 'حاضر' : 'Present', value: present, color: '#10b981' },
+      { name: locale === 'ar' ? 'متأخر' : 'Late', value: late, color: '#f59e0b' },
+      { name: locale === 'ar' ? 'غائب' : 'Absent', value: absent, color: '#ef4444' },
+      { name: locale === 'ar' ? 'جزئي' : 'Partial', value: partial, color: '#0ea5e9' },
+    ].filter(d => d.value > 0);
+  }, [teacherAttendanceRecords, locale]);
+
+  // ─── Attendance trend over time ───
+  const attendanceTrendData = useMemo(() => {
+    if (teacherAttendanceRecords.length === 0) return [];
+    const sessionMap = new Map<string, { present: number; late: number; absent: number; partial: number; total: number }>();
+    teacherAttendanceRecords.forEach(r => {
+      const session = teacherAttendanceSessions.find(s => s.id === r.session_id);
+      if (!session) return;
+      const subjectName = subjectNameMap.get(session.subject_id) || session.id.slice(0, 8);
+      const entry = sessionMap.get(subjectName) || { present: 0, late: 0, absent: 0, partial: 0, total: 0 };
+      entry.total++;
+      if (r.attendance_status === 'present') entry.present++;
+      else if (r.attendance_status === 'late') entry.late++;
+      else if (r.attendance_status === 'absent') entry.absent++;
+      else if (r.attendance_status === 'partial') entry.partial++;
+      sessionMap.set(subjectName, entry);
+    });
+    return Array.from(sessionMap.entries())
+      .map(([name, data]) => ({
+        name: name.length > 12 ? name.slice(0, 12) + '…' : name,
+        present: data.total > 0 ? Math.round((data.present / data.total) * 100) : 0,
+        late: data.total > 0 ? Math.round((data.late / data.total) * 100) : 0,
+        absent: data.total > 0 ? Math.round((data.absent / data.total) * 100) : 0,
+      })).slice(-10);
+  }, [teacherAttendanceRecords, teacherAttendanceSessions, subjectNameMap]);
+
+  // ─── Risk distribution for pie chart ───
+  const riskDistributionData = useMemo(() => {
+    return [
+      { name: locale === 'ar' ? 'سليم' : 'Healthy', value: riskLevelDistribution.healthy, color: '#10b981' },
+      { name: locale === 'ar' ? 'مراقبة' : 'Monitor', value: riskLevelDistribution.monitor, color: '#f59e0b' },
+      { name: locale === 'ar' ? 'قلق' : 'Concern', value: riskLevelDistribution.concern, color: '#f97316' },
+      { name: locale === 'ar' ? 'في خطر' : 'At Risk', value: riskLevelDistribution.atRisk, color: '#ef4444' },
+    ].filter(d => d.value > 0);
+  }, [riskLevelDistribution, locale]);
+
+  // ─── Sudden drop detection (>10% decline in last period) ───
+  const suddenDropStudents = useMemo(() => {
+    return trendAnalysisData.filter(d => d.change <= -10);
+  }, [trendAnalysisData]);
+
+  // ─── Improvement streak detection (3+ consecutive periods of improvement) ───
+  const improvementStreakStudents = useMemo(() => {
+    return trendAnalysisData.filter(d => {
+      if (d.periodData.length < 3) return false;
+      const last3 = d.periodData.slice(-3);
+      return last3[1].score > last3[0].score && last3[2].score > last3[1].score;
+    });
+  }, [trendAnalysisData]);
+
+  // ─── Volatile students (high performance variance) ───
+  const volatileStudents = useMemo(() => {
+    return trendAnalysisData.filter(d => {
+      if (d.periodData.length < 3) return false;
+      const scores = d.periodData.map(p => p.score);
+      const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+      const variance = scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length;
+      const stdDev = Math.sqrt(variance);
+      return stdDev > 15; // high volatility
+    });
+  }, [trendAnalysisData]);
+
+  // ─── Engagement score per student (attendance consistency + submission timeliness) ───
+  const engagementData = useMemo(() => {
+    return studentPerformanceData.map(spd => {
+      const attendanceRate = spd.metrics.attendanceScore;
+      const complianceRate = spd.metrics.assignmentCompliance;
+      const engagement = Math.round((attendanceRate * 0.5) + (complianceRate * 0.5));
+      return { studentId: spd.student.id, studentName: spd.student.name, avatarUrl: spd.student.avatar_url, engagement, attendanceRate, complianceRate };
+    }).sort((a, b) => b.engagement - a.engagement);
+  }, [studentPerformanceData]);
+
+  // ─── Performance distribution histogram data ───
+  const performanceDistributionData = useMemo(() => {
+    const buckets = [
+      { range: '0-20%', min: 0, max: 20, count: 0 },
+      { range: '20-40%', min: 20, max: 40, count: 0 },
+      { range: '40-60%', min: 40, max: 60, count: 0 },
+      { range: '60-80%', min: 60, max: 80, count: 0 },
+      { range: '80-100%', min: 80, max: 101, count: 0 },
+    ];
+    studentPerformanceData.forEach(d => {
+      const pct = Math.round(d.metrics.overallPerformance);
+      const bucket = buckets.find(b => pct >= b.min && pct < b.max);
+      if (bucket) bucket.count++;
+    });
+    return buckets;
+  }, [studentPerformanceData]);
+
   // ─── Filtered & sorted students ───
   const filteredStudents = useMemo(() => {
     let data = [...studentPerformanceData];
@@ -1128,6 +1265,413 @@ export default function TeacherStudentTrackingSection({
         </DialogContent>
       </Dialog>
 
+      {/* ── Tab Navigation ── */}
+      <motion.div variants={itemVariants}>
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800/40 rounded-xl p-1 overflow-x-auto custom-scrollbar">
+          {([
+            { key: 'overview' as const, icon: LayoutDashboard, labelAr: 'نظرة عامة', labelEn: 'Overview' },
+            { key: 'courses' as const, icon: BookOpen, labelAr: 'المقررات', labelEn: 'Courses' },
+            { key: 'students' as const, icon: Users, labelAr: 'الطلاب', labelEn: 'Students' },
+            { key: 'attendance' as const, icon: Clock, labelAr: 'الحضور', labelEn: 'Attendance' },
+            { key: 'risk' as const, icon: AlertOctagon, labelAr: 'المخاطر', labelEn: 'Risk' },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTrackingTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                activeTrackingTab === tab.key
+                  ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <tab.icon className="h-3.5 w-3.5" />
+              {locale === 'ar' ? tab.labelAr : tab.labelEn}
+              {tab.key === 'risk' && overviewStats.atRiskStudents > 0 && (
+                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">{overviewStats.atRiskStudents}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* TAB 1: OVERVIEW DASHBOARD                                        */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeTrackingTab === 'overview' && (
+        <>
+          {/* ── KPI Cards Row ── */}
+          <motion.div variants={itemVariants}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Card className="border-sky-100/50 shadow-sm">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-900/15">
+                      <Users className="h-4 w-4 text-sky-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-sky-800 dark:text-sky-400">{overviewStats.totalStudents}</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'إجمالي الطلاب' : 'Total Students'}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-amber-100/50 shadow-sm">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/15">
+                      <TrendingUp className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{Math.round(overviewStats.avgPerformance)}%</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-emerald-100/50 shadow-sm">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/15">
+                      <Clock className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{Math.round(overviewStats.avgAttendance)}%</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-rose-100/50 shadow-sm">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 dark:bg-rose-900/15">
+                      <AlertTriangle className="h-4 w-4 text-rose-600" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold text-rose-700 dark:text-rose-400">{overviewStats.atRiskStudents}</p>
+                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'في خطر' : 'At Risk'}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+
+          {/* ── Performance Trend + Distribution Charts Row ── */}
+          <motion.div variants={itemVariants}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Multi-metric Trend Chart (2/3) */}
+              <Card className="border-sky-100/50 shadow-sm lg:col-span-2">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingUp className="h-4 w-4 text-sky-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'اتجاه الأداء عبر الزمن' : 'Performance Trend Over Time'}</p>
+                  </div>
+                  {trackingTrendData.length < 2 ? (
+                    <div className="py-8 text-center text-muted-foreground text-xs">
+                      <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      {t('teacher.noTrendData')}
+                    </div>
+                  ) : (
+                    <div className="h-[220px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trackingTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="ovPerfGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                              <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.12)" />
+                          <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                          <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} formatter={((value: unknown) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']) as never} />
+                          <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#ovPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              {/* Level Distribution Pie (1/3) */}
+              <Card className="border-violet-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Award className="h-4 w-4 text-violet-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'توزيع المستويات' : 'Level Distribution'}</p>
+                  </div>
+                  {trackingLevelPieData.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-xs">
+                      <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      {t('teacher.noPerformanceData')}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="h-[150px] w-[150px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={trackingLevelPieData} cx="50%" cy="50%" innerRadius={35} outerRadius={65} paddingAngle={2} dataKey="value" stroke="none">
+                              {trackingLevelPieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} formatter={((value: unknown, name: unknown) => [`${value} ${locale === 'ar' ? 'طالب' : 'stu'}`, name]) as never} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">
+                        {trackingLevelPieData.map((entry) => (
+                          <div key={entry.name} className="flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                            <span className="text-[10px] text-foreground">{entry.name} <span className="font-bold">{entry.value}</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+
+          {/* ── Performance Distribution Histogram ── */}
+          <motion.div variants={itemVariants}>
+            <Card className="border-teal-100/50 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChartHorizontal className="h-4 w-4 text-teal-600" />
+                  <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'توزيع درجات الأداء' : 'Performance Score Distribution'}</p>
+                </div>
+                {studentPerformanceData.length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground text-xs">{t('teacher.noPerformanceData')}</div>
+                ) : (
+                  <div className="h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={performanceDistributionData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.1)" />
+                        <XAxis dataKey="range" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} allowDecimals={false} />
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} />
+                        <Bar dataKey="count" name={locale === 'ar' ? 'عدد الطلاب' : 'Students'} radius={[4, 4, 0, 0]} fill="#14b8a6" fillOpacity={0.8} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* ── Quick Insights: Top 5 + Bottom 5 ── */}
+          <motion.div variants={itemVariants}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Top 5 */}
+              <Card className="border-amber-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <p className="text-sm font-medium text-foreground">{locale === 'ar' ? 'أفضل 5 طلاب' : 'Top 5 Students'}</p>
+                  </div>
+                  {topStudents.length === 0 || topStudents[0].metrics.overallPerformance === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground text-xs">{t('teacher.noTopStudentsYet')}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {topStudents.map(({ student, metrics }, idx) => (
+                        <div key={student.id} className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-600 w-4">{idx + 1}</span>
+                          <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="xs" />
+                          <span className="text-xs font-medium text-foreground truncate flex-1">{student.name}</span>
+                          <span className="text-xs font-bold text-emerald-600">{Math.round(metrics.overallPerformance)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              {/* Bottom 5 */}
+              <Card className="border-rose-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertTriangle className="h-4 w-4 text-rose-500" />
+                    <p className="text-sm font-medium text-foreground">{locale === 'ar' ? 'أقل 5 طلاب' : 'Bottom 5 Students'}</p>
+                  </div>
+                  {bottomStudents.length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground text-xs">{t('teacher.noTopStudentsYet')}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {bottomStudents.map(({ student, metrics }, idx) => (
+                        <div key={student.id} className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-rose-500 w-4">{idx + 1}</span>
+                          <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="xs" />
+                          <span className="text-xs font-medium text-foreground truncate flex-1">{student.name}</span>
+                          <span className="text-xs font-bold text-rose-600">{Math.round(metrics.overallPerformance)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+
+          {/* ── At-Risk Alert Banner ── */}
+          {overviewStats.atRiskStudents > 0 && (
+            <motion.div variants={itemVariants}>
+              <div className="rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-900/10 p-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30">
+                  <AlertOctagon className="h-5 w-5 text-rose-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-rose-700 dark:text-rose-400">{locale === 'ar' ? `تنبيه: ${overviewStats.atRiskStudents} طالب في خطر` : `Alert: ${overviewStats.atRiskStudents} students at risk`}</p>
+                  <p className="text-xs text-rose-600/70 dark:text-rose-500/70">{locale === 'ar' ? 'انتقل إلى تبويب المخاطر للتفاصيل والإجراءات' : 'Go to the Risk tab for details and actions'}</p>
+                </div>
+                <button onClick={() => setActiveTrackingTab('risk')} className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-medium hover:bg-rose-700 transition-colors">
+                  {locale === 'ar' ? 'عرض التفاصيل' : 'View Details'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* TAB 2: COURSES ANALYTICS                                         */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeTrackingTab === 'courses' && (
+        <>
+          {/* ── Course Comparison Bar Chart ── */}
+          <motion.div variants={itemVariants}>
+            <Card className="border-violet-100/50 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="h-4 w-4 text-violet-600" />
+                  <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'مقارنة أداء المقررات' : 'Course Performance Comparison'}</p>
+                </div>
+                {courseComparisonData.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground text-xs">
+                    <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    {locale === 'ar' ? 'لا توجد بيانات مقررات' : 'No course data available'}
+                  </div>
+                ) : (
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={courseComparisonData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.12)" />
+                        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} width={80} />
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} formatter={((value: unknown, name: unknown) => {
+                          const nameMap: Record<string, string> = { avg: locale === 'ar' ? 'الأداء' : 'Performance', avgAtt: locale === 'ar' ? 'الحضور' : 'Attendance' };
+                          return [`${value}%`, nameMap[name as string] || name];
+                        }) as never} />
+                        <Bar dataKey="avg" name="avg" fill="#8b5cf6" fillOpacity={0.8} radius={[0, 4, 4, 0]} barSize={16} />
+                        <Bar dataKey="avgAtt" name="avgAtt" fill="#10b981" fillOpacity={0.6} radius={[0, 4, 4, 0]} barSize={16} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* ── Course Difficulty Index ── */}
+          <motion.div variants={itemVariants}>
+            <Card className="border-amber-100/50 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="h-4 w-4 text-amber-600" />
+                  <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'مؤشر صعوبة المقررات' : 'Course Difficulty Index'}</p>
+                  <span className="text-[10px] text-muted-foreground">({locale === 'ar' ? 'أعلى = أصعب' : 'Higher = Harder'})</span>
+                </div>
+                {courseComparisonData.length === 0 ? (
+                  <div className="py-4 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا توجد بيانات' : 'No data'}</div>
+                ) : (
+                  <div className="space-y-2">
+                    {[...courseComparisonData].sort((a, b) => b.difficulty - a.difficulty).map(course => (
+                      <div key={course.subjectId} className="flex items-center gap-3">
+                        <span className="text-xs text-foreground truncate w-24 min-w-0">{course.fullName}</span>
+                        <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${course.difficulty >= 50 ? 'bg-rose-500' : course.difficulty >= 30 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${course.difficulty}%` }} />
+                        </div>
+                        <span className={`text-xs font-bold shrink-0 ${course.difficulty >= 50 ? 'text-rose-600' : course.difficulty >= 30 ? 'text-amber-600' : 'text-emerald-600'}`}>{course.difficulty}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* ── Course Cards Grid (clickable for drill-down) ── */}
+          <motion.div variants={itemVariants}>
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="h-4 w-4 text-violet-600" />
+              <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'بطاقات المقررات' : 'Course Cards'}</p>
+            </div>
+            {courseDrillDown ? (
+              <Card className="border-violet-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <button onClick={() => setCourseDrillDown(null)} className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-700 mb-3">
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    {locale === 'ar' ? 'العودة للمقررات' : 'Back to Courses'}
+                  </button>
+                  <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                    <CourseRankingCard
+                      subject={perCourseRankings.find(c => c.subject.id === courseDrillDown)!.subject}
+                      students={perCourseRankings.find(c => c.subject.id === courseDrillDown)!.all}
+                      toggleExpand={toggleExpand}
+                      expandedStudentId={expandedStudentId}
+                      getRiskLabel={getRiskLabel}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {courseComparisonData.map(course => {
+                  const atRiskColor = course.atRisk > 0 ? 'text-rose-600' : 'text-emerald-600';
+                  return (
+                    <button key={course.subjectId} onClick={() => setCourseDrillDown(course.subjectId)} className="w-full text-start rounded-xl border border-violet-100/60 dark:border-violet-900/30 bg-card hover:bg-violet-50/30 dark:hover:bg-violet-900/5 p-4 transition-colors shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                          <BookOpen className="h-4 w-4 text-violet-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground truncate">{course.fullName}</p>
+                          <p className="text-[10px] text-muted-foreground">{course.studentCount} {locale === 'ar' ? 'طالب' : 'students'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <div className="flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3 text-violet-500" />
+                          <span className="font-bold text-violet-700 dark:text-violet-400">{course.avg}%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-emerald-500" />
+                          <span className="text-muted-foreground">{course.avgAtt}%</span>
+                        </div>
+                        {course.atRisk > 0 && (
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3 text-rose-500" />
+                            <span className={`font-medium ${atRiskColor}`}>{course.atRisk}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${course.avg >= 70 ? 'bg-emerald-500' : course.avg >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${course.avg}%` }} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </motion.div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* TAB 3: STUDENTS ANALYTICS                                        */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeTrackingTab === 'students' && (
+        <>
       {/* ── Compact Overview Strip + Health Status ── */}
       <motion.div variants={itemVariants}>
         <div className={`rounded-xl border shadow-sm overflow-hidden ${
@@ -1834,257 +2378,6 @@ export default function TeacherStudentTrackingSection({
         </div>
       </motion.div>
 
-      {/* ── Per-Course Rankings — Tabbed Interface ── */}
-      {perCourseRankings.length > 0 && (
-        <motion.div variants={itemVariants}>
-          <Card className="border-violet-100/50 shadow-sm overflow-hidden">
-            {/* Header with tab pills */}
-            <div className="border-b border-violet-100/50 dark:border-violet-900/20">
-              <div className="flex items-center justify-between px-4 py-2.5">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-violet-600" />
-                  {locale === 'ar' ? 'ترتيب الطلاب حسب المقرر' : 'Students by Course'}
-                </h3>
-                <span className="text-[10px] text-muted-foreground">
-                  {perCourseRankings.length} {locale === 'ar' ? 'مقرر' : 'course(s)'}
-                </span>
-              </div>
-              {/* Scrollable tab pills */}
-              <div className="flex overflow-x-auto custom-scrollbar px-3 pb-2 gap-1">
-                <button
-                  onClick={() => setActiveCourseTab('overview')}
-                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
-                    activeCourseTab === 'overview'
-                      ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shadow-sm'
-                      : 'text-muted-foreground hover:bg-muted/50'
-                  }`}
-                >
-                  {locale === 'ar' ? 'نظرة عامة' : 'Overview'}
-                </button>
-                {perCourseRankings.map(({ subject }) => (
-                  <button
-                    key={subject.id}
-                    onClick={() => setActiveCourseTab(subject.id)}
-                    className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap ${
-                      activeCourseTab === subject.id
-                        ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shadow-sm'
-                        : 'text-muted-foreground hover:bg-muted/50'
-                    }`}
-                  >
-                    {subject.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Tab content */}
-            <div className="p-3">
-              {activeCourseTab === 'overview' ? (
-                /* Overview: compact horizontal strip on mobile, grid on desktop */
-                <div className="flex lg:grid lg:grid-cols-2 xl:grid-cols-3 gap-2 overflow-x-auto custom-scrollbar pb-1">
-                  {perCourseRankings.map(({ subject, all }) => {
-                    const courseAvg = all.length > 0
-                      ? Math.round(all.reduce((sum, s) => sum + s.metrics.overallPerformance, 0) / all.length)
-                      : 0;
-                    const topStudent = all.length > 0
-                      ? [...all].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)[0]
-                      : null;
-                    const atRiskCount = all.filter(s => s.metrics.riskLevel === 'atRisk' || s.metrics.riskLevel === 'concern').length;
-                    const avgColor = courseAvg >= 75 ? 'text-emerald-600 dark:text-emerald-400' : courseAvg >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
-                    return (
-                      <button
-                        key={subject.id}
-                        onClick={() => setActiveCourseTab(subject.id)}
-                        className="shrink-0 lg:shrink w-[200px] lg:w-auto text-start rounded-lg border border-violet-100/60 dark:border-violet-900/30 bg-violet-50/20 dark:bg-violet-900/5 hover:bg-violet-50/40 dark:hover:bg-violet-900/10 hover:border-violet-200 dark:hover:border-violet-800/40 px-3 py-2 transition-all group"
-                      >
-                        {/* Row 1: Course name + avg */}
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-100 dark:bg-violet-900/30 group-hover:bg-violet-200 dark:group-hover:bg-violet-800/40 transition-colors">
-                            <BookOpen className="h-3 w-3 text-violet-600 dark:text-violet-400" />
-                          </div>
-                          <p className="text-[11px] font-semibold text-foreground truncate flex-1 min-w-0">{subject.name}</p>
-                          <span className={`text-sm font-bold shrink-0 ${avgColor}`}>{courseAvg}%</span>
-                        </div>
-                        {/* Row 2: Meta line */}
-                        <div className="flex items-center gap-1.5 mt-1 ps-8 text-[9px] text-muted-foreground">
-                          <span>{all.length} {locale === 'ar' ? 'طالب' : 'stu'}</span>
-                          {atRiskCount > 0 && (
-                            <>
-                              <span className="text-violet-300 dark:text-violet-700">·</span>
-                              <span className="text-rose-500 dark:text-rose-400 font-medium">{atRiskCount} ⚠</span>
-                            </>
-                          )}
-                          {topStudent && (
-                            <>
-                              <span className="text-violet-300 dark:text-violet-700">·</span>
-                              <span className="text-emerald-600 dark:text-emerald-400 truncate">🥇 {topStudent.student.name}</span>
-                            </>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Specific course ranking — capped height */
-                <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                  <CourseRankingCard
-                    subject={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.subject}
-                    students={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.all}
-                    toggleExpand={toggleExpand}
-                    expandedStudentId={expandedStudentId}
-                    getRiskLabel={getRiskLabel}
-                  />
-                </div>
-              )}
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* ── Performance Trend Analysis ── */}
-      <motion.div variants={itemVariants}>
-        <Card className="border-violet-100/50 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-violet-600" />
-                <span>{t('teacher.trendAnalysis')}</span>
-                {trendAnalysisData.length > 0 && (
-                  <span className="text-sm font-normal text-muted-foreground">
-                    ({trendAnalysisData.length})
-                  </span>
-                )}
-              </CardTitle>
-              {/* Period Selector */}
-              <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-                {(['monthly', 'quarterly', 'semester'] as const).map(period => (
-                  <button
-                    key={period}
-                    onClick={() => setTrendPeriod(period)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      trendPeriod === period
-                        ? 'bg-white dark:bg-gray-800 text-violet-700 dark:text-violet-400 shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {t(`teacher.trend${period.charAt(0).toUpperCase() + period.slice(1)}` as 'teacher.trendMonthly' | 'teacher.trendQuarterly' | 'teacher.trendSemester')}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {trendAnalysisData.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                <TrendingUp className="h-10 w-10 mb-2 opacity-30" />
-                <p className="text-sm">{t('teacher.trendNoData')}</p>
-              </div>
-            ) : (
-              <>
-                {/* Summary Stats Bar */}
-                <div className="flex items-center gap-3 mb-4 flex-wrap">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                    {t('teacher.trendStudentsImproved').replace('{count}', String(trendSummary.improved))}
-                  </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-xs font-medium">
-                    <ArrowDownRight className="h-3.5 w-3.5" />
-                    {t('teacher.trendStudentsDeclined').replace('{count}', String(trendSummary.declined))}
-                  </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-medium">
-                    <Minus className="h-3.5 w-3.5" />
-                    {t('teacher.trendStudentsStable').replace('{count}', String(trendSummary.stable))}
-                  </div>
-                </div>
-
-                {/* Column Headers */}
-                <div className="grid grid-cols-[1fr_60px_60px_70px_100px] sm:grid-cols-[1fr_70px_70px_80px_140px] items-center gap-2 px-3 py-2 mb-1 text-xs font-medium text-muted-foreground border-b border-border/50">
-                  <span>{locale === 'ar' ? 'الطالب' : 'Student'}</span>
-                  <span className="text-center">{t('teacher.trendPrevious')}</span>
-                  <span className="text-center">{t('teacher.trendCurrent')}</span>
-                  <span className="text-center">{t('teacher.trendChange')}</span>
-                  <span className="text-center">{locale === 'ar' ? 'الاتجاه' : 'Trend'}</span>
-                </div>
-
-                {/* Student Trend List */}
-                <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-1">
-                  {trendAnalysisData.map((data, idx) => (
-                    <motion.div
-                      key={data.studentId}
-                      initial={{ opacity: 0, x: direction === 'rtl' ? 12 : -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.04 }}
-                      className="grid grid-cols-[1fr_60px_60px_70px_100px] sm:grid-cols-[1fr_70px_70px_80px_140px] items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/30 transition-colors"
-                    >
-                      {/* Student Info */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <UserAvatar
-                          name={data.studentName}
-                          avatarUrl={data.studentAvatar}
-                          size="sm"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{data.studentName}</p>
-                        </div>
-                      </div>
-
-                      {/* Previous Score */}
-                      <span className="text-center text-sm text-muted-foreground font-medium">
-                        {data.previousScore}%
-                      </span>
-
-                      {/* Current Score */}
-                      <span className={`text-center text-sm font-bold ${
-                        data.direction === 'improved' ? 'text-emerald-600 dark:text-emerald-400' :
-                        data.direction === 'declined' ? 'text-rose-600 dark:text-rose-400' :
-                        'text-foreground'
-                      }`}>
-                        {data.currentScore}%
-                      </span>
-
-                      {/* Change Indicator */}
-                      <div className="flex items-center justify-center gap-1">
-                        {data.direction === 'improved' ? (
-                          <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        ) : data.direction === 'declined' ? (
-                          <ArrowDownRight className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                        ) : (
-                          <Minus className="h-4 w-4 text-gray-400" />
-                        )}
-                        <span className={`text-xs font-bold ${
-                          data.direction === 'improved' ? 'text-emerald-600 dark:text-emerald-400' :
-                          data.direction === 'declined' ? 'text-rose-600 dark:text-rose-400' :
-                          'text-gray-500'
-                        }`}>
-                          {data.change > 0 ? '+' : ''}{data.change}%
-                        </span>
-                      </div>
-
-                      {/* Mini Sparkline Bar Chart */}
-                      <div className="flex items-center justify-center h-8">
-                        <ResponsiveContainer width="100%" height={32}>
-                          <BarChart data={data.periodData.slice(-6)} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
-                            <Bar
-                              dataKey="score"
-                              radius={[2, 2, 0, 0]}
-                              fill={
-                                data.direction === 'improved' ? '#10b981' :
-                                data.direction === 'declined' ? '#f43f5e' :
-                                '#8b5cf6'
-                              }
-                              fillOpacity={0.7}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
 
       {/* ── Search, Sort & Student List ── */}
       <motion.div variants={itemVariants}>
@@ -2262,6 +2555,421 @@ export default function TeacherStudentTrackingSection({
           </CardContent>
         </Card>
       </motion.div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* TAB 4: ATTENDANCE & ENGAGEMENT                                    */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeTrackingTab === 'attendance' && (
+        <>
+          {/* ── Attendance Trend Chart ── */}
+          <motion.div variants={itemVariants}>
+            <Card className="border-emerald-100/50 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="h-4 w-4 text-emerald-600" />
+                  <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'اتجاه الحضور عبر الجلسات' : 'Attendance Trend Across Sessions'}</p>
+                </div>
+                {attendanceTrendData.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground text-xs">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    {locale === 'ar' ? 'لا توجد بيانات حضور' : 'No attendance data'}
+                  </div>
+                ) : (
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={attendanceTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.12)" />
+                        <XAxis dataKey="name" tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} formatter={((value: unknown, name: unknown) => {
+                          const nameMap: Record<string, string> = { present: locale === 'ar' ? 'حاضر' : 'Present', late: locale === 'ar' ? 'متأخر' : 'Late', absent: locale === 'ar' ? 'غائب' : 'Absent' };
+                          return [`${value}%`, nameMap[name as string] || name];
+                        }) as never} />
+                        <Bar dataKey="present" stackId="a" fill="#10b981" fillOpacity={0.8} radius={[0, 0, 0, 0]} barSize={24} name="present" />
+                        <Bar dataKey="late" stackId="a" fill="#f59e0b" fillOpacity={0.8} radius={[0, 0, 0, 0]} barSize={24} name="late" />
+                        <Bar dataKey="absent" stackId="a" fill="#ef4444" fillOpacity={0.7} radius={[4, 4, 0, 0]} barSize={24} name="absent" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* ── Attendance Distribution + Engagement Row ── */}
+          <motion.div variants={itemVariants}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Attendance Pie */}
+              <Card className="border-emerald-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Activity className="h-4 w-4 text-emerald-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'توزيع الحضور' : 'Attendance Distribution'}</p>
+                  </div>
+                  {attendanceDistributionData.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا توجد بيانات' : 'No data'}</div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <div className="h-[160px] w-[160px] shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={attendanceDistributionData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value" stroke="none">
+                              {attendanceDistributionData.map((entry, index) => (
+                                <Cell key={`att-cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {attendanceDistributionData.map(entry => (
+                          <div key={entry.name} className="flex items-center gap-2">
+                            <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                            <span className="text-xs text-foreground">{entry.name}</span>
+                            <span className="text-xs font-bold text-foreground">{entry.value}</span>
+                            <span className="text-[10px] text-muted-foreground">({teacherAttendanceRecords.length > 0 ? Math.round((entry.value / teacherAttendanceRecords.length) * 100) : 0}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              {/* Engagement Scores */}
+              <Card className="border-teal-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="h-4 w-4 text-teal-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'درجات التفاعل' : 'Engagement Scores'}</p>
+                    <span className="text-[10px] text-muted-foreground">({locale === 'ar' ? 'حضور + التزام' : 'Attendance + Compliance'})</span>
+                  </div>
+                  {engagementData.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا توجد بيانات' : 'No data'}</div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar">
+                      {engagementData.slice(0, 15).map((eng, idx) => (
+                        <div key={eng.studentId} className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-muted-foreground w-4">{idx + 1}</span>
+                          <UserAvatar name={eng.studentName} avatarUrl={eng.avatarUrl} size="xs" />
+                          <span className="text-xs font-medium text-foreground truncate flex-1">{eng.studentName}</span>
+                          <div className="w-20 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${eng.engagement >= 80 ? 'bg-emerald-500' : eng.engagement >= 60 ? 'bg-teal-500' : eng.engagement >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${eng.engagement}%` }} />
+                          </div>
+                          <span className="text-xs font-bold shrink-0 w-8 text-end">{eng.engagement}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* TAB 5: RISK & INSIGHTS                                            */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeTrackingTab === 'risk' && (
+        <>
+          {/* ── Risk Distribution Pie ── */}
+          <motion.div variants={itemVariants}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card className="border-rose-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertOctagon className="h-4 w-4 text-rose-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'توزيع مستويات المخاطر' : 'Risk Level Distribution'}</p>
+                  </div>
+                  {riskDistributionData.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا توجد بيانات' : 'No data'}</div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <div className="h-[160px] w-[160px] shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={riskDistributionData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value" stroke="none">
+                              {riskDistributionData.map((entry, index) => (
+                                <Cell key={`risk-cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {riskDistributionData.map(entry => (
+                          <div key={entry.name} className="flex items-center gap-2">
+                            <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                            <span className="text-xs text-foreground">{entry.name}</span>
+                            <span className="text-xs font-bold text-foreground">{entry.value}</span>
+                            <span className="text-[10px] text-muted-foreground">({studentPerformanceData.length > 0 ? Math.round((entry.value / studentPerformanceData.length) * 100) : 0}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Trend Analysis Summary */}
+              <Card className="border-violet-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingUp className="h-4 w-4 text-violet-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'ملخص الاتجاهات' : 'Trends Summary'}</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10">
+                      <ArrowUpRight className="h-5 w-5 text-emerald-600" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{trendSummary.improved}</p>
+                        <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'طالب تحسنوا' : 'Students Improved'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/10">
+                      <ArrowDownRight className="h-5 w-5 text-rose-600" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-rose-700 dark:text-rose-400">{trendSummary.declined}</p>
+                        <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'طالب تراجعوا' : 'Students Declined'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <Minus className="h-5 w-5 text-gray-500" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-400">{trendSummary.stable}</p>
+                        <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'طالب ثابتون' : 'Students Stable'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+
+          {/* ── At-Risk Students List ── */}
+          <motion.div variants={itemVariants}>
+            <Card className="border-rose-100/50 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="h-4 w-4 text-rose-600" />
+                  <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'الطلاب في خطر' : 'At-Risk Students'}</p>
+                </div>
+                {studentPerformanceData.filter(d => d.metrics.riskLevel === 'atRisk' || d.metrics.riskLevel === 'concern').length === 0 ? (
+                  <div className="py-6 text-center text-muted-foreground text-xs">
+                    <ShieldCheck className="h-8 w-8 mx-auto mb-2 text-emerald-500 opacity-50" />
+                    {locale === 'ar' ? 'لا يوجد طلاب في خطر — ممتاز!' : 'No at-risk students — Great!'}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                    {studentPerformanceData
+                      .filter(d => d.metrics.riskLevel === 'atRisk' || d.metrics.riskLevel === 'concern')
+                      .sort((a, b) => {
+                        const order: Record<string, number> = { atRisk: 0, concern: 1 };
+                        return (order[a.metrics.riskLevel] ?? 2) - (order[b.metrics.riskLevel] ?? 2);
+                      })
+                      .map(({ student, metrics }) => {
+                        const riskCfg = getRiskLevelConfig(metrics.riskLevel);
+                        return (
+                          <div key={student.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-rose-100/60 dark:border-rose-900/30 bg-rose-50/20 dark:bg-rose-900/5">
+                            <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="sm" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-foreground truncate">{student.name}</span>
+                                <Badge variant="outline" className={`text-[8px] px-1 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>
+                                  {getRiskLabel(metrics.riskLevel)}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-muted-foreground">{Math.round(metrics.overallPerformance)}%</span>
+                                <span className="text-[9px] text-muted-foreground">•</span>
+                                <span className="text-[10px] text-rose-600">{metrics.riskReasons.map(r => t(`teacher.trackingRiskReason${r.charAt(0).toUpperCase() + r.slice(1)}`)).join(' • ')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* ── Sudden Drop + Improvement Streaks + Volatility ── */}
+          <motion.div variants={itemVariants}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Sudden Drop */}
+              <Card className="border-rose-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <ArrowDownRight className="h-4 w-4 text-rose-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'انخفاض مفاجئ' : 'Sudden Drop'}</p>
+                  </div>
+                  {suddenDropStudents.length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا يوجد' : 'None'}</div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {suddenDropStudents.map(d => (
+                        <div key={d.studentId} className="flex items-center gap-2 text-xs">
+                          <UserAvatar name={d.studentName} avatarUrl={d.studentAvatar} size="xs" />
+                          <span className="text-foreground truncate flex-1">{d.studentName}</span>
+                          <span className="font-bold text-rose-600">{d.change}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              {/* Improvement Streak */}
+              <Card className="border-emerald-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Flame className="h-4 w-4 text-emerald-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'سلسلة تحسن' : 'Improvement Streak'}</p>
+                  </div>
+                  {improvementStreakStudents.length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا يوجد' : 'None'}</div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {improvementStreakStudents.map(d => (
+                        <div key={d.studentId} className="flex items-center gap-2 text-xs">
+                          <UserAvatar name={d.studentName} avatarUrl={d.studentAvatar} size="xs" />
+                          <span className="text-foreground truncate flex-1">{d.studentName}</span>
+                          <span className="font-bold text-emerald-600">+{d.change}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              {/* Volatile */}
+              <Card className="border-amber-100/50 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Activity className="h-4 w-4 text-amber-600" />
+                    <p className="text-sm font-semibold text-foreground">{locale === 'ar' ? 'أداء متذبذب' : 'Volatile Performance'}</p>
+                  </div>
+                  {volatileStudents.length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground text-xs">{locale === 'ar' ? 'لا يوجد' : 'None'}</div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {volatileStudents.map(d => (
+                        <div key={d.studentId} className="flex items-center gap-2 text-xs">
+                          <UserAvatar name={d.studentName} avatarUrl={d.studentAvatar} size="xs" />
+                          <span className="text-foreground truncate flex-1">{d.studentName}</span>
+                          <span className="font-bold text-amber-600">~{d.change > 0 ? '+' : ''}{d.change}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+
+          {/* ── Performance Trend Analysis (moved from old layout) ── */}
+          <motion.div variants={itemVariants}>
+            <Card className="border-violet-100/50 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-violet-600" />
+                    <span>{locale === 'ar' ? 'تحليل الاتجاهات' : 'Trend Analysis'}</span>
+                    {trendAnalysisData.length > 0 && (
+                      <span className="text-sm font-normal text-muted-foreground">
+                        ({trendAnalysisData.length})
+                      </span>
+                    )}
+                  </CardTitle>
+                  {/* Period Selector */}
+                  <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+                    {(['monthly', 'quarterly', 'semester'] as const).map(period => (
+                      <button
+                        key={period}
+                        onClick={() => setTrendPeriod(period)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                          trendPeriod === period
+                            ? 'bg-white dark:bg-gray-800 text-violet-700 dark:text-violet-400 shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {t(`teacher.trend${period.charAt(0).toUpperCase() + period.slice(1)}` as 'teacher.trendMonthly' | 'teacher.trendQuarterly' | 'teacher.trendSemester')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {trendAnalysisData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <TrendingUp className="h-10 w-10 mb-2 opacity-30" />
+                    <p className="text-sm">{t('teacher.trendNoData')}</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Summary Stats Bar */}
+                    <div className="flex items-center gap-3 mb-4 flex-wrap">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        {t('teacher.trendStudentsImproved').replace('{count}', String(trendSummary.improved))}
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-xs font-medium">
+                        <ArrowDownRight className="h-3.5 w-3.5" />
+                        {t('teacher.trendStudentsDeclined').replace('{count}', String(trendSummary.declined))}
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-medium">
+                        <Minus className="h-3.5 w-3.5" />
+                        {t('teacher.trendStudentsStable').replace('{count}', String(trendSummary.stable))}
+                      </div>
+                    </div>
+                    {/* Student Trend List */}
+                    <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-1">
+                      {trendAnalysisData.map((data, idx) => (
+                        <motion.div
+                          key={data.studentId}
+                          initial={{ opacity: 0, x: direction === 'rtl' ? 12 : -12 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          className="grid grid-cols-[1fr_60px_60px_70px_100px] sm:grid-cols-[1fr_70px_70px_80px_140px] items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <UserAvatar name={data.studentName} avatarUrl={data.studentAvatar} size="sm" />
+                            <p className="text-sm font-medium text-foreground truncate">{data.studentName}</p>
+                          </div>
+                          <span className="text-center text-sm text-muted-foreground font-medium">{data.previousScore}%</span>
+                          <span className={`text-center text-sm font-bold ${
+                            data.direction === 'improved' ? 'text-emerald-600 dark:text-emerald-400' :
+                            data.direction === 'declined' ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'
+                          }`}>{data.currentScore}%</span>
+                          <div className="flex items-center justify-center gap-1">
+                            {data.direction === 'improved' ? <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> :
+                             data.direction === 'declined' ? <ArrowDownRight className="h-4 w-4 text-rose-600 dark:text-rose-400" /> :
+                             <Minus className="h-4 w-4 text-gray-400" />}
+                            <span className={`text-xs font-bold ${
+                              data.direction === 'improved' ? 'text-emerald-600 dark:text-emerald-400' :
+                              data.direction === 'declined' ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500'
+                            }`}>{data.change > 0 ? '+' : ''}{data.change}%</span>
+                          </div>
+                          <div className="flex items-center justify-center h-8">
+                            <ResponsiveContainer width="100%" height={32}>
+                              <BarChart data={data.periodData.slice(-6)} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+                                <Bar dataKey="score" radius={[2, 2, 0, 0]} fill={data.direction === 'improved' ? '#10b981' : data.direction === 'declined' ? '#f43f5e' : '#8b5cf6'} fillOpacity={0.7} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        </>
+      )}
     </motion.div>
   );
 }
