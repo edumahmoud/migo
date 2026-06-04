@@ -47,17 +47,13 @@ import {
   PenLine,
   ArrowLeftRight,
   ListChecks,
-  Trophy,
-  ArrowDownRight,
-  ArrowUpRight,
   BarChart3,
   LayoutList,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { computeAllMetrics, computeSubjectPerformance, calculatePercentile, getPerformanceLevelConfig, getRiskLevelConfig, getGrowthTrendConfig, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
+import { computeAllMetrics, calculatePercentile, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
 import { useLocaleStore } from '@/i18n/locale-store';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
+// Progress & Badge removed — no longer used in dashboard JSX
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
@@ -686,87 +682,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     };
     return { avgAttendance, avgEfficiency, avgDiscipline, atRiskCount, advancedCount, improvingCount, decliningCount, performanceDistribution };
   }, [allStudentMetrics]);
-
-  // Derived: per-subject aggregate performance for dashboard overview
-  const subjectAggregateData = useMemo(() => {
-    return teacherSubjects.map(subject => {
-      const subjectScores = scores.filter(s => {
-        const quiz = quizzes.find(q => q.id === s.quiz_id);
-        return quiz?.subject_id === subject.id;
-      });
-      const subjectStudentIds = new Set(subjectScores.map(s => s.student_id));
-      const subjectAssignments = teacherAssignments.filter(a => a.subject_id === subject.id);
-      const subjectSessions = teacherAttendanceSessions.filter(s => s.subject_id === subject.id);
-      const subjectRecords = teacherAttendanceRecords.filter(r => subjectSessions.some(s => s.id === r.session_id));
-      const subjectSubs = teacherSubmissions.filter(s => subjectAssignments.some(a => a.id === s.assignment_id));
-
-      // Compute average across all students in this subject
-      const subjectStudentMetrics = students
-        .filter(s => subjectStudentIds.has(s.id))
-        .map(student => computeAllMetrics({
-          scores: subjectScores.map(s => ({ score: s.score, total: s.total, completed_at: s.completed_at, student_id: s.student_id })),
-          attendanceSessions: subjectSessions.map(s => ({ id: s.id })),
-          attendanceRecords: subjectRecords.map(r => ({ session_id: r.session_id, student_id: r.student_id, attendance_status: r.attendance_status })),
-          submissions: subjectSubs.map(s => ({ assignment_id: s.assignment_id, student_id: s.student_id, score: s.score, status: s.status, submitted_at: s.submitted_at || new Date().toISOString() })),
-          assignments: subjectAssignments.map(a => ({ id: a.id, max_score: a.max_score, due_date: a.due_date })),
-          studentId: student.id,
-        }));
-
-      const avgPerformance = subjectStudentMetrics.length > 0
-        ? Math.round(subjectStudentMetrics.reduce((sum, m) => sum + m.overallPerformance, 0) / subjectStudentMetrics.length)
-        : 0;
-      const atRiskCount = subjectStudentMetrics.filter(m => m.riskLevel === 'atRisk' || m.riskLevel === 'concern').length;
-
-      return { subject, studentCount: subjectStudentIds.size, avgPerformance, atRiskCount };
-    });
-  }, [teacherSubjects, scores, quizzes, students, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, teacherSubmissions]);
-
-  // Derived: Top & Bottom students (overall and per-course)
-  const topStudentsOverall = useMemo(() => {
-    return [...allStudentMetrics]
-      .sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)
-      .slice(0, 5);
-  }, [allStudentMetrics]);
-
-  const studentsNeedingAttention = useMemo(() => {
-    return [...allStudentMetrics]
-      .sort((a, b) => a.metrics.overallPerformance - b.metrics.overallPerformance)
-      .slice(0, 5);
-  }, [allStudentMetrics]);
-
-  const perCourseRankings = useMemo(() => {
-    return teacherSubjects.map(subject => {
-      const subjectScores = scores.filter(s => {
-        const quiz = quizzes.find(q => q.id === s.quiz_id);
-        return quiz?.subject_id === subject.id;
-      });
-      const subjectStudentIds = new Set(subjectScores.map(s => s.student_id));
-      const subjectAssignments = teacherAssignments.filter(a => a.subject_id === subject.id);
-      const subjectSessions = teacherAttendanceSessions.filter(s => s.subject_id === subject.id);
-
-      // Only include courses that have students
-      if (subjectStudentIds.size === 0 && subjectAssignments.length === 0) return null;
-
-      const courseStudentMetrics = students
-        .filter(s => subjectStudentIds.has(s.id))
-        .map(student => ({
-          student,
-          metrics: computeAllMetrics({
-            scores: subjectScores.map(s => ({ score: s.score, total: s.total, completed_at: s.completed_at, student_id: s.student_id })),
-            attendanceSessions: subjectSessions.map(s => ({ id: s.id })),
-            attendanceRecords: teacherAttendanceRecords.map(r => ({ session_id: r.session_id, student_id: r.student_id, attendance_status: r.attendance_status })),
-            submissions: teacherSubmissions.map(s => ({ assignment_id: s.assignment_id, student_id: s.student_id, score: s.score, status: s.status, submitted_at: s.submitted_at || new Date().toISOString() })),
-            assignments: subjectAssignments.map(a => ({ id: a.id, max_score: a.max_score, due_date: a.due_date })),
-            studentId: student.id,
-          }),
-        }));
-
-      const top = [...courseStudentMetrics].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance).slice(0, 3);
-      const bottom = [...courseStudentMetrics].sort((a, b) => a.metrics.overallPerformance - b.metrics.overallPerformance).slice(0, 3);
-
-      return { subject, top, bottom };
-    }).filter(Boolean) as { subject: Subject; top: { student: UserProfile; metrics: StudentPerformanceMetrics }[]; bottom: { student: UserProfile; metrics: StudentPerformanceMetrics }[] }[];
-  }, [teacherSubjects, scores, quizzes, students, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, teacherSubmissions]);
 
   // Derived: Monthly trend data for performance overview area chart
   const monthlyTrendData = useMemo(() => {
@@ -1398,7 +1313,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Performance Overview — Aggregate Course & Teacher Indicators (2/3) */}
+        {/* Performance Overview — Compact KPIs + Charts (2/3) */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
@@ -1441,280 +1356,48 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 </button>
               </div>
             </div>
-            <div className="p-4 space-y-5">
+            <div className="p-4">
               {allStudentMetrics.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground text-sm">
-                  <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   {t('teacher.noPerformanceData')}
                 </div>
               ) : performanceViewMode === 'cards' ? (
-                <>
-                  {/* ── Aggregate KPI Row ── */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
-                      <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
-                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-                      <p className="text-xl font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
-                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الكفاءة' : 'Avg Efficiency'}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
-                      <p className="text-xl font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
-                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الانضباط' : 'Avg Discipline'}</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
-                      <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
-                      <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
-                    </div>
+                /* ── Compact KPI Cards ── */
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
+                    <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
+                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
                   </div>
-
-                  {/* ── Performance Distribution + Growth/Risk Row ── */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Performance Level Distribution */}
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'توزيع مستويات الطلاب' : 'Student Level Distribution'}</p>
-                      <div className="space-y-2">
-                        {[
-                          { level: 'excellent', count: aggregateStats.performanceDistribution.excellent, color: 'bg-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-900/10', textColor: 'text-emerald-700 dark:text-emerald-400', label: locale === 'ar' ? 'ممتاز' : 'Excellent' },
-                          { level: 'veryGood', count: aggregateStats.performanceDistribution.veryGood, color: 'bg-sky-500', bgColor: 'bg-sky-50 dark:bg-sky-900/10', textColor: 'text-sky-700 dark:text-sky-400', label: locale === 'ar' ? 'جيد جداً' : 'Very Good' },
-                          { level: 'good', count: aggregateStats.performanceDistribution.good, color: 'bg-teal-500', bgColor: 'bg-teal-50 dark:bg-teal-900/10', textColor: 'text-teal-700 dark:text-teal-400', label: locale === 'ar' ? 'جيد' : 'Good' },
-                          { level: 'acceptable', count: aggregateStats.performanceDistribution.acceptable, color: 'bg-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-900/10', textColor: 'text-amber-700 dark:text-amber-400', label: locale === 'ar' ? 'مقبول' : 'Acceptable' },
-                          { level: 'weak', count: aggregateStats.performanceDistribution.weak, color: 'bg-rose-500', bgColor: 'bg-rose-50 dark:bg-rose-900/10', textColor: 'text-rose-700 dark:text-rose-400', label: locale === 'ar' ? 'ضعيف' : 'Weak' },
-                        ].map(item => {
-                          const pct = allStudentMetrics.length > 0 ? Math.round((item.count / allStudentMetrics.length) * 100) : 0;
-                          return (
-                            <div key={item.level} className="flex items-center gap-2">
-                              <span className={`h-2 w-2 rounded-full ${item.color} shrink-0`} />
-                              <span className="text-xs text-foreground w-16 shrink-0">{item.label}</span>
-                              <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden">
-                                <div className={`h-full rounded-full ${item.color}`} style={{ width: `${pct}%` }} />
-                              </div>
-                              <span className={`text-xs font-bold ${item.textColor} w-10 text-end`}>{item.count}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Risk & Growth Summary */}
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'ملخص الخطورة والنمو' : 'Risk & Growth Summary'}</p>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30">
-                          <span className="text-xs text-foreground">{locale === 'ar' ? 'طلاب في خطر / قلق' : 'At Risk / Concern'}</span>
-                          <span className="text-sm font-bold text-rose-700 dark:text-rose-400">{aggregateStats.atRiskCount}</span>
-                        </div>
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
-                          <span className="text-xs text-foreground">{locale === 'ar' ? 'طلاب متقدمون (≥80%)' : 'Advanced (≥80%)'}</span>
-                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.advancedCount}</span>
-                        </div>
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30">
-                          <span className="text-xs text-foreground">{locale === 'ar' ? 'اتجاه تحسن' : 'Improving Trend'}</span>
-                          <span className="text-sm font-bold text-teal-700 dark:text-teal-400">{aggregateStats.improvingCount}</span>
-                        </div>
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
-                          <span className="text-xs text-foreground">{locale === 'ar' ? 'اتجاه تراجع' : 'Declining Trend'}</span>
-                          <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{aggregateStats.decliningCount}</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
+                    <p className="text-xl font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
+                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الكفاءة' : 'Avg Efficiency'}</p>
                   </div>
-
-                  {/* ── Per-Course Indicators ── */}
-                  {subjectAggregateData.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'مؤشرات المقررات' : 'Course Indicators'}</p>
-                      <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-                        {subjectAggregateData.map(({ subject, studentCount, avgPerformance: subAvg, atRiskCount }) => {
-                          const statusConfig = subAvg >= 80
-                            ? { label: locale === 'ar' ? 'متقدم' : 'Advanced', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/60', dotClass: 'bg-emerald-500' }
-                            : subAvg >= 60
-                            ? { label: locale === 'ar' ? 'على المسار' : 'On Track', className: 'bg-sky-50 text-sky-700 dark:bg-sky-900/15 dark:text-sky-400 border-sky-100 dark:border-sky-900/60', dotClass: 'bg-sky-500' }
-                            : subAvg >= 40
-                            ? { label: locale === 'ar' ? 'يحتاج متابعة' : 'Needs Attention', className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-100 dark:border-amber-900/60', dotClass: 'bg-amber-500' }
-                            : { label: locale === 'ar' ? 'في خطر' : 'At Risk', className: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400 border-rose-100 dark:border-rose-900/60', dotClass: 'bg-rose-500' };
-                          return (
-                            <div key={subject.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800/60 hover:bg-muted/20 transition-colors">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-900/20 ring-1 ring-violet-100 dark:ring-violet-900/40">
-                                <BookOpen className="h-4 w-4 text-violet-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-medium text-foreground truncate">{subject.name}</span>
-                                  <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${statusConfig.className}`}>{statusConfig.label}</Badge>
-                                </div>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <Progress value={subAvg} className="h-1 flex-1" />
-                                  <span className="text-[10px] font-bold text-muted-foreground">{subAvg}%</span>
-                                </div>
-                              </div>
-                              <div className="text-end shrink-0">
-                                <p className="text-[10px] text-muted-foreground">{studentCount} {locale === 'ar' ? 'طالب' : 'stu'}</p>
-                                {atRiskCount > 0 && <p className="text-[10px] font-medium text-rose-600">{atRiskCount} ⚠</p>}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Top Students & Students Needing Attention ── */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Top Students Overall */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Trophy className="h-4 w-4 text-amber-500" />
-                        <p className="text-xs font-medium text-muted-foreground">{t('teacher.topPerformersOverall')}</p>
-                      </div>
-                      {topStudentsOverall.length === 0 || topStudentsOverall[0].metrics.overallPerformance === 0 ? (
-                        <div className="py-6 text-center text-muted-foreground text-xs">
-                          <Trophy className="h-6 w-6 mx-auto mb-2 opacity-30" />
-                          {t('teacher.noTopStudentsYet')}
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {topStudentsOverall.map(({ student, metrics }, idx) => {
-                            const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
-                            return (
-                              <div key={student.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-amber-50/80 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30 hover:shadow-sm transition-shadow">
-                                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold shrink-0 ${
-                                  idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-muted text-muted-foreground'
-                                }`}>
-                                  {idx + 1}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
-                                  <div className="flex items-center gap-1.5">
-                                    <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
-                                    <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
-                                  </div>
-                                </div>
-                                <ArrowUpRight className="h-3 w-3 text-emerald-500 shrink-0" />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Students Needing Attention */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="h-4 w-4 text-rose-500" />
-                        <p className="text-xs font-medium text-muted-foreground">{t('teacher.lowestPerformersOverall')}</p>
-                      </div>
-                      {studentsNeedingAttention.length === 0 || studentsNeedingAttention[0].metrics.overallPerformance === 0 ? (
-                        <div className="py-6 text-center text-muted-foreground text-xs">
-                          <AlertTriangle className="h-6 w-6 mx-auto mb-2 opacity-30" />
-                          {t('teacher.noStudentsNeedingAttention')}
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {studentsNeedingAttention.map(({ student, metrics }, idx) => {
-                            const riskCfg = getRiskLevelConfig(metrics.riskLevel);
-                            const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
-                            const riskLabelMap: Record<RiskLevel, string> = {
-                              healthy: locale === 'ar' ? 'سليم' : 'Healthy',
-                              monitor: locale === 'ar' ? 'مراقبة' : 'Monitor',
-                              concern: locale === 'ar' ? 'قلق' : 'Concern',
-                              atRisk: locale === 'ar' ? 'في خطر' : 'At Risk',
-                            };
-                            return (
-                              <div key={student.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-rose-50/80 to-transparent dark:from-rose-900/10 border border-rose-100/60 dark:border-rose-900/30 hover:shadow-sm transition-shadow">
-                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-bold shrink-0">
-                                  {idx + 1}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
-                                    <Badge variant="secondary" className={`text-[8px] px-1 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>{riskLabelMap[metrics.riskLevel]}</Badge>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
-                                    <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
-                                  </div>
-                                </div>
-                                <ArrowDownRight className="h-3 w-3 text-rose-500 shrink-0" />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                  <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
+                    <p className="text-xl font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
+                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الانضباط' : 'Avg Discipline'}</p>
                   </div>
-
-                  {/* ── Per-Course Top/Bottom Rankings ── */}
-                  {perCourseRankings.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">{locale === 'ar' ? 'ترتيب الطلاب حسب المقرر' : 'Student Rankings by Course'}</p>
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-                        {perCourseRankings.map(({ subject, top, bottom }) => {
-                          if (top.length === 0 && bottom.length === 0) return null;
-                          return (
-                            <div key={subject.id} className="rounded-lg border border-gray-100 dark:border-gray-800/60 overflow-hidden">
-                              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-gray-100 dark:border-gray-800/60">
-                                <BookOpen className="h-3.5 w-3.5 text-violet-600" />
-                                <span className="text-xs font-semibold text-foreground truncate">{subject.name}</span>
-                              </div>
-                              <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-800/60">
-                                {/* Top in this course */}
-                                <div className="p-2 space-y-1">
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <Trophy className="h-3 w-3 text-amber-500" />
-                                    <span className="text-[10px] font-medium text-muted-foreground">{locale === 'ar' ? 'الأفضل' : 'Top'}</span>
-                                  </div>
-                                  {top.length === 0 ? (
-                                    <p className="text-[10px] text-muted-foreground text-center py-1">—</p>
-                                  ) : top.map(({ student, metrics }, idx) => (
-                                    <div key={student.id} className="flex items-center gap-1.5 py-0.5">
-                                      <span className="text-[9px] font-bold text-amber-600 w-3 shrink-0">{idx + 1}</span>
-                                      <span className="text-[10px] text-foreground truncate flex-1">{student.name}</span>
-                                      <span className="text-[9px] font-bold text-emerald-600 shrink-0">{Math.round(metrics.overallPerformance)}%</span>
-                                    </div>
-                                  ))}
-                                </div>
-                                {/* Bottom in this course */}
-                                <div className="p-2 space-y-1">
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <AlertTriangle className="h-3 w-3 text-rose-500" />
-                                    <span className="text-[10px] font-medium text-muted-foreground">{locale === 'ar' ? 'يحتاج دعم' : 'Need Support'}</span>
-                                  </div>
-                                  {bottom.length === 0 ? (
-                                    <p className="text-[10px] text-muted-foreground text-center py-1">—</p>
-                                  ) : bottom.map(({ student, metrics }, idx) => (
-                                    <div key={student.id} className="flex items-center gap-1.5 py-0.5">
-                                      <span className="text-[9px] font-bold text-rose-600 w-3 shrink-0">{idx + 1}</span>
-                                      <span className="text-[10px] text-foreground truncate flex-1">{student.name}</span>
-                                      <span className="text-[9px] font-bold text-rose-600 shrink-0">{Math.round(metrics.overallPerformance)}%</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </>
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
+                    <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
+                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
+                  </div>
+                </div>
               ) : (
                 /* ── Chart View ── */
-                <div className="space-y-6">
+                <div className="space-y-5">
                   {/* Area Chart: Performance Trend */}
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <TrendingUp className="h-4 w-4 text-sky-600" />
-                      <p className="text-sm font-medium text-foreground">{t('teacher.performanceTrend')}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-3.5 w-3.5 text-sky-600" />
+                      <p className="text-xs font-medium text-foreground">{t('teacher.performanceTrend')}</p>
                     </div>
                     {monthlyTrendData.length < 2 ? (
-                      <div className="py-8 text-center text-muted-foreground text-xs">
-                        <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <div className="py-6 text-center text-muted-foreground text-xs">
+                        <BarChart3 className="h-6 w-6 mx-auto mb-2 opacity-30" />
                         {t('teacher.noTrendData')}
                       </div>
                     ) : (
-                      <div className="h-[220px] w-full">
+                      <div className="h-[180px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={monthlyTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                             <defs>
@@ -1772,9 +1455,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                         </ResponsiveContainer>
                       </div>
                     )}
-                    {/* Legend for the area chart */}
                     {monthlyTrendData.length >= 2 && (
-                      <div className="flex items-center justify-center gap-4 mt-2">
+                      <div className="flex items-center justify-center gap-4 mt-1.5">
                         <div className="flex items-center gap-1.5">
                           <span className="h-2 w-4 rounded-full bg-sky-500" />
                           <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</span>
@@ -1789,26 +1471,26 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
                   {/* Pie Chart: Student Level Distribution */}
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Award className="h-4 w-4 text-amber-500" />
-                      <p className="text-sm font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Award className="h-3.5 w-3.5 text-amber-500" />
+                      <p className="text-xs font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
                     </div>
                     {levelPieData.length === 0 ? (
-                      <div className="py-8 text-center text-muted-foreground text-xs">
-                        <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <div className="py-6 text-center text-muted-foreground text-xs">
+                        <Award className="h-6 w-6 mx-auto mb-2 opacity-30" />
                         {t('teacher.noPerformanceData')}
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row items-center gap-4">
-                        <div className="h-[200px] w-[200px] shrink-0">
+                      <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <div className="h-[160px] w-[160px] shrink-0">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
                                 data={levelPieData}
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={55}
-                                outerRadius={90}
+                                innerRadius={40}
+                                outerRadius={72}
                                 paddingAngle={2}
                                 dataKey="value"
                                 stroke="none"
@@ -1829,15 +1511,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
-                        {/* Custom Legend */}
-                        <div className="flex flex-col gap-2 flex-1">
+                        <div className="flex flex-col gap-1.5 flex-1">
                           {levelPieData.map((entry) => {
                             const pct = allStudentMetrics.length > 0 ? Math.round((entry.value / allStudentMetrics.length) * 100) : 0;
                             return (
-                              <div key={entry.name} className="flex items-center gap-2.5">
-                                <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                                <span className="text-xs text-foreground flex-1">{entry.name}</span>
-                                <span className="text-xs font-bold text-foreground">{entry.value}</span>
+                              <div key={entry.name} className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                                <span className="text-[11px] text-foreground flex-1">{entry.name}</span>
+                                <span className="text-[11px] font-bold text-foreground">{entry.value}</span>
                                 <span className="text-[10px] text-muted-foreground">({pct}%)</span>
                               </div>
                             );
@@ -1847,23 +1528,23 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     )}
                   </div>
 
-                  {/* KPI Summary row in chart view */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
-                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
+                  {/* Compact KPI row in chart view */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
+                      <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-                      <p className="text-lg font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الكفاءة' : 'Avg Efficiency'}</p>
+                    <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
+                      <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
-                      <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الانضباط' : 'Avg Discipline'}</p>
+                    <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
+                      <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</p>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
-                      <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
+                    <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
+                      <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</p>
                     </div>
                   </div>
                 </div>

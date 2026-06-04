@@ -307,3 +307,34 @@ Stage Summary:
 - Performance Overview now shows aggregate indicators for all students combined: KPIs, distribution, risk/growth summary, and per-course indicators
 - Recent Activity now shows only teacher actions (course/quiz/assignment/session creation)
 - Both sections are fully bilingual (Arabic/English)
+
+---
+Task ID: compact-dashboard-restructure
+Agent: main
+Task: Fix build error (duplicate BarChart3 import) + condense Performance Overview in teacher dashboard + move detailed features to tracking section
+
+Work Log:
+- Fixed build error: duplicate BarChart3 import in teacher-student-tracking-section.tsx (line 43 was duplicate of line 24)
+- Redesigned Performance Overview in teacher-dashboard.tsx to be compact:
+  - Removed: Level Distribution bars, Risk & Growth Summary, Per-Course Indicators, Top Students & Students Needing Attention, Per-Course Rankings
+  - Kept: Compact KPI row (4 cards) + Charts toggle (Area Chart + Pie Chart)
+  - Cards view: Shows only 4 KPI indicators in a 2x2 grid
+  - Charts view: Shows area chart (performance trend) + pie chart (level distribution) + compact KPI row
+- Cleaned up unused variables: subjectAggregateData, topStudentsOverall, studentsNeedingAttention, perCourseRankings
+- Cleaned up unused imports: Trophy, ArrowDownRight, ArrowUpRight, Progress, Badge, computeSubjectPerformance, getPerformanceLevelConfig, getRiskLevelConfig, getGrowthTrendConfig
+- Added Top/Bottom Students and Per-Course Rankings to tracking section (teacher-student-tracking-section.tsx):
+  - Added topStudents (top 5) and bottomStudents (bottom 5) useMemo computations
+  - Added perCourseRankings (top 3 + bottom 3 per course) useMemo computation
+  - Added Trophy icon import
+  - Added Top Students card with gold/silver/bronze rankings and progress bars
+  - Added Students Needing Attention card with risk badges and progress bars
+  - Added Per-Course Rankings card with scrollable list, two-column top/bottom layout
+- All changes pass lint check with zero errors
+- Dev server starts and compiles successfully
+
+Stage Summary:
+- Performance Overview in dashboard is now compact (~1 screen height instead of scrolling several screens)
+- Detailed features (top/bottom students, per-course rankings) are now in the tracking section
+- Build error fixed (duplicate import)
+- Code cleaned up (unused variables and imports removed)
+- Files modified: src/components/teacher/teacher-dashboard.tsx, src/components/teacher/teacher-student-tracking-section.tsx

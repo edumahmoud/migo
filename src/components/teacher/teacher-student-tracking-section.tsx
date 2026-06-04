@@ -22,6 +22,7 @@ import {
   Filter,
   ChevronDown,
   BarChart3,
+  Trophy,
   ClipboardList,
   Clock,
   CheckCircle2,
@@ -40,7 +41,6 @@ import {
   Info,
   ArrowUpRight,
   ArrowDownRight,
-  BarChart3,
   LayoutList,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -537,6 +537,45 @@ export default function TeacherStudentTrackingSection({
     if (studentPerformanceData.length === 0) return 0;
     return studentPerformanceData.reduce((sum, d) => sum + d.metrics.efficiency, 0) / studentPerformanceData.length;
   }, [studentPerformanceData]);
+
+  // ─── Top 5 & Bottom 5 Students ───
+  const topStudents = useMemo(() => {
+    return [...studentPerformanceData]
+      .sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)
+      .slice(0, 5);
+  }, [studentPerformanceData]);
+
+  const bottomStudents = useMemo(() => {
+    return [...studentPerformanceData]
+      .sort((a, b) => a.metrics.overallPerformance - b.metrics.overallPerformance)
+      .slice(0, 5);
+  }, [studentPerformanceData]);
+
+  // ─── Per-Course Rankings (top 3 + bottom 3 per course) ───
+  const perCourseRankings = useMemo(() => {
+    return subjects.map(subject => {
+      const subjectScores = scores.filter(s => {
+        const quiz = quizzes.find(q => q.id === s.quiz_id);
+        return quiz?.subject_id === subject.id;
+      });
+      const subjectStudentIds = new Set(subjectScores.map(s => s.student_id));
+      const subjectAssignments = teacherAssignments.filter(a => a.subject_id === subject.id);
+      const subjectSessions = teacherAttendanceSessions.filter(s => s.subject_id === subject.id);
+
+      if (subjectStudentIds.size === 0 && subjectAssignments.length === 0) return null;
+
+      const courseStudentMetrics = studentPerformanceData
+        .filter(d => subjectStudentIds.has(d.student.id))
+        .map(d => ({ student: d.student, metrics: d.metrics }));
+
+      if (courseStudentMetrics.length === 0) return null;
+
+      const top = [...courseStudentMetrics].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance).slice(0, 3);
+      const bottom = [...courseStudentMetrics].sort((a, b) => a.metrics.overallPerformance - b.metrics.overallPerformance).slice(0, 3);
+
+      return { subject, top, bottom };
+    }).filter(Boolean) as { subject: Subject; top: { student: UserProfile; metrics: StudentPerformanceMetrics }[]; bottom: { student: UserProfile; metrics: StudentPerformanceMetrics }[] }[];
+  }, [subjects, scores, quizzes, studentPerformanceData, teacherAssignments, teacherAttendanceSessions]);
 
   // ─── Monthly trend data for area chart ───
   const trackingTrendData = useMemo(() => {
@@ -1562,6 +1601,160 @@ export default function TeacherStudentTrackingSection({
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* ── Top Students & Students Needing Attention ── */}
+      <motion.div variants={itemVariants}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Top Students */}
+          <Card className="border-amber-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Trophy className="h-4 w-4 text-amber-500" />
+                <p className="text-sm font-medium text-foreground">{t('teacher.topPerformersOverall')}</p>
+              </div>
+              {topStudents.length === 0 || topStudents[0].metrics.overallPerformance === 0 ? (
+                <div className="py-6 text-center text-muted-foreground text-xs">
+                  <Trophy className="h-6 w-6 mx-auto mb-2 opacity-30" />
+                  {t('teacher.noTopStudentsYet')}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {topStudents.map(({ student, metrics }, idx) => {
+                    const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
+                    return (
+                      <div key={student.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-amber-50/80 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30 hover:shadow-sm transition-shadow">
+                        <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold shrink-0 ${
+                          idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
+                            <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                          </div>
+                        </div>
+                        <ArrowUpRight className="h-3 w-3 text-emerald-500 shrink-0" />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Students Needing Attention */}
+          <Card className="border-rose-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-4 w-4 text-rose-500" />
+                <p className="text-sm font-medium text-foreground">{t('teacher.lowestPerformersOverall')}</p>
+              </div>
+              {bottomStudents.length === 0 || bottomStudents[0].metrics.overallPerformance === 0 ? (
+                <div className="py-6 text-center text-muted-foreground text-xs">
+                  <AlertTriangle className="h-6 w-6 mx-auto mb-2 opacity-30" />
+                  {t('teacher.noStudentsNeedingAttention')}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {bottomStudents.map(({ student, metrics }, idx) => {
+                    const riskCfg = getRiskLevelConfig(metrics.riskLevel);
+                    const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
+                    const riskLabelMap: Record<RiskLevel, string> = {
+                      healthy: locale === 'ar' ? 'سليم' : 'Healthy',
+                      monitor: locale === 'ar' ? 'مراقبة' : 'Monitor',
+                      concern: locale === 'ar' ? 'قلق' : 'Concern',
+                      atRisk: locale === 'ar' ? 'في خطر' : 'At Risk',
+                    };
+                    return (
+                      <div key={student.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-rose-50/80 to-transparent dark:from-rose-900/10 border border-rose-100/60 dark:border-rose-900/30 hover:shadow-sm transition-shadow">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-bold shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
+                            <Badge variant="secondary" className={`text-[8px] px-1 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>{riskLabelMap[metrics.riskLevel]}</Badge>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
+                            <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                          </div>
+                        </div>
+                        <ArrowDownRight className="h-3 w-3 text-rose-500 shrink-0" />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </motion.div>
+
+      {/* ── Per-Course Rankings ── */}
+      {perCourseRankings.length > 0 && (
+        <motion.div variants={itemVariants}>
+          <Card className="border-violet-100/50 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-violet-600" />
+                {locale === 'ar' ? 'ترتيب الطلاب حسب المقرر' : 'Student Rankings by Course'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {perCourseRankings.map(({ subject, top, bottom }) => {
+                  if (top.length === 0 && bottom.length === 0) return null;
+                  return (
+                    <div key={subject.id} className="rounded-lg border border-gray-100 dark:border-gray-800/60 overflow-hidden">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-gray-100 dark:border-gray-800/60">
+                        <BookOpen className="h-3.5 w-3.5 text-violet-600" />
+                        <span className="text-xs font-semibold text-foreground truncate">{subject.name}</span>
+                      </div>
+                      <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-800/60">
+                        {/* Top in this course */}
+                        <div className="p-2 space-y-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <Trophy className="h-3 w-3 text-amber-500" />
+                            <span className="text-[10px] font-medium text-muted-foreground">{locale === 'ar' ? 'الأفضل' : 'Top'}</span>
+                          </div>
+                          {top.length === 0 ? (
+                            <p className="text-[10px] text-muted-foreground text-center py-1">—</p>
+                          ) : top.map(({ student, metrics }, idx) => (
+                            <div key={student.id} className="flex items-center gap-1.5 py-0.5">
+                              <span className="text-[9px] font-bold text-amber-600 w-3 shrink-0">{idx + 1}</span>
+                              <span className="text-[10px] text-foreground truncate flex-1">{student.name}</span>
+                              <span className="text-[9px] font-bold text-emerald-600 shrink-0">{Math.round(metrics.overallPerformance)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Bottom in this course */}
+                        <div className="p-2 space-y-1">
+                          <div className="flex items-center gap-1 mb-1">
+                            <AlertTriangle className="h-3 w-3 text-rose-500" />
+                            <span className="text-[10px] font-medium text-muted-foreground">{locale === 'ar' ? 'يحتاج دعم' : 'Need Support'}</span>
+                          </div>
+                          {bottom.length === 0 ? (
+                            <p className="text-[10px] text-muted-foreground text-center py-1">—</p>
+                          ) : bottom.map(({ student, metrics }, idx) => (
+                            <div key={student.id} className="flex items-center gap-1.5 py-0.5">
+                              <span className="text-[9px] font-bold text-rose-600 w-3 shrink-0">{idx + 1}</span>
+                              <span className="text-[10px] text-foreground truncate flex-1">{student.name}</span>
+                              <span className="text-[9px] font-bold text-rose-600 shrink-0">{Math.round(metrics.overallPerformance)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* ── Search, Sort & Student List ── */}
       <motion.div variants={itemVariants}>
