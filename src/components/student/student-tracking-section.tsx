@@ -820,43 +820,140 @@ export default function StudentTrackingSection({
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════
-          Section 2: Compact Performance Summary Bar
+          Section 2: Performance Indicators Grid
           ════════════════════════════════════════════════════════════ */}
       <motion.div variants={itemVariants}>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-l from-sky-50/60 via-teal-50/40 to-white dark:from-sky-900/10 dark:via-teal-900/5 dark:to-card border border-sky-100/60 dark:border-sky-900/30">
-          <div className="flex items-center gap-2 me-1">
-            <Activity className="h-4 w-4 text-sky-600" />
-            <p className="text-sm font-bold text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-100/80 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400 text-xs font-medium">
-              <TrendingUp className="h-3 w-3" />
-              {Math.round(metrics.overallPerformance)}% {t('student.trackingOverallProgress')}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100/80 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-medium">
-              <Zap className="h-3 w-3" />
-              {Math.round(metrics.efficiency)}% {t('student.trackingEfficiency')}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100/80 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 text-xs font-medium">
-              <ShieldCheck className="h-3 w-3" />
-              {Math.round(metrics.disciplineScore)}% {t('student.trackingDisciplineScore')}
-            </span>
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${growthConfig.key === 'improving' ? 'bg-emerald-100/80 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : growthConfig.key === 'stable' ? 'bg-sky-100/80 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400' : 'bg-rose-100/80 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'}`}>
-              {growthConfig.key === 'improving' ? <ArrowUpRight className="h-3 w-3" /> : growthConfig.key === 'stable' ? <ArrowRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-              {metrics.growthIndex.toFixed(2)} {t('student.trackingGrowthIndex')}
-            </span>
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${riskConfig.bgColor} ${riskConfig.textColor}`}>
-              <AlertTriangle className="h-3 w-3" />
-              {getRiskLevelLabel(metrics.riskLevel)}
-            </span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-teal-600 shadow-sm">
+              <Activity className="h-3.5 w-3.5 text-white" />
+            </div>
+            <p className="text-sm font-bold text-foreground">{locale === 'ar' ? 'مؤشرات الأداء' : 'Performance Indicators'}</p>
           </div>
           <button
             onClick={() => setShowPerformanceCharts(!showPerformanceCharts)}
-            className="ms-auto flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-white dark:bg-gray-800 text-muted-foreground hover:text-foreground shadow-sm border border-gray-200 dark:border-gray-700 transition-colors"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              showPerformanceCharts
+                ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60'
+                : 'bg-gradient-to-l from-sky-600 to-teal-600 text-white shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30'
+            }`}
           >
-            <BarChart3 className="h-3 w-3" />
+            <BarChart3 className="h-3.5 w-3.5" />
             {showPerformanceCharts ? (locale === 'ar' ? 'إخفاء الرسوم' : 'Hide Charts') : (locale === 'ar' ? 'عرض الرسوم' : 'Show Charts')}
           </button>
+        </div>
+
+        {/* Indicator Cards Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Overall Performance */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-teal-50 to-teal-100/50 dark:from-teal-900/15 dark:to-teal-900/5 border border-teal-200/60 dark:border-teal-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <TrendingUp className="h-8 w-8 text-teal-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-200/60 dark:bg-teal-800/40">
+                <TrendingUp className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
+              </div>
+              <p className="text-[10px] font-medium text-teal-600 dark:text-teal-400">{t('student.trackingOverallProgress')}</p>
+            </div>
+            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(metrics.overallPerformance)}<span className="text-sm">%</span></p>
+            <Badge className={`mt-1 text-[8px] px-1.5 py-0 border-0 ${performanceConfig.bgColor} ${performanceConfig.textColor}`}>
+              {performanceConfig.icon} {t(`student.trackingLevel${metrics.performanceLevel.charAt(0).toUpperCase() + metrics.performanceLevel.slice(1)}` as Parameters<typeof t>[0])}
+            </Badge>
+          </div>
+
+          {/* Efficiency */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/15 dark:to-sky-900/5 border border-sky-200/60 dark:border-sky-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <Zap className="h-8 w-8 text-sky-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-200/60 dark:bg-sky-800/40">
+                <Zap className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
+              </div>
+              <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400">{t('student.trackingEfficiency')}</p>
+            </div>
+            {metrics.efficiencyLevel === 'insufficient' ? (
+              <>
+                <p className="text-2xl font-bold text-gray-400 dark:text-gray-500">—</p>
+                <Badge className="mt-1 text-[8px] px-1.5 py-0 border-0 bg-gray-100 dark:bg-gray-800 text-gray-500">{t('student.trackingEfficiencyInsufficient')}</Badge>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{Math.round(metrics.efficiency)}<span className="text-sm">%</span></p>
+                <Badge className={`mt-1 text-[8px] px-1.5 py-0 border-0 ${efficiencyConfig.bgColor} ${efficiencyConfig.textColor}`}>
+                  {metrics.efficiencyLevel === 'high' ? '⚡' : metrics.efficiencyLevel === 'medium' ? '●' : '▼'} {t(`student.trackingEfficiency${metrics.efficiencyLevel.charAt(0).toUpperCase() + metrics.efficiencyLevel.slice(1)}` as Parameters<typeof t>[0])}
+                </Badge>
+              </>
+            )}
+          </div>
+
+          {/* Discipline */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-900/15 dark:to-violet-900/5 border border-violet-200/60 dark:border-violet-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <ShieldCheck className="h-8 w-8 text-violet-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-200/60 dark:bg-violet-800/40">
+                <ShieldCheck className="h-3.5 w-3.5 text-violet-700 dark:text-violet-400" />
+              </div>
+              <p className="text-[10px] font-medium text-violet-600 dark:text-violet-400">{t('student.trackingDisciplineScore')}</p>
+            </div>
+            <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Math.round(metrics.disciplineScore)}<span className="text-sm">%</span></p>
+            <p className="text-[9px] text-muted-foreground mt-1">{t('student.trackingDisciplineTooltip')}</p>
+          </div>
+
+          {/* Growth Index */}
+          <div className={`relative p-3 rounded-xl overflow-hidden border ${
+            growthConfig.key === 'improving'
+              ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/15 dark:to-emerald-900/5 border-emerald-200/60 dark:border-emerald-900/40'
+              : growthConfig.key === 'stable'
+              ? 'bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/15 dark:to-sky-900/5 border-sky-200/60 dark:border-sky-900/40'
+              : 'bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-900/15 dark:to-rose-900/5 border-rose-200/60 dark:border-rose-900/40'
+          }`}>
+            <div className="absolute top-2 end-2 opacity-10">
+              {growthConfig.key === 'improving' ? <ArrowUpRight className="h-8 w-8 text-emerald-600" /> : growthConfig.key === 'stable' ? <ArrowRight className="h-8 w-8 text-sky-600" /> : <ArrowDownRight className="h-8 w-8 text-rose-600" />}
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                growthConfig.key === 'improving' ? 'bg-emerald-200/60 dark:bg-emerald-800/40' : growthConfig.key === 'stable' ? 'bg-sky-200/60 dark:bg-sky-800/40' : 'bg-rose-200/60 dark:bg-rose-800/40'
+              }`}>
+                {growthConfig.key === 'improving' ? <ArrowUpRight className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" /> : growthConfig.key === 'stable' ? <ArrowRight className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" /> : <ArrowDownRight className="h-3.5 w-3.5 text-rose-700 dark:text-rose-400" />}
+              </div>
+              <p className="text-[10px] font-medium text-muted-foreground">{t('student.trackingGrowthIndex')}</p>
+            </div>
+            <p className={`text-2xl font-bold ${growthConfig.textColor}`}>{metrics.growthIndex.toFixed(2)}</p>
+            <Badge className={`mt-1 text-[8px] px-1.5 py-0 border-0 ${growthConfig.key === 'improving' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : growthConfig.key === 'stable' ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'}`}>
+              {growthConfig.icon} {getGrowthTrendLabel(metrics.growthTrend)}
+            </Badge>
+          </div>
+
+          {/* Risk Level */}
+          <div className={`relative p-3 rounded-xl overflow-hidden border ${riskConfig.bgColor} ${riskConfig.borderColor}`}>
+            <div className="absolute top-2 end-2 opacity-10">
+              <AlertTriangle className={`h-8 w-8 ${riskConfig.textColor}`} />
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${riskConfig.bgColor} ring-1 ${riskConfig.borderColor}`}>
+                <AlertTriangle className={`h-3.5 w-3.5 ${riskConfig.textColor}`} />
+              </div>
+              <p className="text-[10px] font-medium text-muted-foreground">{t('student.trackingRiskLevel')}</p>
+            </div>
+            <Badge className={`text-[10px] px-2.5 py-0.5 ${riskConfig.bgColor} ${riskConfig.textColor} ${riskConfig.borderColor} border`}>
+              {getRiskLevelLabel(metrics.riskLevel)}
+            </Badge>
+            {metrics.riskReasons.length > 0 ? (
+              <div className="mt-2 space-y-0.5">
+                {metrics.riskReasons.slice(0, 2).map((reason, idx) => (
+                  <p key={idx} className="text-[9px] text-muted-foreground/80 truncate">
+                    • {getRiskReasonLabel(reason)}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[9px] text-muted-foreground/60 mt-2">{t('student.trackingNoRiskReasons')}</p>
+            )}
+          </div>
         </div>
         {/* Collapsible Charts */}
         <AnimatePresence>

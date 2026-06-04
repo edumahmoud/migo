@@ -49,6 +49,10 @@ import {
   ListChecks,
   BarChart3,
   LayoutList,
+  Activity,
+  Clock,
+  Zap,
+  ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { computeAllMetrics, calculatePercentile, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
@@ -1318,7 +1322,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-teal-600 shadow-sm">
+                  <TrendingUp className="h-3.5 w-3.5 text-white" />
+                </div>
                 {t('teacher.performanceOverview')}
               </h3>
               <div className="flex items-center gap-2">
@@ -1347,13 +1353,16 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     {t('teacher.chartView')}
                   </button>
                 </div>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => setActiveSection('tracking')}
-                  className="text-xs text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-l from-sky-600 to-teal-600 text-white text-xs font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
                 >
+                  <Activity className="h-3.5 w-3.5" />
                   {t('teacher.detailedAnalysis')}
                   <ChevronLeft className="h-3 w-3" />
-                </button>
+                </motion.button>
               </div>
             </div>
             <div className="p-4">
@@ -1363,23 +1372,55 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   {t('teacher.noPerformanceData')}
                 </div>
               ) : performanceViewMode === 'cards' ? (
-                /* ── Compact KPI Cards ── */
+                /* ── Enhanced KPI Cards ── */
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
-                    <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
-                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
+                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/15 dark:to-emerald-900/5 border border-emerald-200/60 dark:border-emerald-900/40 overflow-hidden">
+                    <div className="absolute top-2 end-2 opacity-10">
+                      <Clock className="h-8 w-8 text-emerald-600" />
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-200/60 dark:bg-emerald-800/40">
+                        <Clock className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
+                      </div>
+                      <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{aggregateStats.avgAttendance}<span className="text-sm">%</span></p>
                   </div>
-                  <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-                    <p className="text-xl font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
-                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الكفاءة' : 'Avg Efficiency'}</p>
+                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-teal-50 to-teal-100/50 dark:from-teal-900/15 dark:to-teal-900/5 border border-teal-200/60 dark:border-teal-900/40 overflow-hidden">
+                    <div className="absolute top-2 end-2 opacity-10">
+                      <Zap className="h-8 w-8 text-teal-600" />
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-200/60 dark:bg-teal-800/40">
+                        <Zap className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
+                      </div>
+                      <p className="text-[10px] font-medium text-teal-600 dark:text-teal-400">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
+                    </div>
+                    <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{aggregateStats.avgEfficiency}<span className="text-sm">%</span></p>
                   </div>
-                  <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
-                    <p className="text-xl font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
-                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الانضباط' : 'Avg Discipline'}</p>
+                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/15 dark:to-sky-900/5 border border-sky-200/60 dark:border-sky-900/40 overflow-hidden">
+                    <div className="absolute top-2 end-2 opacity-10">
+                      <ShieldCheck className="h-8 w-8 text-sky-600" />
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-200/60 dark:bg-sky-800/40">
+                        <ShieldCheck className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
+                      </div>
+                      <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</p>
+                    </div>
+                    <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{aggregateStats.avgDiscipline}<span className="text-sm">%</span></p>
                   </div>
-                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
-                    <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
-                    <p className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
+                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/15 dark:to-amber-900/5 border border-amber-200/60 dark:border-amber-900/40 overflow-hidden">
+                    <div className="absolute top-2 end-2 opacity-10">
+                      <TrendingUp className="h-8 w-8 text-amber-600" />
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-200/60 dark:bg-amber-800/40">
+                        <TrendingUp className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
+                      </div>
+                      <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400">{locale === 'ar' ? 'الأداء' : 'Performance'}</p>
+                    </div>
+                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{avgPerformance}<span className="text-sm">%</span></p>
                   </div>
                 </div>
               ) : (
@@ -1530,21 +1571,33 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
                   {/* Compact KPI row in chart view */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
-                      <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-emerald-50 to-transparent dark:from-emerald-900/10 border border-emerald-100/60 dark:border-emerald-900/30">
+                      <Clock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
+                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-                      <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-teal-50 to-transparent dark:from-teal-900/10 border border-teal-100/60 dark:border-teal-900/30">
+                      <Zap className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
+                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
-                      <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</p>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-sky-50 to-transparent dark:from-sky-900/10 border border-sky-100/60 dark:border-sky-900/30">
+                      <ShieldCheck className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
+                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</p>
+                      </div>
                     </div>
-                    <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
-                      <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
-                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</p>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-amber-50 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30">
+                      <TrendingUp className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
+                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</p>
+                      </div>
                     </div>
                   </div>
                 </div>

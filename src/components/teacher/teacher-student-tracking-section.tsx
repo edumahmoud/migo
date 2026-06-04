@@ -1009,43 +1009,96 @@ export default function TeacherStudentTrackingSection({
         </DialogContent>
       </Dialog>
 
-      {/* ── Compact Performance Summary Bar ── */}
+      {/* ── Performance Summary Cards Grid ── */}
       <motion.div variants={itemVariants}>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-l from-sky-50/60 via-teal-50/40 to-white dark:from-sky-900/10 dark:via-teal-900/5 dark:to-card border border-sky-100/60 dark:border-sky-900/30">
-          <div className="flex items-center gap-2 me-1">
-            <Activity className="h-4 w-4 text-sky-600" />
-            <p className="text-sm font-bold text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Total Students */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/15 dark:to-sky-900/5 border border-sky-200/60 dark:border-sky-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <Users className="h-8 w-8 text-sky-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-200/60 dark:bg-sky-800/40">
+                <Users className="h-3 w-3 text-sky-700 dark:text-sky-400" />
+              </div>
+              <p className="text-[9px] font-medium text-sky-600 dark:text-sky-400">{t('teacher.trackingTotalStudents')}</p>
+            </div>
+            <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{overviewStats.totalStudents}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100/80 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-medium">
-              <Users className="h-3 w-3" />
-              {overviewStats.totalStudents} {t('teacher.trackingTotalStudents')}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-100/80 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400 text-xs font-medium">
-              <TrendingUp className="h-3 w-3" />
-              {Math.round(overviewStats.avgPerformance)}% {t('teacher.trackingAvgPerformance')}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-xs font-medium">
-              <Clock className="h-3 w-3" />
-              {Math.round(overviewStats.avgAttendance)}% {t('teacher.trackingAttendanceRate')}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100/80 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 text-xs font-medium">
-              <ShieldCheck className="h-3 w-3" />
-              {Math.round(overviewStats.avgDiscipline)}% {t('teacher.trackingDisciplineScore')}
-            </span>
-            {overviewStats.atRiskStudents > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100/80 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-xs font-medium">
-                <AlertTriangle className="h-3 w-3" />
-                {overviewStats.atRiskStudents} {t('teacher.trackingRiskLevel')}
-              </span>
-            )}
-            {overviewStats.topPerformers > 0 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100/80 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
-                <Award className="h-3 w-3" />
-                {overviewStats.topPerformers} {t('teacher.trackingTopPerformers')}
-              </span>
-            )}
+
+          {/* Avg Performance */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-teal-50 to-teal-100/50 dark:from-teal-900/15 dark:to-teal-900/5 border border-teal-200/60 dark:border-teal-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <TrendingUp className="h-8 w-8 text-teal-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-teal-200/60 dark:bg-teal-800/40">
+                <TrendingUp className="h-3 w-3 text-teal-700 dark:text-teal-400" />
+              </div>
+              <p className="text-[9px] font-medium text-teal-600 dark:text-teal-400">{t('teacher.trackingAvgPerformance')}</p>
+            </div>
+            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(overviewStats.avgPerformance)}<span className="text-sm">%</span></p>
           </div>
+
+          {/* Avg Attendance */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/15 dark:to-amber-900/5 border border-amber-200/60 dark:border-amber-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <Clock className="h-8 w-8 text-amber-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-200/60 dark:bg-amber-800/40">
+                <Clock className="h-3 w-3 text-amber-700 dark:text-amber-400" />
+              </div>
+              <p className="text-[9px] font-medium text-amber-600 dark:text-amber-400">{t('teacher.trackingAttendanceRate')}</p>
+            </div>
+            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{Math.round(overviewStats.avgAttendance)}<span className="text-sm">%</span></p>
+          </div>
+
+          {/* Avg Discipline */}
+          <div className="relative p-3 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-900/15 dark:to-violet-900/5 border border-violet-200/60 dark:border-violet-900/40 overflow-hidden">
+            <div className="absolute top-2 end-2 opacity-10">
+              <ShieldCheck className="h-8 w-8 text-violet-600" />
+            </div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-200/60 dark:bg-violet-800/40">
+                <ShieldCheck className="h-3 w-3 text-violet-700 dark:text-violet-400" />
+              </div>
+              <p className="text-[9px] font-medium text-violet-600 dark:text-violet-400">{t('teacher.trackingDisciplineScore')}</p>
+            </div>
+            <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Math.round(overviewStats.avgDiscipline)}<span className="text-sm">%</span></p>
+          </div>
+
+          {/* At Risk Students */}
+          {overviewStats.atRiskStudents > 0 && (
+            <div className="relative p-3 rounded-xl bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-900/15 dark:to-rose-900/5 border border-rose-200/60 dark:border-rose-900/40 overflow-hidden">
+              <div className="absolute top-2 end-2 opacity-10">
+                <AlertTriangle className="h-8 w-8 text-rose-600" />
+              </div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-200/60 dark:bg-rose-800/40">
+                  <AlertTriangle className="h-3 w-3 text-rose-700 dark:text-rose-400" />
+                </div>
+                <p className="text-[9px] font-medium text-rose-600 dark:text-rose-400">{t('teacher.trackingRiskLevel')}</p>
+              </div>
+              <p className="text-2xl font-bold text-rose-700 dark:text-rose-300">{overviewStats.atRiskStudents}</p>
+            </div>
+          )}
+
+          {/* Top Performers */}
+          {overviewStats.topPerformers > 0 && (
+            <div className="relative p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/15 dark:to-emerald-900/5 border border-emerald-200/60 dark:border-emerald-900/40 overflow-hidden">
+              <div className="absolute top-2 end-2 opacity-10">
+                <Award className="h-8 w-8 text-emerald-600" />
+              </div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-200/60 dark:bg-emerald-800/40">
+                  <Award className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
+                </div>
+                <p className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">{t('teacher.trackingTopPerformers')}</p>
+              </div>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{overviewStats.topPerformers}</p>
+            </div>
+          )}
         </div>
       </motion.div>
 
