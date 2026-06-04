@@ -593,36 +593,196 @@ export default function StudentTrackingSection({
           <Info className="h-4 w-4" />
         </motion.button>
         <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl max-h-[85vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Info className="h-5 w-5 text-sky-600" />
                 {t('student.trackingInstructionsTitle')}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 p-2">
-              <p className="text-sm text-muted-foreground">{t('student.trackingInstructionsDesc')}</p>
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30">
-                  <p className="text-sm font-medium text-sky-700 dark:text-sky-400 mb-1">📊 {t('student.trackingOverallProgress')}</p>
-                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsPerformance')}</p>
+            <div className="overflow-y-auto max-h-[70vh] pr-1 space-y-5 p-1">
+              {/* ── Section 1: How Overall Performance is Calculated ── */}
+              <div>
+                <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-xs font-bold">1</span>
+                  {locale === 'ar' ? 'كيف يُحسب الأداء العام؟' : 'How is Overall Performance Calculated?'}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {locale === 'ar'
+                    ? 'يُحسب أداؤك العام من 4 عناصر مُرجّحة (مجموع الأوزان = 100%). إذا لم تتوفر بيانات لأحد العناصر يُعاد توزيع وزنه تلقائياً على العناصر المتبقية.'
+                    : 'Your overall performance is calculated from 4 weighted components (weights sum to 100%). If data is missing for a component, its weight is automatically redistributed among the remaining components.'}
+                </p>
+                <div className="space-y-2">
+                  {/* Exam Performance */}
+                  <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-sky-700 dark:text-sky-400">
+                        📝 {locale === 'ar' ? 'أداء الاختبارات' : 'Exam Performance'}
+                      </p>
+                      <span className="text-xs font-bold bg-sky-200 dark:bg-sky-800 text-sky-800 dark:text-sky-200 px-2 py-0.5 rounded-full">35%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'المعادلة: (مجموع الدرجات المحصّلة ÷ مجموع الدرجات الكلية) × 100 — تُرجّح بالدرجة الكلية للاختبار وليس بنسبة مئوية متساوية، مما يعطي الاختبارات الكبيرة وزناً أكبر.'
+                        : 'Formula: (Total Earned Marks ÷ Total Possible Marks) × 100 — Weighted by total marks (not equal percentages), so major exams carry more weight than small quizzes.'}
+                    </p>
+                  </div>
+                  {/* Attendance Score */}
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                        🏫 {locale === 'ar' ? 'درجة الحضور' : 'Attendance Score'}
+                      </p>
+                      <span className="text-xs font-bold bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-full">20%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'نظام النقاط: حاضر = 100 نقطة، متأخر = 75 نقطة، حضور جزئي = 50 نقطة، غائب = 0 نقطة. ثم: (مجموع النقاط ÷ الحد الأقصى للنقاط) × 100.'
+                        : 'Points system: Present = 100 pts, Late = 75 pts, Partial = 50 pts, Absent = 0 pts. Then: (Total Points ÷ Max Points) × 100.'}
+                    </p>
+                  </div>
+                  {/* Assignment Compliance */}
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                        ✅ {locale === 'ar' ? 'الالتزام بالمهام' : 'Assignment Compliance'}
+                      </p>
+                      <span className="text-xs font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full">15%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'المعادلة: (عدد المهام المسلّمة ÷ إجمالي المهام) × 100 — يقيس مدى التزامك بتسليم المهام بغض النظر عن الدرجة.'
+                        : 'Formula: (Submitted Assignments ÷ Total Assignments) × 100 — Measures your commitment to submitting work regardless of grade.'}
+                    </p>
+                  </div>
+                  {/* Assignment Quality */}
+                  <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-teal-700 dark:text-teal-400">
+                        🎯 {locale === 'ar' ? 'جودة المهام' : 'Assignment Quality'}
+                      </p>
+                      <span className="text-xs font-bold bg-teal-200 dark:bg-teal-800 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full">30%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'المعادلة: (مجموع النقاط المحصّلة من المهام ÷ مجموع النقاط الكلية للمهام) × 100 — يقيس جودة عملك والدرجات التي حققتها.'
+                        : 'Formula: (Total Earned Points from Assignments ÷ Total Possible Points) × 100 — Measures the quality of your work and grades achieved.'}
+                    </p>
+                  </div>
                 </div>
-                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
-                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">🛡️ {t('student.trackingRiskLevel')}</p>
-                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsRisk')}</p>
+                <div className="mt-2 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800">
+                  <p className="text-xs text-muted-foreground text-center font-medium">
+                    {locale === 'ar'
+                      ? '📊 الأداء العام = (اختبارات × 35% + حضور × 20% + التزام × 15% + جودة × 30%) ÷ مجموع الأوزان المتوفرة'
+                      : '📊 Overall = (Exams × 35% + Attendance × 20% + Compliance × 15% + Quality × 30%) ÷ Sum of Available Weights'}
+                  </p>
                 </div>
-                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">📈 {t('student.trackingGrowthIndex')}</p>
-                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsGrowth')}</p>
+              </div>
+
+              {/* ── Section 2: Performance Levels ── */}
+              <div>
+                <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-xs font-bold">2</span>
+                  {locale === 'ar' ? 'مستويات الأداء' : 'Performance Levels'}
+                </h3>
+                <div className="grid grid-cols-1 gap-1.5">
+                  <div className="flex items-center gap-2 text-xs"><span className="text-emerald-600 dark:text-emerald-400">★</span><span className="font-medium">{locale === 'ar' ? 'ممتاز' : 'Excellent'}</span><span className="text-muted-foreground">≥90%</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-sky-600 dark:text-sky-400">◆</span><span className="font-medium">{locale === 'ar' ? 'جيد جداً' : 'Very Good'}</span><span className="text-muted-foreground">80-89%</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-teal-600 dark:text-teal-400">●</span><span className="font-medium">{locale === 'ar' ? 'جيد' : 'Good'}</span><span className="text-muted-foreground">70-79%</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-amber-600 dark:text-amber-400">▲</span><span className="font-medium">{locale === 'ar' ? 'مقبول' : 'Acceptable'}</span><span className="text-muted-foreground">60-69%</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-rose-600 dark:text-rose-400">▼</span><span className="font-medium">{locale === 'ar' ? 'ضعيف' : 'Weak'}</span><span className="text-muted-foreground">&lt;60%</span></div>
                 </div>
-                <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30">
-                  <p className="text-sm font-medium text-teal-700 dark:text-teal-400 mb-1">⚡ {t('student.trackingEfficiency')}</p>
-                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsEfficiency')}</p>
+              </div>
+
+              {/* ── Section 3: Risk Level & Point System ── */}
+              <div>
+                <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-bold">3</span>
+                  {locale === 'ar' ? 'مستوى الخطورة ونظام النقاط' : 'Risk Level & Point System'}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  {locale === 'ar'
+                    ? 'يتم احتساب نقاط الخطورة بناءً على عدة عوامل، وكل عامل يضيف نقاطاً للمخاطرة:'
+                    : 'Risk points are calculated based on several factors, each adding to your risk score:'}
+                </p>
+                <div className="space-y-1.5 mb-3">
+                  <div className="flex items-center gap-2 text-xs"><span className="text-rose-600 dark:text-rose-400">+3</span><span className="text-muted-foreground">{locale === 'ar' ? 'الحضور أقل من 50%' : 'Attendance below 50%'}</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-amber-600 dark:text-amber-400">+1</span><span className="text-muted-foreground">{locale === 'ar' ? 'الحضور أقل من 70%' : 'Attendance below 70%'}</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-rose-600 dark:text-rose-400">+3</span><span className="text-muted-foreground">{locale === 'ar' ? 'الأداء العام أقل من 60%' : 'Overall performance below 60%'}</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-amber-600 dark:text-amber-400">+1</span><span className="text-muted-foreground">{locale === 'ar' ? 'الأداء العام أقل من 70%' : 'Overall performance below 70%'}</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-orange-600 dark:text-orange-400">+2</span><span className="text-muted-foreground">{locale === 'ar' ? 'عدم تسليم آخر 3 مهام' : 'Missed last 3 assignments'}</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-orange-600 dark:text-orange-400">+2</span><span className="text-muted-foreground">{locale === 'ar' ? 'اتجاه أداء تنازلي' : 'Declining performance trend'}</span></div>
+                  <div className="flex items-center gap-2 text-xs"><span className="text-orange-600 dark:text-orange-400">+2</span><span className="text-muted-foreground">{locale === 'ar' ? 'عدم النشاط لأكثر من 14 يوماً' : 'Inactive for more than 14 days'}</span></div>
                 </div>
-                <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/30">
-                  <p className="text-sm font-medium text-violet-700 dark:text-violet-400 mb-1">🎯 {t('student.trackingCourseStatus')}</p>
-                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsCourseIndicator')}</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-900/10"><span className="h-2 w-2 rounded-full bg-emerald-500" />{locale === 'ar' ? 'سليم (< 2 نقطة)' : 'Healthy (< 2 pts)'}</div>
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-amber-50 dark:bg-amber-900/10"><span className="h-2 w-2 rounded-full bg-amber-500" />{locale === 'ar' ? 'مراقبة (2-3 نقاط)' : 'Monitor (2-3 pts)'}</div>
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-orange-50 dark:bg-orange-900/10"><span className="h-2 w-2 rounded-full bg-orange-500" />{locale === 'ar' ? 'قلق (4-5 نقاط)' : 'Concern (4-5 pts)'}</div>
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-rose-50 dark:bg-rose-900/10"><span className="h-2 w-2 rounded-full bg-rose-500" />{locale === 'ar' ? 'في خطر (≥ 6 نقاط)' : 'At Risk (≥ 6 pts)'}</div>
                 </div>
+              </div>
+
+              {/* ── Section 4: Growth, Efficiency, Discipline ── */}
+              <div>
+                <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-bold">4</span>
+                  {locale === 'ar' ? 'المؤشرات الإضافية' : 'Additional Indicators'}
+                </h3>
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">📈 {locale === 'ar' ? 'مؤشر النمو' : 'Growth Index'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'يقسم درجاتك الزمنية إلى أثلاث، ويقارن متوسط الثلث الأخير بالأول. النسبة ≥ 1.1 = تحسن (↑)، بين 0.9-1.1 = ثابت (→)، أقل من 0.9 = تراجع (↓).'
+                        : 'Divides your scores chronologically into thirds, comparing the last third\'s average to the first. Ratio ≥ 1.1 = improving (↑), 0.9-1.1 = stable (→), below 0.9 = declining (↓).'}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30">
+                    <p className="text-sm font-medium text-teal-700 dark:text-teal-400 mb-1">⚡ {locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'المعادلة: (الأداء العام ÷ الجهد) × 100. الجهد = (الحضور × 50% + الالتزام بالمهام × 50%). عالية ≥ 80%، متوسطة 50-79%، منخفضة < 50%. إذا كان الجهد < 40% تظهر "بيانات غير كافية".'
+                        : 'Formula: (Overall Performance ÷ Effort) × 100. Effort = (Attendance × 50% + Compliance × 50%). High ≥ 80%, Medium 50-79%, Low < 50%. If effort < 40%, shows "Insufficient Data".'}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/30">
+                    <p className="text-sm font-medium text-violet-700 dark:text-violet-400 mb-1">📋 {locale === 'ar' ? 'درجة الانضباط' : 'Discipline Score'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'ar'
+                        ? 'ثلاثة عناصر مُرجّحة: انتظام الحضور (40%) + التسليم في الوقت (40%) + احترام المواعيد (20%). يُخصم حتى 20 نقطة بسبب التأخير.'
+                        : 'Three weighted components: Attendance consistency (40%) + On-time submissions (40%) + Deadline respect (20%). Up to 20 pts penalty for late arrivals.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Section 5: Course Status ── */}
+              <div>
+                <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 text-xs font-bold">5</span>
+                  {locale === 'ar' ? 'حالة المقرر' : 'Course Status'}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  {locale === 'ar'
+                    ? 'كل مقرر يُحسب له أداء عام بنفس المعادلة، ويُصنّف حسب النتيجة:'
+                    : 'Each course calculates its own overall performance using the same formula, then classified:'}
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-900/10"><span className="text-emerald-600">●</span>{locale === 'ar' ? 'متقدم (≥80%)' : 'Advanced (≥80%)'}</div>
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-teal-50 dark:bg-teal-900/10"><span className="text-teal-600">●</span>{locale === 'ar' ? 'على المسار (60-79%)' : 'On Track (60-79%)'}</div>
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-amber-50 dark:bg-amber-900/10"><span className="text-amber-600">●</span>{locale === 'ar' ? 'يحتاج متابعة (40-59%)' : 'Needs Attention (40-59%)'}</div>
+                  <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-rose-50 dark:bg-rose-900/10"><span className="text-rose-600">●</span>{locale === 'ar' ? 'في خطر (<40%)' : 'At Risk (<40%)'}</div>
+                </div>
+              </div>
+
+              {/* ── Tip ── */}
+              <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-900/40">
+                <p className="text-xs font-medium text-sky-700 dark:text-sky-400 mb-1">💡 {locale === 'ar' ? 'نصيحة' : 'Tip'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {locale === 'ar'
+                    ? 'ركّز على تحسين العنصر الأضعف أولاً لأن له وزناً كبيراً في النتيجة النهائية. الاختبارات وجودة المهام يمثلان معاً 65% من أدائك العام.'
+                    : 'Focus on improving your weakest component first as it has the biggest impact. Exams and assignment quality together make up 65% of your overall performance.'}
+                </p>
               </div>
             </div>
           </DialogContent>

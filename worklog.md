@@ -244,3 +244,36 @@ Modified the `StudentTrackingSection` component with 5 changes: Status Guide mov
 - `bun run lint` passed with zero errors
 - `npx tsc --noEmit` shows zero errors in `student-tracking-section.tsx` (pre-existing errors in `admin-performance-tracking-section.tsx` are unrelated)
 - All existing functionality preserved — no breaking changes
+---
+Task ID: info-dialog-rewrite
+Agent: main
+Task: Rewrite "i" info icon dialog content for student and teacher tracking to be clear, role-specific, and explain the performance calculation mechanism
+
+Work Log:
+- Read and analyzed the current info dialog content in student-tracking-section.tsx (5 brief cards) and teacher-student-tracking-section.tsx (3 brief cards)
+- Read and understood the complete performance calculation engine in performance-calculator.ts and analytics-config.ts
+- Rewrote the student info dialog with 5 detailed, numbered sections:
+  1. How Overall Performance is Calculated (4 weighted components with formulas and weight badges)
+  2. Performance Levels (5 levels with icons and ranges)
+  3. Risk Level & Point System (7 risk factors with point values, 4 risk levels)
+  4. Additional Indicators (Growth Index, Efficiency, Discipline with formulas)
+  5. Course Status (4 status categories)
+  Plus a student-specific tip about focusing on weakest component
+- Rewrote the teacher info dialog with 5 detailed, numbered sections:
+  1. How Student Performance is Calculated (same 4 components with formulas)
+  2. Section Health Indicator (4 levels based on average performance)
+  3. Risk Point System (7 risk factors, 4 risk levels - teacher-specific language)
+  4. Per-Course Student Indicator (4 status categories)
+  5. Additional Metrics (Growth, Efficiency, Discipline with formulas)
+  Plus a teacher-specific tip about using filters and contacting at-risk students
+- Made dialogs larger (max-w-2xl) and scrollable (max-h-[85vh]) to accommodate the detailed content
+- All content is bilingual (Arabic/English) using locale variable directly
+- Lint check passed cleanly
+- TypeScript compilation has no errors in modified files
+
+Stage Summary:
+- Student and Teacher "i" info dialogs now provide comprehensive, role-specific explanations
+- Clear formulas, weight breakdowns, point systems, and thresholds are explained
+- Risk calculation mechanism is transparent with exact point values
+- Each role gets customized tips (student: focus on weakest component; teacher: use filters for at-risk students)
+- Dialog is scrollable and properly sized for the detailed content
