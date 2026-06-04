@@ -596,8 +596,9 @@
    These rules ensure modals (z-50) leave space at the bottom for scrolling. */
 @media (max-width: 768px) {
   /* Radix Dialog content — constrain height and add bottom padding
-     so the scrollable area doesn't extend behind the bottom nav */
-  [data-slot="dialog-content"] {
+     so the scrollable area doesn't extend behind the bottom nav.
+     Exclude fullscreen editor dialog which has its own sizing. */
+  [data-slot="dialog-content"]:not(.fullscreen-editor-dialog) {
     max-height: calc(85dvh - 4rem) !important;
     padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
@@ -889,13 +890,40 @@ body.quiz-capture-detected {
   color: #7dd3fc;
 }
 
-/* Images */
-.prose-editor img {
+/* Images - shared between editor and read-only view */
+.prose-editor img,
+.prose-editor-wrapper img {
   border-radius: 0.5rem;
   max-width: 100%;
   height: auto;
-  cursor: resize;
   margin: 0.75rem 0;
+  transition: width 0.2s ease;
+}
+
+/* Images with explicit width via style attribute - constrain to container */
+.prose-editor img[style*="width"],
+.prose-editor-wrapper img[style*="width"] {
+  max-width: 100%;
+}
+
+/* Image alignment */
+.prose-editor img[data-align="left"],
+.prose-editor-wrapper img[data-align="left"] {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.prose-editor img[data-align="center"],
+.prose-editor-wrapper img[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+
+.prose-editor img[data-align="right"],
+.prose-editor-wrapper img[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .prose-editor img.ProseMirror-selectednode {
@@ -937,8 +965,9 @@ body.quiz-capture-detected {
   font-weight: 600;
 }
 
-/* YouTube embed */
-.prose-editor .youtube-embed-wrapper {
+/* YouTube embed - shared between editor and read-only view */
+.prose-editor .youtube-embed-wrapper,
+.prose-editor-wrapper .youtube-embed-wrapper {
   position: relative;
   padding-bottom: 56.25%;
   height: 0;
@@ -948,7 +977,8 @@ body.quiz-capture-detected {
   border-radius: 0.5rem;
 }
 
-.prose-editor .youtube-embed-wrapper iframe {
+.prose-editor .youtube-embed-wrapper iframe,
+.prose-editor-wrapper .youtube-embed-wrapper iframe {
   position: absolute;
   top: 0;
   inset-inline-start: 0;
@@ -962,6 +992,31 @@ body.quiz-capture-detected {
   outline: 2px solid #0284c7;
   outline-offset: 2px;
   border-radius: 0.5rem;
+}
+
+/* YouTube alignment */
+.prose-editor .youtube-embed-wrapper[data-align="left"],
+.prose-editor-wrapper .youtube-embed-wrapper[data-align="left"] {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.prose-editor .youtube-embed-wrapper[data-align="center"],
+.prose-editor-wrapper .youtube-embed-wrapper[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.prose-editor .youtube-embed-wrapper[data-align="right"],
+.prose-editor-wrapper .youtube-embed-wrapper[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* YouTube width control */
+.prose-editor .youtube-embed-wrapper[style*="width"],
+.prose-editor-wrapper .youtube-embed-wrapper[style*="width"] {
+  max-width: 100%;
 }
 
 /* Placeholder */
@@ -990,6 +1045,93 @@ body.quiz-capture-detected {
   min-height: 400px;
 }
 
+/* Fullscreen editor: tiptap fills available space */
+.fullscreen-editor-dialog .prose-editor-wrapper .tiptap {
+  min-height: unset;
+  height: 100%;
+}
+
+/* ─── Columns Layout ─────────────────────────────────────────────────────── */
+.prose-editor .editor-columns,
+.prose-editor-wrapper .editor-columns {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 1rem;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.prose-editor .editor-column,
+.prose-editor-wrapper .editor-column {
+  flex: 1 1 0% !important;
+  min-width: 0;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px dashed var(--border);
+  transition: border-color 0.2s;
+}
+
+.prose-editor .editor-column:hover,
+.prose-editor-wrapper .editor-column:hover {
+  border-color: #0284c7;
+}
+
+/* Column content inherits prose styles */
+.prose-editor .editor-column p,
+.prose-editor-wrapper .editor-column p {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.prose-editor .editor-column p:first-child,
+.prose-editor-wrapper .editor-column p:first-child {
+  margin-top: 0;
+}
+
+.prose-editor .editor-column img,
+.prose-editor-wrapper .editor-column img {
+  max-width: 100%;
+}
+
+/* 3-column layout: equal widths */
+.prose-editor .editor-columns[data-cols="3"] .editor-column,
+.prose-editor-wrapper .editor-columns[data-cols="3"] .editor-column {
+  flex: 1;
+}
+
+/* Responsive: stack columns on mobile */
+@media (max-width: 640px) {
+  .prose-editor .editor-columns,
+  .prose-editor-wrapper .editor-columns {
+    flex-direction: column;
+  }
+}
+
+/* ─── Image Float ──────────────────────────────────────────────────────────── */
+.prose-editor img[data-float="left"],
+.prose-editor-wrapper img[data-float="left"] {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.prose-editor img[data-float="right"],
+.prose-editor-wrapper img[data-float="right"] {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Clearfix for floated images */
+.prose-editor p::after,
+.prose-editor-wrapper p::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
 /* Table resize handle */
 .prose-editor .column-resize-handle {
   position: absolute;
@@ -1009,4 +1151,91 @@ body.quiz-capture-detected {
 .prose-editor .resize-cursor {
   cursor: ew-resize;
   cursor: col-resize;
+}
+
+/* ─── Columns Layout ─────────────────────────────────────────────────────── */
+.prose-editor .editor-columns,
+.prose-editor-wrapper .editor-columns {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 1rem;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.prose-editor .editor-column,
+.prose-editor-wrapper .editor-column {
+  flex: 1 1 0% !important;
+  min-width: 0;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px dashed var(--border);
+  transition: border-color 0.2s;
+}
+
+.prose-editor .editor-column:hover,
+.prose-editor-wrapper .editor-column:hover {
+  border-color: #0284c7;
+}
+
+/* Column content inherits prose styles */
+.prose-editor .editor-column p,
+.prose-editor-wrapper .editor-column p {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.prose-editor .editor-column p:first-child,
+.prose-editor-wrapper .editor-column p:first-child {
+  margin-top: 0;
+}
+
+.prose-editor .editor-column img,
+.prose-editor-wrapper .editor-column img {
+  max-width: 100%;
+}
+
+/* 3-column layout: equal widths */
+.prose-editor .editor-columns[data-cols="3"] .editor-column,
+.prose-editor-wrapper .editor-columns[data-cols="3"] .editor-column {
+  flex: 1;
+}
+
+/* Responsive: stack columns on mobile */
+@media (max-width: 640px) {
+  .prose-editor .editor-columns,
+  .prose-editor-wrapper .editor-columns {
+    flex-direction: column !important;
+  }
+}
+
+/* ─── Image Float ──────────────────────────────────────────────────────────── */
+.prose-editor img[data-float="left"],
+.prose-editor-wrapper img[data-float="left"] {
+  float: left;
+  margin-right: 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.prose-editor img[data-float="right"],
+.prose-editor-wrapper img[data-float="right"] {
+  float: right;
+  margin-left: 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Clearfix for floated images */
+.prose-editor p::after,
+.prose-editor-wrapper p::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+/* Fullscreen editor: tiptap fills available space */
+.fullscreen-editor-dialog .prose-editor-wrapper .tiptap {
+  min-height: unset;
+  height: 100%;
 }

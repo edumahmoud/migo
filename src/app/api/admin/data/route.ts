@@ -146,6 +146,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (type === 'all' || type === 'lessons') {
+      const { count: lessonCount, error: lessonError } = await supabaseServer
+        .from('lectures')
+        .select('*', { count: 'exact', head: true });
+
+      if (lessonError) {
+        console.error('Error fetching lesson count:', lessonError);
+        errors.push(`lessons: ${lessonError.message}`);
+      } else {
+        results.lessonCount = lessonCount ?? 0;
+      }
+    }
+
     if (type === 'banned') {
       const { data: banned, error: bannedError } = await supabaseServer
         .from('banned_users')

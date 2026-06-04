@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { userId, fileName, fileType, fileSize, fileUrl, storagePath, assignmentId } = body;
+    const { userId, fileName, fileType, fileSize, fileUrl, storagePath, assignmentId, folderId } = body;
 
     if (!userId || !fileName || !fileType || !fileSize || !fileUrl) {
       return NextResponse.json(
@@ -52,6 +52,10 @@ export async function POST(request: NextRequest) {
 
     if (assignmentId) {
       insertData.assignment_id = assignmentId;
+    }
+
+    if (folderId) {
+      insertData.folder_id = folderId;
     }
 
     const { data: fileRecord, error: dbError } = await supabaseServer

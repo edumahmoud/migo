@@ -380,6 +380,7 @@
     "totalTeachers": "Total Teachers",
     "totalUsers": "Total Users",
     "totalQuizzes": "Total Quizzes",
+    "totalLessons": "Total Lessons",
     "totalSummaries": "Total Summaries",
     "totalReports": "Total Reports",
     "activeUsers": "Active Users",
@@ -431,6 +432,7 @@
     "courseFiles": "Course Files",
     "courseVideos": "Course Videos",
     "courseLectures": "Course Lectures",
+    "lessonsCount": "Lessons",
     "courseNotes": "Course Notes",
     "noLectures": "No lectures",
     "noLecturesDesc": "No lectures have been created yet",
@@ -2056,6 +2058,7 @@
     "unread": "Unread",
     "unreadCount": "{count} unread",
     "newNotification": "New notification",
+    "newNotifications": "You have {count} new notification(s)",
     "enableNotifications": "Enable Notifications",
     "notificationPermission": "Notification Permission",
     "grantPermission": "Grant Permission",
@@ -2583,6 +2586,7 @@
     "statTeachers": "Teachers",
     "statTotalUsers": "Total Users",
     "statVideos": "Videos",
+    "statLessons": "Lessons",
     "stopped": "Stopped",
     "subLevelFirst": "First Sub-level",
     "subLevelSecond": "Second Sub-level",
@@ -2625,6 +2629,7 @@
     "toastRequestTimeout": "Request timed out",
     "toastTitleContentRequired": "Title and content are required",
     "totalQuizzes": "Total Quizzes",
+    "totalLessons": "Total Lessons",
     "totalSubmissions": "Total Submissions",
     "tryDifferentSearchOrFilters": "Try different search or filters",
     "unban": "Unban",
@@ -2776,6 +2781,10 @@
     "exit": "Exit App",
     "offlineTitle": "AttenDo — Smart Educational Platform",
     "branding": "AttenDo — Smart Educational Platform"
+  },
+  "connectivity": {
+    "offline": "No internet connection — your progress will be saved",
+    "online": "Internet connection restored"
   },
   "globalError": {
     "criticalError": "Critical App Error",

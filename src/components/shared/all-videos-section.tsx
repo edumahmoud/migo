@@ -618,7 +618,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
                     )}
                     {/* Play overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <Play className="h-6 w-6 text-white fill-white" />
                       </div>
                     </div>

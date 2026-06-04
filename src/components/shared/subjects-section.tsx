@@ -1486,7 +1486,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setNewCategoryNameAr(cat.name_ar); setNewCategoryNameEn(cat.name_en || ''); setNewCategoryColor(cat.color || SUBJECT_COLORS[0]); setCategoryModalOpen(true); }}
                               className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

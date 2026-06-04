@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState, useEffect } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -19,6 +20,7 @@ import Color from '@tiptap/extension-color'
 import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { common, createLowlight } from 'lowlight'
+import { Extension, Node } from '@tiptap/core'
 
 import {
   Bold,
@@ -58,6 +60,9 @@ import {
   X,
   ArrowLeftToLine,
   ArrowRightToLine,
+  Columns2,
+  Columns3,
+  FlipHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -86,6 +91,66 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip'
 
+// ─── Text Direction Extension ──────────────────────────────────────────────
+// Adds `dir` attribute to paragraph, heading, and codeBlock nodes so RTL/LTR works properly
+const TextDirectionExtension = Extension.create({
+  name: 'textDirection',
+
+  addOptions() {
+    return {
+      types: ['heading', 'paragraph', 'codeBlock'],
+    }
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          dir: {
+            default: null,
+            parseHTML: (element) => element.getAttribute('dir'),
+            renderHTML: (attributes) => {
+              if (!attributes.dir) return {}
+              return { dir: attributes.dir }
+            },
+          },
+        },
+      },
+    ]
+  },
+
+  addCommands() {
+    return {
+      setTextDirection:
+        (direction: string) =>
+        ({ tr, state, dispatch }) => {
+          const { from, to } = state.selection
+          let applicable = false
+          const types = this.options.types as string[]
+
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            if (types.includes(node.type.name)) {
+              applicable = true
+              if (dispatch) {
+                tr.setNodeMarkup(pos, undefined, {
+                  ...node.attrs,
+                  dir: direction,
+                })
+              }
+            }
+          })
+
+          if (dispatch && applicable) {
+            dispatch(tr.scrollIntoView())
+          }
+
+          return applicable
+        },
+    }
+  },
+})
+
 // ─── Lowlight instance for code block syntax highlighting ───────────────────
 const lowlight = createLowlight(common)
 // Register MySQL as an alias of SQL for syntax highlighting
@@ -93,6 +158,141 @@ try {
   lowlight.register('mysql', common.sql)
 } catch {
   // MySQL may already be registered or unavailable in some environments
+}
+
+// ─── Custom Image Extension (width + alignment + float) ───────────────────
+const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: '100%',
+        parseHTML: (element) => element.getAttribute('width') || element.style.width || '100%',
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes.width) return {}
+          return { width: attributes.width as string, style: `width: ${attributes.width}` }
+        },
+      },
+      'data-align': {
+        default: 'center',
+        parseHTML: (element) => element.getAttribute('data-align') || 'center',
+        renderHTML: (attributes: Record<string, unknown>) => {
+          return { 'data-align': attributes['data-align'] as string }
+        },
+      },
+      'data-float': {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-float') || null,
+        renderHTML: (attributes: Record<string, unknown>) => {
+          if (!attributes['data-float']) return {}
+          return { 'data-float': attributes['data-float'] as string }
+        },
+      },
+    }
+  },
+})
+
+const setImageOptions = (opts: { src: string; width?: string; 'data-align'?: string; 'data-float'?: string | null }) => opts as any
+
+// ─── Custom YouTube Extension (width + alignment) ────────────────────────────
+const CustomYoutube = Youtube.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: '100%',
+        parseHTML: (element) => element.style.width || element.getAttribute('width') || '100%',
+        renderHTML: (attributes) => {
+          if (!attributes.width || attributes.width === '100%') return {}
+          return { style: `width: ${attributes.width}` }
+        },
+      },
+      'data-align': {
+        default: 'center',
+        parseHTML: (element) => element.getAttribute('data-align') || 'center',
+        renderHTML: (attributes) => {
+          return { 'data-align': attributes['data-align'] }
+        },
+      },
+    }
+  },
+})
+
+// ─── Column Node (single column inside Columns) ───────────────────────────
+const Column = Node.create({
+  name: 'column',
+  content: 'block+',
+  isolating: true,
+
+  parseHTML() {
+    return [{ tag: 'div[data-column]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { ...HTMLAttributes, 'data-column': '', class: 'editor-column', style: 'flex: 1 1 0%; min-width: 0;' }, 0]
+  },
+})
+
+// ─── Columns Node (multi-column layout container) ─────────────────────────
+const Columns = Node.create({
+  name: 'columns',
+  group: 'block',
+  content: 'column+',
+  defining: true,
+
+  addAttributes() {
+    return {
+      cols: {
+        default: 2,
+        parseHTML: (element) => parseInt(element.getAttribute('data-cols') || '2', 10),
+        renderHTML: (attributes) => {
+          return { 'data-cols': String(attributes.cols) }
+        },
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-columns]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['div', { ...HTMLAttributes, 'data-columns': '', class: 'editor-columns', style: 'display: flex; flex-direction: row; gap: 1rem; width: 100%;' }, 0]
+  },
+
+  addCommands() {
+    return {
+      insertColumns:
+        (cols: number = 2) =>
+        ({ tr, dispatch, editor }: any) => {
+          const columnType = editor.schema.nodes.column
+          const columnsType = editor.schema.nodes.columns
+          if (!columnType || !columnsType) return false
+
+          const columnCount = Math.min(Math.max(cols, 2), 3)
+          // Build the right number of column children
+          const columnNodes = Array.from({ length: columnCount }, () =>
+            columnType.create(null, editor.schema.nodes.paragraph.create())
+          )
+          const columnsNode = columnsType.create({ cols: columnCount }, columnNodes)
+
+          if (dispatch) {
+            const { from } = tr.selection
+            dispatch(tr.replaceSelectionWith(columnsNode, false))
+          }
+          return true
+        },
+    } as any
+  },
+})
+
+// Module augmentation for insertColumns command
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    columns: {
+      insertColumns: (cols?: number) => ReturnType
+    }
+  }
 }
 
 // ─── Preset Colors ──────────────────────────────────────────────────────────
@@ -206,6 +406,266 @@ async function uploadImageToSupabase(
   return urlData?.publicUrl || null
 }
 
+// ─── MediaSelection Toolbar (BubbleMenu) ──────────────────────────────────
+// Floating toolbar that appears near the selected image or YouTube video
+function MediaToolbar({ editor }: { editor: Editor }) {
+  const isImage = editor.isActive('image')
+  const isYoutube = editor.isActive('youtube')
+
+  if (!isImage && !isYoutube) return null
+
+  const nodeType = isImage ? 'image' : 'youtube'
+  const currentWidth = editor.getAttributes(nodeType).width || '100%'
+  const currentAlign = editor.getAttributes(nodeType)['data-align'] || 'center'
+  const currentFloat = editor.getAttributes(nodeType)['data-float'] || null
+
+  const sizeOptions = [
+    { label: 'S', value: '25%', tooltip: 'Small (25%)' },
+    { label: 'M', value: '50%', tooltip: 'Medium (50%)' },
+    { label: 'L', value: '75%', tooltip: 'Large (75%)' },
+    { label: 'F', value: '100%', tooltip: 'Full Width' },
+  ]
+
+  const alignOptions = [
+    { value: 'left', icon: AlignLeft, tooltip: 'Align Left' },
+    { value: 'center', icon: AlignCenter, tooltip: 'Align Center' },
+    { value: 'right', icon: AlignRight, tooltip: 'Align Right' },
+  ]
+
+  // Float is only available for images
+  const floatOptions = isImage ? [
+    { value: 'left', tooltip: 'Float Left (text wraps around)' },
+    { value: 'right', tooltip: 'Float Right (text wraps around)' },
+  ] : []
+
+  return (
+    <BubbleMenu
+      editor={editor}
+      shouldShow={({ editor: e }: { editor: Editor }) => {
+        return e.isActive('image') || e.isActive('youtube')
+      }}
+      updateDelay={0}
+      className="flex flex-wrap items-center gap-0.5 rounded-lg border bg-background px-1.5 py-1 shadow-lg"
+    >
+      {/* Size buttons */}
+      {sizeOptions.map((opt) => (
+        <Tooltip key={opt.value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().updateAttributes(nodeType, { width: opt.value }).run()
+              }}
+              className={cn(
+                'inline-flex items-center justify-center h-7 w-7 rounded text-xs font-bold transition-colors',
+                'hover:bg-muted',
+                currentWidth === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                currentWidth !== opt.value && 'text-foreground'
+              )}
+            >
+              {opt.label}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            {opt.tooltip}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+
+      {/* Custom width input */}
+      <CustomWidthInput editor={editor} nodeType={nodeType} currentWidth={currentWidth} />
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* Alignment buttons */}
+      {alignOptions.map((opt) => (
+        <Tooltip key={opt.value}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                editor.chain().focus().updateAttributes(nodeType, { 'data-align': opt.value }).run()
+              }}
+              className={cn(
+                'inline-flex items-center justify-center h-7 w-7 rounded transition-colors',
+                'hover:bg-muted',
+                currentAlign === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                currentAlign !== opt.value && 'text-foreground'
+              )}
+            >
+              <opt.icon className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            {opt.tooltip}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+
+      <Separator orientation="vertical" className="h-5 mx-1" />
+
+      {/* Float buttons (images only) */}
+      {floatOptions.length > 0 && (
+        <>
+          {floatOptions.map((opt) => (
+            <Tooltip key={`float-${opt.value}`}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (currentFloat === opt.value) {
+                      // Toggle off: remove float
+                      editor.chain().focus().updateAttributes(nodeType, { 'data-float': null, 'data-align': 'center' }).run()
+                    } else {
+                      // Set float and auto-adjust width to 50% for better text wrapping
+                      editor.chain().focus().updateAttributes(nodeType, {
+                        'data-float': opt.value,
+                        'data-align': opt.value,
+                        width: currentWidth === '100%' ? '50%' : currentWidth,
+                      }).run()
+                    }
+                  }}
+                  className={cn(
+                    'inline-flex items-center justify-center h-7 w-7 rounded transition-colors',
+                    'hover:bg-muted',
+                    currentFloat === opt.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+                    currentFloat !== opt.value && 'text-foreground'
+                  )}
+                >
+                  <FlipHorizontal className={cn('h-3.5 w-3.5', opt.value === 'right' && 'rotate-180')} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                {opt.tooltip}
+              </TooltipContent>
+            </Tooltip>
+          ))}
+          {/* Remove float button */}
+          {currentFloat && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    editor.chain().focus().updateAttributes(nodeType, { 'data-float': null, 'data-align': 'center' }).run()
+                  }}
+                  className="inline-flex items-center justify-center h-7 w-7 rounded text-xs font-bold transition-colors hover:bg-muted text-muted-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Remove Float
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <Separator orientation="vertical" className="h-5 mx-1" />
+        </>
+      )}
+
+      {/* Delete button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              editor.chain().focus().deleteSelection().run()
+            }}
+            className="inline-flex items-center justify-center h-7 w-7 rounded text-destructive transition-colors hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          {isImage ? 'Delete Image' : 'Delete Video'}
+        </TooltipContent>
+      </Tooltip>
+    </BubbleMenu>
+  )
+}
+
+// ─── Custom Width Input ──────────────────────────────────────────────────
+function CustomWidthInput({ editor, nodeType, currentWidth }: { editor: Editor; nodeType: string; currentWidth: string }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  const handleApply = useCallback(() => {
+    const val = inputValue.trim()
+    if (!val) {
+      setIsEditing(false)
+      return
+    }
+    // Allow values like "50%", "75%", "100%", "300px", "500"
+    let widthValue = val
+    if (/^\d+$/.test(val)) {
+      // Pure number → treat as percentage
+      widthValue = val + '%'
+    }
+    editor.chain().focus().updateAttributes(nodeType, { width: widthValue }).run()
+    setIsEditing(false)
+  }, [editor, nodeType, inputValue])
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            handleApply()
+          } else if (e.key === 'Escape') {
+            setIsEditing(false)
+          }
+        }}
+        onBlur={handleApply}
+        onMouseDown={(e) => e.preventDefault()}
+        placeholder="50%"
+        className="h-7 w-12 rounded border bg-background px-1.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-sky-500"
+      />
+    )
+  }
+
+  // Display current width as a clickable button
+  const displayValue = currentWidth || '100%'
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setInputValue(displayValue.replace('%', ''))
+            setIsEditing(true)
+          }}
+          className="inline-flex items-center justify-center h-7 px-1.5 rounded text-xs font-mono transition-colors hover:bg-muted text-foreground"
+        >
+          {displayValue}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="text-xs">
+        Click to set custom width (e.g. 40%, 300px)
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 export default function RichTextEditor({
   content,
@@ -241,14 +701,14 @@ export default function RichTextEditor({
           class: 'text-sky-600 underline cursor-pointer',
         },
       }),
-      Image.configure({
+      CustomImage.configure({
         inline: false,
         allowBase64: true,
         HTMLAttributes: {
-          class: 'rounded-lg max-w-full h-auto cursor-resize',
+          class: 'rounded-lg h-auto',
         },
       }),
-      Youtube.configure({
+      CustomYoutube.configure({
         inline: false,
         nocookie: true,
         HTMLAttributes: {
@@ -272,6 +732,8 @@ export default function RichTextEditor({
           class: 'border border-border p-2 min-w-[80px] bg-muted font-semibold',
         },
       }),
+      Columns,
+      Column,
       CodeBlockLowlight.configure({
         lowlight,
         HTMLAttributes: {
@@ -286,6 +748,7 @@ export default function RichTextEditor({
       FontSize,
       FontFamily,
       Typography,
+      TextDirectionExtension,
     ],
     onUpdate: ({ editor: e }) => {
       onChange?.(e.getJSON(), e.getHTML())
@@ -307,7 +770,7 @@ export default function RichTextEditor({
       }
       const url = await uploadImageToSupabase(file, subjectId, userId)
       if (url && editor) {
-        editor.chain().focus().setImage({ src: url }).run()
+        editor.chain().focus().setImage(setImageOptions({ src: url, width: '100%', 'data-align': 'center' })).run()
       }
     },
     [editor, subjectId, userId]
@@ -333,6 +796,22 @@ export default function RichTextEditor({
     [handleImageUpload]
   )
 
+  // Update editor content when the content prop changes
+  React.useEffect(() => {
+    if (editor && content && !editable) {
+      try {
+        const currentContent = editor.getJSON()
+        // Only update if content actually changed (deep comparison via JSON string)
+        if (JSON.stringify(currentContent) !== JSON.stringify(content)) {
+          editor.commands.setContent(content)
+        }
+      } catch {
+        // Fallback: always set content if comparison fails
+        editor.commands.setContent(content)
+      }
+    }
+  }, [content, editor, editable])
+
   if (!editor) return null
 
   // ─── Read-only mode: render content without toolbar ──────────────────────
@@ -354,8 +833,9 @@ export default function RichTextEditor({
   const toolbarContent = (
     <div
       className={cn(
-        'sticky top-0 z-10 flex flex-wrap items-center gap-0.5 bg-background border-b px-2 py-1.5',
-        isFullscreen && 'px-4'
+        'z-10 flex flex-wrap items-center gap-0.5 bg-background border-b px-2 py-1.5',
+        !isFullscreen && 'sticky top-0',
+        isFullscreen && 'px-4 shrink-0'
       )}
     >
       {/* 1. Undo / Redo */}
@@ -451,28 +931,26 @@ export default function RichTextEditor({
       {/* Text Direction (RTL/LTR) */}
       <ToolbarButton
         onClick={() => {
-          const currentDir = editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir
-          if (currentDir === 'rtl') {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
-          } else {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
-          }
+          editor.chain().focus().setTextDirection('rtl').run()
         }}
-        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'rtl'}
+        isActive={
+          (editor.isActive('paragraph') && editor.getAttributes('paragraph').dir === 'rtl') ||
+          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'rtl') ||
+          (editor.isActive('codeBlock') && editor.getAttributes('codeBlock').dir === 'rtl')
+        }
         tooltip="RTL Direction"
       >
         <ArrowRightToLine className="h-4 w-4" />
       </ToolbarButton>
       <ToolbarButton
         onClick={() => {
-          const currentDir = editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir
-          if (currentDir === 'ltr') {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'rtl' }).updateAttributes('heading', { dir: 'rtl' }).run()
-          } else {
-            editor.chain().focus().updateAttributes('paragraph', { dir: 'ltr' }).updateAttributes('heading', { dir: 'ltr' }).run()
-          }
+          editor.chain().focus().setTextDirection('ltr').run()
         }}
-        isActive={(editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) === 'ltr' && (editor.getAttributes('paragraph').dir || editor.getAttributes('heading').dir) !== undefined}
+        isActive={
+          (editor.isActive('paragraph') && editor.getAttributes('paragraph').dir === 'ltr') ||
+          (editor.isActive('heading') && editor.getAttributes('heading').dir === 'ltr') ||
+          (editor.isActive('codeBlock') && editor.getAttributes('codeBlock').dir === 'ltr')
+        }
         tooltip="LTR Direction"
       >
         <ArrowLeftToLine className="h-4 w-4" />
@@ -519,8 +997,9 @@ export default function RichTextEditor({
 
       <ToolbarDivider />
 
-      {/* 8. Table / Code Block / Quote / HR */}
+      {/* 8. Table / Columns / Code Block / Quote / HR */}
       <TablePopover editor={editor} dir={dir} />
+      <ColumnsPopover editor={editor} dir={dir} />
       <CodeBlockPopover editor={editor} dir={dir} />
       <ToolbarButton
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
@@ -563,13 +1042,17 @@ export default function RichTextEditor({
   )
 
   const editorContent = (
-    <EditorContent
-      editor={editor}
-      className={cn(
-        'prose-editor-wrapper min-h-[400px] flex-1',
-        isFullscreen ? 'p-8' : 'p-6'
-      )}
-    />
+    <div className="relative flex-1 min-h-0">
+      <EditorContent
+        editor={editor}
+        className={cn(
+          'prose-editor-wrapper h-full',
+          isFullscreen ? 'p-8' : 'p-6 min-h-[400px]'
+        )}
+      />
+      {/* Floating media toolbar (BubbleMenu positions itself) */}
+      <MediaToolbar editor={editor} />
+    </div>
   )
 
   // ─── Hidden file input for image upload ───────────────────────────────────
@@ -585,38 +1068,42 @@ export default function RichTextEditor({
 
   return (
     <>
-      {/* Normal mode editor */}
-      <div
-        className={cn(
-          'rich-text-editor rounded-xl border bg-white dark:bg-card overflow-hidden',
-          'flex flex-col'
-        )}
-        dir={dir}
-      >
-        {toolbarContent}
-        {editorContent}
-        {fileInput}
-      </div>
+      {/* Normal mode editor (hidden when fullscreen) */}
+      {!isFullscreen && (
+        <div
+          className={cn(
+            'rich-text-editor rounded-xl border bg-white dark:bg-card overflow-hidden',
+            'flex flex-col'
+          )}
+          dir={dir}
+        >
+          {toolbarContent}
+          {editorContent}
+          {fileInput}
+        </div>
+      )}
 
       {/* Fullscreen dialog */}
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
         <DialogContent
-          className="max-w-full w-screen h-screen max-h-screen rounded-none border-0 p-0 flex flex-col"
+          className="fullscreen-editor-dialog !fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !max-w-full !w-screen !h-screen !max-h-screen !rounded-none !border-0 !p-0 !shadow-none flex flex-col overflow-hidden"
           showCloseButton={false}
         >
           <DialogHeader className="sr-only">
             <DialogTitle>Fullscreen Editor</DialogTitle>
             <DialogDescription>Edit content in fullscreen mode</DialogDescription>
           </DialogHeader>
-          <div
-            className="flex flex-col flex-1 min-h-0 overflow-hidden"
-            dir={dir}
-          >
-            {toolbarContent}
-            <div className="flex-1 overflow-y-auto">
-              {editorContent}
+          {isFullscreen && (
+            <div
+              className="flex flex-col flex-1 min-h-0 overflow-hidden"
+              dir={dir}
+            >
+              {toolbarContent}
+              <div className="flex-1 overflow-y-auto">
+                {editorContent}
+              </div>
             </div>
-          </div>
+          )}
           {fileInput}
         </DialogContent>
       </Dialog>
@@ -656,6 +1143,7 @@ function HeadingDropdown({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
                 'hover:bg-muted',
@@ -718,6 +1206,7 @@ function ColorPickerPopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted'
@@ -795,6 +1284,7 @@ function HighlightPickerPopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -896,6 +1386,7 @@ function LinkPopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -979,7 +1470,7 @@ function ImagePopover({
 
   const handleInsertFromUrl = () => {
     if (!url) return
-    editor.chain().focus().setImage({ src: url }).run()
+    editor.chain().focus().setImage(setImageOptions({ src: url, width: '100%', 'data-align': 'center' })).run()
     setOpen(false)
     setUrl('')
   }
@@ -991,6 +1482,7 @@ function ImagePopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -1061,6 +1553,133 @@ function ImagePopover({
   )
 }
 
+// ─── Columns Popover ─────────────────────────────────────────────────────────
+function ColumnsPopover({
+  editor,
+  dir,
+}: {
+  editor: Editor
+  dir: 'rtl' | 'ltr'
+}) {
+  const [open, setOpen] = useState(false)
+  const isInColumns = editor.isActive('columns')
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              className={cn(
+                'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
+                'hover:bg-muted',
+                isInColumns && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+              )}
+            >
+              <Columns2 className="h-4 w-4" />
+            </button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          Columns
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        className="w-52 p-3"
+        align={dir === 'rtl' ? 'end' : 'start'}
+        sideOffset={4}
+      >
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Columns Layout</Label>
+
+          {!isInColumns ? (
+            <div className="space-y-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().insertColumns(2).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns2 className="h-4 w-4" />
+                2 Columns
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().insertColumns(3).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns3 className="h-4 w-4" />
+                3 Columns
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().updateAttributes('columns', { cols: 2 }).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns2 className="h-4 w-4" />
+                Switch to 2 Columns
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => {
+                  editor.chain().focus().updateAttributes('columns', { cols: 3 }).run()
+                  setOpen(false)
+                }}
+              >
+                <Columns3 className="h-4 w-4" />
+                Switch to 3 Columns
+              </Button>
+              <Separator className="my-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-xs gap-2 text-destructive hover:text-destructive"
+                onClick={() => {
+                  // Delete the columns block
+                  const { from } = editor.state.selection
+                  const $pos = editor.state.doc.resolve(from)
+                  for (let d = $pos.depth; d > 0; d--) {
+                    const node = $pos.node(d)
+                    if (node.type.name === 'columns') {
+                      editor.chain().focus().deleteRange({
+                        from: $pos.before(d),
+                        to: $pos.after(d),
+                      }).run()
+                      break
+                    }
+                  }
+                  setOpen(false)
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Columns
+              </Button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // ─── Table Popover ──────────────────────────────────────────────────────────
 function TablePopover({
   editor,
@@ -1080,6 +1699,7 @@ function TablePopover({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors',
                 'hover:bg-muted',
@@ -1248,6 +1868,7 @@ function FontSizeDropdown({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
                 'hover:bg-muted',
@@ -1336,6 +1957,7 @@ function FontFamilyDropdown({
           <PopoverTrigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className={cn(
                 'inline-flex items-center gap-1 h-8 px-2 rounded-md text-sm font-medium transition-colors',
                 'hover:bg-muted max-w-[120px]',
@@ -1409,87 +2031,110 @@ function CodeBlockPopover({
   dir: 'rtl' | 'ltr'
 }) {
   const [open, setOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const isInCodeBlock = editor.isActive('codeBlock')
   const currentLang = editor.getAttributes('codeBlock').language || 'plaintext'
   const currentLangLabel = CODE_LANGUAGES.find((l) => l.value === currentLang)?.label || currentLang
 
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as globalThis.Node)) {
+        setOpen(false)
+      }
+    }
+    // Use pointerdown for immediate response
+    document.addEventListener('pointerdown', handleClickOutside)
+    return () => document.removeEventListener('pointerdown', handleClickOutside)
+  }, [open])
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <div className="relative" ref={dropdownRef}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                'inline-flex items-center justify-center h-8 rounded-md transition-colors',
-                'hover:bg-muted',
-                isInCodeBlock && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
-                isInCodeBlock ? 'w-auto px-2 gap-1' : 'w-8'
-              )}
-            >
-              <Code className="h-4 w-4" />
-              {isInCodeBlock && (
-                <span className="text-[10px] font-medium max-w-[60px] truncate">{currentLangLabel}</span>
-              )}
-            </button>
-          </PopoverTrigger>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setOpen((prev) => !prev)}
+            className={cn(
+              'inline-flex items-center justify-center h-8 rounded-md transition-colors',
+              'hover:bg-muted',
+              isInCodeBlock && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+              isInCodeBlock ? 'w-auto px-2 gap-1' : 'w-8'
+            )}
+          >
+            <Code className="h-4 w-4" />
+            {isInCodeBlock && (
+              <span className="text-[10px] font-medium max-w-[60px] truncate">{currentLangLabel}</span>
+            )}
+          </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
           Code Block
         </TooltipContent>
       </Tooltip>
-      <PopoverContent
-        className="w-48 p-1"
-        align={dir === 'rtl' ? 'end' : 'start'}
-        sideOffset={4}
-      >
-        {!isInCodeBlock ? (
-          <button
-            type="button"
-            onClick={() => {
-              editor.chain().focus().toggleCodeBlock().run()
-              setOpen(false)
-            }}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-          >
-            <Code className="h-4 w-4" />
-            <span>Insert Code Block</span>
-          </button>
-        ) : (
-          <>
-            <Label className="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Language</Label>
-            {CODE_LANGUAGES.map((lang) => (
-              <button
-                key={lang.value}
-                type="button"
-                onClick={() => {
-                  editor.chain().focus().updateAttributes('codeBlock', { language: lang.value }).run()
-                  setOpen(false)
-                }}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
-                  currentLang === lang.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
-                )}
-              >
-                <span>{lang.label}</span>
-                {currentLang === lang.value && <Check className="h-3 w-3 ms-auto" />}
-              </button>
-            ))}
-            <Separator className="my-1" />
+
+      {/* Custom dropdown - avoids Radix Popover focus conflicts with TipTap editor */}
+      {open && (
+        <div
+          className={cn(
+            'absolute top-full z-50 mt-1 w-48 rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+            'max-h-72 overflow-y-auto',
+            dir === 'rtl' ? 'right-0' : 'left-0'
+          )}
+        >
+          {!isInCodeBlock ? (
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 editor.chain().focus().toggleCodeBlock().run()
                 setOpen(false)
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-muted"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Remove Code Block</span>
+              <Code className="h-4 w-4" />
+              <span>Insert Code Block</span>
             </button>
-          </>
-        )}
-      </PopoverContent>
-    </Popover>
+          ) : (
+            <>
+              <Label className="px-2 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">Language</Label>
+              {CODE_LANGUAGES.map((lang) => (
+                <button
+                  key={lang.value}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    editor.chain().updateAttributes('codeBlock', { language: lang.value }).run()
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-muted',
+                    currentLang === lang.value && 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                  )}
+                >
+                  <span>{lang.label}</span>
+                  {currentLang === lang.value && <Check className="h-3 w-3 ms-auto" />}
+                </button>
+              ))}
+              <Separator className="my-1" />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  editor.chain().focus().toggleCodeBlock().run()
+                  setOpen(false)
+                }}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-muted"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Remove Code Block</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

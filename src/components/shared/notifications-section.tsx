@@ -314,7 +314,7 @@ export default function NotificationsSection() {
                     e.stopPropagation();
                     clearNotification(notif.id);
                   }}
-                  className="opacity-0 group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 md:opacity-60 md:group-hover:opacity-100 touch-target flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 md:opacity-60 md:group-hover:opacity-100 touch-target flex shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
                   aria-label={t('notifications.deleteNotification')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

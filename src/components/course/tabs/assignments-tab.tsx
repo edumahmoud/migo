@@ -247,8 +247,8 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   // -------------------------------------------------------
   // Fetch assignments
   // -------------------------------------------------------
-  const fetchAssignments = useCallback(async () => {
-    setLoading(true);
+  const fetchAssignments = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('assignments')
@@ -260,7 +260,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     } catch (err) {
       console.error('Fetch assignments error:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [subjectId]);
 
@@ -356,7 +356,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'assignments', filter: `subject_id=eq.${subjectId}` },
-        () => { fetchAssignments(); }
+        () => { fetchAssignments(true); }
       )
       .subscribe();
 
@@ -957,7 +957,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
 
                   {/* Teacher actions */}
                   {role === 'teacher' && (
-                    <div className="absolute top-3 start-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 start-3 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
                         className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700"

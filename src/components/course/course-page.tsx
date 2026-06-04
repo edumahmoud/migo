@@ -719,7 +719,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         )}
         {courseTab === 'polls' && <PollsTab profile={profile} role={role} subjectId={subject.id} subject={subject} />}
         {courseTab === 'lessons' && (
-          <SectionErrorBoundary name={tCourse('tabLessons') || 'Lessons'}>
+          <SectionErrorBoundary name={t('course.tabLessons') || 'Lessons'}>
             <LessonsTab profile={profile} role={role} subject={subject} />
           </SectionErrorBoundary>
         )}

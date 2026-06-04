@@ -611,8 +611,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
 
         {/* Lesson header */}
         <motion.div variants={itemVariants} className="space-y-2">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-foreground">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground">
               {viewingLesson.title}
             </h2>
             <Badge
@@ -623,7 +623,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               {t('published') || 'Published'}
             </Badge>
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
             {viewingLesson.published_at && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
@@ -660,11 +660,11 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         variants={editorVariants}
         initial="hidden"
         animate="visible"
-        className="flex h-[calc(100vh-280px)] min-h-[500px] rounded-xl border bg-background overflow-hidden"
+        className="flex flex-col md:flex-row h-[calc(100vh-180px)] md:h-[calc(100vh-280px)] min-h-[400px] md:min-h-[500px] rounded-xl border bg-background overflow-hidden"
         dir={direction}
       >
         {/* Left sidebar */}
-        <div className="w-72 shrink-0 border-e flex flex-col bg-muted/20">
+        <div className="w-full md:w-72 shrink-0 border-b md:border-b-0 md:border-e flex flex-col bg-muted/20 max-h-[200px] md:max-h-none overflow-y-auto">
           {/* Back button */}
           <div className="p-4 border-b">
             <button
@@ -681,8 +681,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </div>
 
           {/* Lesson title */}
-          <div className="p-4 space-y-3 border-b">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <div className="px-4 py-2 md:p-4 md:space-y-3 border-b flex items-center gap-2 md:flex-col md:items-start">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
               {t('lessonTitle') || 'Lesson Title'}
             </label>
             <Input
@@ -695,8 +695,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </div>
 
           {/* Status */}
-          <div className="p-4 space-y-3 border-b">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <div className="px-4 py-2 md:p-4 md:space-y-3 border-b flex items-center gap-2 md:flex-col md:items-start">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
               {tCourse('status') || 'Status'}
             </label>
             <div>
@@ -721,8 +721,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </div>
 
           {/* Autosave indicator */}
-          <div className="p-4 space-y-3 border-b">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <div className="px-4 py-2 md:p-4 md:space-y-3 border-b flex items-center gap-2 md:flex-col md:items-start">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">
               {t('saveStatus') || 'Save Status'}
             </label>
             <div className="flex items-center gap-2 text-xs">
@@ -748,7 +748,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </div>
 
           {/* Lesson metadata */}
-          <div className="p-4 space-y-3 flex-1">
+          <div className="hidden md:block p-4 space-y-3 flex-1">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {t('metadata') || 'Details'}
             </label>
@@ -956,7 +956,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                         <DropdownMenuTrigger asChild>
                           <button
                             onClick={(e) => e.stopPropagation()}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </button>
