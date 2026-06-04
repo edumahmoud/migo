@@ -880,6 +880,7 @@ export const en: TranslationDict = {
     exportAllData: 'Export All Data (Excel)',
     // Additional teacher dashboard keys
     detailedAnalysis: 'Detailed Analysis',
+    topStudentsByPoints: 'Top Students by Points',
     chartAverage: 'Average',
     studentFallback: 'Student',
     newQuiz: 'New Quiz',
@@ -1208,6 +1209,13 @@ export const en: TranslationDict = {
     trackingInstructionsCourseIndicator: 'Each course has a status indicator to easily identify problematic courses: Advanced (≥80%), On Track (60-79%), Needs Attention (40-59%), At Risk (<40%)',
     trackingInstructionsRisk: 'Risk levels: Healthy (no risks), Monitor (needs attention), Concern (notable decline), At Risk (urgent intervention)',
     trackingDownloadReport: 'Download Report',
+    trackingStudentListFull: 'Student List',
+    trackingSortedBy: 'Sorted by',
+    trackingFilteredBy: 'Filtered by',
+    trackingOfTotal: 'of',
+    trackingShowAll: 'Show All',
+    trackingTop3: 'Top 3',
+    trackingRankingBy: 'Rank by',
   },
 
   // ─── Admin Dashboard ───

@@ -2961,6 +2961,7 @@
     "dashboardLabel": "لوحة تحكم المعلم",
     "deleteAccountFailed": "فشل حذف الحساب",
     "detailedAnalysis": "تحليل تفصيلي",
+    "topStudentsByPoints": "أفضل الطلاب بالنقاط",
     "excelAllResultsSheet": "جميع النتائج",
     "excelAvgPerformance": "متوسط الأداء",
     "excelCompletionDate": "تاريخ الإكمال",
@@ -3211,7 +3212,14 @@
     "trackingKpiCard": "بطاقة المؤشر",
     "trackingWeightedExamNote": "محسوب بالأوزان: مجموع الدرجات ÷ مجموع الكلي (ليس متوسط النسب)",
     "trackingAttendancePointsNote": "حاضر=100، متأخر=75، جزئي=50، غائب=0",
-    "trackingNoRiskReasons": "لا توجد علامات خطر"
+    "trackingNoRiskReasons": "لا توجد علامات خطر",
+    "trackingStudentListFull": "قائمة الطلاب",
+    "trackingSortedBy": "مرتب حسب",
+    "trackingFilteredBy": "مُصفى حسب",
+    "trackingOfTotal": "من",
+    "trackingShowAll": "عرض الكل",
+    "trackingTop3": "أفضل 3",
+    "trackingRankingBy": "ترتيب حسب"
   },
   "student": {
     "mySubjects": "مقرراتي",

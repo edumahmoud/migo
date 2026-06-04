@@ -48,16 +48,17 @@ import {
   ArrowLeftRight,
   ListChecks,
   BarChart3,
-  LayoutList,
   Activity,
   Clock,
   Zap,
   ShieldCheck,
+  Trophy,
+  ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { computeAllMetrics, calculatePercentile, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
+import { computeAllMetrics, calculatePercentile, getPerformanceLevelConfig, getRiskLevelConfig, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
 import { useLocaleStore } from '@/i18n/locale-store';
-// Progress & Badge removed — no longer used in dashboard JSX
+import { Badge } from '@/components/ui/badge';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
@@ -202,10 +203,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Students section ───
   const [studentSearch, setStudentSearch] = useState('');
   const [studentViewMode, setStudentViewMode] = useState<'grid' | 'table'>('grid');
-  const [performanceViewMode, setPerformanceViewMode] = useState<'cards' | 'charts'>('cards');
+
   const [selectedStudent, setSelectedStudent] = useState<UserProfile | null>(null);
   const [studentDetailOpen, setStudentDetailOpen] = useState(false);
   const [resettingStudent, setResettingStudent] = useState(false);
+  const [expandedTopStudent, setExpandedTopStudent] = useState<string | null>(null);
 
   // ─── Quiz answers review state ───
   const [viewingScore, setViewingScore] = useState<Score | null>(null);
@@ -729,12 +731,22 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     // Take last 12 months max
     const recentMonths = months.slice(-12);
 
+    // Compute overall averages for efficiency & discipline (flat reference lines)
+    const avgEff = allStudentMetrics.length > 0
+      ? Math.round(allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.efficiency, 0) / allStudentMetrics.length)
+      : 0;
+    const avgDisc = allStudentMetrics.length > 0
+      ? Math.round(allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.disciplineScore, 0) / allStudentMetrics.length)
+      : 0;
+
     return recentMonths.map(([month, data]) => ({
       month,
       performance: data.count > 0 ? Math.round(data.totalPct / data.count) : 0,
       attendance: data.attCount > 0 ? Math.round(data.attendanceSum / data.attCount) : undefined,
+      efficiency: avgEff,
+      discipline: avgDisc,
     }));
-  }, [scores, teacherAttendanceRecords, teacherAttendanceSessions]);
+  }, [scores, teacherAttendanceRecords, teacherAttendanceSessions, allStudentMetrics]);
 
   // Derived: Pie chart data for student level distribution
   const levelPieData = useMemo(() => {
@@ -1317,7 +1329,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Performance Overview — Compact KPIs + Charts (2/3) */}
+        {/* Performance Overview — Compact Stat Bar + Charts (2/3) */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
@@ -1327,106 +1339,50 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 </div>
                 {t('teacher.performanceOverview')}
               </h3>
-              <div className="flex items-center gap-2">
-                {/* Toggle between Cards and Charts */}
-                <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/30 p-0.5">
-                  <button
-                    onClick={() => setPerformanceViewMode('cards')}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                      performanceViewMode === 'cards'
-                        ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <LayoutList className="h-3 w-3" />
-                    {t('teacher.cardView')}
-                  </button>
-                  <button
-                    onClick={() => setPerformanceViewMode('charts')}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                      performanceViewMode === 'charts'
-                        ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <BarChart3 className="h-3 w-3" />
-                    {t('teacher.chartView')}
-                  </button>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => setActiveSection('tracking')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-l from-sky-600 to-teal-600 text-white text-xs font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
-                >
-                  <Activity className="h-3.5 w-3.5" />
-                  {t('teacher.detailedAnalysis')}
-                  <ChevronLeft className="h-3 w-3" />
-                </motion.button>
-              </div>
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => handleSectionChange('tracking')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-l from-sky-600 to-teal-600 text-white text-xs font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
+              >
+                <Activity className="h-3.5 w-3.5" />
+                {t('teacher.detailedAnalysis')}
+                <ChevronLeft className="h-3 w-3" />
+              </motion.button>
             </div>
-            <div className="p-4">
+            <div className="p-4 space-y-5">
               {allStudentMetrics.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground text-sm">
                   <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   {t('teacher.noPerformanceData')}
                 </div>
-              ) : performanceViewMode === 'cards' ? (
-                /* ── Enhanced KPI Cards ── */
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/15 dark:to-emerald-900/5 border border-emerald-200/60 dark:border-emerald-900/40 overflow-hidden">
-                    <div className="absolute top-2 end-2 opacity-10">
-                      <Clock className="h-8 w-8 text-emerald-600" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-200/60 dark:bg-emerald-800/40">
-                        <Clock className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
-                      </div>
-                      <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
-                    </div>
-                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{aggregateStats.avgAttendance}<span className="text-sm">%</span></p>
-                  </div>
-                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-teal-50 to-teal-100/50 dark:from-teal-900/15 dark:to-teal-900/5 border border-teal-200/60 dark:border-teal-900/40 overflow-hidden">
-                    <div className="absolute top-2 end-2 opacity-10">
-                      <Zap className="h-8 w-8 text-teal-600" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-200/60 dark:bg-teal-800/40">
-                        <Zap className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
-                      </div>
-                      <p className="text-[10px] font-medium text-teal-600 dark:text-teal-400">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
-                    </div>
-                    <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{aggregateStats.avgEfficiency}<span className="text-sm">%</span></p>
-                  </div>
-                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/15 dark:to-sky-900/5 border border-sky-200/60 dark:border-sky-900/40 overflow-hidden">
-                    <div className="absolute top-2 end-2 opacity-10">
-                      <ShieldCheck className="h-8 w-8 text-sky-600" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-200/60 dark:bg-sky-800/40">
-                        <ShieldCheck className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
-                      </div>
-                      <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</p>
-                    </div>
-                    <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{aggregateStats.avgDiscipline}<span className="text-sm">%</span></p>
-                  </div>
-                  <div className="relative p-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/15 dark:to-amber-900/5 border border-amber-200/60 dark:border-amber-900/40 overflow-hidden">
-                    <div className="absolute top-2 end-2 opacity-10">
-                      <TrendingUp className="h-8 w-8 text-amber-600" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-200/60 dark:bg-amber-800/40">
-                        <TrendingUp className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
-                      </div>
-                      <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400">{locale === 'ar' ? 'الأداء' : 'Performance'}</p>
-                    </div>
-                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{avgPerformance}<span className="text-sm">%</span></p>
-                  </div>
-                </div>
               ) : (
-                /* ── Chart View ── */
-                <div className="space-y-5">
-                  {/* Area Chart: Performance Trend */}
+                <>
+                  {/* ── Compact Stat Bar ── */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40">
+                      <Clock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-500">{locale === 'ar' ? 'الحضور' : 'Attendance'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-900/40">
+                      <Zap className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                      <span className="text-xs font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</span>
+                      <span className="text-[10px] text-teal-600 dark:text-teal-500">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-900/40">
+                      <ShieldCheck className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                      <span className="text-xs font-bold text-violet-700 dark:text-violet-400">{aggregateStats.avgDiscipline}%</span>
+                      <span className="text-[10px] text-violet-600 dark:text-violet-500">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40">
+                      <TrendingUp className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</span>
+                      <span className="text-[10px] text-amber-600 dark:text-amber-500">{locale === 'ar' ? 'الأداء' : 'Performance'}</span>
+                    </div>
+                  </div>
+
+                  {/* ── Enhanced Multi-Metric Area Chart ── */}
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <TrendingUp className="h-3.5 w-3.5 text-sky-600" />
@@ -1438,7 +1394,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                         {t('teacher.noTrendData')}
                       </div>
                     ) : (
-                      <div className="h-[180px] w-full">
+                      <div className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={monthlyTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                             <defs>
@@ -1449,6 +1405,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               <linearGradient id="attGradient" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                                 <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="effGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.15} />
+                                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="discGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.15} />
+                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
@@ -1465,12 +1429,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 borderRadius: '8px',
                                 fontSize: '11px',
                               }}
-                              formatter={((value: unknown, name: unknown) => [
-                                `${value}%`,
-                                name === 'performance'
-                                  ? (locale === 'ar' ? 'الأداء' : 'Performance')
-                                  : (locale === 'ar' ? 'الحضور' : 'Attendance'),
-                              ]) as never}
+                              formatter={((value: unknown, name: unknown) => {
+                                const nameMap: Record<string, string> = {
+                                  performance: locale === 'ar' ? 'الأداء' : 'Performance',
+                                  attendance: locale === 'ar' ? 'الحضور' : 'Attendance',
+                                  efficiency: locale === 'ar' ? 'الكفاءة' : 'Efficiency',
+                                  discipline: locale === 'ar' ? 'الانضباط' : 'Discipline',
+                                };
+                                return [`${value}%`, nameMap[name as string] || name];
+                              }) as never}
                             />
                             <Area
                               type="monotone"
@@ -1492,12 +1459,34 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               activeDot={{ r: 4, stroke: '#10b981', strokeWidth: 2, fill: '#fff' }}
                               name="attendance"
                             />
+                            <Area
+                              type="monotone"
+                              dataKey="efficiency"
+                              stroke="#14b8a6"
+                              strokeWidth={1.5}
+                              strokeDasharray="6 3"
+                              fill="url(#effGradient)"
+                              dot={false}
+                              activeDot={{ r: 3, stroke: '#14b8a6', strokeWidth: 2, fill: '#fff' }}
+                              name="efficiency"
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="discipline"
+                              stroke="#8b5cf6"
+                              strokeWidth={1.5}
+                              strokeDasharray="6 3"
+                              fill="url(#discGradient)"
+                              dot={false}
+                              activeDot={{ r: 3, stroke: '#8b5cf6', strokeWidth: 2, fill: '#fff' }}
+                              name="discipline"
+                            />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
                     )}
                     {monthlyTrendData.length >= 2 && (
-                      <div className="flex items-center justify-center gap-4 mt-1.5">
+                      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-1.5">
                         <div className="flex items-center gap-1.5">
                           <span className="h-2 w-4 rounded-full bg-sky-500" />
                           <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</span>
@@ -1506,11 +1495,19 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           <span className="h-2 w-4 rounded-full bg-emerald-500" />
                           <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</span>
                         </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-0.5 w-4 border-t-2 border-dashed border-teal-500" />
+                          <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-0.5 w-4 border-t-2 border-dashed border-violet-500" />
+                          <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</span>
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Pie Chart: Student Level Distribution */}
+                  {/* ── Pie Chart: Student Level Distribution ── */}
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Award className="h-3.5 w-3.5 text-amber-500" />
@@ -1568,47 +1565,17 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       </div>
                     )}
                   </div>
-
-                  {/* Compact KPI row in chart view */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-emerald-50 to-transparent dark:from-emerald-900/10 border border-emerald-100/60 dark:border-emerald-900/30">
-                      <Clock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <div>
-                        <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
-                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-teal-50 to-transparent dark:from-teal-900/10 border border-teal-100/60 dark:border-teal-900/30">
-                      <Zap className="h-3.5 w-3.5 text-teal-600 shrink-0" />
-                      <div>
-                        <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
-                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-sky-50 to-transparent dark:from-sky-900/10 border border-sky-100/60 dark:border-sky-900/30">
-                      <ShieldCheck className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-                      <div>
-                        <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
-                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-gradient-to-l from-amber-50 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30">
-                      <TrendingUp className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <div>
-                        <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
-                        <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                </>
               )}
             </div>
           </div>
         </motion.div>
 
-        {/* Recent Activity — Teacher Actions Only (1/3) */}
-        <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Right column: Recent Activity + Top Students (1/3) */}
+        <div className="space-y-6">
+          {/* Recent Activity — Teacher Actions Only */}
+          <motion.div variants={itemVariants}>
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <ListChecks className="h-4 w-4 text-violet-600" />
@@ -1713,6 +1680,107 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             </div>
           </div>
         </motion.div>
+
+        {/* Top Students by Performance Points */}
+        <motion.div variants={itemVariants}>
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between border-b p-4">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-amber-500" />
+                {t('teacher.topStudentsByPoints')}
+              </h3>
+            </div>
+            <div className="max-h-[380px] overflow-y-auto custom-scrollbar">
+              {allStudentMetrics.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground text-sm">
+                  <Trophy className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  {t('teacher.noPerformanceData')}
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {[...allStudentMetrics]
+                    .sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)
+                    .slice(0, 5)
+                    .map((item, index) => {
+                      const { student: s, metrics } = item;
+                      const levelConfig = getPerformanceLevelConfig(metrics.performanceLevel);
+                      const riskConfig = getRiskLevelConfig(metrics.riskLevel);
+                      const rankColors = [
+                        'bg-amber-400 text-amber-900', // 1st gold
+                        'bg-gray-300 text-gray-700',   // 2nd silver
+                        'bg-amber-600 text-amber-100',  // 3rd bronze
+                        'bg-muted text-muted-foreground', // 4th
+                        'bg-muted text-muted-foreground', // 5th
+                      ];
+                      const isExpanded = expandedTopStudent === s.id;
+
+                      return (
+                        <div key={s.id}>
+                          <button
+                            onClick={() => setExpandedTopStudent(isExpanded ? null : s.id)}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors"
+                          >
+                            <span className={`shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${rankColors[index] || rankColors[4]}`}>
+                              {index + 1}
+                            </span>
+                            <UserAvatar name={s.name} avatarUrl={s.avatar_url} size={28} />
+                            <div className="min-w-0 flex-1 text-start">
+                              <p className="text-sm font-medium text-foreground truncate">{s.name}</p>
+                            </div>
+                            <span className={`text-xs font-bold ${levelConfig.textColor}`}>
+                              {Math.round(metrics.overallPerformance)}%
+                            </span>
+                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${levelConfig.textColor} ${levelConfig.bgColor} border-0`}>
+                              {locale === 'ar'
+                                ? ({ excellent: 'ممتاز', veryGood: 'جيد جداً', good: 'جيد', acceptable: 'مقبول', weak: 'ضعيف' } as Record<string, string>)[metrics.performanceLevel] || metrics.performanceLevel
+                                : metrics.performanceLevel}
+                            </Badge>
+                            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="px-3 pb-3"
+                            >
+                              <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/50">
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="h-3 w-3 text-emerald-500 shrink-0" />
+                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</span>
+                                  <span className="text-[10px] font-bold text-foreground ms-auto">{Math.round(metrics.attendanceScore)}%</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Zap className="h-3 w-3 text-teal-500 shrink-0" />
+                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</span>
+                                  <span className="text-[10px] font-bold text-foreground ms-auto">{Math.round(metrics.efficiency)}%</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <ShieldCheck className="h-3 w-3 text-violet-500 shrink-0" />
+                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</span>
+                                  <span className="text-[10px] font-bold text-foreground ms-auto">{Math.round(metrics.disciplineScore)}%</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <AlertTriangle className={`h-3 w-3 shrink-0 ${riskConfig.textColor}`} />
+                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'المخاطر' : 'Risk'}</span>
+                                  <span className={`text-[10px] font-bold ms-auto ${riskConfig.textColor}`}>
+                                    {locale === 'ar'
+                                      ? ({ low: 'منخفض', moderate: 'متوسط', concern: 'قلق', atRisk: 'في خطر' } as Record<string, string>)[metrics.riskLevel] || metrics.riskLevel
+                                      : metrics.riskLevel}
+                                  </span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+        </div>
       </div>
     </motion.div>
   );

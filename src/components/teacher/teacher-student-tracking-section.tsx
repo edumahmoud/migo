@@ -549,7 +549,7 @@ export default function TeacherStudentTrackingSection({
       .slice(0, 5);
   }, [studentPerformanceData]);
 
-  // ─── Per-Course Rankings (top 3 + bottom 3 per course) ───
+  // ─── Per-Course Rankings (ALL students per course) ───
   const perCourseRankings = useMemo(() => {
     return subjects.map(subject => {
       const subjectScores = scores.filter(s => {
@@ -568,11 +568,11 @@ export default function TeacherStudentTrackingSection({
 
       if (courseStudentMetrics.length === 0) return null;
 
-      const top = [...courseStudentMetrics].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance).slice(0, 3);
-      const bottom = [...courseStudentMetrics].sort((a, b) => a.metrics.overallPerformance - b.metrics.overallPerformance).slice(0, 3);
+      // Return ALL students sorted by performance descending
+      const all = [...courseStudentMetrics].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance);
 
-      return { subject, top, bottom };
-    }).filter(Boolean) as { subject: Subject; top: { student: UserProfile; metrics: StudentPerformanceMetrics }[]; bottom: { student: UserProfile; metrics: StudentPerformanceMetrics }[] }[];
+      return { subject, all };
+    }).filter(Boolean) as { subject: Subject; all: { student: UserProfile; metrics: StudentPerformanceMetrics }[] }[];
   }, [subjects, scores, quizzes, studentPerformanceData, teacherAssignments, teacherAttendanceSessions]);
 
   // ─── Monthly trend data for area chart ───
@@ -1582,21 +1582,87 @@ export default function TeacherStudentTrackingSection({
                 <div className="space-y-1.5">
                   {topStudents.map(({ student, metrics }, idx) => {
                     const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
+                    const riskCfg = getRiskLevelConfig(metrics.riskLevel);
+                    const growthCfg = getGrowthTrendConfig(metrics.growthTrend);
+                    const effCfg = getEfficiencyLevelConfig(metrics.efficiencyLevel);
+                    const isExpanded = expandedStudentId === student.id;
                     return (
-                      <div key={student.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-amber-50/80 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30 hover:shadow-sm transition-shadow">
-                        <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold shrink-0 ${
-                          idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {idx + 1}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
-                          <div className="flex items-center gap-1.5">
-                            <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
-                            <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                      <div key={student.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(student.id)}
+                          className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-amber-50/80 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30 hover:shadow-sm transition-shadow text-start"
+                        >
+                          <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold shrink-0 ${
+                            idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {idx + 1}
                           </div>
-                        </div>
-                        <ArrowUpRight className="h-3 w-3 text-emerald-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
+                              <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                            </div>
+                          </div>
+                          <ChevronDown className={`h-3 w-3 text-muted-foreground shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.25, ease: 'easeInOut' }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-3 py-2.5 mt-1 rounded-lg bg-amber-50/40 dark:bg-amber-900/5 border border-amber-100/40 dark:border-amber-900/20 space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="sm" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-foreground truncate">{student.name}</p>
+                                    {student.email && <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><Mail className="h-2.5 w-2.5 shrink-0" />{student.email}</p>}
+                                  </div>
+                                  <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 border-0 font-bold ${levelCfg.bgColor} ${levelCfg.textColor}`}>{t(getPerformanceLevelLabel(getPerformanceLevel(metrics.overallPerformance)))}</Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الاختبارات' : 'Exams'}</span>
+                                    <span className="font-bold text-sky-600">{Math.round(metrics.examPerformance)}%</span>
+                                  </div>
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attend.'}</span>
+                                    <span className="font-bold text-emerald-600">{Math.round(metrics.attendanceScore)}%</span>
+                                  </div>
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الالتزام' : 'Compl.'}</span>
+                                    <span className="font-bold text-amber-600">{Math.round(metrics.assignmentCompliance)}%</span>
+                                  </div>
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الجودة' : 'Quality'}</span>
+                                    <span className="font-bold text-teal-600">{Math.round(metrics.assignmentQuality)}%</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                                  <span className="text-muted-foreground">{t('teacher.trackingEfficiency')}:</span>
+                                  <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 border-0 ${effCfg.bgColor} ${effCfg.textColor}`}>{Math.round(metrics.efficiency)}%</Badge>
+                                  <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
+                                  <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
+                                  <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
+                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthConfig.icon} {metrics.growthIndex.toFixed(1)}</span>
+                                </div>
+                                {metrics.riskLevel !== 'healthy' && (
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>
+                                      {locale === 'ar' ? 'مخاطر' : 'Risk'}: {getRiskLabel(metrics.riskLevel)}
+                                    </Badge>
+                                    <span className="text-muted-foreground">{metrics.riskReasons.map(r => t(`teacher.trackingRiskReason${r.charAt(0).toUpperCase() + r.slice(1)}`)).join(' • ')}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}
@@ -1622,6 +1688,9 @@ export default function TeacherStudentTrackingSection({
                   {bottomStudents.map(({ student, metrics }, idx) => {
                     const riskCfg = getRiskLevelConfig(metrics.riskLevel);
                     const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
+                    const growthCfg = getGrowthTrendConfig(metrics.growthTrend);
+                    const effCfg = getEfficiencyLevelConfig(metrics.efficiencyLevel);
+                    const isExpanded = expandedStudentId === student.id;
                     const riskLabelMap: Record<RiskLevel, string> = {
                       healthy: locale === 'ar' ? 'سليم' : 'Healthy',
                       monitor: locale === 'ar' ? 'مراقبة' : 'Monitor',
@@ -1629,21 +1698,83 @@ export default function TeacherStudentTrackingSection({
                       atRisk: locale === 'ar' ? 'في خطر' : 'At Risk',
                     };
                     return (
-                      <div key={student.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-rose-50/80 to-transparent dark:from-rose-900/10 border border-rose-100/60 dark:border-rose-900/30 hover:shadow-sm transition-shadow">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-bold shrink-0">
-                          {idx + 1}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
-                            <Badge variant="secondary" className={`text-[8px] px-1 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>{riskLabelMap[metrics.riskLevel]}</Badge>
+                      <div key={student.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(student.id)}
+                          className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-rose-50/80 to-transparent dark:from-rose-900/10 border border-rose-100/60 dark:border-rose-900/30 hover:shadow-sm transition-shadow text-start"
+                        >
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-bold shrink-0">
+                            {idx + 1}
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
-                            <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
+                              <Badge variant="secondary" className={`text-[8px] px-1 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>{riskLabelMap[metrics.riskLevel]}</Badge>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Progress value={metrics.overallPerformance} className="h-1 flex-1" />
+                              <span className={`text-[10px] font-bold ${levelCfg.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                            </div>
                           </div>
-                        </div>
-                        <ArrowDownRight className="h-3 w-3 text-rose-500 shrink-0" />
+                          <ChevronDown className={`h-3 w-3 text-muted-foreground shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.25, ease: 'easeInOut' }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-3 py-2.5 mt-1 rounded-lg bg-rose-50/40 dark:bg-rose-900/5 border border-rose-100/40 dark:border-rose-900/20 space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="sm" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-foreground truncate">{student.name}</p>
+                                    {student.email && <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><Mail className="h-2.5 w-2.5 shrink-0" />{student.email}</p>}
+                                  </div>
+                                  <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 border-0 font-bold ${levelCfg.bgColor} ${levelCfg.textColor}`}>{t(getPerformanceLevelLabel(getPerformanceLevel(metrics.overallPerformance)))}</Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الاختبارات' : 'Exams'}</span>
+                                    <span className="font-bold text-sky-600">{Math.round(metrics.examPerformance)}%</span>
+                                  </div>
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attend.'}</span>
+                                    <span className="font-bold text-emerald-600">{Math.round(metrics.attendanceScore)}%</span>
+                                  </div>
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الالتزام' : 'Compl.'}</span>
+                                    <span className="font-bold text-amber-600">{Math.round(metrics.assignmentCompliance)}%</span>
+                                  </div>
+                                  <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                                    <span className="text-muted-foreground">{locale === 'ar' ? 'الجودة' : 'Quality'}</span>
+                                    <span className="font-bold text-teal-600">{Math.round(metrics.assignmentQuality)}%</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                                  <span className="text-muted-foreground">{t('teacher.trackingEfficiency')}:</span>
+                                  <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 border-0 ${effCfg.bgColor} ${effCfg.textColor}`}>{Math.round(metrics.efficiency)}%</Badge>
+                                  <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
+                                  <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
+                                  <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
+                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthConfig.icon} {metrics.growthIndex.toFixed(1)}</span>
+                                </div>
+                                {metrics.riskLevel !== 'healthy' && (
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>
+                                      {locale === 'ar' ? 'مخاطر' : 'Risk'}: {riskLabelMap[metrics.riskLevel]}
+                                    </Badge>
+                                    <span className="text-muted-foreground">{metrics.riskReasons.map(r => t(`teacher.trackingRiskReason${r.charAt(0).toUpperCase() + r.slice(1)}`)).join(' • ')}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}
@@ -1654,66 +1785,23 @@ export default function TeacherStudentTrackingSection({
         </div>
       </motion.div>
 
-      {/* ── Per-Course Rankings ── */}
+      {/* ── Per-Course Rankings (Leaderboard) ── */}
       {perCourseRankings.length > 0 && (
         <motion.div variants={itemVariants}>
-          <Card className="border-violet-100/50 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-violet-600" />
-                {locale === 'ar' ? 'ترتيب الطلاب حسب المقرر' : 'Student Rankings by Course'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-                {perCourseRankings.map(({ subject, top, bottom }) => {
-                  if (top.length === 0 && bottom.length === 0) return null;
-                  return (
-                    <div key={subject.id} className="rounded-lg border border-gray-100 dark:border-gray-800/60 overflow-hidden">
-                      <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-gray-100 dark:border-gray-800/60">
-                        <BookOpen className="h-3.5 w-3.5 text-violet-600" />
-                        <span className="text-xs font-semibold text-foreground truncate">{subject.name}</span>
-                      </div>
-                      <div className="grid grid-cols-2 divide-x divide-gray-100 dark:divide-gray-800/60">
-                        {/* Top in this course */}
-                        <div className="p-2 space-y-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <Trophy className="h-3 w-3 text-amber-500" />
-                            <span className="text-[10px] font-medium text-muted-foreground">{locale === 'ar' ? 'الأفضل' : 'Top'}</span>
-                          </div>
-                          {top.length === 0 ? (
-                            <p className="text-[10px] text-muted-foreground text-center py-1">—</p>
-                          ) : top.map(({ student, metrics }, idx) => (
-                            <div key={student.id} className="flex items-center gap-1.5 py-0.5">
-                              <span className="text-[9px] font-bold text-amber-600 w-3 shrink-0">{idx + 1}</span>
-                              <span className="text-[10px] text-foreground truncate flex-1">{student.name}</span>
-                              <span className="text-[9px] font-bold text-emerald-600 shrink-0">{Math.round(metrics.overallPerformance)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                        {/* Bottom in this course */}
-                        <div className="p-2 space-y-1">
-                          <div className="flex items-center gap-1 mb-1">
-                            <AlertTriangle className="h-3 w-3 text-rose-500" />
-                            <span className="text-[10px] font-medium text-muted-foreground">{locale === 'ar' ? 'يحتاج دعم' : 'Need Support'}</span>
-                          </div>
-                          {bottom.length === 0 ? (
-                            <p className="text-[10px] text-muted-foreground text-center py-1">—</p>
-                          ) : bottom.map(({ student, metrics }, idx) => (
-                            <div key={student.id} className="flex items-center gap-1.5 py-0.5">
-                              <span className="text-[9px] font-bold text-rose-600 w-3 shrink-0">{idx + 1}</span>
-                              <span className="text-[10px] text-foreground truncate flex-1">{student.name}</span>
-                              <span className="text-[9px] font-bold text-rose-600 shrink-0">{Math.round(metrics.overallPerformance)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            {perCourseRankings.map(({ subject, all }) => {
+              return (
+                <CourseRankingCard
+                  key={subject.id}
+                  subject={subject}
+                  students={all}
+                  toggleExpand={toggleExpand}
+                  expandedStudentId={expandedStudentId}
+                  getRiskLabel={getRiskLabel}
+                />
+              );
+            })}
+          </div>
         </motion.div>
       )}
 
@@ -1722,12 +1810,24 @@ export default function TeacherStudentTrackingSection({
         <Card className="border-sky-100/50 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
                 <Users className="h-5 w-5 text-sky-600" />
-                {t('teacher.trackingStudentList')}
+                <span>{t('teacher.trackingStudentListFull')}</span>
                 <span className="text-sm font-normal text-muted-foreground">
-                  ({t('teacher.trackingStudentCount', { count: filteredStudents.length })})
+                  • {filteredStudents.length} {t('teacher.trackingOfTotal')} {studentPerformanceData.length}
                 </span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  • {t('teacher.trackingSortedBy')}: {t(SORT_OPTIONS.find(o => o.key === sortBy)?.label || 'teacher.trackingSortPerformance')}
+                </span>
+                {(filterLevel !== 'all' || filterRange !== 'all' || filterRisk !== 'all') && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    • {t('teacher.trackingFilteredBy')}: {[
+                      filterLevel !== 'all' && t(getPerformanceLevelLabel(filterLevel)),
+                      filterRange !== 'all' && t(getPercentageRangeConfig(filterRange).label),
+                      filterRisk !== 'all' && getRiskLabel(filterRisk),
+                    ].filter(Boolean).join(' + ')}
+                  </span>
+                )}
               </CardTitle>
 
               <div className="flex items-center gap-2">
@@ -2090,6 +2190,10 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformanceData }
     </div>
   );
 }
+
+// -------------------------------------------------------
+// Course Ranking Card — defined below (redesigned leaderboard version)
+// -------------------------------------------------------
 
 // -------------------------------------------------------
 // Student Card Component (expanded with new metrics)
@@ -2736,5 +2840,265 @@ function StudentCard({
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+// -------------------------------------------------------
+// Course Ranking Card Component (Leaderboard-style)
+// -------------------------------------------------------
+type CourseSortOption = 'performance' | 'attendance' | 'efficiency';
+
+const COURSE_SORT_OPTIONS: { key: CourseSortOption; labelAr: string; labelEn: string }[] = [
+  { key: 'performance', labelAr: 'الأداء', labelEn: 'Performance' },
+  { key: 'attendance', labelAr: 'الحضور', labelEn: 'Attendance' },
+  { key: 'efficiency', labelAr: 'الكفاءة', labelEn: 'Efficiency' },
+];
+
+function CourseRankingCard({
+  subject,
+  students,
+  toggleExpand,
+  expandedStudentId,
+  getRiskLabel,
+}: {
+  subject: Subject;
+  students: { student: UserProfile; metrics: StudentPerformanceMetrics }[];
+  toggleExpand: (id: string) => void;
+  expandedStudentId: string | null;
+  getRiskLabel: (level: RiskLevel) => string;
+}) {
+  const { t, direction } = useTranslations();
+  const locale = useLocaleStore((s) => s.locale);
+  const [courseSortBy, setCourseSortBy] = useState<CourseSortOption>('performance');
+  const [showAll, setShowAll] = useState(false);
+
+  const INITIAL_SHOW_COUNT = 5;
+
+  // Sort students based on selected sort option
+  const sortedStudents = useMemo(() => {
+    const sorted = [...students];
+    sorted.sort((a, b) => {
+      switch (courseSortBy) {
+        case 'performance':
+          return b.metrics.overallPerformance - a.metrics.overallPerformance;
+        case 'attendance':
+          return b.metrics.attendanceScore - a.metrics.attendanceScore;
+        case 'efficiency':
+          return b.metrics.efficiency - a.metrics.efficiency;
+        default:
+          return 0;
+      }
+    });
+    return sorted;
+  }, [students, courseSortBy]);
+
+  const displayedStudents = showAll ? sortedStudents : sortedStudents.slice(0, INITIAL_SHOW_COUNT);
+
+  // Compute course average
+  const courseAvg = students.length > 0
+    ? Math.round(students.reduce((sum, s) => sum + s.metrics.overallPerformance, 0) / students.length)
+    : 0;
+
+  // Medal emojis for top 3
+  const medals = ['🥇', '🥈', '🥉'];
+
+  // Background gradients for top 3
+  const rankBgClass = (idx: number): string => {
+    if (courseSortBy !== 'performance') return '';
+    if (idx === 0) return 'bg-gradient-to-l from-amber-50/80 via-yellow-50/40 to-transparent dark:from-amber-900/10 dark:via-yellow-900/5 border-amber-200/50 dark:border-amber-900/30';
+    if (idx === 1) return 'bg-gradient-to-l from-gray-50/80 via-slate-50/40 to-transparent dark:from-gray-800/10 dark:via-slate-800/5 border-gray-200/50 dark:border-gray-700/30';
+    if (idx === 2) return 'bg-gradient-to-l from-orange-50/80 via-amber-50/40 to-transparent dark:from-orange-900/10 dark:via-amber-900/5 border-orange-200/50 dark:border-orange-900/30';
+    return '';
+  };
+
+  return (
+    <Card className="border-violet-100/50 shadow-sm overflow-hidden">
+      {/* Course Header */}
+      <div className="px-4 py-3 bg-gradient-to-l from-violet-50/60 to-transparent dark:from-violet-900/10 border-b border-violet-100/50 dark:border-violet-900/20">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+              <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{subject.name}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {students.length} {locale === 'ar' ? 'طالب' : 'student(s)'} • {locale === 'ar' ? 'المتوسط' : 'Avg'}: {courseAvg}%
+              </p>
+            </div>
+          </div>
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('teacher.trackingRankingBy')}:</span>
+            <Select value={courseSortBy} onValueChange={(val) => setCourseSortBy(val as CourseSortOption)} dir={direction}>
+              <SelectTrigger className="h-7 w-auto min-w-[90px] ps-2 pe-6 rounded-md border border-violet-200 dark:border-violet-900/40 bg-white dark:bg-card text-[11px] focus:ring-1 focus:ring-violet-200">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-lg">
+                {COURSE_SORT_OPTIONS.map(opt => (
+                  <SelectItem key={opt.key} value={opt.key} className="text-[11px]">
+                    {locale === 'ar' ? opt.labelAr : opt.labelEn}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Leaderboard */}
+      <CardContent className="p-3">
+        <div className="space-y-1.5">
+          {displayedStudents.map(({ student, metrics }, idx) => {
+            const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
+            const riskCfg = getRiskLevelConfig(metrics.riskLevel);
+            const growthCfg = getGrowthTrendConfig(metrics.growthTrend);
+            const effCfg = getEfficiencyLevelConfig(metrics.efficiencyLevel);
+            const isExpanded = expandedStudentId === student.id;
+            const bgClass = rankBgClass(idx);
+            const sortValue = courseSortBy === 'performance'
+              ? metrics.overallPerformance
+              : courseSortBy === 'attendance'
+                ? metrics.attendanceScore
+                : metrics.efficiency;
+
+            // Performance bar color based on value
+            const barColor = sortValue >= 80 ? 'bg-emerald-500' : sortValue >= 60 ? 'bg-sky-500' : sortValue >= 40 ? 'bg-amber-500' : 'bg-rose-500';
+
+            return (
+              <div key={student.id}>
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(student.id)}
+                  className={`w-full flex items-center gap-2.5 p-2 rounded-lg border transition-all text-start ${
+                    bgClass || 'border-transparent hover:bg-gray-50/50 dark:hover:bg-gray-800/20'
+                  } ${bgClass ? 'border' : ''}`}
+                >
+                  {/* Rank */}
+                  <div className="w-7 shrink-0 text-center">
+                    {idx < 3 && courseSortBy === 'performance' ? (
+                      <span className="text-base leading-none">{medals[idx]}</span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-muted-foreground">{idx + 1}</span>
+                    )}
+                  </div>
+
+                  {/* Avatar + Name */}
+                  <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-medium text-foreground truncate">{student.name}</p>
+                      <Badge variant="secondary" className={`text-[8px] px-1 py-0 border-0 font-bold ${levelCfg.bgColor} ${levelCfg.textColor}`}>
+                        {t(getPerformanceLevelLabel(metrics.performanceLevel))}
+                      </Badge>
+                    </div>
+                    {/* Performance bar */}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.round(sortValue)}%` }}
+                          transition={{ duration: 0.6, ease: 'easeOut' }}
+                          className={`h-full rounded-full ${barColor}`}
+                        />
+                      </div>
+                      <span className={`text-[10px] font-bold min-w-[32px] text-end ${levelCfg.textColor}`}>
+                        {Math.round(sortValue)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Mini indicators */}
+                  <div className="hidden sm:flex flex-col items-center gap-0.5 shrink-0">
+                    <span className={`text-[10px] font-bold ${
+                      metrics.efficiencyLevel === 'high' ? 'text-emerald-600' :
+                      metrics.efficiencyLevel === 'medium' ? 'text-amber-600' : 'text-rose-600'
+                    }`}>{Math.round(metrics.efficiency)}%</span>
+                    <span className="text-[8px] text-muted-foreground">{t('teacher.trackingEfficiency')}</span>
+                  </div>
+
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Expanded detail */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-3 py-2.5 mt-1 mx-1 rounded-lg bg-violet-50/40 dark:bg-violet-900/5 border border-violet-100/40 dark:border-violet-900/20 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate">{student.name}</p>
+                            {student.email && <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><Mail className="h-2.5 w-2.5 shrink-0" />{student.email}</p>}
+                          </div>
+                          <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 border-0 font-bold ${levelCfg.bgColor} ${levelCfg.textColor}`}>
+                            {Math.round(metrics.overallPerformance)}% — {t(getPerformanceLevelLabel(metrics.performanceLevel))}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                            <span className="text-muted-foreground">{locale === 'ar' ? 'الاختبارات' : 'Exams'}</span>
+                            <span className="font-bold text-sky-600">{Math.round(metrics.examPerformance)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                            <span className="text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attend.'}</span>
+                            <span className="font-bold text-emerald-600">{Math.round(metrics.attendanceScore)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                            <span className="text-muted-foreground">{locale === 'ar' ? 'الالتزام' : 'Compl.'}</span>
+                            <span className="font-bold text-amber-600">{Math.round(metrics.assignmentCompliance)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between px-2 py-1 rounded bg-white/60 dark:bg-card/60">
+                            <span className="text-muted-foreground">{locale === 'ar' ? 'الجودة' : 'Quality'}</span>
+                            <span className="font-bold text-teal-600">{Math.round(metrics.assignmentQuality)}%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                          <span className="text-muted-foreground">{t('teacher.trackingEfficiency')}:</span>
+                          <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 border-0 ${effCfg.bgColor} ${effCfg.textColor}`}>{Math.round(metrics.efficiency)}%</Badge>
+                          <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
+                          <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
+                          <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
+                          <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {metrics.growthIndex.toFixed(1)}</span>
+                        </div>
+                        {metrics.riskLevel !== 'healthy' && (
+                          <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${riskCfg.bgColor} ${riskCfg.textColor} ${riskCfg.borderColor}`}>
+                              {locale === 'ar' ? 'مخاطر' : 'Risk'}: {getRiskLabel(metrics.riskLevel)}
+                            </Badge>
+                            <span className="text-muted-foreground">{metrics.riskReasons.map(r => t(`teacher.trackingRiskReason${r.charAt(0).toUpperCase() + r.slice(1)}`)).join(' • ')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Show more / Show less toggle */}
+        {sortedStudents.length > INITIAL_SHOW_COUNT && (
+          <div className="mt-2 flex justify-center">
+            <button
+              onClick={() => setShowAll(prev => !prev)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors"
+            >
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`} />
+              {showAll
+                ? (locale === 'ar' ? 'عرض أقل' : 'Show Less')
+                : (locale === 'ar' ? `عرض الكل (${sortedStudents.length})` : `Show All (${sortedStudents.length})`)
+              }
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -2960,6 +2960,7 @@
     "dashboardLabel": "Teacher Dashboard",
     "deleteAccountFailed": "Failed to delete account",
     "detailedAnalysis": "Detailed Analysis",
+    "topStudentsByPoints": "Top Students by Points",
     "excelAllResultsSheet": "All Results",
     "excelAvgPerformance": "Avg. Performance",
     "excelCompletionDate": "Completion Date",
@@ -3210,7 +3211,14 @@
     "trackingKpiCard": "KPI Card",
     "trackingWeightedExamNote": "Weighted: total earned ÷ total possible (not average of percentages)",
     "trackingAttendancePointsNote": "Present=100, Late=75, Partial=50, Absent=0",
-    "trackingNoRiskReasons": "No risk indicators"
+    "trackingNoRiskReasons": "No risk indicators",
+    "trackingStudentListFull": "Student List",
+    "trackingSortedBy": "Sorted by",
+    "trackingFilteredBy": "Filtered by",
+    "trackingOfTotal": "of",
+    "trackingShowAll": "Show All",
+    "trackingTop3": "Top 3",
+    "trackingRankingBy": "Rank by"
   },
   "student": {
     "mySubjects": "My Subjects",
