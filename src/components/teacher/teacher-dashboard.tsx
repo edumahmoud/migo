@@ -15,6 +15,8 @@ import {
   Pie,
   Cell,
   Legend,
+  AreaChart,
+  Area,
 } from 'recharts';
 import {
   Users,
@@ -48,6 +50,8 @@ import {
   Trophy,
   ArrowDownRight,
   ArrowUpRight,
+  BarChart3,
+  LayoutList,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { computeAllMetrics, computeSubjectPerformance, calculatePercentile, getPerformanceLevelConfig, getRiskLevelConfig, getGrowthTrendConfig, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
@@ -198,6 +202,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Students section ───
   const [studentSearch, setStudentSearch] = useState('');
   const [studentViewMode, setStudentViewMode] = useState<'grid' | 'table'>('grid');
+  const [performanceViewMode, setPerformanceViewMode] = useState<'cards' | 'charts'>('cards');
   const [selectedStudent, setSelectedStudent] = useState<UserProfile | null>(null);
   const [studentDetailOpen, setStudentDetailOpen] = useState(false);
   const [resettingStudent, setResettingStudent] = useState(false);
@@ -762,6 +767,67 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       return { subject, top, bottom };
     }).filter(Boolean) as { subject: Subject; top: { student: UserProfile; metrics: StudentPerformanceMetrics }[]; bottom: { student: UserProfile; metrics: StudentPerformanceMetrics }[] }[];
   }, [teacherSubjects, scores, quizzes, students, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, teacherSubmissions]);
+
+  // Derived: Monthly trend data for performance overview area chart
+  const monthlyTrendData = useMemo(() => {
+    if (scores.length === 0) return [];
+
+    // Group scores by month
+    const byMonth = new Map<string, { totalPct: number; count: number; attendanceSum: number; attCount: number }>();
+
+    scores.forEach(s => {
+      try {
+        const date = new Date(s.completed_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const entry = byMonth.get(key) || { totalPct: 0, count: 0, attendanceSum: 0, attCount: 0 };
+        if (s.total > 0) {
+          entry.totalPct += (s.score / s.total) * 100;
+          entry.count++;
+        }
+        byMonth.set(key, entry);
+      } catch { /* skip invalid dates */ }
+    });
+
+    // Add attendance per month
+    teacherAttendanceRecords.forEach(r => {
+      const session = teacherAttendanceSessions.find(s => s.id === r.session_id);
+      if (!session) return;
+      // Use a simplified month from session id (fallback to current month)
+      const key = (() => {
+        // Try to extract date from session - sessions don't have dates, use current data
+        return new Date().toISOString().slice(0, 7);
+      })();
+      const entry = byMonth.get(key) || { totalPct: 0, count: 0, attendanceSum: 0, attCount: 0 };
+      const statusVal = r.attendance_status === 'present' ? 100 : r.attendance_status === 'late' ? 75 : r.attendance_status === 'partial' ? 50 : 0;
+      entry.attendanceSum += statusVal;
+      entry.attCount++;
+      byMonth.set(key, entry);
+    });
+
+    // Build chart data sorted by month
+    const months = Array.from(byMonth.entries()).sort(([a], [b]) => a.localeCompare(b));
+
+    // Take last 12 months max
+    const recentMonths = months.slice(-12);
+
+    return recentMonths.map(([month, data]) => ({
+      month,
+      performance: data.count > 0 ? Math.round(data.totalPct / data.count) : 0,
+      attendance: data.attCount > 0 ? Math.round(data.attendanceSum / data.attCount) : undefined,
+    }));
+  }, [scores, teacherAttendanceRecords, teacherAttendanceSessions]);
+
+  // Derived: Pie chart data for student level distribution
+  const levelPieData = useMemo(() => {
+    if (allStudentMetrics.length === 0) return [];
+    return [
+      { name: locale === 'ar' ? 'ممتاز' : 'Excellent', value: aggregateStats.performanceDistribution.excellent, color: '#10b981' },
+      { name: locale === 'ar' ? 'جيد جداً' : 'Very Good', value: aggregateStats.performanceDistribution.veryGood, color: '#0ea5e9' },
+      { name: locale === 'ar' ? 'جيد' : 'Good', value: aggregateStats.performanceDistribution.good, color: '#14b8a6' },
+      { name: locale === 'ar' ? 'مقبول' : 'Acceptable', value: aggregateStats.performanceDistribution.acceptable, color: '#f59e0b' },
+      { name: locale === 'ar' ? 'ضعيف' : 'Weak', value: aggregateStats.performanceDistribution.weak, color: '#ef4444' },
+    ].filter(d => d.value > 0);
+  }, [allStudentMetrics, aggregateStats, locale]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -1340,13 +1406,40 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 {t('teacher.performanceOverview')}
               </h3>
-              <button
-                onClick={() => setActiveSection('tracking')}
-                className="text-xs text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
-              >
-                {t('teacher.detailedAnalysis')}
-                <ChevronLeft className="h-3 w-3" />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Toggle between Cards and Charts */}
+                <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/30 p-0.5">
+                  <button
+                    onClick={() => setPerformanceViewMode('cards')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                      performanceViewMode === 'cards'
+                        ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <LayoutList className="h-3 w-3" />
+                    {t('teacher.cardView')}
+                  </button>
+                  <button
+                    onClick={() => setPerformanceViewMode('charts')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                      performanceViewMode === 'charts'
+                        ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <BarChart3 className="h-3 w-3" />
+                    {t('teacher.chartView')}
+                  </button>
+                </div>
+                <button
+                  onClick={() => setActiveSection('tracking')}
+                  className="text-xs text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
+                >
+                  {t('teacher.detailedAnalysis')}
+                  <ChevronLeft className="h-3 w-3" />
+                </button>
+              </div>
             </div>
             <div className="p-4 space-y-5">
               {allStudentMetrics.length === 0 ? (
@@ -1354,7 +1447,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
                   {t('teacher.noPerformanceData')}
                 </div>
-              ) : (
+              ) : performanceViewMode === 'cards' ? (
                 <>
                   {/* ── Aggregate KPI Row ── */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1606,6 +1699,174 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     </div>
                   )}
                 </>
+              ) : (
+                /* ── Chart View ── */
+                <div className="space-y-6">
+                  {/* Area Chart: Performance Trend */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <TrendingUp className="h-4 w-4 text-sky-600" />
+                      <p className="text-sm font-medium text-foreground">{t('teacher.performanceTrend')}</p>
+                    </div>
+                    {monthlyTrendData.length < 2 ? (
+                      <div className="py-8 text-center text-muted-foreground text-xs">
+                        <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                        {t('teacher.noTrendData')}
+                      </div>
+                    ) : (
+                      <div className="h-[220px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={monthlyTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="perfGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                              </linearGradient>
+                              <linearGradient id="attGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
+                            <XAxis
+                              dataKey="month"
+                              tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                              tickFormatter={(v: string) => v.slice(5)}
+                            />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: 'var(--card)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '8px',
+                                fontSize: '11px',
+                              }}
+                              formatter={(value: number, name: string) => [
+                                `${value}%`,
+                                name === 'performance'
+                                  ? (locale === 'ar' ? 'الأداء' : 'Performance')
+                                  : (locale === 'ar' ? 'الحضور' : 'Attendance'),
+                              ]}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="performance"
+                              stroke="#0ea5e9"
+                              strokeWidth={2.5}
+                              fill="url(#perfGradient)"
+                              dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }}
+                              activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }}
+                              name="performance"
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="attendance"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              fill="url(#attGradient)"
+                              dot={{ r: 2.5, fill: '#10b981', strokeWidth: 0 }}
+                              activeDot={{ r: 4, stroke: '#10b981', strokeWidth: 2, fill: '#fff' }}
+                              name="attendance"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {/* Legend for the area chart */}
+                    {monthlyTrendData.length >= 2 && (
+                      <div className="flex items-center justify-center gap-4 mt-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-4 rounded-full bg-sky-500" />
+                          <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الأداء' : 'Performance'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-4 rounded-full bg-emerald-500" />
+                          <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pie Chart: Student Level Distribution */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Award className="h-4 w-4 text-amber-500" />
+                      <p className="text-sm font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
+                    </div>
+                    {levelPieData.length === 0 ? (
+                      <div className="py-8 text-center text-muted-foreground text-xs">
+                        <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                        {t('teacher.noPerformanceData')}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="h-[200px] w-[200px] shrink-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={levelPieData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={55}
+                                outerRadius={90}
+                                paddingAngle={2}
+                                dataKey="value"
+                                stroke="none"
+                              >
+                                {levelPieData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: 'var(--card)',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: '8px',
+                                  fontSize: '11px',
+                                }}
+                                formatter={(value: number, name: string) => [`${value} ${locale === 'ar' ? 'طالب' : 'students'}`, name]}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        {/* Custom Legend */}
+                        <div className="flex flex-col gap-2 flex-1">
+                          {levelPieData.map((entry) => {
+                            const pct = allStudentMetrics.length > 0 ? Math.round((entry.value / allStudentMetrics.length) * 100) : 0;
+                            return (
+                              <div key={entry.name} className="flex items-center gap-2.5">
+                                <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                                <span className="text-xs text-foreground flex-1">{entry.name}</span>
+                                <span className="text-xs font-bold text-foreground">{entry.value}</span>
+                                <span className="text-[10px] text-muted-foreground">({pct}%)</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* KPI Summary row in chart view */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 text-center">
+                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{aggregateStats.avgAttendance}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الحضور' : 'Avg Attendance'}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
+                      <p className="text-lg font-bold text-teal-700 dark:text-teal-400">{aggregateStats.avgEfficiency}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الكفاءة' : 'Avg Efficiency'}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
+                      <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{aggregateStats.avgDiscipline}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الانضباط' : 'Avg Discipline'}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
+                      <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{avgPerformance}%</p>
+                      <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'متوسط الأداء' : 'Avg Performance'}</p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>

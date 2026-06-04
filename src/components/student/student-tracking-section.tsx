@@ -3,6 +3,18 @@
 import { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid as RechartsCartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import {
   Activity,
   CheckCircle2,
   XCircle,
@@ -23,6 +35,7 @@ import {
   ArrowDownRight,
   Filter,
   Info,
+  LayoutList,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -264,6 +277,48 @@ export default function StudentTrackingSection({
     });
   }, [scores, attendanceSessions, attendanceRecords, submissions, assignments, profileId]);
 
+  // ─── Monthly trend data for student area chart ───
+  const studentTrendData = useMemo(() => {
+    if (scores.length === 0) return [];
+    const byMonth = new Map<string, { totalPct: number; count: number }>();
+    scores.forEach(s => {
+      try {
+        const date = new Date(s.completed_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const entry = byMonth.get(key) || { totalPct: 0, count: 0 };
+        if (s.total > 0) {
+          entry.totalPct += (s.score / s.total) * 100;
+          entry.count++;
+        }
+        byMonth.set(key, entry);
+      } catch { /* skip */ }
+    });
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([month, data]) => ({
+        month,
+        performance: data.count > 0 ? Math.round(data.totalPct / data.count) : 0,
+      }));
+  }, [scores]);
+
+  // ─── Pie chart data for student performance level ───
+  const studentLevelPieData = useMemo(() => {
+    const allLevels = [
+      { name: locale === 'ar' ? 'ممتاز' : 'Excellent', key: 'excellent' as PerformanceLevel, color: '#10b981' },
+      { name: locale === 'ar' ? 'جيد جداً' : 'Very Good', key: 'veryGood' as PerformanceLevel, color: '#0ea5e9' },
+      { name: locale === 'ar' ? 'جيد' : 'Good', key: 'good' as PerformanceLevel, color: '#14b8a6' },
+      { name: locale === 'ar' ? 'مقبول' : 'Acceptable', key: 'acceptable' as PerformanceLevel, color: '#f59e0b' },
+      { name: locale === 'ar' ? 'ضعيف' : 'Weak', key: 'weak' as PerformanceLevel, color: '#ef4444' },
+    ];
+    // Show the student's level highlighted in pie
+    return allLevels.map(l => ({
+      ...l,
+      value: l.key === metrics.performanceLevel ? 1 : 0,
+      isCurrent: l.key === metrics.performanceLevel,
+    }));
+  }, [metrics.performanceLevel, locale]);
+
   // ─── Per-subject performance using centralized engine ───
   const subjectPerformances = useMemo<SubjectPerformanceData[]>(() => {
     // Discover unique subject IDs from all data sources
@@ -450,6 +505,7 @@ export default function StudentTrackingSection({
   // ─── Timeline filter state ───
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all');
   const [showInstructions, setShowInstructions] = useState(false);
+  const [overviewViewMode, setOverviewViewMode] = useState<'cards' | 'charts'>('cards');
 
   const filteredTimeline = useMemo(() => {
     if (timelineFilter === 'all') return activityTimeline;
@@ -830,9 +886,42 @@ export default function StudentTrackingSection({
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════
-          Section 2: KPI Overview Cards (5 cards)
+          Section 2: KPI Overview Cards / Charts
           ════════════════════════════════════════════════════════════ */}
       <motion.div variants={itemVariants}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-sky-600" />
+            <p className="text-sm font-medium text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
+          </div>
+          {/* Toggle between Cards and Charts */}
+          <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/30 p-0.5">
+            <button
+              onClick={() => setOverviewViewMode('cards')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                overviewViewMode === 'cards'
+                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutList className="h-3 w-3" />
+              {t('teacher.cardView')}
+            </button>
+            <button
+              onClick={() => setOverviewViewMode('charts')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                overviewViewMode === 'charts'
+                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <BarChart3 className="h-3 w-3" />
+              {t('teacher.chartView')}
+            </button>
+          </div>
+        </div>
+
+        {overviewViewMode === 'cards' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {/* Card 1: Overall Performance */}
           <Card className="border-sky-100/50 shadow-sm">
@@ -983,6 +1072,112 @@ export default function StudentTrackingSection({
             </CardContent>
           </Card>
         </div>
+        ) : (
+        /* ── Chart View ── */
+        <div className="space-y-5">
+          {/* Area Chart: Performance Trend */}
+          <Card className="border-sky-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4 text-sky-600" />
+                <p className="text-sm font-medium text-foreground">{t('teacher.performanceTrend')}</p>
+              </div>
+              {studentTrendData.length < 2 ? (
+                <div className="py-8 text-center text-muted-foreground text-xs">
+                  <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  {t('teacher.noTrendData')}
+                </div>
+              ) : (
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={studentTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="stuPerfGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <RechartsCartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                      <RechartsTooltip
+                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                        formatter={(value: number) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']}
+                      />
+                      <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#stuPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pie Chart: Student Performance Level */}
+          <Card className="border-amber-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Award className="h-4 w-4 text-amber-500" />
+                <p className="text-sm font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="h-[180px] w-[180px] shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={studentLevelPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={75}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {studentLevelPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.isCurrent ? entry.color : '#e5e7eb'} fillOpacity={entry.isCurrent ? 1 : 0.3} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                        formatter={(value: number, name: string) => [value === 1 ? (locale === 'ar' ? 'مستواك الحالي' : 'Your Level') : '', name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-col gap-2 flex-1">
+                  {studentLevelPieData.map((entry) => (
+                    <div key={entry.name} className={`flex items-center gap-2.5 p-1.5 rounded-md ${entry.isCurrent ? 'bg-muted/50' : ''}`}>
+                      <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.isCurrent ? entry.color : '#d1d5db', opacity: entry.isCurrent ? 1 : 0.5 }} />
+                      <span className={`text-xs flex-1 ${entry.isCurrent ? 'text-foreground font-bold' : 'text-muted-foreground'}`}>{entry.name}</span>
+                      {entry.isCurrent && (
+                        <Badge className={`text-[8px] px-1.5 py-0`} style={{ backgroundColor: entry.color, color: '#fff' }}>
+                          {Math.round(metrics.overallPerformance)}%
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KPI Summary Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
+              <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{Math.round(metrics.overallPerformance)}%</p>
+              <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الأداء العام' : 'Overall'}</p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
+              <p className="text-lg font-bold text-teal-700 dark:text-teal-400">{Math.round(metrics.attendanceScore)}%</p>
+              <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
+              <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{Math.round(metrics.examPerformance)}%</p>
+              <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الاختبارات' : 'Exams'}</p>
+            </div>
+          </div>
+        </div>
+        )}
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════

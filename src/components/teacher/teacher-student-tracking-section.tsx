@@ -3,6 +3,18 @@
 import { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import {
   Activity,
   TrendingUp,
   Award,
@@ -28,6 +40,8 @@ import {
   Info,
   ArrowUpRight,
   ArrowDownRight,
+  BarChart3,
+  LayoutList,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -272,6 +286,7 @@ export default function TeacherStudentTrackingSection({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk'>('level');
   const [showInstructions, setShowInstructions] = useState(false);
+  const [overviewViewMode, setOverviewViewMode] = useState<'cards' | 'charts'>('cards');
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
@@ -522,6 +537,43 @@ export default function TeacherStudentTrackingSection({
     if (studentPerformanceData.length === 0) return 0;
     return studentPerformanceData.reduce((sum, d) => sum + d.metrics.efficiency, 0) / studentPerformanceData.length;
   }, [studentPerformanceData]);
+
+  // ─── Monthly trend data for area chart ───
+  const trackingTrendData = useMemo(() => {
+    if (scores.length === 0) return [];
+    const byMonth = new Map<string, { totalPct: number; count: number }>();
+    scores.forEach(s => {
+      try {
+        const date = new Date(s.completed_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const entry = byMonth.get(key) || { totalPct: 0, count: 0 };
+        if (s.total > 0) {
+          entry.totalPct += (s.score / s.total) * 100;
+          entry.count++;
+        }
+        byMonth.set(key, entry);
+      } catch { /* skip */ }
+    });
+    return Array.from(byMonth.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([month, data]) => ({
+        month,
+        performance: data.count > 0 ? Math.round(data.totalPct / data.count) : 0,
+      }));
+  }, [scores]);
+
+  // ─── Pie chart data for student level distribution ───
+  const trackingLevelPieData = useMemo(() => {
+    if (studentPerformanceData.length === 0) return [];
+    return [
+      { name: locale === 'ar' ? 'ممتاز' : 'Excellent', value: classificationCounts.excellent, color: '#10b981' },
+      { name: locale === 'ar' ? 'جيد جداً' : 'Very Good', value: classificationCounts.veryGood, color: '#0ea5e9' },
+      { name: locale === 'ar' ? 'جيد' : 'Good', value: classificationCounts.good, color: '#14b8a6' },
+      { name: locale === 'ar' ? 'مقبول' : 'Acceptable', value: classificationCounts.acceptable, color: '#f59e0b' },
+      { name: locale === 'ar' ? 'ضعيف' : 'Weak', value: classificationCounts.weak, color: '#ef4444' },
+    ].filter(d => d.value > 0);
+  }, [studentPerformanceData, classificationCounts, locale]);
 
   // ─── Filtered & sorted students ───
   const filteredStudents = useMemo(() => {
@@ -920,8 +972,41 @@ export default function TeacherStudentTrackingSection({
         </DialogContent>
       </Dialog>
 
-      {/* ── Overview Cards (6 cards) ── */}
+      {/* ── Overview Cards / Charts Toggle ── */}
       <motion.div variants={itemVariants}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-sky-600" />
+            <p className="text-sm font-medium text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
+          </div>
+          {/* Toggle between Cards and Charts */}
+          <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/30 p-0.5">
+            <button
+              onClick={() => setOverviewViewMode('cards')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                overviewViewMode === 'cards'
+                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutList className="h-3 w-3" />
+              {t('teacher.cardView')}
+            </button>
+            <button
+              onClick={() => setOverviewViewMode('charts')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
+                overviewViewMode === 'charts'
+                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <BarChart3 className="h-3 w-3" />
+              {t('teacher.chartView')}
+            </button>
+          </div>
+        </div>
+
+        {overviewViewMode === 'cards' ? (
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
           {/* Total Students */}
           <Card className="border-sky-100/50 shadow-sm">
@@ -1013,6 +1098,110 @@ export default function TeacherStudentTrackingSection({
             </CardContent>
           </Card>
         </div>
+        ) : (
+        /* ── Chart View ── */
+        <div className="space-y-5">
+          {/* Area Chart: Performance Trend */}
+          <Card className="border-sky-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4 text-sky-600" />
+                <p className="text-sm font-medium text-foreground">{t('teacher.performanceTrend')}</p>
+              </div>
+              {trackingTrendData.length < 2 ? (
+                <div className="py-8 text-center text-muted-foreground text-xs">
+                  <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  {t('teacher.noTrendData')}
+                </div>
+              ) : (
+                <div className="h-[200px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trackingTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="trackPerfGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                        formatter={(value: number) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']}
+                      />
+                      <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#trackPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pie Chart: Student Level Distribution */}
+          <Card className="border-amber-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Award className="h-4 w-4 text-amber-500" />
+                <p className="text-sm font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
+              </div>
+              {trackingLevelPieData.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground text-xs">
+                  <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  {t('teacher.noPerformanceData')}
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="h-[180px] w-[180px] shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={trackingLevelPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
+                          {trackingLevelPieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                          formatter={(value: number, name: string) => [`${value} ${locale === 'ar' ? 'طالب' : 'students'}`, name]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-col gap-2 flex-1">
+                    {trackingLevelPieData.map((entry) => {
+                      const pct = studentPerformanceData.length > 0 ? Math.round((entry.value / studentPerformanceData.length) * 100) : 0;
+                      return (
+                        <div key={entry.name} className="flex items-center gap-2.5">
+                          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                          <span className="text-xs text-foreground flex-1">{entry.name}</span>
+                          <span className="text-xs font-bold text-foreground">{entry.value}</span>
+                          <span className="text-[10px] text-muted-foreground">({pct}%)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* KPI Summary Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
+              <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{overviewStats.totalStudents}</p>
+              <p className="text-[9px] text-muted-foreground">{t('teacher.trackingTotalStudents')}</p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
+              <p className="text-lg font-bold text-teal-700 dark:text-teal-400">{Math.round(overviewStats.avgPerformance)}%</p>
+              <p className="text-[9px] text-muted-foreground">{t('teacher.trackingAvgPerformance')}</p>
+            </div>
+            <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
+              <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{Math.round(overviewStats.avgAttendance)}%</p>
+              <p className="text-[9px] text-muted-foreground">{t('teacher.trackingAttendanceRate')}</p>
+            </div>
+          </div>
+        </div>
+        )}
       </motion.div>
 
       {/* Section Health Indicator */}
