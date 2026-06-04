@@ -733,78 +733,6 @@ export default function StudentTrackingSection({
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════
-          Section 2.5: Status Legend — explains what each status means
-          ════════════════════════════════════════════════════════════ */}
-      <motion.div variants={itemVariants}>
-        <Card className="border-sky-100/50 shadow-sm">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-              <Info className="h-4 w-4 text-sky-600" />
-              {locale === 'ar' ? 'دليل الحالات' : 'Status Guide'}
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Performance Levels */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الأداء' : 'Performance Levels'}</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ممتاز (≥90%) — أداء مميز ومرتفع' : 'Excellent (≥90%) — Outstanding performance'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد جداً (80-89%) — أداء فوق المتوسط' : 'Very Good (80-89%) — Above average'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد (70-79%) — أداء مقبول جيد' : 'Good (70-79%) — Acceptable performance'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مقبول (60-69%) — يحتاج تحسين' : 'Acceptable (60-69%) — Needs improvement'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ضعيف (<60%) — أداء غير مقبول' : 'Weak (<60%) — Unacceptable performance'}</span>
-                  </div>
-                </div>
-              </div>
-              {/* Risk & Growth */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مؤشرات المتابعة' : 'Tracking Indicators'}</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'سليم — لا مخاطر مقلقة' : 'Healthy — No concerning risks'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مراقبة — يحتاج متابعة' : 'Monitor — Needs attention'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'قلق — انخفاض ملحوظ' : 'Concern — Notable decline'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'في خطر — تدخل عاجل مطلوب' : 'At Risk — Urgent intervention needed'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ArrowUpRight className="h-2 w-2 text-emerald-600 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تحسن — اتجاه تصاعدي' : 'Improving — Upward trend'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ArrowDownRight className="h-2 w-2 text-rose-600 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تراجع — اتجاه تنازلي' : 'Declining — Downward trend'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* ════════════════════════════════════════════════════════════
           Section 3: Performance Breakdown + Attendance by Subject
           ════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1218,6 +1146,78 @@ export default function StudentTrackingSection({
           </Card>
         </motion.div>
       </div>
+
+      {/* ════════════════════════════════════════════════════════════
+          Status Legend — explains what each status means
+          ════════════════════════════════════════════════════════════ */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-sky-100/50 shadow-sm">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+              <Info className="h-4 w-4 text-sky-600" />
+              {locale === 'ar' ? 'دليل الحالات' : 'Status Guide'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Performance Levels */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الأداء' : 'Performance Levels'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ممتاز (≥90%) — أداء مميز ومرتفع' : 'Excellent (≥90%) — Outstanding performance'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد جداً (80-89%) — أداء فوق المتوسط' : 'Very Good (80-89%) — Above average'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد (70-79%) — أداء مقبول جيد' : 'Good (70-79%) — Acceptable performance'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مقبول (60-69%) — يحتاج تحسين' : 'Acceptable (60-69%) — Needs improvement'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ضعيف (<60%) — أداء غير مقبول' : 'Weak (<60%) — Unacceptable performance'}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Risk & Growth */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مؤشرات المتابعة' : 'Tracking Indicators'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'سليم — لا مخاطر مقلقة' : 'Healthy — No concerning risks'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مراقبة — يحتاج متابعة' : 'Monitor — Needs attention'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'قلق — انخفاض ملحوظ' : 'Concern — Notable decline'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'في خطر — تدخل عاجل مطلوب' : 'At Risk — Urgent intervention needed'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowUpRight className="h-2 w-2 text-emerald-600 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تحسن — اتجاه تصاعدي' : 'Improving — Upward trend'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowDownRight className="h-2 w-2 text-rose-600 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تراجع — اتجاه تنازلي' : 'Declining — Downward trend'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }

@@ -17,6 +17,7 @@ import {
   FileText,
   Search,
   Download,
+  Mail,
   Zap,
   Route,
   Target,
@@ -813,94 +814,6 @@ export default function TeacherStudentTrackingSection({
         </div>
       </motion.div>
 
-      {/* ── Status Legend ── */}
-      <motion.div variants={itemVariants}>
-        <Card className="border-sky-100/50 shadow-sm">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-              <Info className="h-4 w-4 text-sky-600" />
-              {locale === 'ar' ? 'دليل الحالات' : 'Status Guide'}
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Performance Levels */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الأداء' : 'Performance Levels'}</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ممتاز (≥90%)' : 'Excellent (≥90%)'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد جداً (80-89%)' : 'Very Good (80-89%)'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد (70-79%)' : 'Good (70-79%)'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مقبول (60-69%)' : 'Acceptable (60-69%)'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ضعيف (<60%)' : 'Weak (<60%)'}</span>
-                  </div>
-                </div>
-              </div>
-              {/* Risk Levels */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الخطورة' : 'Risk Levels'}</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'سليم — لا مخاطر' : 'Healthy — No risks'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مراقبة — يحتاج متابعة' : 'Monitor — Needs attention'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'قلق — انخفاض ملحوظ' : 'Concern — Notable decline'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'في خطر — تدخل عاجل' : 'At Risk — Urgent intervention'}</span>
-                  </div>
-                </div>
-              </div>
-              {/* Growth & Efficiency */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'الاتجاه والكفاءة' : 'Growth & Efficiency'}</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpRight className="h-2 w-2 text-emerald-600 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تحسن — اتجاه تصاعدي' : 'Improving — Upward trend'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ArrowDownRight className="h-2 w-2 text-rose-600 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تراجع — اتجاه تنازلي' : 'Declining — Downward trend'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة عالية' : 'High efficiency'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة متوسطة' : 'Medium efficiency'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة منخفضة' : 'Low efficiency'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
       {/* ── Classification Distribution with Tabs (level / range / risk) ── */}
       <motion.div variants={itemVariants}>
         <Card className="border-sky-100/50 shadow-sm">
@@ -1274,6 +1187,94 @@ export default function TeacherStudentTrackingSection({
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* ── Status Legend ── */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-sky-100/50 shadow-sm">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+              <Info className="h-4 w-4 text-sky-600" />
+              {locale === 'ar' ? 'دليل الحالات' : 'Status Guide'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Performance Levels */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الأداء' : 'Performance Levels'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ممتاز (≥90%)' : 'Excellent (≥90%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد جداً (80-89%)' : 'Very Good (80-89%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد (70-79%)' : 'Good (70-79%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مقبول (60-69%)' : 'Acceptable (60-69%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ضعيف (<60%)' : 'Weak (<60%)'}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Risk Levels */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الخطورة' : 'Risk Levels'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'سليم — لا مخاطر' : 'Healthy — No risks'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مراقبة — يحتاج متابعة' : 'Monitor — Needs attention'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'قلق — انخفاض ملحوظ' : 'Concern — Notable decline'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'في خطر — تدخل عاجل' : 'At Risk — Urgent intervention'}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Growth & Efficiency */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'الاتجاه والكفاءة' : 'Growth & Efficiency'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpRight className="h-2 w-2 text-emerald-600 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تحسن — اتجاه تصاعدي' : 'Improving — Upward trend'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowDownRight className="h-2 w-2 text-rose-600 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تراجع — اتجاه تنازلي' : 'Declining — Downward trend'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة عالية' : 'High efficiency'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة متوسطة' : 'Medium efficiency'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة منخفضة' : 'Low efficiency'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </motion.div>
   );
 }
@@ -1493,6 +1494,7 @@ function StudentCard({
   getRiskLabel: (level: RiskLevel) => string;
 }) {
   const { t } = useTranslations();
+  const locale = useLocaleStore((s) => s.locale);
   const metrics = data.metrics;
   const levelConfig = getPerformanceLevelConfig(data.level);
   const rangeConfig = getPercentageRangeConfig(data.percentageRange);
@@ -1527,6 +1529,78 @@ function StudentCard({
     decliningTrend: t('teacher.trackingRiskReasonDeclining'),
     inactivity: t('teacher.trackingRiskReasonInactivity'),
   };
+
+  // ─── Download individual student report ───
+  const handleDownloadStudentReport = useCallback((studentData: StudentPerformanceData) => {
+    const m = studentData.metrics;
+    const efficiencyLabelMap: Record<EfficiencyLevel, string> = {
+      high: t('teacher.trackingEfficiencyHigh'),
+      medium: t('teacher.trackingEfficiencyMedium'),
+      low: t('teacher.trackingEfficiencyLow'),
+      insufficient: t('teacher.trackingEfficiencyInsufficient'),
+    };
+    const growthLabelMap: Record<GrowthTrend, string> = {
+      improving: t('teacher.trackingGrowthImproving'),
+      stable: t('teacher.trackingGrowthStable'),
+      declining: t('teacher.trackingGrowthDeclining'),
+    };
+    const riskLabelMap: Record<RiskLevel, string> = {
+      healthy: t('teacher.trackingRiskHealthy'),
+      monitor: t('teacher.trackingRiskMonitor'),
+      concern: t('teacher.trackingRiskConcern'),
+      atRisk: t('teacher.trackingRiskAtRisk'),
+    };
+    const levelLabelMap: Record<PerformanceLevel, string> = {
+      excellent: t('teacher.trackingLevelExcellent'),
+      veryGood: t('teacher.trackingLevelVeryGood'),
+      good: t('teacher.trackingLevelGood'),
+      acceptable: t('teacher.trackingLevelAcceptable'),
+      weak: t('teacher.trackingLevelWeak'),
+    };
+
+    const separator = locale === 'ar' ? ' | ' : ', ';
+    const lines = [
+      `${locale === 'ar' ? 'تقرير أداء الطالب' : 'Student Performance Report'}`,
+      `${'═'.repeat(50)}`,
+      ``,
+      `${locale === 'ar' ? 'الاسم' : 'Name'}: ${studentData.student.name}`,
+      `${locale === 'ar' ? 'البريد الإلكتروني' : 'Email'}: ${studentData.student.email}`,
+      ``,
+      `${locale === 'ar' ? '── الأداء العام ──' : '── Overall Performance ──'}`,
+      `${locale === 'ar' ? 'الأداء العام' : 'Overall'}: ${Math.round(m.overallPerformance)}%`,
+      `${locale === 'ar' ? 'التصنيف' : 'Classification'}: ${levelLabelMap[studentData.level]}`,
+      ``,
+      `${locale === 'ar' ? '── التفاصيل ──' : '── Details ──'}`,
+      `${locale === 'ar' ? 'أداء الاختبارات' : 'Exam Performance'}: ${Math.round(m.examPerformance)}%`,
+      `${locale === 'ar' ? 'درجة الحضور' : 'Attendance Score'}: ${Math.round(m.attendanceScore)}%`,
+      `${locale === 'ar' ? 'التزام الواجبات' : 'Assignment Compliance'}: ${Math.round(m.assignmentCompliance)}%`,
+      `${locale === 'ar' ? 'جودة الواجبات' : 'Assignment Quality'}: ${Math.round(m.assignmentQuality)}%`,
+      ``,
+      `${locale === 'ar' ? '── المؤشرات المتقدمة ──' : '── Advanced Indicators ──'}`,
+      `${locale === 'ar' ? 'الكفاءة' : 'Efficiency'}: ${Math.round(m.efficiency)}% (${efficiencyLabelMap[m.efficiencyLevel]})`,
+      `${locale === 'ar' ? 'درجة الانضباط' : 'Discipline Score'}: ${Math.round(m.disciplineScore)}%`,
+      `${locale === 'ar' ? 'مؤشر النمو' : 'Growth Index'}: ${m.growthIndex.toFixed(2)}x (${growthLabelMap[m.growthTrend]})`,
+      `${locale === 'ar' ? 'مستوى الخطورة' : 'Risk Level'}: ${riskLabelMap[m.riskLevel]}`,
+      ...(m.riskReasons.length > 0 ? [`${locale === 'ar' ? 'أسباب الخطورة' : 'Risk Reasons'}: ${m.riskReasons.map(r => riskReasonTranslationMap[r] || r).join(separator)}`] : []),
+      ``,
+      `${locale === 'ar' ? '── أداء المواد ──' : '── Subject Performance ──'}`,
+      ...studentData.subjectPerformances.map(sp =>
+        `${sp.subjectName}: ${Math.round(sp.overallPerformance)}% (${locale === 'ar' ? 'اختبارات' : 'Exam'} ${Math.round(sp.examPerformance)}%${separator}${locale === 'ar' ? 'حضور' : 'Att'} ${Math.round(sp.attendanceScore)}%)`
+      ),
+      ``,
+      `${locale === 'ar' ? 'تاريخ التقرير' : 'Report Date'}: ${new Date().toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+    ];
+
+    const BOM = '\uFEFF';
+    const content = BOM + lines.join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `report_${studentData.student.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [t, locale, riskReasonTranslationMap]);
 
   return (
     <motion.div
@@ -1565,6 +1639,10 @@ function StudentCard({
               showAvatar={false}
               showRole={false}
             />
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1 truncate max-w-[180px]">
+              <Mail className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{data.student.email}</span>
+            </span>
             <Badge
               variant="secondary"
               className={`${levelConfig.bgColor} ${levelConfig.textColor} text-[10px] px-1.5 py-0 border-0 font-bold`}
@@ -1637,6 +1715,21 @@ function StudentCard({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 pt-1 space-y-4">
+              {/* Download Report Button */}
+              <div className="flex justify-end">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadStudentReport(data);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-medium border border-sky-200 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  {t('teacher.trackingDownloadReport')}
+                </motion.button>
+              </div>
               {/* 4 Metric Cards: Exam, Attendance, Compliance, Quality */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                 {/* Exam Performance */}
