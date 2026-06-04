@@ -1009,159 +1009,89 @@ export default function TeacherStudentTrackingSection({
         </DialogContent>
       </Dialog>
 
-      {/* ── Performance Summary Cards Grid ── */}
+      {/* ── Compact Overview Strip + Health Status ── */}
       <motion.div variants={itemVariants}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Total Students */}
-          <div className="relative p-3 rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/15 dark:to-sky-900/5 border border-sky-200/60 dark:border-sky-900/40 overflow-hidden">
-            <div className="absolute top-2 end-2 opacity-10">
-              <Users className="h-8 w-8 text-sky-600" />
-            </div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-200/60 dark:bg-sky-800/40">
-                <Users className="h-3 w-3 text-sky-700 dark:text-sky-400" />
-              </div>
-              <p className="text-[9px] font-medium text-sky-600 dark:text-sky-400">{t('teacher.trackingTotalStudents')}</p>
-            </div>
-            <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{overviewStats.totalStudents}</p>
-          </div>
-
-          {/* Avg Performance */}
-          <div className="relative p-3 rounded-xl bg-gradient-to-br from-teal-50 to-teal-100/50 dark:from-teal-900/15 dark:to-teal-900/5 border border-teal-200/60 dark:border-teal-900/40 overflow-hidden">
-            <div className="absolute top-2 end-2 opacity-10">
-              <TrendingUp className="h-8 w-8 text-teal-600" />
-            </div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-teal-200/60 dark:bg-teal-800/40">
-                <TrendingUp className="h-3 w-3 text-teal-700 dark:text-teal-400" />
-              </div>
-              <p className="text-[9px] font-medium text-teal-600 dark:text-teal-400">{t('teacher.trackingAvgPerformance')}</p>
-            </div>
-            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(overviewStats.avgPerformance)}<span className="text-sm">%</span></p>
-          </div>
-
-          {/* Avg Attendance */}
-          <div className="relative p-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/15 dark:to-amber-900/5 border border-amber-200/60 dark:border-amber-900/40 overflow-hidden">
-            <div className="absolute top-2 end-2 opacity-10">
-              <Clock className="h-8 w-8 text-amber-600" />
-            </div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-200/60 dark:bg-amber-800/40">
-                <Clock className="h-3 w-3 text-amber-700 dark:text-amber-400" />
-              </div>
-              <p className="text-[9px] font-medium text-amber-600 dark:text-amber-400">{t('teacher.trackingAttendanceRate')}</p>
-            </div>
-            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{Math.round(overviewStats.avgAttendance)}<span className="text-sm">%</span></p>
-          </div>
-
-          {/* Avg Discipline */}
-          <div className="relative p-3 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-900/15 dark:to-violet-900/5 border border-violet-200/60 dark:border-violet-900/40 overflow-hidden">
-            <div className="absolute top-2 end-2 opacity-10">
-              <ShieldCheck className="h-8 w-8 text-violet-600" />
-            </div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-200/60 dark:bg-violet-800/40">
-                <ShieldCheck className="h-3 w-3 text-violet-700 dark:text-violet-400" />
-              </div>
-              <p className="text-[9px] font-medium text-violet-600 dark:text-violet-400">{t('teacher.trackingDisciplineScore')}</p>
-            </div>
-            <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Math.round(overviewStats.avgDiscipline)}<span className="text-sm">%</span></p>
-          </div>
-
-          {/* At Risk Students */}
-          {overviewStats.atRiskStudents > 0 && (
-            <div className="relative p-3 rounded-xl bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-900/15 dark:to-rose-900/5 border border-rose-200/60 dark:border-rose-900/40 overflow-hidden">
-              <div className="absolute top-2 end-2 opacity-10">
-                <AlertTriangle className="h-8 w-8 text-rose-600" />
-              </div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-200/60 dark:bg-rose-800/40">
-                  <AlertTriangle className="h-3 w-3 text-rose-700 dark:text-rose-400" />
-                </div>
-                <p className="text-[9px] font-medium text-rose-600 dark:text-rose-400">{t('teacher.trackingRiskLevel')}</p>
-              </div>
-              <p className="text-2xl font-bold text-rose-700 dark:text-rose-300">{overviewStats.atRiskStudents}</p>
-            </div>
-          )}
-
-          {/* Top Performers */}
-          {overviewStats.topPerformers > 0 && (
-            <div className="relative p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-900/15 dark:to-emerald-900/5 border border-emerald-200/60 dark:border-emerald-900/40 overflow-hidden">
-              <div className="absolute top-2 end-2 opacity-10">
-                <Award className="h-8 w-8 text-emerald-600" />
-              </div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-200/60 dark:bg-emerald-800/40">
-                  <Award className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
-                </div>
-                <p className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">{t('teacher.trackingTopPerformers')}</p>
-              </div>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{overviewStats.topPerformers}</p>
-            </div>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Section Health Indicator */}
-      <motion.div variants={itemVariants}>
-        <Card className={`border-2 shadow-md ${
+        <div className={`rounded-xl border shadow-sm overflow-hidden ${
           overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
-            ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-900/10'
+            ? 'border-emerald-200/60 dark:border-emerald-900/40 bg-gradient-to-l from-emerald-50/40 via-card to-card dark:from-emerald-900/10'
             : overviewStats.avgPerformance >= 50
-            ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/10'
-            : 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/10'
+            ? 'border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-l from-amber-50/40 via-card to-card dark:from-amber-900/10'
+            : 'border-rose-200/60 dark:border-rose-900/40 bg-gradient-to-l from-rose-50/40 via-card to-card dark:from-rose-900/10'
         }`}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className={`flex h-14 w-14 items-center justify-center rounded-full ${
+          {/* Health status header */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                 overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
-                  ? 'bg-emerald-100 dark:bg-emerald-900/30 ring-2 ring-emerald-200 dark:ring-emerald-900/60'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30'
                   : overviewStats.avgPerformance >= 50
-                  ? 'bg-amber-100 dark:bg-amber-900/30 ring-2 ring-amber-200 dark:ring-amber-900/60'
-                  : 'bg-rose-100 dark:bg-rose-900/30 ring-2 ring-rose-200 dark:ring-rose-900/60'
+                  ? 'bg-amber-100 dark:bg-amber-900/30'
+                  : 'bg-rose-100 dark:bg-rose-900/30'
               }`}>
                 {overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70 ? (
-                  <Award className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                  <Award className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 ) : overviewStats.avgPerformance >= 50 ? (
-                  <Target className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+                  <Target className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 ) : (
-                  <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+                  <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                 )}
               </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-bold text-foreground">{t('teacher.trackingSectionHealth')}</h3>
-                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  <Badge className={`text-xs px-2 py-0.5 border-0 ${
-                    overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                      : overviewStats.avgPerformance >= 50
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                  }`}>
-                    {overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
-                      ? t('teacher.trackingAdvanced')
-                      : overviewStats.avgPerformance >= 50
-                      ? t('teacher.trackingNeedsAttention')
-                      : t('teacher.trackingAtRiskCourse')}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {Math.round(overviewStats.avgPerformance)}% {t('teacher.trackingAvgPerformance')}
-                  </span>
-                  {overviewStats.atRiskStudents > 0 && (
-                    <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                      {overviewStats.atRiskStudents} {t('teacher.trackingRiskLevel')}
-                    </span>
-                  )}
-                  {overviewStats.topPerformers > 0 && (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      {overviewStats.topPerformers} {t('teacher.trackingTopPerformers')}
-                    </span>
-                  )}
-                </div>
+              <div>
+                <h3 className="text-xs font-bold text-foreground">{t('teacher.trackingSectionHealth')}</h3>
+                <Badge className={`text-[9px] px-1.5 py-0 border-0 mt-0.5 ${
+                  overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : overviewStats.avgPerformance >= 50
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                    : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                }`}>
+                  {overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
+                    ? t('teacher.trackingAdvanced')
+                    : overviewStats.avgPerformance >= 50
+                    ? t('teacher.trackingNeedsAttention')
+                    : t('teacher.trackingAtRiskCourse')}
+                </Badge>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            {overviewStats.atRiskStudents > 0 && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200/60 dark:border-rose-900/40">
+                <AlertTriangle className="h-3 w-3 text-rose-500" />
+                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">{overviewStats.atRiskStudents}</span>
+                <span className="text-[10px] text-rose-500 dark:text-rose-500">{t('teacher.trackingRiskLevel')}</span>
+              </div>
+            )}
+          </div>
+          {/* Compact stat pills */}
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-100 dark:border-sky-900/40">
+              <Users className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+              <span className="text-xs font-bold text-sky-700 dark:text-sky-400">{overviewStats.totalStudents}</span>
+              <span className="text-[10px] text-sky-600 dark:text-sky-500">{t('teacher.trackingTotalStudents')}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-900/40">
+              <TrendingUp className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+              <span className="text-xs font-bold text-teal-700 dark:text-teal-400">{Math.round(overviewStats.avgPerformance)}%</span>
+              <span className="text-[10px] text-teal-600 dark:text-teal-500">{t('teacher.trackingAvgPerformance')}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40">
+              <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{Math.round(overviewStats.avgAttendance)}%</span>
+              <span className="text-[10px] text-amber-600 dark:text-amber-500">{t('teacher.trackingAttendanceRate')}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-900/40">
+              <ShieldCheck className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+              <span className="text-xs font-bold text-violet-700 dark:text-violet-400">{Math.round(overviewStats.avgDiscipline)}%</span>
+              <span className="text-[10px] text-violet-600 dark:text-violet-500">{t('teacher.trackingDisciplineScore')}</span>
+            </div>
+            {overviewStats.topPerformers > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40">
+                <Award className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{overviewStats.topPerformers}</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-500">{t('teacher.trackingTopPerformers')}</span>
+              </div>
+            )}
+          </div>
+        </div>
       </motion.div>
 
       {/* ── Classification Distribution with Tabs (level / range / risk) ── */}

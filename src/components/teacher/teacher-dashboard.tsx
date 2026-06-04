@@ -1327,6 +1327,110 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         />
       </motion.div>
 
+      {/* Top Students by Points — Horizontal Leaderboard Strip */}
+      <motion.div variants={itemVariants}>
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between border-b px-4 py-2.5">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-amber-500" />
+              {t('teacher.topStudentsByPoints')}
+            </h3>
+            <span className="text-[10px] text-muted-foreground">
+              {allStudentMetrics.length > 0 ? `${Math.min(5, allStudentMetrics.length)}/${allStudentMetrics.length}` : ''}
+            </span>
+          </div>
+          {allStudentMetrics.length === 0 ? (
+            <div className="py-6 text-center text-muted-foreground text-sm">
+              <Trophy className="h-7 w-7 mx-auto mb-1.5 opacity-30" />
+              <p className="text-xs">{t('teacher.noPerformanceData')}</p>
+            </div>
+          ) : (
+            <div className="flex overflow-x-auto custom-scrollbar">
+              {[...allStudentMetrics]
+                .sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)
+                .slice(0, 5)
+                .map((item, index) => {
+                  const { student: s, metrics } = item;
+                  const levelConfig = getPerformanceLevelConfig(metrics.performanceLevel);
+                  const riskConfig = getRiskLevelConfig(metrics.riskLevel);
+                  const isExpanded = expandedTopStudent === s.id;
+                  const rankColors = [
+                    'bg-amber-400 text-amber-900',
+                    'bg-gray-300 text-gray-700',
+                    'bg-amber-600 text-amber-100',
+                    'bg-muted text-muted-foreground',
+                    'bg-muted text-muted-foreground',
+                  ];
+                  const isTop3 = index < 3;
+                  return (
+                    <div key={s.id} className="flex-1 min-w-[140px] max-w-[200px] border-e last:border-e-0">
+                      <button
+                        onClick={() => setExpandedTopStudent(isExpanded ? null : s.id)}
+                        className="w-full flex flex-col items-center gap-1.5 px-3 py-3 hover:bg-muted/20 transition-colors"
+                      >
+                        {/* Rank badge */}
+                        <div className="relative">
+                          <UserAvatar name={s.name} avatarUrl={s.avatar_url} size={isTop3 ? 'md' : 'sm'} />
+                          <span className={`absolute -top-1 -start-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold ${rankColors[index] || rankColors[4]}`}>
+                            {index + 1}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-foreground truncate max-w-full">{s.name}</p>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-sm font-bold ${levelConfig.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
+                        </div>
+                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${levelConfig.textColor} ${levelConfig.bgColor} border-0`}>
+                          {locale === 'ar'
+                            ? ({ excellent: 'ممتاز', veryGood: 'جيد جداً', good: 'جيد', acceptable: 'مقبول', weak: 'ضعيف' } as Record<string, string>)[metrics.performanceLevel] || metrics.performanceLevel
+                            : metrics.performanceLevel}
+                        </Badge>
+                      </button>
+                      {/* Expanded details */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="grid grid-cols-2 gap-1 px-2.5 pb-2.5">
+                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-emerald-50 dark:bg-emerald-900/10">
+                                <Clock className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
+                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Att'}</span>
+                                <span className="text-[9px] font-bold text-foreground ms-auto">{Math.round(metrics.attendanceScore)}%</span>
+                              </div>
+                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-teal-50 dark:bg-teal-900/10">
+                                <Zap className="h-2.5 w-2.5 text-teal-500 shrink-0" />
+                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Eff'}</span>
+                                <span className="text-[9px] font-bold text-foreground ms-auto">{Math.round(metrics.efficiency)}%</span>
+                              </div>
+                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-violet-50 dark:bg-violet-900/10">
+                                <ShieldCheck className="h-2.5 w-2.5 text-violet-500 shrink-0" />
+                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Dis'}</span>
+                                <span className="text-[9px] font-bold text-foreground ms-auto">{Math.round(metrics.disciplineScore)}%</span>
+                              </div>
+                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-rose-50 dark:bg-rose-900/10">
+                                <AlertTriangle className={`h-2.5 w-2.5 shrink-0 ${riskConfig.textColor}`} />
+                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'المخاطر' : 'Risk'}</span>
+                                <span className={`text-[9px] font-bold ms-auto ${riskConfig.textColor}`}>
+                                  {locale === 'ar'
+                                    ? ({ low: 'منخفض', moderate: 'متوسط', concern: 'قلق', atRisk: 'في خطر' } as Record<string, string>)[metrics.riskLevel] || metrics.riskLevel
+                                    : metrics.riskLevel}
+                                </span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      </motion.div>
+
       {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Performance Overview — Compact Stat Bar + Charts (2/3) */}
@@ -1677,106 +1781,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   </div>
                 );
               })()}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Top Students by Performance Points */}
-        <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b p-4">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-amber-500" />
-                {t('teacher.topStudentsByPoints')}
-              </h3>
-            </div>
-            <div className="max-h-[380px] overflow-y-auto custom-scrollbar">
-              {allStudentMetrics.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground text-sm">
-                  <Trophy className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  {t('teacher.noPerformanceData')}
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {[...allStudentMetrics]
-                    .sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)
-                    .slice(0, 5)
-                    .map((item, index) => {
-                      const { student: s, metrics } = item;
-                      const levelConfig = getPerformanceLevelConfig(metrics.performanceLevel);
-                      const riskConfig = getRiskLevelConfig(metrics.riskLevel);
-                      const rankColors = [
-                        'bg-amber-400 text-amber-900', // 1st gold
-                        'bg-gray-300 text-gray-700',   // 2nd silver
-                        'bg-amber-600 text-amber-100',  // 3rd bronze
-                        'bg-muted text-muted-foreground', // 4th
-                        'bg-muted text-muted-foreground', // 5th
-                      ];
-                      const isExpanded = expandedTopStudent === s.id;
-
-                      return (
-                        <div key={s.id}>
-                          <button
-                            onClick={() => setExpandedTopStudent(isExpanded ? null : s.id)}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors"
-                          >
-                            <span className={`shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${rankColors[index] || rankColors[4]}`}>
-                              {index + 1}
-                            </span>
-                            <UserAvatar name={s.name} avatarUrl={s.avatar_url} size="sm" />
-                            <div className="min-w-0 flex-1 text-start">
-                              <p className="text-sm font-medium text-foreground truncate">{s.name}</p>
-                            </div>
-                            <span className={`text-xs font-bold ${levelConfig.textColor}`}>
-                              {Math.round(metrics.overallPerformance)}%
-                            </span>
-                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${levelConfig.textColor} ${levelConfig.bgColor} border-0`}>
-                              {locale === 'ar'
-                                ? ({ excellent: 'ممتاز', veryGood: 'جيد جداً', good: 'جيد', acceptable: 'مقبول', weak: 'ضعيف' } as Record<string, string>)[metrics.performanceLevel] || metrics.performanceLevel
-                                : metrics.performanceLevel}
-                            </Badge>
-                            <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                          </button>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="px-3 pb-3"
-                            >
-                              <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/50">
-                                <div className="flex items-center gap-1.5">
-                                  <Clock className="h-3 w-3 text-emerald-500 shrink-0" />
-                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</span>
-                                  <span className="text-[10px] font-bold text-foreground ms-auto">{Math.round(metrics.attendanceScore)}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <Zap className="h-3 w-3 text-teal-500 shrink-0" />
-                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Efficiency'}</span>
-                                  <span className="text-[10px] font-bold text-foreground ms-auto">{Math.round(metrics.efficiency)}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <ShieldCheck className="h-3 w-3 text-violet-500 shrink-0" />
-                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}</span>
-                                  <span className="text-[10px] font-bold text-foreground ms-auto">{Math.round(metrics.disciplineScore)}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <AlertTriangle className={`h-3 w-3 shrink-0 ${riskConfig.textColor}`} />
-                                  <span className="text-[10px] text-muted-foreground">{locale === 'ar' ? 'المخاطر' : 'Risk'}</span>
-                                  <span className={`text-[10px] font-bold ms-auto ${riskConfig.textColor}`}>
-                                    {locale === 'ar'
-                                      ? ({ low: 'منخفض', moderate: 'متوسط', concern: 'قلق', atRisk: 'في خطر' } as Record<string, string>)[metrics.riskLevel] || metrics.riskLevel
-                                      : metrics.riskLevel}
-                                  </span>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
             </div>
           </div>
         </motion.div>
