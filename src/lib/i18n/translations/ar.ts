@@ -1543,6 +1543,83 @@ export const ar: TranslationDict = {
     performanceTrackingOnTrack: 'على المسار',
     performanceTrackingNeedsAttention: 'يحتاج متابعة',
     performanceTrackingAtRisk: 'في خطر',
+
+    // Tab names
+    adminTrackingOverview: 'نظرة عامة',
+    adminTrackingCourses: 'تحليل المقررات',
+    adminTrackingStudents: 'تحليل الطلاب',
+    adminTrackingAttendance: 'الحضور والتفاعل',
+    adminTrackingRisk: 'المخاطر والرؤى',
+
+    // Overview tab
+    adminTrackingTotalStudents: 'إجمالي الطلاب',
+    adminTrackingTotalTeachers: 'إجمالي المعلمين',
+    adminTrackingTotalCourses: 'إجمالي المقررات',
+    adminTrackingAvgPerformance: 'متوسط الأداء',
+    adminTrackingAtRiskCount: 'في خطر',
+    adminTrackingTopPerformers: 'أفضل الأداء',
+    adminTrackingPerformanceTrend: 'اتجاه الأداء عبر الزمن',
+    adminTrackingLevelDistribution: 'توزيع المستويات',
+    adminTrackingPerformanceDistribution: 'توزيع الأداء',
+    adminTrackingTopStudents: 'أفضل 5 طلاب',
+    adminTrackingBottomStudents: 'أقل 5 طلاب أداءً',
+    adminTrackingSystemHealth: 'صحة النظام',
+
+    // Courses tab
+    adminTrackingCourseComparison: 'مقارنة أداء المقررات',
+    adminTrackingDifficultyIndex: 'مؤشر الصعوبة',
+    adminTrackingStudentCount: 'عدد الطلاب',
+    adminTrackingAvgAttendance: 'متوسط الحضور',
+    adminTrackingCourseDrillDown: 'اضغط للمقارنة التفصيلية',
+    adminTrackingCourseDetails: 'تفاصيل المقرر',
+    adminTrackingBackToCourses: 'العودة للمقررات',
+    adminTrackingNoCoursesData: 'لا توجد بيانات مقررات',
+
+    // Students tab
+    adminTrackingSearchStudent: 'بحث عن طالب...',
+    adminTrackingSearchTeacher: 'بحث عن معلم...',
+    adminTrackingSearchCourse: 'بحث عن مقرر...',
+    adminTrackingFilterByLevel: 'تصفية حسب المستوى',
+    adminTrackingFilterByRisk: 'تصفية حسب الخطورة',
+    adminTrackingAllLevels: 'جميع المستويات',
+    adminTrackingAllRisks: 'جميع المستويات',
+    adminTrackingStudentList: 'قائمة الطلاب',
+    adminTrackingTeacherList: 'قائمة المعلمين',
+    adminTrackingNoStudentsFound: 'لا يوجد طلاب',
+    adminTrackingNoTeachersFound: 'لا يوجد معلمون',
+    adminTrackingSubjectCount: 'عدد المقررات',
+    adminTrackingStudentCountShort: 'طلاب',
+
+    // Attendance tab
+    adminTrackingAttendanceDistribution: 'توزيع الحضور',
+    adminTrackingAttendanceTrend: 'اتجاه الحضور',
+    adminTrackingPresent: 'حاضر',
+    adminTrackingLate: 'متأخر',
+    adminTrackingAbsent: 'غائب',
+    adminTrackingPartial: 'جزئي',
+    adminTrackingEngagementScores: 'درجات التفاعل',
+    adminTrackingEngagement: 'التفاعل',
+    adminTrackingCompliance: 'الالتزام',
+    adminTrackingNoAttendanceData: 'لا توجد بيانات حضور',
+
+    // Risk tab
+    adminTrackingRiskDistribution: 'توزيع مستويات الخطورة',
+    adminTrackingTrendSummary: 'ملخص الاتجاهات',
+    adminTrackingImproved: 'تحسن',
+    adminTrackingDeclined: 'تراجع',
+    adminTrackingStable: 'ثابت',
+    adminTrackingAtRiskStudents: 'الطلاب في خطر',
+    adminTrackingSuddenDrop: 'انخفاض مفاجئ',
+    adminTrackingImprovementStreak: 'سلسلة تحسن',
+    adminTrackingVolatilePerformance: 'أداء متذبذب',
+    adminTrackingNoRiskData: 'لا توجد بيانات مخاطر',
+
+    // Insights
+    adminTrackingInsightMostImproved: 'الأكثر تحسناً',
+    adminTrackingInsightLeastPerforming: 'الأقل أداءً',
+    adminTrackingInsightDifficultyIndex: 'مؤشر صعوبة المقرر',
+    adminTrackingInsightEngagementScore: 'درجة التفاعل',
+    adminTrackingInsightConsistency: 'الاستقرار',
   },
 
   // ─── Attendance ───

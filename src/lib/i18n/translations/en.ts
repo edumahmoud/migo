@@ -1531,6 +1531,83 @@ export const en: TranslationDict = {
     performanceTrackingOnTrack: 'On Track',
     performanceTrackingNeedsAttention: 'Needs Attention',
     performanceTrackingAtRisk: 'At Risk',
+
+    // Tab names
+    adminTrackingOverview: 'Overview',
+    adminTrackingCourses: 'Courses Analytics',
+    adminTrackingStudents: 'Students Analytics',
+    adminTrackingAttendance: 'Attendance & Engagement',
+    adminTrackingRisk: 'Risk & Insights',
+
+    // Overview tab
+    adminTrackingTotalStudents: 'Total Students',
+    adminTrackingTotalTeachers: 'Total Teachers',
+    adminTrackingTotalCourses: 'Total Courses',
+    adminTrackingAvgPerformance: 'Avg Performance',
+    adminTrackingAtRiskCount: 'At Risk',
+    adminTrackingTopPerformers: 'Top Performers',
+    adminTrackingPerformanceTrend: 'Performance Trend Over Time',
+    adminTrackingLevelDistribution: 'Level Distribution',
+    adminTrackingPerformanceDistribution: 'Performance Distribution',
+    adminTrackingTopStudents: 'Top 5 Students',
+    adminTrackingBottomStudents: 'Bottom 5 Students',
+    adminTrackingSystemHealth: 'System Health',
+
+    // Courses tab
+    adminTrackingCourseComparison: 'Course Performance Comparison',
+    adminTrackingDifficultyIndex: 'Difficulty Index',
+    adminTrackingStudentCount: 'Student Count',
+    adminTrackingAvgAttendance: 'Avg Attendance',
+    adminTrackingCourseDrillDown: 'Click for detailed comparison',
+    adminTrackingCourseDetails: 'Course Details',
+    adminTrackingBackToCourses: 'Back to Courses',
+    adminTrackingNoCoursesData: 'No course data available',
+
+    // Students tab
+    adminTrackingSearchStudent: 'Search for a student...',
+    adminTrackingSearchTeacher: 'Search for a teacher...',
+    adminTrackingSearchCourse: 'Search for a course...',
+    adminTrackingFilterByLevel: 'Filter by Level',
+    adminTrackingFilterByRisk: 'Filter by Risk',
+    adminTrackingAllLevels: 'All Levels',
+    adminTrackingAllRisks: 'All Levels',
+    adminTrackingStudentList: 'Student List',
+    adminTrackingTeacherList: 'Teacher List',
+    adminTrackingNoStudentsFound: 'No students found',
+    adminTrackingNoTeachersFound: 'No teachers found',
+    adminTrackingSubjectCount: 'Subjects',
+    adminTrackingStudentCountShort: 'Students',
+
+    // Attendance tab
+    adminTrackingAttendanceDistribution: 'Attendance Distribution',
+    adminTrackingAttendanceTrend: 'Attendance Trend',
+    adminTrackingPresent: 'Present',
+    adminTrackingLate: 'Late',
+    adminTrackingAbsent: 'Absent',
+    adminTrackingPartial: 'Partial',
+    adminTrackingEngagementScores: 'Engagement Scores',
+    adminTrackingEngagement: 'Engagement',
+    adminTrackingCompliance: 'Compliance',
+    adminTrackingNoAttendanceData: 'No attendance data available',
+
+    // Risk tab
+    adminTrackingRiskDistribution: 'Risk Level Distribution',
+    adminTrackingTrendSummary: 'Trend Summary',
+    adminTrackingImproved: 'Improved',
+    adminTrackingDeclined: 'Declined',
+    adminTrackingStable: 'Stable',
+    adminTrackingAtRiskStudents: 'At Risk Students',
+    adminTrackingSuddenDrop: 'Sudden Drop',
+    adminTrackingImprovementStreak: 'Improvement Streak',
+    adminTrackingVolatilePerformance: 'Volatile Performance',
+    adminTrackingNoRiskData: 'No risk data available',
+
+    // Insights
+    adminTrackingInsightMostImproved: 'Most Improved',
+    adminTrackingInsightLeastPerforming: 'Least Performing',
+    adminTrackingInsightDifficultyIndex: 'Course Difficulty Index',
+    adminTrackingInsightEngagementScore: 'Engagement Score',
+    adminTrackingInsightConsistency: 'Consistency',
   },
 
   // ─── Attendance ───

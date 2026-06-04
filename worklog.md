@@ -139,3 +139,32 @@ Stage Summary:
 - All existing calculation logic preserved exactly
 - Scalable with pagination and scroll containers
 - Dark/light mode compatible with bilingual support
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Redesign Admin Tracking Section with system-wide analytics + Add translation keys for all new sections
+
+Work Log:
+- Complete rewrite of `/src/components/admin/admin-performance-tracking-section.tsx` from 611 lines to 900+ lines
+- Changed from simple 3-tab (students/teachers/courses) layout to 5-tab analytics architecture:
+  - Tab 1 (Overview Dashboard): 6 KPI cards, performance trend AreaChart, level distribution PieChart, performance distribution BarChart, Top 5/Bottom 5 students, System Health metrics (avg attendance, discipline, efficiency, excellence rate)
+  - Tab 2 (Courses Analytics): Horizontal course comparison BarChart (performance + attendance), difficulty index, clickable course cards grid with drill-down to student rankings per course
+  - Tab 3 (Students Analytics): Sub-tab for students/teachers lists, search, progress bars, risk badges, attendance/compliance details
+  - Tab 4 (Attendance & Engagement): Attendance distribution PieChart, attendance trend stacked BarChart, engagement scores list (top 20 students ranked by engagement)
+  - Tab 5 (Risk & Insights): Risk distribution PieChart, trend summary cards (improved/stable/declined), at-risk students quick list, sudden drop detection (≥10% decline), improvement streak detection (3+ consecutive periods up), most improved students insight
+- Added `computeCohortAnalytics` import for system-wide aggregated statistics
+- Added new chart types: AreaChart, PieChart, BarChart with stacked, horizontal, and color-coded variants
+- Added drill-down navigation pattern: course list → click course → see ranked students
+- Used `renderCustomizedLabel` for pie chart percentage labels
+- Added 58 new translation keys to all 4 files (ar.ts, en.ts, ar.json, en.json) under `admin.adminTracking*` namespace
+- Preserved all existing business logic and calculation functions (no changes to performance-calculator.ts)
+- Lint passes cleanly, dev server runs without errors
+
+Stage Summary:
+- Admin tracking section redesigned as world-class data intelligence dashboard with 5 tabs
+- 80% charts (area, pie, bar, stacked) / 20% indicators and progress bars
+- System-wide analytics using computeCohortAnalytics for O(n) scalability
+- Intelligent insights: sudden drop, improvement streak, most improved, engagement scores
+- Drill-down course analytics with student rankings
+- Full Arabic/English bilingual support with 58 new translation keys
