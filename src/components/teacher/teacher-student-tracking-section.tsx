@@ -24,6 +24,9 @@ import {
   ShieldCheck,
   AlertTriangle,
   Flame,
+  Info,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,6 +36,7 @@ import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useTranslations } from '@/i18n/use-translations';
+import { useLocaleStore } from '@/i18n/locale-store';
 import {
   computeAllMetrics,
   computeSubjectPerformance,
@@ -256,6 +260,7 @@ export default function TeacherStudentTrackingSection({
   subjects = [],
 }: TeacherStudentTrackingSectionProps) {
   const { t, direction } = useTranslations();
+  const locale = useLocaleStore((s) => s.locale);
   // ─── Local state ───
   const [filterLevel, setFilterLevel] = useState<PerformanceLevel | 'all'>('all');
   const [filterRange, setFilterRange] = useState<PercentageRange | 'all'>('all');
@@ -806,6 +811,94 @@ export default function TeacherStudentTrackingSection({
             </CardContent>
           </Card>
         </div>
+      </motion.div>
+
+      {/* ── Status Legend ── */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-sky-100/50 shadow-sm">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+              <Info className="h-4 w-4 text-sky-600" />
+              {locale === 'ar' ? 'دليل الحالات' : 'Status Guide'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Performance Levels */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الأداء' : 'Performance Levels'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ممتاز (≥90%)' : 'Excellent (≥90%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-sky-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد جداً (80-89%)' : 'Very Good (80-89%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'جيد (70-79%)' : 'Good (70-79%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مقبول (60-69%)' : 'Acceptable (60-69%)'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'ضعيف (<60%)' : 'Weak (<60%)'}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Risk Levels */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'مستويات الخطورة' : 'Risk Levels'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'سليم — لا مخاطر' : 'Healthy — No risks'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'مراقبة — يحتاج متابعة' : 'Monitor — Needs attention'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'قلق — انخفاض ملحوظ' : 'Concern — Notable decline'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'في خطر — تدخل عاجل' : 'At Risk — Urgent intervention'}</span>
+                  </div>
+                </div>
+              </div>
+              {/* Growth & Efficiency */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-1.5">{locale === 'ar' ? 'الاتجاه والكفاءة' : 'Growth & Efficiency'}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpRight className="h-2 w-2 text-emerald-600 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تحسن — اتجاه تصاعدي' : 'Improving — Upward trend'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowDownRight className="h-2 w-2 text-rose-600 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'تراجع — اتجاه تنازلي' : 'Declining — Downward trend'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة عالية' : 'High efficiency'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة متوسطة' : 'Medium efficiency'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                    <span className="text-xs text-foreground">{locale === 'ar' ? 'كفاءة منخفضة' : 'Low efficiency'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* ── Classification Distribution with Tabs (level / range / risk) ── */}

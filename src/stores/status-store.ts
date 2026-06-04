@@ -4,6 +4,7 @@ import { getSocket } from '@/lib/socket';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel, RealtimePresenceJoinPayload } from '@supabase/supabase-js';
 import { useLocaleStore } from '@/i18n/locale-store';
+import { toast } from 'sonner';
 
 // =====================================================
 // AttenDo - Global Status Store
@@ -618,4 +619,72 @@ function updatePresenceStatus(userId: string, status: UserStatus) {
   } catch {
     // Ignore tracking errors
   }
+}
+
+// =====================================================
+// Internet Status Store — tracks navigator.onLine
+// Shows distinctive toast on disconnect/reconnect
+// Makes avatar status dot red when internet is off
+// =====================================================
+
+interface InternetState {
+  isOnline: boolean;
+  setOnline: (online: boolean) => void;
+}
+
+let internetListenersRegistered = false;
+let disconnectToastId: string | number | null = null;
+
+export const useInternetStore = create<InternetState>((set) => ({
+  isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
+
+  setOnline: (online: boolean) => {
+    set({ isOnline: online });
+  },
+}));
+
+/**
+ * Initialize internet status listeners (call once at app root).
+ * Shows distinctive toast on disconnect/reconnect.
+ */
+export function initInternetListeners() {
+  if (internetListenersRegistered || typeof window === 'undefined') return;
+  internetListenersRegistered = true;
+
+  const goOffline = () => {
+    useInternetStore.getState().setOnline(false);
+    const isAr = useLocaleStore.getState().locale === 'ar';
+    const msg = isAr ? '🔴 انقطع اتصال الإنترنت' : '🔴 Internet connection lost';
+    // Use a persistent toast that doesn't auto-dismiss
+    disconnectToastId = toast.error(msg, {
+      duration: Infinity,
+      id: 'internet-disconnected',
+      dismissible: false,
+    });
+  };
+
+  const goOnline = () => {
+    useInternetStore.getState().setOnline(true);
+    const isAr = useLocaleStore.getState().locale === 'ar';
+    const msg = isAr ? '🟢 تم استعادة اتصال الإنترنت' : '🟢 Internet connection restored';
+    // Dismiss the disconnect toast if present
+    if (disconnectToastId !== null) {
+      toast.dismiss('internet-disconnected');
+      disconnectToastId = null;
+    }
+    toast.success(msg, { duration: 4000, id: 'internet-reconnected' });
+  };
+
+  window.addEventListener('offline', goOffline);
+  window.addEventListener('online', goOnline);
+}
+
+/**
+ * Returns the status dot color class, taking internet status into account.
+ * When internet is disconnected, overrides the status color to red.
+ */
+export function getStatusDotColor(status: UserStatus): string {
+  const isOnline = useInternetStore.getState().isOnline;
+  if (!isOnline) return 'bg-rose-500 animate-pulse';
+  return getStatusColor(status);
 }

@@ -503,6 +503,8 @@ export interface UserTodo {
   duration?: number | null;
   /** For auto-todos: type of auto-generated item */
   autoType?: 'quiz' | 'assignment';
+  /** For auto-assignment todos: whether the student has submitted */
+  submissionStatus?: 'submitted' | 'not_submitted' | null;
 }
 
 // -------------------------------------------------------

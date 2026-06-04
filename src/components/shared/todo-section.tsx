@@ -57,6 +57,8 @@ interface AutoTodoItem {
   duration?: number | null;
   /** Teacher name who created the quiz/assignment */
   teacher_name?: string | null;
+  /** Submission status for assignments: 'submitted' | 'not_submitted' | null (not an assignment) */
+  submissionStatus?: 'submitted' | 'not_submitted' | null;
 }
 
 // -------------------------------------------------------
@@ -110,19 +112,43 @@ type StatusFilter = 'all' | 'active' | 'completed';
 type SortOption = 'dueDate' | 'priority' | 'createdDate';
 
 // -------------------------------------------------------
-// Helper: format due date
+// Helper: check if a date string is date-only (no time component)
+// This prevents showing misleading "3:00 AM" for dates stored
+// as UTC midnight when the user is in UTC+3
 // -------------------------------------------------------
+function isDateOnly(dateStr: string): boolean {
+  // Date-only strings from a DATE column: "2025-03-05"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return true;
+  // Timestamp at exactly midnight UTC (e.g., "2025-03-05T00:00:00Z" or "2025-03-05T00:00:00+00:00")
+  // — likely a date-only value stored as timestamp
+  try {
+    const d = new Date(dateStr);
+    return d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+  } catch {
+    return false;
+  }
+}
+
 function formatDueDate(dateStr: string, locale: string): string {
   try {
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
     const isPast = diffMs < 0;
+    const localeStr = locale === 'en' ? 'en-US' : 'ar-SA';
 
-    const formatted = date.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', {
+    // If the date is date-only (no meaningful time), show date without misleading time
+    if (isDateOnly(dateStr)) {
+      return date.toLocaleDateString(localeStr, {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+
+    const formatted = date.toLocaleDateString(localeStr, {
       month: 'short',
       day: 'numeric',
-    }) + ' ' + date.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', {
+    }) + ' ' + date.toLocaleTimeString(localeStr, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -502,12 +528,21 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         .select('*')
         .in('subject_id', allSubjectIds);
 
+      // Fetch the student's submissions to check which assignments are already submitted
+      const submittedAssignmentIds = new Set<string>();
+      if (assignments && assignments.length > 0 && profile.role === 'student') {
+        const assignmentIds = assignments.map(a => a.id);
+        const { data: mySubmissions } = await supabase.from('submissions').select('assignment_id').eq('student_id', profile.id).in('assignment_id', assignmentIds);
+        if (mySubmissions) for (const s of mySubmissions) submittedAssignmentIds.add(s.assignment_id);
+      }
+
       if (assignments) {
         for (const a of assignments) {
           if (a.due_date) {
             const dueDate = new Date(a.due_date);
             const diffDays = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
             if (diffDays > -7) {
+              const isSubmitted = submittedAssignmentIds.has(a.id);
               items.push({
                 id: `auto-assignment-${a.id}`,
                 title: a.title || '',
@@ -517,9 +552,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 subject_id: a.subject_id,
                 subject_name: a.subject_id ? subjectNameMap[a.subject_id] || null : null,
                 source: 'auto',
-                completed: false,
+                completed: isSubmitted,
                 autoType: 'assignment',
                 teacher_name: a.subject_id ? teacherNameMap[subjectTeacherMap[a.subject_id]] || null : null,
+                submissionStatus: isSubmitted ? 'submitted' : 'not_submitted',
               });
             }
           }
@@ -694,6 +730,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       scheduled_time: at.scheduled_time ?? null,
       duration: at.duration ?? null,
       autoType: at.autoType,
+      submissionStatus: at.submissionStatus ?? null,
     }));
     return [...todos, ...autoAsUserTodos];
   }, [todos, autoTodos, profile.id]);
@@ -1097,6 +1134,9 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     const showDeleteConfirm = deleteConfirmId === todo.id;
     const overdue = todo.due_date ? isOverdue(todo.due_date) && !todo.completed : false;
     const dueSoon = todo.due_date ? isDueSoon(todo.due_date) && !todo.completed : false;
+    // Assignment-specific: submitted = strikethrough, unsubmitted past-due = red
+    const isSubmittedAssignment = todo.submissionStatus === 'submitted';
+    const isUnsubmittedPastDue = todo.submissionStatus === 'not_submitted' && overdue;
 
     return (
       <motion.div
@@ -1106,7 +1146,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         layout
         className={`group relative rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md ${
           todo.completed ? 'opacity-60' : ''
-        } ${overdue ? 'border-rose-300 dark:border-rose-900/60' : ''}`}
+        } ${isUnsubmittedPastDue ? 'border-rose-400 dark:border-rose-700 bg-rose-50/50 dark:bg-rose-900/10' : overdue ? 'border-rose-300 dark:border-rose-900/60' : ''}`}
       >
         <div className="flex items-start gap-3" dir={direction}>
           {/* Checkbox */}
@@ -1131,9 +1171,11 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             <div className="flex items-start justify-between gap-2">
               <p
                 className={`text-sm font-medium leading-snug ${
-                  todo.completed
+                  todo.completed || isSubmittedAssignment
                     ? 'line-through text-muted-foreground'
-                    : 'text-foreground'
+                    : isUnsubmittedPastDue
+                      ? 'text-rose-600 dark:text-rose-400 font-bold'
+                      : 'text-foreground'
                 }`}
               >
                 {todo.title}
@@ -1249,6 +1291,17 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                     ? t('todos.byTeacher', { name: todo.teacher_name })
                     : (todo.id.startsWith('auto-quiz') ? t('todos.autoQuiz') : todo.id.startsWith('auto-assignment') ? t('todos.autoAssignment') : 'auto')
                   }
+                </span>
+              )}
+
+              {/* Submission status badge for auto-assignment todos */}
+              {todo.submissionStatus && (
+                <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                  todo.submissionStatus === 'submitted'
+                    ? 'bg-emerald-100 dark:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-400'
+                }`}>
+                  {todo.submissionStatus === 'submitted' ? t('todos.submitted') || 'تم التسليم' : t('todos.notSubmitted') || 'غير مسلّمة'}
                 </span>
               )}
             </div>

@@ -13,7 +13,7 @@ import {
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInstitutionStore } from '@/stores/institution-store';
-import { useStatusStore, getStatusColor } from '@/stores/status-store';
+import { useStatusStore, getStatusDotColor, initInternetListeners, useInternetStore } from '@/stores/status-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useLocaleStore } from '@/i18n/locale-store';
 import NotificationBell from '@/components/shared/notification-bell';
@@ -72,6 +72,7 @@ export default function AppHeader({
   const { openProfile, setReportsUnreadCount } = useAppStore();
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
   const { myStatus, init: initStatusStore } = useStatusStore();
+  const isInternetOnline = useInternetStore((s) => s.isOnline);
   const { t, direction } = useTranslations();
   const { locale, setLocale } = useLocaleStore();
   const { updateProfile } = useAuthStore();
@@ -81,6 +82,8 @@ export default function AppHeader({
     if (userId) {
       initStatusStore(userId);
     }
+    // Initialize internet status listeners for disconnect/reconnect toast
+    initInternetListeners();
   }, [initStatusStore, userId]);
 
   // Pre-fetch reports count for sidebar badge + Realtime subscription for live updates
@@ -223,13 +226,13 @@ export default function AppHeader({
                 <div className="relative">
                   <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
                   {/* Status dot on desktop avatar */}
-                  <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                  <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusDotColor(myStatus)}`} />
                 </div>
               </div>
               {/* Mobile: Just avatar with status dot */}
               <div className="md:hidden relative">
                 <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
-                <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusDotColor(myStatus)}`} />
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden md:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>

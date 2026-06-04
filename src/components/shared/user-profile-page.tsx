@@ -46,7 +46,7 @@ import UserAvatar, { getRoleLabel, getTitleLabel } from '@/components/shared/use
 import UserLink from '@/components/shared/user-link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { useStatusStore, getStatusColor as getStoreStatusColor, getStatusLabel as getStoreStatusLabel, getStatusTextColor as getStoreStatusTextColor, getStatusBorderColor as getStoreStatusBorderColor } from '@/stores/status-store';
+import { useStatusStore, getStatusColor as getStoreStatusColor, getStatusDotColor, getStatusLabel as getStoreStatusLabel, getStatusTextColor as getStoreStatusTextColor, getStatusBorderColor as getStoreStatusBorderColor, useInternetStore } from '@/stores/status-store';
 import { toast } from 'sonner';
 import type { UserProfile, UserFile, FileRequest, UserStatus, Subject } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -173,7 +173,7 @@ function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' 
 }
 
 function getStatusColor(status: UserStatus) {
-  return getStoreStatusColor(status);
+  return getStatusDotColor(status);
 }
 
 function getStatusLabel(status: UserStatus) {
@@ -537,7 +537,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                   variant="outline"
                   className={`text-[11px] font-medium gap-1.5 ${getStatusBorderColor(profileUserStatus)} ${getStatusTextColor(profileUserStatus)}`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${getStatusColor(profileUserStatus)} ${profileUserStatus === 'online' ? 'animate-pulse' : ''}`} />
+                  <span className={`h-2 w-2 rounded-full ${getStatusColor(profileUserStatus)}`} />
                   {getStatusLabel(profileUserStatus)}
                 </Badge>
               )}

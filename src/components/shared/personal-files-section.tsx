@@ -2416,10 +2416,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
               {file.visibility === 'public' ? t('files.public') : t('files.private')}
             </span>
-            {!currentFolderId && file.folder_id && (() => {
-              const { rootFolder, path } = getFolderPath(file.folder_id);
-              if (!rootFolder) return null;
-              const displayName = rootFolder.name;
+            {file.folder_id && (() => {
+              const { path } = getFolderPath(file.folder_id);
+              const deepestFolder = path.length > 0 ? path[path.length - 1] : null;
+              if (!deepestFolder) return null;
               const fullPath = path.map(f => f.name).join(' / ');
               const hasNestedPath = path.length > 1;
               return (
@@ -2429,13 +2429,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setCurrentFolderId(rootFolder.id);
+                        // Navigate to the deepest folder containing this file
+                        setCurrentFolderId(deepestFolder.id);
                         setCategoryFilter('all');
                       }}
                       className="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 flex items-center gap-0.5 hover:bg-amber-200 dark:hover:bg-amber-700/50 transition-colors cursor-pointer"
                     >
                       <FolderIcon className="h-2.5 w-2.5" />
-                      {displayName}
+                      {deepestFolder.name}
                       {hasNestedPath && <span className="text-[8px] opacity-60">…</span>}
                     </button>
                   </TooltipTrigger>
