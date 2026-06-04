@@ -1,39 +1,29 @@
-# Task 4: Improve File Name Duplicate Validation
+# Task 4 — Admin Performance Tracking Section Component & Integration
+
+**Agent**: main
+**Date**: 2025-03-04
 
 ## Summary
-Improved file name duplicate validation across all file upload flows in the Attendo LMS. The changes ensure that when a file with the same name AND extension already exists, the user gets a specific Arabic error message and can rename the file and retry — instead of the previous behavior of just showing a generic error and closing the modal.
-
-## Files Modified
-1. `/home/z/my-project/src/components/course/tabs/lectures-tab.tsx`
-2. `/home/z/my-project/src/components/course/tabs/lecture-modal.tsx`
-3. `/home/z/my-project/src/components/shared/personal-files-section.tsx`
+Created the `AdminPerformanceTrackingSection` component and integrated it into the admin dashboard for a bilingual (Arabic/English) LMS platform.
 
 ## Key Changes
 
-### lectures-tab.tsx
-- Extended `PendingFile` with `error` and `errorCode` fields
-- Added `createdLectureId` and `existingSubjectFileNames` state
-- Added `retryFileUpload` function for single-file retry
-- Added `fetchExistingSubjectFileNames` function for client-side pre-validation
-- Improved DUPLICATE_NAME handling in all 3 upload paths (fetch, XHR, JSON mode)
-- Keep modal open when file uploads fail (instead of always closing)
-- Added client-side pre-validation when selecting files
-- Updated UI with error messages, retry buttons, and amber styling for duplicate errors
-- Rename field clears error status on change
+### New File
+- `src/components/admin/admin-performance-tracking-section.tsx` — Full performance tracking component with:
+  - 6 overview stat cards (students, teachers, courses, avg performance, at-risk, top performers)
+  - Tabbed view (Students / Teachers / Courses) with search
+  - Student metrics computed via `computeAllMetrics` from `@/lib/performance-calculator`
+  - Teacher stats with subject count, student count, avg performance, at-risk count
+  - Course stats with enrollment, avg performance, at-risk count
+  - XLSX export with 3 sheets
+  - Status Guide (performance levels, risk levels, growth indicators)
+  - **Fixed**: Used `useEffect` instead of incorrect `useMemo` for data fetching
 
-### lecture-modal.tsx
-- Extended `PendingFile` with `errorCode` field
-- Added `existingSubjectFileNames` state and fetch logic
-- Added client-side pre-validation when selecting files
-- Improved DUPLICATE_NAME handling in server upload and JSON mode paths
-- Added inline retry button with full re-upload logic
-- Updated UI with error messages, retry buttons, and amber styling
+### Modified Files
+- `src/components/admin/admin-dashboard.tsx` — Added import, nav item, section rendering
+- `src/i18n/messages/en.json` — Added nav.performanceTracking + 8 admin keys
+- `src/i18n/messages/ar.json` — Added nav.performanceTracking + 8 admin keys
+- `src/lib/types.ts` — AdminSection already had 'performanceTracking' from prior task
 
-### personal-files-section.tsx
-- Added client-side pre-validation in `handleFileSelect`
-- Checks against existing personal files and pending uploads
-- Shows warning toast with duplicate file names
-
-## Build Status
-- Build: ✅ Successful
-- Lint: ✅ No errors in modified files
+## Verification
+- `bun run lint` passed with zero errors

@@ -33,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -270,6 +271,7 @@ export default function TeacherStudentTrackingSection({
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk'>('level');
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
@@ -707,17 +709,56 @@ export default function TeacherStudentTrackingSection({
             <p className="text-sm text-muted-foreground">{t('teacher.trackingSubtitle')}</p>
           </div>
         </div>
-        {/* Export button */}
-        <motion.button
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-l from-sky-600 to-teal-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
-        >
-          <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">{t('teacher.trackingExportData')}</span>
-        </motion.button>
+        {/* Export button & Info button */}
+        <div className="flex items-center gap-2">
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setShowInstructions(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-100 dark:ring-sky-900/40 text-sky-600 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+          >
+            <Info className="h-4 w-4" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-l from-sky-600 to-teal-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('teacher.trackingExportData')}</span>
+          </motion.button>
+        </div>
       </motion.div>
+
+      {/* Instructions Dialog */}
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-sky-600" />
+              {t('teacher.trackingInstructionsTitle')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 p-2">
+            <p className="text-sm text-muted-foreground">{t('teacher.trackingInstructionsDesc')}</p>
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30">
+                <p className="text-sm font-medium text-sky-700 dark:text-sky-400 mb-1">📊 {t('teacher.trackingAvgPerformance')}</p>
+                <p className="text-xs text-muted-foreground">{t('teacher.trackingInstructionsOverview')}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">🛡️ {t('teacher.trackingRiskLevel')}</p>
+                <p className="text-xs text-muted-foreground">{t('teacher.trackingInstructionsRisk')}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">🎯 {t('teacher.trackingCourseStatus')}</p>
+                <p className="text-xs text-muted-foreground">{t('teacher.trackingInstructionsCourseIndicator')}</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Overview Cards (6 cards) ── */}
       <motion.div variants={itemVariants}>
@@ -812,6 +853,68 @@ export default function TeacherStudentTrackingSection({
             </CardContent>
           </Card>
         </div>
+      </motion.div>
+
+      {/* Section Health Indicator */}
+      <motion.div variants={itemVariants}>
+        <Card className={`border-2 shadow-md ${
+          overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
+            ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/30 dark:bg-emerald-900/10'
+            : overviewStats.avgPerformance >= 50
+            ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/10'
+            : 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/10'
+        }`}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full ${
+                overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30 ring-2 ring-emerald-200 dark:ring-emerald-900/60'
+                  : overviewStats.avgPerformance >= 50
+                  ? 'bg-amber-100 dark:bg-amber-900/30 ring-2 ring-amber-200 dark:ring-amber-900/60'
+                  : 'bg-rose-100 dark:bg-rose-900/30 ring-2 ring-rose-200 dark:ring-rose-900/60'
+              }`}>
+                {overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70 ? (
+                  <Award className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                ) : overviewStats.avgPerformance >= 50 ? (
+                  <Target className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-foreground">{t('teacher.trackingSectionHealth')}</h3>
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  <Badge className={`text-xs px-2 py-0.5 border-0 ${
+                    overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : overviewStats.avgPerformance >= 50
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                  }`}>
+                    {overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
+                      ? t('teacher.trackingAdvanced')
+                      : overviewStats.avgPerformance >= 50
+                      ? t('teacher.trackingNeedsAttention')
+                      : t('teacher.trackingAtRiskCourse')}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {Math.round(overviewStats.avgPerformance)}% {t('teacher.trackingAvgPerformance')}
+                  </span>
+                  {overviewStats.atRiskStudents > 0 && (
+                    <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                      {overviewStats.atRiskStudents} {t('teacher.trackingRiskLevel')}
+                    </span>
+                  )}
+                  {overviewStats.topPerformers > 0 && (
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                      {overviewStats.topPerformers} {t('teacher.trackingTopPerformers')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* ── Classification Distribution with Tabs (level / range / risk) ── */}
@@ -1399,12 +1502,24 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformanceData }
   const riskConfig = getRiskLevelConfig(subject.riskLevel);
   const growthConfig = getGrowthTrendConfig(subject.growthTrend);
 
+  const getCourseStatusConfig = (pct: number) => {
+    if (pct >= 80) return { label: t('teacher.trackingAdvanced'), className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/60' };
+    if (pct >= 60) return { label: t('teacher.trackingOnTrack'), className: 'bg-sky-50 text-sky-700 dark:bg-sky-900/15 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' };
+    if (pct >= 40) return { label: t('teacher.trackingNeedsAttention'), className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-100 dark:border-amber-900/60' };
+    return { label: t('teacher.trackingAtRiskCourse'), className: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400 border-rose-100 dark:border-rose-900/60' };
+  };
+
+  const courseStatus = getCourseStatusConfig(subject.overallPerformance);
+
   return (
     <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80 space-y-2">
       <div className="flex items-center gap-2 justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
           <span className="text-xs font-medium text-gray-900 dark:text-foreground truncate">{subject.subjectName}</span>
+          <Badge variant="outline" className={`text-[8px] px-1 py-0 border ${courseStatus.className} shrink-0`}>
+            {courseStatus.label}
+          </Badge>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <span className={`text-[10px] ${growthConfig.textColor}`}>{growthConfig.icon}</span>
@@ -1530,20 +1645,11 @@ function StudentCard({
     inactivity: t('teacher.trackingRiskReasonInactivity'),
   };
 
-  // ─── Download individual student report ───
-  const handleDownloadStudentReport = useCallback((studentData: StudentPerformanceData) => {
+  // ─── Download individual student report (.xlsx) ───
+  const handleDownloadStudentReport = useCallback(async (studentData: StudentPerformanceData) => {
     const m = studentData.metrics;
-    const efficiencyLabelMap: Record<EfficiencyLevel, string> = {
-      high: t('teacher.trackingEfficiencyHigh'),
-      medium: t('teacher.trackingEfficiencyMedium'),
-      low: t('teacher.trackingEfficiencyLow'),
-      insufficient: t('teacher.trackingEfficiencyInsufficient'),
-    };
-    const growthLabelMap: Record<GrowthTrend, string> = {
-      improving: t('teacher.trackingGrowthImproving'),
-      stable: t('teacher.trackingGrowthStable'),
-      declining: t('teacher.trackingGrowthDeclining'),
-    };
+    const XLSX = await import('xlsx');
+
     const riskLabelMap: Record<RiskLevel, string> = {
       healthy: t('teacher.trackingRiskHealthy'),
       monitor: t('teacher.trackingRiskMonitor'),
@@ -1557,49 +1663,69 @@ function StudentCard({
       acceptable: t('teacher.trackingLevelAcceptable'),
       weak: t('teacher.trackingLevelWeak'),
     };
+    const efficiencyLabelMap: Record<EfficiencyLevel, string> = {
+      high: t('teacher.trackingEfficiencyHigh'),
+      medium: t('teacher.trackingEfficiencyMedium'),
+      low: t('teacher.trackingEfficiencyLow'),
+      insufficient: t('teacher.trackingEfficiencyInsufficient'),
+    };
+    const growthLabelMap: Record<GrowthTrend, string> = {
+      improving: t('teacher.trackingGrowthImproving'),
+      stable: t('teacher.trackingGrowthStable'),
+      declining: t('teacher.trackingGrowthDeclining'),
+    };
 
-    const separator = locale === 'ar' ? ' | ' : ', ';
-    const lines = [
-      `${locale === 'ar' ? 'تقرير أداء الطالب' : 'Student Performance Report'}`,
-      `${'═'.repeat(50)}`,
-      ``,
-      `${locale === 'ar' ? 'الاسم' : 'Name'}: ${studentData.student.name}`,
-      `${locale === 'ar' ? 'البريد الإلكتروني' : 'Email'}: ${studentData.student.email}`,
-      ``,
-      `${locale === 'ar' ? '── الأداء العام ──' : '── Overall Performance ──'}`,
-      `${locale === 'ar' ? 'الأداء العام' : 'Overall'}: ${Math.round(m.overallPerformance)}%`,
-      `${locale === 'ar' ? 'التصنيف' : 'Classification'}: ${levelLabelMap[studentData.level]}`,
-      ``,
-      `${locale === 'ar' ? '── التفاصيل ──' : '── Details ──'}`,
-      `${locale === 'ar' ? 'أداء الاختبارات' : 'Exam Performance'}: ${Math.round(m.examPerformance)}%`,
-      `${locale === 'ar' ? 'درجة الحضور' : 'Attendance Score'}: ${Math.round(m.attendanceScore)}%`,
-      `${locale === 'ar' ? 'التزام الواجبات' : 'Assignment Compliance'}: ${Math.round(m.assignmentCompliance)}%`,
-      `${locale === 'ar' ? 'جودة الواجبات' : 'Assignment Quality'}: ${Math.round(m.assignmentQuality)}%`,
-      ``,
-      `${locale === 'ar' ? '── المؤشرات المتقدمة ──' : '── Advanced Indicators ──'}`,
-      `${locale === 'ar' ? 'الكفاءة' : 'Efficiency'}: ${Math.round(m.efficiency)}% (${efficiencyLabelMap[m.efficiencyLevel]})`,
-      `${locale === 'ar' ? 'درجة الانضباط' : 'Discipline Score'}: ${Math.round(m.disciplineScore)}%`,
-      `${locale === 'ar' ? 'مؤشر النمو' : 'Growth Index'}: ${m.growthIndex.toFixed(2)}x (${growthLabelMap[m.growthTrend]})`,
-      `${locale === 'ar' ? 'مستوى الخطورة' : 'Risk Level'}: ${riskLabelMap[m.riskLevel]}`,
-      ...(m.riskReasons.length > 0 ? [`${locale === 'ar' ? 'أسباب الخطورة' : 'Risk Reasons'}: ${m.riskReasons.map(r => riskReasonTranslationMap[r] || r).join(separator)}`] : []),
-      ``,
-      `${locale === 'ar' ? '── أداء المواد ──' : '── Subject Performance ──'}`,
-      ...studentData.subjectPerformances.map(sp =>
-        `${sp.subjectName}: ${Math.round(sp.overallPerformance)}% (${locale === 'ar' ? 'اختبارات' : 'Exam'} ${Math.round(sp.examPerformance)}%${separator}${locale === 'ar' ? 'حضور' : 'Att'} ${Math.round(sp.attendanceScore)}%)`
-      ),
-      ``,
-      `${locale === 'ar' ? 'تاريخ التقرير' : 'Report Date'}: ${new Date().toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+    // Sheet 1: Student Overview
+    const overviewData = [
+      [locale === 'ar' ? 'تقرير أداء الطالب' : 'Student Performance Report'],
+      [],
+      [locale === 'ar' ? 'الاسم' : 'Name', studentData.student.name],
+      [locale === 'ar' ? 'البريد الإلكتروني' : 'Email', studentData.student.email],
+      [],
+      [locale === 'ar' ? 'الأداء العام' : 'Overall Performance', `${Math.round(m.overallPerformance)}%`],
+      [locale === 'ar' ? 'التصنيف' : 'Classification', levelLabelMap[studentData.level]],
+      [],
+      [locale === 'ar' ? 'أداء الاختبارات' : 'Exam Performance', `${Math.round(m.examPerformance)}%`],
+      [locale === 'ar' ? 'درجة الحضور' : 'Attendance Score', `${Math.round(m.attendanceScore)}%`],
+      [locale === 'ar' ? 'التزام الواجبات' : 'Assignment Compliance', `${Math.round(m.assignmentCompliance)}%`],
+      [locale === 'ar' ? 'جودة الواجبات' : 'Assignment Quality', `${Math.round(m.assignmentQuality)}%`],
+      [],
+      [locale === 'ar' ? 'الكفاءة' : 'Efficiency', `${Math.round(m.efficiency)}%`, efficiencyLabelMap[m.efficiencyLevel]],
+      [locale === 'ar' ? 'درجة الانضباط' : 'Discipline Score', `${Math.round(m.disciplineScore)}%`],
+      [locale === 'ar' ? 'مؤشر النمو' : 'Growth Index', m.growthIndex.toFixed(2), growthLabelMap[m.growthTrend]],
+      [locale === 'ar' ? 'مستوى الخطورة' : 'Risk Level', riskLabelMap[m.riskLevel]],
+      ...(m.riskReasons.length > 0 ? [[locale === 'ar' ? 'أسباب الخطورة' : 'Risk Reasons', m.riskReasons.map(r => riskReasonTranslationMap[r] || r).join('; ')]] : []),
     ];
 
-    const BOM = '\uFEFF';
-    const content = BOM + lines.join('\n');
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `report_${studentData.student.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Sheet 2: Subject Performance
+    const subjectHeaders = [
+      locale === 'ar' ? 'المقرر' : 'Subject',
+      locale === 'ar' ? 'الأداء العام' : 'Overall',
+      locale === 'ar' ? 'اختبارات' : 'Exam',
+      locale === 'ar' ? 'حضور' : 'Attendance',
+      locale === 'ar' ? 'التزام' : 'Compliance',
+      locale === 'ar' ? 'جودة' : 'Quality',
+    ];
+    const subjectRows = studentData.subjectPerformances.map(sp => [
+      sp.subjectName,
+      `${Math.round(sp.overallPerformance)}%`,
+      `${Math.round(sp.examPerformance)}%`,
+      `${Math.round(sp.attendanceScore)}%`,
+      `${Math.round(sp.assignmentCompliance)}%`,
+      `${Math.round(sp.assignmentQuality)}%`,
+    ]);
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(overviewData);
+    const ws2 = XLSX.utils.aoa_to_sheet([subjectHeaders, ...subjectRows]);
+
+    // Set column widths
+    ws1['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }];
+    ws2['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+
+    XLSX.utils.book_append_sheet(wb, ws1, locale === 'ar' ? 'نظرة عامة' : 'Overview');
+    XLSX.utils.book_append_sheet(wb, ws2, locale === 'ar' ? 'أداء المواد' : 'Subjects');
+    XLSX.writeFile(wb, `report_${studentData.student.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }, [t, locale, riskReasonTranslationMap]);
 
   return (
@@ -1639,10 +1765,12 @@ function StudentCard({
               showAvatar={false}
               showRole={false}
             />
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1 truncate max-w-[180px]">
-              <Mail className="h-2.5 w-2.5 shrink-0" />
-              <span className="truncate">{data.student.email}</span>
-            </span>
+            {data.student.email && (
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1 truncate max-w-[180px]">
+                <Mail className="h-3 w-3 shrink-0" />
+                <span className="truncate">{data.student.email}</span>
+              </span>
+            )}
             <Badge
               variant="secondary"
               className={`${levelConfig.bgColor} ${levelConfig.textColor} text-[10px] px-1.5 py-0 border-0 font-bold`}

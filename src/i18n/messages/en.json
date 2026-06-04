@@ -295,7 +295,8 @@
     "students": "Students",
     "teachers": "Teachers",
     "tracking": "Student Tracking",
-    "studentTracking": "Student Tracking",
+    "studentTracking": "Level Tracking",
+    "performanceTracking": "Performance Tracking",
     "files": "My Files",
     "summaries": "Summaries",
     "assignments": "Assignments",
@@ -319,7 +320,8 @@
     "todos": "My Tasks",
     "calendar": "Calendar",
     "stickyNotes": "Sticky Notes",
-    "platformAnnouncements": "Celebrations & Alerts"
+    "platformAnnouncements": "Celebrations & Alerts",
+    "performanceTracking": "Performance Tracking"
   },
   "roles": {
     "student": "Student",
@@ -357,7 +359,7 @@
     "aiAnalysis": "Smart analysis & summarization",
     "smartSummary": "Smart Summary",
     "fromAnySource": "From any educational source",
-    "studentTracking": "Student Tracking",
+    "studentTracking": "Level Tracking",
     "reportsAndStats": "Reports & statistics",
     "secureAndTrusted": "Secure & Trusted",
     "dataProtection": "Your data protection"
@@ -2643,7 +2645,16 @@
     "veryGood75": "Very Good (75-89%)",
     "weak": "Weak",
     "weakBelow60": "Weak (Below 60%)",
-    "welcome": "Welcome"
+    "welcome": "Welcome",
+    "performanceTrackingTitle": "Performance Tracking",
+    "performanceTrackingSubtitle": "Monitor student, teacher, and course performance across the platform",
+    "performanceTrackingStudents": "Students",
+    "performanceTrackingTeachers": "Teachers",
+    "performanceTrackingCourses": "Courses",
+    "performanceTrackingAdvanced": "Advanced",
+    "performanceTrackingOnTrack": "On Track",
+    "performanceTrackingNeedsAttention": "Needs Attention",
+    "performanceTrackingAtRisk": "At Risk"
   },
   "setup": {
     "setup": "Setup",
@@ -2866,7 +2877,7 @@
   "teacher": {
     "mySubjects": "My Subjects",
     "myStudents": "My Students",
-    "studentTracking": "Student Tracking",
+    "studentTracking": "Level Tracking",
     "overallPerformance": "Overall Performance",
     "quizPerformance": "Quiz Performance",
     "attendancePerformance": "Attendance Performance",
@@ -3399,6 +3410,17 @@
     "trackingTimelineFilterGrading": "Grading",
     "trackingTimelineFilterRisk": "Alerts",
     "trackingOutOf": "{attended}/{total} sessions",
+    "trackingSectionHealth": "Section Health",
+    "trackingAdvanced": "Advanced",
+    "trackingOnTrack": "On Track",
+    "trackingNeedsAttention": "Needs Attention",
+    "trackingAtRiskCourse": "At Risk",
+    "trackingCourseStatus": "Course Status",
+    "trackingInstructionsTitle": "Student Tracking Guide",
+    "trackingInstructionsDesc": "This section provides a comprehensive overview of your students' performance, attendance, and risk levels. Use it to identify students who need support and recognize top performers.",
+    "trackingInstructionsOverview": "The average performance across all students in the section. A higher percentage indicates better overall class performance.",
+    "trackingInstructionsRisk": "Students flagged with risk indicators need immediate attention. Risk levels are calculated based on attendance, performance, and assignment completion patterns.",
+    "trackingInstructionsCourseIndicator": "Each course shows a status badge: Advanced (≥80%), On Track (≥60%), Needs Attention (≥40%), or At Risk (<40%). Use these to identify which subjects need more focus.",
     "transcribeOnly": "Transcribe Only",
     "transcribeOnlyDesc": "Extract text from file without summarizing",
     "verifyingPendingSummaries": "Verifying {count} pending summary(s)...",

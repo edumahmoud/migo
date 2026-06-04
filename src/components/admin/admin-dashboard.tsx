@@ -85,6 +85,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import PlatformAnnouncementsSection from '@/components/admin/platform-announcements-section';
+import AdminPerformanceTrackingSection from '@/components/admin/admin-performance-tracking-section';
 
 // -------------------------------------------------------
 // Props
@@ -127,6 +128,7 @@ const adminNavItemDefs = [
   { id: 'platformAnnouncements', labelKey: 'nav.platformAnnouncements', icon: <PartyPopper className="h-5 w-5" /> },
   { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
   { id: 'comments', labelKey: 'admin.comments', icon: <Flag className="h-5 w-5" /> },
+  { id: 'performanceTracking', labelKey: 'nav.performanceTracking', icon: <Activity className="h-5 w-5" /> },
   { id: 'complaints', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'reports', labelKey: 'nav.reports', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
@@ -3947,6 +3949,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'comments' && (
                 <motion.div key="comments" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderCommentModeration()}
+                </motion.div>
+              )}
+              {activeSection === 'performanceTracking' && (
+                <motion.div key="performanceTracking" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <AdminPerformanceTrackingSection profile={profile} />
                 </motion.div>
               )}
               {activeSection === 'complaints' && (

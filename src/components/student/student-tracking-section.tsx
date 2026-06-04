@@ -27,6 +27,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Score, Submission, Assignment, Subject } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import { useLocaleStore } from '@/i18n/locale-store';
@@ -448,6 +449,7 @@ export default function StudentTrackingSection({
 
   // ─── Timeline filter state ───
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all');
+  const [showInstructions, setShowInstructions] = useState(false);
 
   const filteredTimeline = useMemo(() => {
     if (timelineFilter === 'all') return activityTimeline;
@@ -515,6 +517,14 @@ export default function StudentTrackingSection({
     return map[trend];
   }, [t]);
 
+  // ─── Per-course status config helper ───
+  const getCourseStatusConfig = useCallback((pct: number) => {
+    if (pct >= 80) return { label: t('student.trackingAdvanced'), className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/60' };
+    if (pct >= 60) return { label: t('student.trackingOnTrack'), className: 'bg-sky-50 text-sky-700 dark:bg-sky-900/15 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' };
+    if (pct >= 40) return { label: t('student.trackingNeedsAttention'), className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-100 dark:border-amber-900/60' };
+    return { label: t('student.trackingAtRiskCourse'), className: 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400 border-rose-100 dark:border-rose-900/60' };
+  }, [t]);
+
   // ─── Attendance status badge renderer ───
   const renderAttendanceStatusBadge = (status: 'present' | 'late' | 'partial' | 'absent') => {
     const badgeConfig: Record<string, { label: string; className: string }> = {
@@ -574,6 +584,89 @@ export default function StudentTrackingSection({
           <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground">{t('student.trackingTitle')}</h1>
           <p className="text-sm text-muted-foreground">{t('student.trackingSubtitle')}</p>
         </div>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowInstructions(true)}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-100 dark:ring-sky-900/40 text-sky-600 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors"
+        >
+          <Info className="h-4 w-4" />
+        </motion.button>
+        <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Info className="h-5 w-5 text-sky-600" />
+                {t('student.trackingInstructionsTitle')}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 p-2">
+              <p className="text-sm text-muted-foreground">{t('student.trackingInstructionsDesc')}</p>
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30">
+                  <p className="text-sm font-medium text-sky-700 dark:text-sky-400 mb-1">📊 {t('student.trackingOverallProgress')}</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsPerformance')}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
+                  <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">🛡️ {t('student.trackingRiskLevel')}</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsRisk')}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">📈 {t('student.trackingGrowthIndex')}</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsGrowth')}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30">
+                  <p className="text-sm font-medium text-teal-700 dark:text-teal-400 mb-1">⚡ {t('student.trackingEfficiency')}</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsEfficiency')}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/10 border border-violet-100 dark:border-violet-900/30">
+                  <p className="text-sm font-medium text-violet-700 dark:text-violet-400 mb-1">🎯 {t('student.trackingCourseStatus')}</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingInstructionsCourseIndicator')}</p>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </motion.div>
+
+      {/* Current Status Indicator Banner */}
+      <motion.div variants={itemVariants}>
+        <Card className={`border-2 ${performanceConfig.ringColor} ${performanceConfig.bgColor} shadow-md`}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full ${performanceConfig.bgColor} ring-2 ${performanceConfig.ringColor}`}>
+                {metrics.overallPerformance >= 80 ? (
+                  <Award className={`h-7 w-7 ${performanceConfig.textColor}`} />
+                ) : metrics.overallPerformance >= 60 ? (
+                  <Target className={`h-7 w-7 ${performanceConfig.textColor}`} />
+                ) : (
+                  <AlertTriangle className={`h-7 w-7 ${performanceConfig.textColor}`} />
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-foreground">
+                    {t('student.trackingCurrentStatus')}
+                  </h2>
+                  <Badge className={`${performanceConfig.bgColor} ${performanceConfig.textColor} border-0 text-sm px-3 py-1`}>
+                    {performanceConfig.icon} {t(`student.trackingExamPerformance`)}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className={`text-2xl font-bold ${performanceConfig.textColor}`}>
+                    {Math.round(metrics.overallPerformance)}%
+                  </span>
+                  <Badge variant="outline" className={`${riskConfig.bgColor} ${riskConfig.textColor} ${riskConfig.borderColor} text-xs`}>
+                    {getRiskLevelLabel(metrics.riskLevel)}
+                  </Badge>
+                  <Badge className={`${growthConfig.key === 'improving' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : growthConfig.key === 'stable' ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'} border-0 text-xs`}>
+                    {growthConfig.icon} {getGrowthTrendLabel(metrics.growthTrend)}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════
@@ -693,7 +786,7 @@ export default function StudentTrackingSection({
                 )}
               </div>
               <span className={`text-xl font-bold mt-2 ${growthConfig.textColor}`}>
-                {metrics.growthIndex.toFixed(2)}x
+                {metrics.growthIndex.toFixed(2)}
               </span>
               <span className="text-xs font-medium text-muted-foreground">{t('student.trackingGrowthIndex')}</span>
               <Badge
@@ -900,9 +993,14 @@ export default function StudentTrackingSection({
                     >
                       {/* Subject header row */}
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-foreground truncate max-w-[200px]">
-                          {subject.subjectName}
-                        </p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-foreground truncate max-w-[200px]">
+                            {subject.subjectName}
+                          </p>
+                          <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 shrink-0 ${getCourseStatusConfig(subject.overallPerformance).className}`}>
+                            {getCourseStatusConfig(subject.overallPerformance).label}
+                          </Badge>
+                        </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {/* Growth trend badge */}
                           <Badge

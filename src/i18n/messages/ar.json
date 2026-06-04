@@ -295,7 +295,8 @@
     "students": "الطلاب",
     "teachers": "المعلمون",
     "tracking": "تتبع الطلاب",
-    "studentTracking": "تتبع الطالب",
+    "studentTracking": "تتبع المستوى",
+    "performanceTracking": "تتبع الأداء",
     "files": "ملفاتي",
     "summaries": "الملخصات",
     "assignments": "المهام",
@@ -319,7 +320,8 @@
     "todos": "مهامي",
     "calendar": "التقويم",
     "stickyNotes": "ملاحظات عائمة",
-    "platformAnnouncements": "المعايدات والإعلانات"
+    "platformAnnouncements": "المعايدات والإعلانات",
+    "performanceTracking": "تتبع الأداء"
   },
   "roles": {
     "student": "طالب",
@@ -357,7 +359,7 @@
     "aiAnalysis": "تلخيص وتحليل ذكي",
     "smartSummary": "تلخيص ذكي",
     "fromAnySource": "من أي مصدر تعليمي",
-    "studentTracking": "متابعة الطلاب",
+    "studentTracking": "تتبع المستوى",
     "reportsAndStats": "تقارير وإحصائيات",
     "secureAndTrusted": "آمن وموثوق",
     "dataProtection": "حماية بياناتك"
@@ -2644,7 +2646,16 @@
     "veryGood75": "جيد جداً (75-89%)",
     "weak": "ضعيف",
     "weakBelow60": "ضعيف (أقل من 60%)",
-    "welcome": "مرحباً"
+    "welcome": "مرحباً",
+    "performanceTrackingTitle": "تتبع الأداء",
+    "performanceTrackingSubtitle": "مراقبة أداء الطلاب والمعلمين والمقررات عبر المنصة",
+    "performanceTrackingStudents": "الطلاب",
+    "performanceTrackingTeachers": "المعلمون",
+    "performanceTrackingCourses": "المقررات",
+    "performanceTrackingAdvanced": "متقدم",
+    "performanceTrackingOnTrack": "على المسار",
+    "performanceTrackingNeedsAttention": "يحتاج متابعة",
+    "performanceTrackingAtRisk": "في خطر"
   },
   "setup": {
     "setup": "الإعداد",
@@ -2867,7 +2878,7 @@
   "teacher": {
     "mySubjects": "مقرراتي",
     "myStudents": "طلابي",
-    "studentTracking": "تتبع الطلاب",
+    "studentTracking": "تتبع المستوى",
     "overallPerformance": "الأداء العام",
     "quizPerformance": "أداء الاختبارات",
     "attendancePerformance": "أداء الحضور",
@@ -3401,6 +3412,17 @@
     "trackingTimelineFilterGrading": "التقييم",
     "trackingTimelineFilterRisk": "التنبيهات",
     "trackingOutOf": "{attended}/{total} جلسة",
+    "trackingSectionHealth": "صحة الشعبة",
+    "trackingAdvanced": "متقدم",
+    "trackingOnTrack": "على المسار",
+    "trackingNeedsAttention": "يحتاج اهتمام",
+    "trackingAtRiskCourse": "في خطر",
+    "trackingCourseStatus": "حالة المقرر",
+    "trackingInstructionsTitle": "دليل تتبع الطلاب",
+    "trackingInstructionsDesc": "يوفر هذا القسم نظرة شاملة على أداء الطلاب وحضورهم ومستويات الخطورة. استخدمه لتحديد الطلاب الذين يحتاجون الدعم والتعرف على المتفوقين.",
+    "trackingInstructionsOverview": "متوسط الأداء عبر جميع الطلاب في الشعبة. النسبة الأعلى تشير إلى أداء أفضل للفصل بشكل عام.",
+    "trackingInstructionsRisk": "الطلاب الذين تم وضع علامة خطر عليهم يحتاجون اهتماماً فورياً. يتم حساب مستويات الخطورة بناءً على أنماط الحضور والأداء وإنجاز الواجبات.",
+    "trackingInstructionsCourseIndicator": "يُظهر كل مقرر شارة حالة: متقدم (≥80%)، على المسار (≥60%)، يحتاج اهتمام (≥40%)، أو في خطر (<40%). استخدم هذه لتحديد المواد التي تحتاج تركيز أكثر.",
     "transcribeOnly": "نسخ فقط",
     "transcribeOnlyDesc": "استخراج النص من الملف بدون تلخيص",
     "quizStartingNow": "بدأ الاختبار الآن!",
