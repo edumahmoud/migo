@@ -1649,7 +1649,7 @@ export default function TeacherStudentTrackingSection({
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
                                   <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
-                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthConfig.icon} {metrics.growthIndex.toFixed(1)}</span>
+                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {metrics.growthIndex.toFixed(1)}</span>
                                 </div>
                                 {metrics.riskLevel !== 'healthy' && (
                                   <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
@@ -1761,7 +1761,7 @@ export default function TeacherStudentTrackingSection({
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
                                   <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
-                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthConfig.icon} {metrics.growthIndex.toFixed(1)}</span>
+                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {metrics.growthIndex.toFixed(1)}</span>
                                 </div>
                                 {metrics.riskLevel !== 'healthy' && (
                                   <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
@@ -2125,7 +2125,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformanceData }
           </Badge>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span className={`text-[10px] ${growthConfig.textColor}`}>{growthConfig.icon}</span>
+          <span className={`text-[10px] ${growthConfig.textColor}`}>{growthCfg.icon}</span>
           {subject.riskLevel !== 'healthy' && (
             <span className={`h-2 w-2 rounded-full ${riskConfig.dotColor}`} />
           )}
@@ -2428,7 +2428,7 @@ function StudentCard({
         {/* Growth mini indicator */}
         <div className="hidden md:flex flex-col items-center gap-0.5 shrink-0">
           <span className={`text-sm font-bold ${growthConfig.textColor}`}>
-            {growthConfig.icon} {metrics.growthIndex.toFixed(1)}
+            {growthCfg.icon} {metrics.growthIndex.toFixed(1)}
           </span>
           <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingGrowthIndex')}</span>
         </div>
@@ -2625,7 +2625,7 @@ function StudentCard({
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className={`text-2xl font-bold ${growthConfig.textColor}`}>
-                      {growthConfig.icon} {metrics.growthIndex.toFixed(2)}
+                      {growthCfg.icon} {metrics.growthIndex.toFixed(2)}
                     </span>
                     <Badge
                       variant="secondary"
