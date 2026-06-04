@@ -52,11 +52,10 @@ import {
   Clock,
   Zap,
   ShieldCheck,
-  Trophy,
   ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { computeAllMetrics, calculatePercentile, getPerformanceLevelConfig, getRiskLevelConfig, type PerformanceLevel, type RiskLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
+import { computeAllMetrics, calculatePercentile, getPerformanceLevelConfig, type PerformanceLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
 import { useLocaleStore } from '@/i18n/locale-store';
 import { Badge } from '@/components/ui/badge';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -207,7 +206,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const [selectedStudent, setSelectedStudent] = useState<UserProfile | null>(null);
   const [studentDetailOpen, setStudentDetailOpen] = useState(false);
   const [resettingStudent, setResettingStudent] = useState(false);
-  const [expandedTopStudent, setExpandedTopStudent] = useState<string | null>(null);
 
   // ─── Quiz answers review state ───
   const [viewingScore, setViewingScore] = useState<Score | null>(null);
@@ -1327,115 +1325,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         />
       </motion.div>
 
-      {/* Top Students by Points — Horizontal Leaderboard Strip */}
-      <motion.div variants={itemVariants}>
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between border-b px-4 py-2.5">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-500" />
-              {t('teacher.topStudentsByPoints')}
-            </h3>
-            <span className="text-[10px] text-muted-foreground">
-              {allStudentMetrics.length > 0 ? `${Math.min(5, allStudentMetrics.length)}/${allStudentMetrics.length}` : ''}
-            </span>
-          </div>
-          {allStudentMetrics.length === 0 ? (
-            <div className="py-6 text-center text-muted-foreground text-sm">
-              <Trophy className="h-7 w-7 mx-auto mb-1.5 opacity-30" />
-              <p className="text-xs">{t('teacher.noPerformanceData')}</p>
-            </div>
-          ) : (
-            <div className="flex overflow-x-auto custom-scrollbar">
-              {[...allStudentMetrics]
-                .sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)
-                .slice(0, 5)
-                .map((item, index) => {
-                  const { student: s, metrics } = item;
-                  const levelConfig = getPerformanceLevelConfig(metrics.performanceLevel);
-                  const riskConfig = getRiskLevelConfig(metrics.riskLevel);
-                  const isExpanded = expandedTopStudent === s.id;
-                  const rankColors = [
-                    'bg-amber-400 text-amber-900',
-                    'bg-gray-300 text-gray-700',
-                    'bg-amber-600 text-amber-100',
-                    'bg-muted text-muted-foreground',
-                    'bg-muted text-muted-foreground',
-                  ];
-                  const isTop3 = index < 3;
-                  return (
-                    <div key={s.id} className="flex-1 min-w-[140px] max-w-[200px] border-e last:border-e-0">
-                      <button
-                        onClick={() => setExpandedTopStudent(isExpanded ? null : s.id)}
-                        className="w-full flex flex-col items-center gap-1.5 px-3 py-3 hover:bg-muted/20 transition-colors"
-                      >
-                        {/* Rank badge */}
-                        <div className="relative">
-                          <UserAvatar name={s.name} avatarUrl={s.avatar_url} size={isTop3 ? 'md' : 'sm'} />
-                          <span className={`absolute -top-1 -start-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold ${rankColors[index] || rankColors[4]}`}>
-                            {index + 1}
-                          </span>
-                        </div>
-                        <p className="text-[11px] font-medium text-foreground truncate max-w-full">{s.name}</p>
-                        <div className="flex items-center gap-1">
-                          <span className={`text-sm font-bold ${levelConfig.textColor}`}>{Math.round(metrics.overallPerformance)}%</span>
-                        </div>
-                        <Badge variant="outline" className={`text-[8px] px-1 py-0 ${levelConfig.textColor} ${levelConfig.bgColor} border-0`}>
-                          {locale === 'ar'
-                            ? ({ excellent: 'ممتاز', veryGood: 'جيد جداً', good: 'جيد', acceptable: 'مقبول', weak: 'ضعيف' } as Record<string, string>)[metrics.performanceLevel] || metrics.performanceLevel
-                            : metrics.performanceLevel}
-                        </Badge>
-                      </button>
-                      {/* Expanded details */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="grid grid-cols-2 gap-1 px-2.5 pb-2.5">
-                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-emerald-50 dark:bg-emerald-900/10">
-                                <Clock className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
-                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Att'}</span>
-                                <span className="text-[9px] font-bold text-foreground ms-auto">{Math.round(metrics.attendanceScore)}%</span>
-                              </div>
-                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-teal-50 dark:bg-teal-900/10">
-                                <Zap className="h-2.5 w-2.5 text-teal-500 shrink-0" />
-                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الكفاءة' : 'Eff'}</span>
-                                <span className="text-[9px] font-bold text-foreground ms-auto">{Math.round(metrics.efficiency)}%</span>
-                              </div>
-                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-violet-50 dark:bg-violet-900/10">
-                                <ShieldCheck className="h-2.5 w-2.5 text-violet-500 shrink-0" />
-                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Dis'}</span>
-                                <span className="text-[9px] font-bold text-foreground ms-auto">{Math.round(metrics.disciplineScore)}%</span>
-                              </div>
-                              <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-rose-50 dark:bg-rose-900/10">
-                                <AlertTriangle className={`h-2.5 w-2.5 shrink-0 ${riskConfig.textColor}`} />
-                                <span className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'المخاطر' : 'Risk'}</span>
-                                <span className={`text-[9px] font-bold ms-auto ${riskConfig.textColor}`}>
-                                  {locale === 'ar'
-                                    ? ({ low: 'منخفض', moderate: 'متوسط', concern: 'قلق', atRisk: 'في خطر' } as Record<string, string>)[metrics.riskLevel] || metrics.riskLevel
-                                    : metrics.riskLevel}
-                                </span>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      </motion.div>
-
       {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Performance Overview — Compact Stat Bar + Charts (2/3) */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden h-full">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-teal-600 shadow-sm">
@@ -1675,18 +1569,16 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           </div>
         </motion.div>
 
-        {/* Right column: Recent Activity + Top Students (1/3) */}
-        <div className="space-y-6">
-          {/* Recent Activity — Teacher Actions Only */}
-          <motion.div variants={itemVariants}>
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b p-4">
+        {/* Right column: Recent Activity (1/3) — matches Performance Overview height */}
+        <motion.div variants={itemVariants}>
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden h-full flex flex-col">
+            <div className="flex items-center justify-between border-b p-4 shrink-0">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <ListChecks className="h-4 w-4 text-violet-600" />
                 {t('teacher.recentActivity')}
               </h3>
             </div>
-            <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
               {(() => {
                 type TeacherActivityItem = {
                   id: string;
@@ -1784,7 +1676,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             </div>
           </div>
         </motion.div>
-        </div>
       </div>
     </motion.div>
   );

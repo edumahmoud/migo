@@ -285,6 +285,7 @@ export default function TeacherStudentTrackingSection({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk' | 'charts'>('level');
   const [showInstructions, setShowInstructions] = useState(false);
+  const [activeCourseTab, setActiveCourseTab] = useState<string | 'overview'>('overview');
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
@@ -1715,23 +1716,108 @@ export default function TeacherStudentTrackingSection({
         </div>
       </motion.div>
 
-      {/* ── Per-Course Rankings (Leaderboard) ── */}
+      {/* ── Per-Course Rankings — Tabbed Interface ── */}
       {perCourseRankings.length > 0 && (
         <motion.div variants={itemVariants}>
-          <div className="space-y-4">
-            {perCourseRankings.map(({ subject, all }) => {
-              return (
+          <Card className="border-violet-100/50 shadow-sm overflow-hidden">
+            {/* Header with tab pills */}
+            <div className="border-b border-violet-100/50 dark:border-violet-900/20">
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-violet-600" />
+                  {locale === 'ar' ? 'ترتيب الطلاب حسب المقرر' : 'Students by Course'}
+                </h3>
+                <span className="text-[10px] text-muted-foreground">
+                  {perCourseRankings.length} {locale === 'ar' ? 'مقرر' : 'course(s)'}
+                </span>
+              </div>
+              {/* Scrollable tab pills */}
+              <div className="flex overflow-x-auto custom-scrollbar px-3 pb-2 gap-1">
+                <button
+                  onClick={() => setActiveCourseTab('overview')}
+                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
+                    activeCourseTab === 'overview'
+                      ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  {locale === 'ar' ? 'نظرة عامة' : 'Overview'}
+                </button>
+                {perCourseRankings.map(({ subject }) => (
+                  <button
+                    key={subject.id}
+                    onClick={() => setActiveCourseTab(subject.id)}
+                    className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap ${
+                      activeCourseTab === subject.id
+                        ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shadow-sm'
+                        : 'text-muted-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    {subject.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Tab content */}
+            <div className="p-3">
+              {activeCourseTab === 'overview' ? (
+                /* Overview: compact grid of course mini-cards */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {perCourseRankings.map(({ subject, all }) => {
+                    const courseAvg = all.length > 0
+                      ? Math.round(all.reduce((sum, s) => sum + s.metrics.overallPerformance, 0) / all.length)
+                      : 0;
+                    const topStudent = all.length > 0
+                      ? [...all].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)[0]
+                      : null;
+                    const atRiskCount = all.filter(s => s.metrics.riskLevel === 'atRisk' || s.metrics.riskLevel === 'concern').length;
+                    return (
+                      <button
+                        key={subject.id}
+                        onClick={() => setActiveCourseTab(subject.id)}
+                        className="w-full text-start rounded-lg border border-violet-100/60 dark:border-violet-900/30 bg-violet-50/20 dark:bg-violet-900/5 hover:bg-violet-50/40 dark:hover:bg-violet-900/10 p-3 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+                            <BookOpen className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-foreground truncate">{subject.name}</p>
+                            <p className="text-[9px] text-muted-foreground">{all.length} {locale === 'ar' ? 'طالب' : 'students'}</p>
+                          </div>
+                          <div className="text-end shrink-0">
+                            <p className="text-sm font-bold text-violet-700 dark:text-violet-400">{courseAvg}%</p>
+                            <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'المتوسط' : 'Avg'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-[9px]">
+                          {topStudent && (
+                            <span className="text-emerald-600 dark:text-emerald-400 truncate">
+                              🥇 {topStudent.student.name} ({Math.round(topStudent.metrics.overallPerformance)}%)
+                            </span>
+                          )}
+                          {atRiskCount > 0 && (
+                            <span className="text-rose-600 dark:text-rose-400 shrink-0">
+                              ⚠ {atRiskCount} {locale === 'ar' ? 'في خطر' : 'at risk'}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Specific course ranking */
                 <CourseRankingCard
-                  key={subject.id}
-                  subject={subject}
-                  students={all}
+                  subject={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.subject}
+                  students={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.all}
                   toggleExpand={toggleExpand}
                   expandedStudentId={expandedStudentId}
                   getRiskLabel={getRiskLabel}
                 />
-              );
-            })}
-          </div>
+              )}
+            </div>
+          </Card>
         </motion.div>
       )}
 
@@ -2363,6 +2449,29 @@ function StudentCard({
           <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingGrowthIndex')}</span>
         </div>
 
+        {/* Performance change badge */}
+        {data.studentScores.length >= 2 && (() => {
+          const scores = [...data.studentScores].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
+          const half = Math.floor(scores.length / 2);
+          const firstHalf = scores.slice(0, half);
+          const secondHalf = scores.slice(half);
+          if (firstHalf.length === 0 || secondHalf.length === 0) return null;
+          const avgFirst = firstHalf.reduce((sum, s) => sum + (s.score / s.total) * 100, 0) / firstHalf.length;
+          const avgSecond = secondHalf.reduce((sum, s) => sum + (s.score / s.total) * 100, 0) / secondHalf.length;
+          const diff = Math.round(avgSecond - avgFirst);
+          if (diff === 0) return null;
+          return (
+            <div className={`hidden lg:flex items-center gap-0.5 px-1.5 py-1 rounded-md text-[9px] font-bold shrink-0 ${
+              diff > 0
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/40'
+                : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40'
+            }`}>
+              {diff > 0 ? <ArrowUpRight className="h-2.5 w-2.5" /> : <ArrowDownRight className="h-2.5 w-2.5" />}
+              {diff > 0 ? '+' : ''}{diff}%
+            </div>
+          );
+        })()}
+
         {/* Expand icon */}
         <div className={`shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
           <ChevronDown className="h-5 w-5 text-muted-foreground" />
@@ -2575,6 +2684,125 @@ function StudentCard({
                   </div>
                 )}
               </div>
+
+              {/* ── Performance Changes Over Time ── */}
+              {data.studentScores.length >= 2 && (() => {
+                const scores = [...data.studentScores].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
+                const now = new Date();
+                const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+                const recentScores = scores.filter(s => new Date(s.completed_at) >= thirtyDaysAgo);
+                const prevScores = scores.filter(s => {
+                  const d = new Date(s.completed_at);
+                  return d >= sixtyDaysAgo && d < thirtyDaysAgo;
+                });
+                const olderScores = scores.filter(s => new Date(s.completed_at) < sixtyDaysAgo);
+
+                const avgPct = (arr: Score[]) => arr.length > 0 ? arr.reduce((sum, s) => sum + (s.score / s.total) * 100, 0) / arr.length : null;
+
+                const recentAvg = avgPct(recentScores);
+                const prevAvg = avgPct(prevScores);
+                const olderAvg = avgPct(olderScores);
+                const overallRecent = recentAvg !== null ? Math.round(recentAvg) : null;
+                const overallPrev = prevAvg !== null ? Math.round(prevAvg) : null;
+                const overallOlder = olderAvg !== null ? Math.round(olderAvg) : null;
+
+                const diffLast30 = (recentAvg !== null && prevAvg !== null) ? Math.round(recentAvg - prevAvg) : null;
+                const diffOverall = (recentAvg !== null && olderAvg !== null) ? Math.round(recentAvg - olderAvg) : null;
+
+                if (diffLast30 === null && diffOverall === null) return null;
+
+                return (
+                  <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/60 to-white border border-sky-100/50">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Activity className="h-4 w-4 text-sky-600" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-foreground">{locale === 'ar' ? 'تغيرات الأداء عبر الفترات' : 'Performance Changes Over Time'}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {/* Current period */}
+                      <div className="p-2.5 rounded-lg bg-white/70 dark:bg-card/70 border border-gray-100/60 dark:border-gray-800/40">
+                        <p className="text-[9px] text-muted-foreground mb-1">{locale === 'ar' ? 'آخر 30 يوم' : 'Last 30 days'}</p>
+                        <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{overallRecent !== null ? `${overallRecent}%` : '—'}</p>
+                        <p className="text-[8px] text-muted-foreground">{recentScores.length} {locale === 'ar' ? 'اختبار' : 'quiz(zes)'}</p>
+                      </div>
+                      {/* Previous period */}
+                      <div className="p-2.5 rounded-lg bg-white/70 dark:bg-card/70 border border-gray-100/60 dark:border-gray-800/40">
+                        <p className="text-[9px] text-muted-foreground mb-1">{locale === 'ar' ? 'الـ 30 يوم السابقة' : 'Prior 30 days'}</p>
+                        <p className="text-lg font-bold text-gray-700 dark:text-gray-400">{overallPrev !== null ? `${overallPrev}%` : '—'}</p>
+                        <p className="text-[8px] text-muted-foreground">{prevScores.length} {locale === 'ar' ? 'اختبار' : 'quiz(zes)'}</p>
+                      </div>
+                      {/* Change */}
+                      <div className={`p-2.5 rounded-lg border ${
+                        diffLast30 !== null
+                          ? diffLast30 > 0
+                            ? 'bg-emerald-50/70 dark:bg-emerald-900/10 border-emerald-200/60 dark:border-emerald-900/40'
+                            : diffLast30 < 0
+                              ? 'bg-rose-50/70 dark:bg-rose-900/10 border-rose-200/60 dark:border-rose-900/40'
+                              : 'bg-gray-50/70 dark:bg-gray-900/10 border-gray-200/60 dark:border-gray-800/40'
+                          : 'bg-white/70 dark:bg-card/70 border-gray-100/60 dark:border-gray-800/40'
+                      }`}>
+                        <p className="text-[9px] text-muted-foreground mb-1">{locale === 'ar' ? 'التغير' : 'Change'}</p>
+                        <p className={`text-lg font-bold ${
+                          diffLast30 !== null
+                            ? diffLast30 > 0 ? 'text-emerald-700 dark:text-emerald-400'
+                              : diffLast30 < 0 ? 'text-rose-700 dark:text-rose-400'
+                              : 'text-gray-600 dark:text-gray-400'
+                            : 'text-gray-400'
+                        }`}>
+                          {diffLast30 !== null
+                            ? `${diffLast30 > 0 ? '+' : ''}${diffLast30}%`
+                            : '—'}
+                        </p>
+                        {diffLast30 !== null && (
+                          <p className={`text-[8px] font-medium ${
+                            diffLast30 > 0 ? 'text-emerald-600' : diffLast30 < 0 ? 'text-rose-600' : 'text-gray-500'
+                          }`}>
+                            {diffLast30 > 0
+                              ? (locale === 'ar' ? '↑ تحسن' : '↑ Improved')
+                              : diffLast30 < 0
+                                ? (locale === 'ar' ? '↓ تراجع' : '↓ Declined')
+                                : (locale === 'ar' ? '→ ثابت' : '→ Stable')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {/* Overall comparison */}
+                    {diffOverall !== null && (
+                      <div className="mt-2 flex items-center gap-2 text-[10px]">
+                        <span className="text-muted-foreground">{locale === 'ar' ? 'مقارنة بالبداية:' : 'vs Beginning:'}</span>
+                        <span className={`font-bold ${diffOverall > 0 ? 'text-emerald-600' : diffOverall < 0 ? 'text-rose-600' : 'text-gray-500'}`}>
+                          {diffOverall > 0 ? '+' : ''}{diffOverall}%
+                          {diffOverall > 0 ? ' ↑' : diffOverall < 0 ? ' ↓' : ' →'}
+                        </span>
+                        <span className="text-muted-foreground">({olderScores.length} {locale === 'ar' ? 'اختبار أول' : 'early quizzes'})</span>
+                      </div>
+                    )}
+                    {/* Per-quiz mini sparkline data */}
+                    {scores.length >= 3 && (
+                      <div className="mt-2.5">
+                        <p className="text-[9px] text-muted-foreground mb-1.5">{locale === 'ar' ? 'سلسلة نتائج الاختبارات' : 'Quiz Score Series'}</p>
+                        <div className="flex items-end gap-0.5 h-8">
+                          {scores.slice(-12).map((s, i) => {
+                            const pct = (s.score / s.total) * 100;
+                            const h = Math.max(4, Math.round((pct / 100) * 32));
+                            const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-sky-500' : pct >= 40 ? 'bg-amber-500' : 'bg-rose-500';
+                            return (
+                              <div key={i} className="flex-1 flex flex-col items-center gap-0.5 min-w-[6px]">
+                                <div className={`w-full rounded-sm ${barColor}`} style={{ height: `${h}px` }} title={`${Math.round(pct)}% — ${s.quiz_title}`} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[8px] text-muted-foreground">{scores.slice(-12)[0]?.quiz_title?.substring(0, 10)}</span>
+                          <span className="text-[8px] text-muted-foreground">{scores[scores.length - 1]?.quiz_title?.substring(0, 10)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ── Risk Level Badge (with reasons) ── */}
               {metrics.riskLevel !== 'healthy' && (
@@ -2842,43 +3070,35 @@ function CourseRankingCard({
   };
 
   return (
-    <Card className="border-violet-100/50 shadow-sm overflow-hidden">
-      {/* Course Header */}
-      <div className="px-4 py-3 bg-gradient-to-l from-violet-50/60 to-transparent dark:from-violet-900/10 border-b border-violet-100/50 dark:border-violet-900/20">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-              <BookOpen className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">{subject.name}</p>
-              <p className="text-[10px] text-muted-foreground">
-                {students.length} {locale === 'ar' ? 'طالب' : 'student(s)'} • {locale === 'ar' ? 'المتوسط' : 'Avg'}: {courseAvg}%
-              </p>
-            </div>
-          </div>
-          {/* Sort dropdown */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('teacher.trackingRankingBy')}:</span>
-            <Select value={courseSortBy} onValueChange={(val) => setCourseSortBy(val as CourseSortOption)} dir={direction}>
-              <SelectTrigger className="h-7 w-auto min-w-[90px] ps-2 pe-6 rounded-md border border-violet-200 dark:border-violet-900/40 bg-white dark:bg-card text-[11px] focus:ring-1 focus:ring-violet-200">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-lg">
-                {COURSE_SORT_OPTIONS.map(opt => (
-                  <SelectItem key={opt.key} value={opt.key} className="text-[11px]">
-                    {locale === 'ar' ? opt.labelAr : opt.labelEn}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <>
+      {/* Course Header + Sort */}
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-semibold text-foreground">{subject.name}</p>
+          <span className="text-[9px] text-muted-foreground">
+            {students.length} {locale === 'ar' ? 'طالب' : 'students'} • {locale === 'ar' ? 'المتوسط' : 'Avg'}: {courseAvg}%
+          </span>
+        </div>
+        {/* Sort dropdown */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">{t('teacher.trackingRankingBy')}:</span>
+          <Select value={courseSortBy} onValueChange={(val) => setCourseSortBy(val as CourseSortOption)} dir={direction}>
+            <SelectTrigger className="h-7 w-auto min-w-[90px] ps-2 pe-6 rounded-md border border-violet-200 dark:border-violet-900/40 bg-white dark:bg-card text-[11px] focus:ring-1 focus:ring-violet-200">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-lg">
+              {COURSE_SORT_OPTIONS.map(opt => (
+                <SelectItem key={opt.key} value={opt.key} className="text-[11px]">
+                  {locale === 'ar' ? opt.labelAr : opt.labelEn}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Leaderboard */}
-      <CardContent className="p-3">
-        <div className="space-y-1.5">
+      <div className="space-y-1.5">
           {displayedStudents.map(({ student, metrics }, idx) => {
             const levelCfg = getPerformanceLevelConfig(metrics.performanceLevel);
             const riskCfg = getRiskLevelConfig(metrics.riskLevel);
@@ -3011,24 +3231,23 @@ function CourseRankingCard({
               </div>
             );
           })}
-        </div>
+      </div>
 
-        {/* Show more / Show less toggle */}
-        {sortedStudents.length > INITIAL_SHOW_COUNT && (
-          <div className="mt-2 flex justify-center">
-            <button
-              onClick={() => setShowAll(prev => !prev)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors"
-            >
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`} />
-              {showAll
-                ? (locale === 'ar' ? 'عرض أقل' : 'Show Less')
-                : (locale === 'ar' ? `عرض الكل (${sortedStudents.length})` : `Show All (${sortedStudents.length})`)
-              }
-            </button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* Show more / Show less toggle */}
+      {sortedStudents.length > INITIAL_SHOW_COUNT && (
+        <div className="mt-2 flex justify-center">
+          <button
+            onClick={() => setShowAll(prev => !prev)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors"
+          >
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`} />
+            {showAll
+              ? (locale === 'ar' ? 'عرض أقل' : 'Show Less')
+              : (locale === 'ar' ? `عرض الكل (${sortedStudents.length})` : `Show All (${sortedStudents.length})`)
+            }
+          </button>
+        </div>
+      )}
+    </>
   );
 }
