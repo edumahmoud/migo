@@ -43,6 +43,7 @@ export interface FileUploadTask {
   error?: string;
   profileId: string;
   subjectIds: string[]; // Course IDs to assign after upload
+  folderId?: string | null; // Folder to upload into
 }
 
 interface FileUploadState {
@@ -677,6 +678,7 @@ async function startUpload(taskId: string) {
             fileSize: fileSize,
             fileUrl,
             storagePath,
+            folderId: task.folderId || null,
           }),
           signal: controller2.signal,
         });

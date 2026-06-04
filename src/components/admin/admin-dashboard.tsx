@@ -457,6 +457,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [totalQuizzes, setTotalQuizzes] = useState(0);
   const [totalSubmissions, setTotalSubmissions] = useState(0);
   const [totalVideos, setTotalVideos] = useState(0);
+  const [totalLessons, setTotalLessons] = useState(0);
   const [flaggedComments, setFlaggedComments] = useState<any[]>([]);
   const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
@@ -611,6 +612,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         if (result.data.scores) setAllScores(result.data.scores as Score[]);
         if (result.data.quizCount !== undefined) setTotalQuizzes(result.data.quizCount as number);
         if (result.data.videoCount !== undefined) setTotalVideos(result.data.videoCount as number);
+        if (result.data.lessonCount !== undefined) setTotalLessons(result.data.lessonCount as number);
         
         // Log warnings if any
         if (result.warnings && result.warnings.length > 0) {
@@ -1346,7 +1348,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </motion.div>
 
       {/* Stats row */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <StatCard
           icon={<Users className="h-5 w-5" />}
           label={t('admin.statTotalUsers')}
@@ -1364,6 +1366,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           label={t('admin.statStudents')}
           value={studentCount}
           color="amber"
+        />
+        <StatCard
+          icon={<BookOpen className="h-5 w-5" />}
+          label={t('admin.statLessons')}
+          value={totalLessons}
+          color="emerald"
         />
         <StatCard
           icon={<Video className="h-5 w-5" />}
@@ -1474,6 +1482,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">{t('admin.totalQuizzes')}</p>
                   <p className="text-sm font-bold text-foreground">{totalQuizzes}</p>
+                </div>
+              </div>
+
+              {/* Total lessons */}
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-800/40">
+                  <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground">{t('admin.totalLessons')}</p>
+                  <p className="text-sm font-bold text-foreground">{totalLessons}</p>
                 </div>
               </div>
 

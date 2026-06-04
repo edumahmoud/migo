@@ -6,7 +6,6 @@ import {
   BookOpen,
   Users,
   File,
-  ClipboardCheck,
   Calendar,
   Clock,
   Loader2,
@@ -311,9 +310,9 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           color="amber"
         />
         <StatCard
-          icon={<ClipboardCheck className="h-5 w-5" />}
-          label={t('courseOwnerRole')}
-          value={stats.totalAssignments}
+          icon={<BookOpen className="h-5 w-5" />}
+          label={t('lessonsCount')}
+          value={stats.totalLectures}
           color="rose"
         />
       </motion.div>

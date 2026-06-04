@@ -380,6 +380,7 @@
     "totalTeachers": "إجمالي المعلمين",
     "totalUsers": "إجمالي المستخدمين",
     "totalQuizzes": "إجمالي الاختبارات",
+    "totalLessons": "إجمالي الدروس",
     "totalSummaries": "إجمالي الملخصات",
     "totalReports": "إجمالي التقارير",
     "activeUsers": "المستخدمون النشطون",
@@ -431,6 +432,7 @@
     "courseFiles": "ملفات المقرر",
     "courseVideos": "فيديوهات المقرر",
     "courseLectures": "محاضرات المقرر",
+    "lessonsCount": "عدد الدروس",
     "courseNotes": "ملاحظات المقرر",
     "noLectures": "لا توجد محاضرات",
     "noLecturesDesc": "لم يتم إنشاء أي محاضرات بعد",
@@ -2057,6 +2059,7 @@
     "unread": "غير مقروء",
     "unreadCount": "{count} غير مقروء",
     "newNotification": "إشعار جديد",
+    "newNotifications": "لديك {count} إشعار(ات) جديد",
     "enableNotifications": "تفعيل الإشعارات",
     "notificationPermission": "إذن الإشعارات",
     "grantPermission": "منح الإذن",
@@ -2584,6 +2587,7 @@
     "statTeachers": "معلمون",
     "statTotalUsers": "إجمالي المستخدمين",
     "statVideos": "فيديوهات",
+    "statLessons": "الدروس",
     "stopped": "متوقف",
     "subLevelFirst": "المستوى الفرعي الأول",
     "subLevelSecond": "المستوى الفرعي الثاني",
@@ -2626,6 +2630,7 @@
     "toastRequestTimeout": "انتهت مهلة الطلب",
     "toastTitleContentRequired": "العنوان والمحتوى مطلوبان",
     "totalQuizzes": "إجمالي الاختبارات",
+    "totalLessons": "إجمالي الدروس",
     "totalSubmissions": "إجمالي التسليمات",
     "tryDifferentSearchOrFilters": "جرّب بحثاً أو فلاتر مختلفة",
     "unban": "إلغاء الحظر",
@@ -2777,6 +2782,10 @@
     "exit": "الخروج من التطبيق",
     "offlineTitle": "أتيندو — منصة تعليمية ذكية",
     "branding": "أتيندو — منصة تعليمية ذكية"
+  },
+  "connectivity": {
+    "offline": "لا يوجد اتصال بالإنترنت — سيتم حفظ تقدمك",
+    "online": "تم استعادة الاتصال بالإنترنت"
   },
   "globalError": {
     "criticalError": "خطأ حرج في التطبيق",

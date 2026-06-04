@@ -11,6 +11,7 @@ import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
 import FileUploadIndicator from "@/components/shared/file-upload-indicator";
 import LandscapeOverlay from "@/components/shared/landscape-overlay";
 import StickyNotesOverlay from "@/components/shared/sticky-notes-overlay";
+import ConnectivityMonitor from "@/components/shared/connectivity-monitor";
 import { I18nProvider } from "@/i18n/provider";
 import { DirectionProvider } from "@/i18n/direction-provider";
 
@@ -199,6 +200,7 @@ export default function RootLayout({
             <FileUploadIndicator />
             <LandscapeOverlay />
             <StickyNotesOverlay />
+            <ConnectivityMonitor />
             </ClientProviders>
           </DirectionProvider>
         </I18nProvider>

@@ -986,6 +986,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         extension: item.extension,
         profileId: profile.id,
         subjectIds,
+        folderId: currentFolderId,
       });
     }
 
@@ -2863,7 +2864,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
-            className="fixed bottom-20 sm:bottom-6 start-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
+            className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-auto sm:bottom-6 sm:start-1/2 sm:-translate-x-1/2 sm:w-auto z-40 flex items-center gap-3 rounded-2xl border bg-background/95 backdrop-blur-md shadow-lg px-4 py-2.5 sm:px-5 sm:py-3 overflow-x-auto"
             dir={direction}
           >
             <span className="text-sm font-medium text-foreground whitespace-nowrap">
