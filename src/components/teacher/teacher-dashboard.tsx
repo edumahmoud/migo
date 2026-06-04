@@ -1723,7 +1723,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                             <span className={`shrink-0 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${rankColors[index] || rankColors[4]}`}>
                               {index + 1}
                             </span>
-                            <UserAvatar name={s.name} avatarUrl={s.avatar_url} size={28} />
+                            <UserAvatar name={s.name} avatarUrl={s.avatar_url} size="sm" />
                             <div className="min-w-0 flex-1 text-start">
                               <p className="text-sm font-medium text-foreground truncate">{s.name}</p>
                             </div>
