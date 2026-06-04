@@ -1371,7 +1371,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           icon={<BookOpen className="h-5 w-5" />}
           label={t('admin.statLessons')}
           value={totalLessons}
-          color="emerald"
+          color="teal"
         />
         <StatCard
           icon={<Video className="h-5 w-5" />}
