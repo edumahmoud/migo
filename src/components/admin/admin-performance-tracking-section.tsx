@@ -418,7 +418,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
             <Input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder={t('teacher.trackingSearchStudent')}
+              placeholder={activeTab === 'teachers' ? t('teacher.trackingSearchTeacher') : activeTab === 'courses' ? t('teacher.trackingSearchCourse') : t('teacher.trackingSearchStudent')}
               className="ps-9 h-8 text-sm"
             />
           </div>

@@ -1144,6 +1144,8 @@ export const en: TranslationDict = {
     trackingStudentList: 'Student List',
     trackingStudentCount: '{count} student(s)',
     trackingSearchStudent: 'Search for a student...',
+    trackingSearchTeacher: 'Search for a teacher...',
+    trackingSearchCourse: 'Search for a course...',
     trackingSortBy: 'Sort by:',
     trackingNoStudentsYet: 'No students yet',
     trackingNoMatchingResults: 'No matching results',

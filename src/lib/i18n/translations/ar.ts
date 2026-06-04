@@ -1154,6 +1154,8 @@ export const ar: TranslationDict = {
     trackingStudentList: 'قائمة الطلاب',
     trackingStudentCount: '{count} طالب',
     trackingSearchStudent: 'بحث عن طالب...',
+    trackingSearchTeacher: 'بحث عن معلم...',
+    trackingSearchCourse: 'بحث عن مقرر...',
     trackingSortBy: 'ترتيب:',
     trackingNoStudentsYet: 'لا يوجد طلاب بعد',
     trackingNoMatchingResults: 'لا توجد نتائج مطابقة',
