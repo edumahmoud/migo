@@ -3220,7 +3220,21 @@
     "trackingOfTotal": "of",
     "trackingShowAll": "Show All",
     "trackingTop3": "Top 3",
-    "trackingRankingBy": "Rank by"
+    "trackingRankingBy": "Rank by",
+    "trendAnalysis": "Trend Analysis",
+    "trendMonthly": "Monthly",
+    "trendQuarterly": "Quarterly",
+    "trendSemester": "Semester",
+    "trendImproved": "Improved",
+    "trendDeclined": "Declined",
+    "trendStable": "Stable",
+    "trendPrevious": "Previous",
+    "trendCurrent": "Current",
+    "trendChange": "Change",
+    "trendNoData": "Not enough data for trend analysis",
+    "trendStudentsImproved": "{count} students improved",
+    "trendStudentsDeclined": "{count} students declined",
+    "trendStudentsStable": "{count} students stable"
   },
   "student": {
     "mySubjects": "My Subjects",

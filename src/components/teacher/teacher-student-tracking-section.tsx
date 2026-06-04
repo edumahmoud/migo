@@ -13,6 +13,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  BarChart,
+  Bar,
 } from 'recharts';
 import {
   Activity,
@@ -41,6 +43,7 @@ import {
   Info,
   ArrowUpRight,
   ArrowDownRight,
+  Minus,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -247,6 +250,23 @@ interface StudentPerformanceData {
 // -------------------------------------------------------
 type SortOption = 'name' | 'performance' | 'attendance' | 'quiz' | 'efficiency' | 'discipline' | 'growth' | 'risk' | 'exam' | 'assignQuality';
 
+// -------------------------------------------------------
+// Trend Analysis types
+// -------------------------------------------------------
+type TrendDirection = 'improved' | 'declined' | 'stable';
+
+interface StudentTrendData {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  studentAvatar: string | null | undefined;
+  previousScore: number;
+  currentScore: number;
+  change: number;
+  direction: TrendDirection;
+  periodData: { period: string; score: number }[];
+}
+
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: 'name', label: 'teacher.trackingSortName' },
   { key: 'performance', label: 'teacher.trackingSortPerformance' },
@@ -286,6 +306,7 @@ export default function TeacherStudentTrackingSection({
   const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk' | 'charts'>('level');
   const [showInstructions, setShowInstructions] = useState(false);
   const [activeCourseTab, setActiveCourseTab] = useState<string | 'overview'>('overview');
+  const [trendPeriod, setTrendPeriod] = useState<'monthly' | 'quarterly' | 'semester'>('monthly');
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
@@ -612,6 +633,103 @@ export default function TeacherStudentTrackingSection({
       { name: locale === 'ar' ? 'ضعيف' : 'Weak', value: classificationCounts.weak, color: '#ef4444' },
     ].filter(d => d.value > 0);
   }, [studentPerformanceData, classificationCounts, locale]);
+
+  // ─── Trend Analysis: Period-based performance comparison ───
+  const trendAnalysisData = useMemo<StudentTrendData[]>(() => {
+    if (scores.length === 0) return [];
+
+    // Helper: get period key from date string
+    const getPeriodKey = (dateStr: string, period: 'monthly' | 'quarterly' | 'semester'): string => {
+      try {
+        const date = new Date(dateStr);
+        const year = date.getFullYear();
+        const month = date.getMonth(); // 0-indexed
+
+        if (period === 'monthly') {
+          return `${year}-${String(month + 1).padStart(2, '0')}`;
+        } else if (period === 'quarterly') {
+          const quarter = Math.floor(month / 3) + 1;
+          return `${year}-Q${quarter}`;
+        } else {
+          // Semester: S1 = months 0-5 (Jan-Jun), S2 = months 6-11 (Jul-Dec)
+          const semester = month < 6 ? 'S1' : 'S2';
+          return `${year}-${semester}`;
+        }
+      } catch {
+        return 'unknown';
+      }
+    };
+
+    const result: StudentTrendData[] = [];
+
+    for (const spd of studentPerformanceData) {
+      const studentScores = scores.filter(s => s.student_id === spd.student.id);
+      if (studentScores.length === 0) continue;
+
+      // Group scores by period
+      const periodMap = new Map<string, { totalPct: number; count: number }>();
+      studentScores.forEach(s => {
+        if (s.total <= 0) return;
+        const key = getPeriodKey(s.completed_at, trendPeriod);
+        const entry = periodMap.get(key) || { totalPct: 0, count: 0 };
+        entry.totalPct += (s.score / s.total) * 100;
+        entry.count++;
+        periodMap.set(key, entry);
+      });
+
+      // Sort periods chronologically
+      const sortedPeriods = Array.from(periodMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b));
+
+      if (sortedPeriods.length < 2) continue;
+
+      // Build period data
+      const periodData = sortedPeriods.map(([period, data]) => ({
+        period,
+        score: data.count > 0 ? Math.round(data.totalPct / data.count) : 0,
+      }));
+
+      // Compare last two periods
+      const currentPeriod = periodData[periodData.length - 1];
+      const previousPeriod = periodData[periodData.length - 2];
+
+      const change = currentPeriod.score - previousPeriod.score;
+      let direction: TrendDirection = 'stable';
+      if (change > 2) direction = 'improved';
+      else if (change < -2) direction = 'declined';
+
+      result.push({
+        studentId: spd.student.id,
+        studentName: spd.student.name,
+        studentEmail: spd.student.email,
+        studentAvatar: spd.student.avatar_url,
+        previousScore: previousPeriod.score,
+        currentScore: currentPeriod.score,
+        change,
+        direction,
+        periodData,
+      });
+    }
+
+    // Sort: declined first (need attention), then improved, then stable
+    const directionOrder: Record<TrendDirection, number> = { declined: 0, improved: 1, stable: 2 };
+    result.sort((a, b) => {
+      if (directionOrder[a.direction] !== directionOrder[b.direction]) {
+        return directionOrder[a.direction] - directionOrder[b.direction];
+      }
+      return Math.abs(b.change) - Math.abs(a.change);
+    });
+
+    return result;
+  }, [scores, studentPerformanceData, trendPeriod]);
+
+  // Trend summary stats
+  const trendSummary = useMemo(() => {
+    const improved = trendAnalysisData.filter(d => d.direction === 'improved').length;
+    const declined = trendAnalysisData.filter(d => d.direction === 'declined').length;
+    const stable = trendAnalysisData.filter(d => d.direction === 'stable').length;
+    return { improved, declined, stable };
+  }, [trendAnalysisData]);
 
   // ─── Filtered & sorted students ───
   const filteredStudents = useMemo(() => {
@@ -1761,8 +1879,8 @@ export default function TeacherStudentTrackingSection({
             {/* Tab content */}
             <div className="p-3">
               {activeCourseTab === 'overview' ? (
-                /* Overview: compact grid of course mini-cards */
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                /* Overview: compact horizontal strip on mobile, grid on desktop */
+                <div className="flex lg:grid lg:grid-cols-2 xl:grid-cols-3 gap-2 overflow-x-auto custom-scrollbar pb-1">
                   {perCourseRankings.map(({ subject, all }) => {
                     const courseAvg = all.length > 0
                       ? Math.round(all.reduce((sum, s) => sum + s.metrics.overallPerformance, 0) / all.length)
@@ -1771,35 +1889,35 @@ export default function TeacherStudentTrackingSection({
                       ? [...all].sort((a, b) => b.metrics.overallPerformance - a.metrics.overallPerformance)[0]
                       : null;
                     const atRiskCount = all.filter(s => s.metrics.riskLevel === 'atRisk' || s.metrics.riskLevel === 'concern').length;
+                    const avgColor = courseAvg >= 75 ? 'text-emerald-600 dark:text-emerald-400' : courseAvg >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
                     return (
                       <button
                         key={subject.id}
                         onClick={() => setActiveCourseTab(subject.id)}
-                        className="w-full text-start rounded-lg border border-violet-100/60 dark:border-violet-900/30 bg-violet-50/20 dark:bg-violet-900/5 hover:bg-violet-50/40 dark:hover:bg-violet-900/10 p-3 transition-colors"
+                        className="shrink-0 lg:shrink w-[200px] lg:w-auto text-start rounded-lg border border-violet-100/60 dark:border-violet-900/30 bg-violet-50/20 dark:bg-violet-900/5 hover:bg-violet-50/40 dark:hover:bg-violet-900/10 hover:border-violet-200 dark:hover:border-violet-800/40 px-3 py-2 transition-all group"
                       >
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-                            <BookOpen className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                        {/* Row 1: Course name + avg */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-100 dark:bg-violet-900/30 group-hover:bg-violet-200 dark:group-hover:bg-violet-800/40 transition-colors">
+                            <BookOpen className="h-3 w-3 text-violet-600 dark:text-violet-400" />
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-foreground truncate">{subject.name}</p>
-                            <p className="text-[9px] text-muted-foreground">{all.length} {locale === 'ar' ? 'طالب' : 'students'}</p>
-                          </div>
-                          <div className="text-end shrink-0">
-                            <p className="text-sm font-bold text-violet-700 dark:text-violet-400">{courseAvg}%</p>
-                            <p className="text-[8px] text-muted-foreground">{locale === 'ar' ? 'المتوسط' : 'Avg'}</p>
-                          </div>
+                          <p className="text-[11px] font-semibold text-foreground truncate flex-1 min-w-0">{subject.name}</p>
+                          <span className={`text-sm font-bold shrink-0 ${avgColor}`}>{courseAvg}%</span>
                         </div>
-                        <div className="flex items-center gap-2 text-[9px]">
-                          {topStudent && (
-                            <span className="text-emerald-600 dark:text-emerald-400 truncate">
-                              🥇 {topStudent.student.name} ({Math.round(topStudent.metrics.overallPerformance)}%)
-                            </span>
-                          )}
+                        {/* Row 2: Meta line */}
+                        <div className="flex items-center gap-1.5 mt-1 ps-8 text-[9px] text-muted-foreground">
+                          <span>{all.length} {locale === 'ar' ? 'طالب' : 'stu'}</span>
                           {atRiskCount > 0 && (
-                            <span className="text-rose-600 dark:text-rose-400 shrink-0">
-                              ⚠ {atRiskCount} {locale === 'ar' ? 'في خطر' : 'at risk'}
-                            </span>
+                            <>
+                              <span className="text-violet-300 dark:text-violet-700">·</span>
+                              <span className="text-rose-500 dark:text-rose-400 font-medium">{atRiskCount} ⚠</span>
+                            </>
+                          )}
+                          {topStudent && (
+                            <>
+                              <span className="text-violet-300 dark:text-violet-700">·</span>
+                              <span className="text-emerald-600 dark:text-emerald-400 truncate">🥇 {topStudent.student.name}</span>
+                            </>
                           )}
                         </div>
                       </button>
@@ -1807,19 +1925,166 @@ export default function TeacherStudentTrackingSection({
                   })}
                 </div>
               ) : (
-                /* Specific course ranking */
-                <CourseRankingCard
-                  subject={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.subject}
-                  students={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.all}
-                  toggleExpand={toggleExpand}
-                  expandedStudentId={expandedStudentId}
-                  getRiskLabel={getRiskLabel}
-                />
+                /* Specific course ranking — capped height */
+                <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                  <CourseRankingCard
+                    subject={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.subject}
+                    students={perCourseRankings.find(c => c.subject.id === activeCourseTab)!.all}
+                    toggleExpand={toggleExpand}
+                    expandedStudentId={expandedStudentId}
+                    getRiskLabel={getRiskLabel}
+                  />
+                </div>
               )}
             </div>
           </Card>
         </motion.div>
       )}
+
+      {/* ── Performance Trend Analysis ── */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-violet-100/50 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-violet-600" />
+                <span>{t('teacher.trendAnalysis')}</span>
+                {trendAnalysisData.length > 0 && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({trendAnalysisData.length})
+                  </span>
+                )}
+              </CardTitle>
+              {/* Period Selector */}
+              <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+                {(['monthly', 'quarterly', 'semester'] as const).map(period => (
+                  <button
+                    key={period}
+                    onClick={() => setTrendPeriod(period)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      trendPeriod === period
+                        ? 'bg-white dark:bg-gray-800 text-violet-700 dark:text-violet-400 shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {t(`teacher.trend${period.charAt(0).toUpperCase() + period.slice(1)}` as 'teacher.trendMonthly' | 'teacher.trendQuarterly' | 'teacher.trendSemester')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {trendAnalysisData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <TrendingUp className="h-10 w-10 mb-2 opacity-30" />
+                <p className="text-sm">{t('teacher.trendNoData')}</p>
+              </div>
+            ) : (
+              <>
+                {/* Summary Stats Bar */}
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    {t('teacher.trendStudentsImproved').replace('{count}', String(trendSummary.improved))}
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-xs font-medium">
+                    <ArrowDownRight className="h-3.5 w-3.5" />
+                    {t('teacher.trendStudentsDeclined').replace('{count}', String(trendSummary.declined))}
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-medium">
+                    <Minus className="h-3.5 w-3.5" />
+                    {t('teacher.trendStudentsStable').replace('{count}', String(trendSummary.stable))}
+                  </div>
+                </div>
+
+                {/* Column Headers */}
+                <div className="grid grid-cols-[1fr_60px_60px_70px_100px] sm:grid-cols-[1fr_70px_70px_80px_140px] items-center gap-2 px-3 py-2 mb-1 text-xs font-medium text-muted-foreground border-b border-border/50">
+                  <span>{locale === 'ar' ? 'الطالب' : 'Student'}</span>
+                  <span className="text-center">{t('teacher.trendPrevious')}</span>
+                  <span className="text-center">{t('teacher.trendCurrent')}</span>
+                  <span className="text-center">{t('teacher.trendChange')}</span>
+                  <span className="text-center">{locale === 'ar' ? 'الاتجاه' : 'Trend'}</span>
+                </div>
+
+                {/* Student Trend List */}
+                <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-1">
+                  {trendAnalysisData.map((data, idx) => (
+                    <motion.div
+                      key={data.studentId}
+                      initial={{ opacity: 0, x: direction === 'rtl' ? 12 : -12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className="grid grid-cols-[1fr_60px_60px_70px_100px] sm:grid-cols-[1fr_70px_70px_80px_140px] items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/30 transition-colors"
+                    >
+                      {/* Student Info */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <UserAvatar
+                          name={data.studentName}
+                          avatarUrl={data.studentAvatar}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{data.studentName}</p>
+                        </div>
+                      </div>
+
+                      {/* Previous Score */}
+                      <span className="text-center text-sm text-muted-foreground font-medium">
+                        {data.previousScore}%
+                      </span>
+
+                      {/* Current Score */}
+                      <span className={`text-center text-sm font-bold ${
+                        data.direction === 'improved' ? 'text-emerald-600 dark:text-emerald-400' :
+                        data.direction === 'declined' ? 'text-rose-600 dark:text-rose-400' :
+                        'text-foreground'
+                      }`}>
+                        {data.currentScore}%
+                      </span>
+
+                      {/* Change Indicator */}
+                      <div className="flex items-center justify-center gap-1">
+                        {data.direction === 'improved' ? (
+                          <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        ) : data.direction === 'declined' ? (
+                          <ArrowDownRight className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                        ) : (
+                          <Minus className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span className={`text-xs font-bold ${
+                          data.direction === 'improved' ? 'text-emerald-600 dark:text-emerald-400' :
+                          data.direction === 'declined' ? 'text-rose-600 dark:text-rose-400' :
+                          'text-gray-500'
+                        }`}>
+                          {data.change > 0 ? '+' : ''}{data.change}%
+                        </span>
+                      </div>
+
+                      {/* Mini Sparkline Bar Chart */}
+                      <div className="flex items-center justify-center h-8">
+                        <ResponsiveContainer width="100%" height={32}>
+                          <BarChart data={data.periodData.slice(-6)} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+                            <Bar
+                              dataKey="score"
+                              radius={[2, 2, 0, 0]}
+                              fill={
+                                data.direction === 'improved' ? '#10b981' :
+                                data.direction === 'declined' ? '#f43f5e' :
+                                '#8b5cf6'
+                              }
+                              fillOpacity={0.7}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* ── Search, Sort & Student List ── */}
       <motion.div variants={itemVariants}>

@@ -1328,8 +1328,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Performance Overview — Compact Stat Bar + Charts (2/3) */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden h-full">
+        <motion.div variants={itemVariants} className="lg:col-span-2 flex">
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex-1">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-teal-600 shadow-sm">
@@ -1570,8 +1570,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         </motion.div>
 
         {/* Right column: Recent Activity (1/3) — matches Performance Overview height */}
-        <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden h-full flex flex-col">
+        <motion.div variants={itemVariants} className="flex">
+          <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex-1 flex flex-col">
             <div className="flex items-center justify-between border-b p-4 shrink-0">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <ListChecks className="h-4 w-4 text-violet-600" />
@@ -1650,7 +1650,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
                 if (activities.length === 0) {
                   return (
-                    <div className="py-12 text-center text-muted-foreground text-sm">
+                    <div className="flex-1 flex flex-col items-center justify-center py-12 text-muted-foreground text-sm">
                       <ListChecks className="h-10 w-10 mx-auto mb-3 opacity-30" />
                       {t('teacher.noActivities')}
                     </div>

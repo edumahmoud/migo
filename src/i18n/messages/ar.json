@@ -3221,7 +3221,21 @@
     "trackingOfTotal": "من",
     "trackingShowAll": "عرض الكل",
     "trackingTop3": "أفضل 3",
-    "trackingRankingBy": "ترتيب حسب"
+    "trackingRankingBy": "ترتيب حسب",
+    "trendAnalysis": "تحليل الاتجاهات",
+    "trendMonthly": "شهري",
+    "trendQuarterly": "ربع سنوي",
+    "trendSemester": "فصلي",
+    "trendImproved": "تحسن",
+    "trendDeclined": "تراجع",
+    "trendStable": "ثابت",
+    "trendPrevious": "السابق",
+    "trendCurrent": "الحالي",
+    "trendChange": "التغير",
+    "trendNoData": "لا توجد بيانات كافية لتحليل الاتجاهات",
+    "trendStudentsImproved": "{count} طالب تحسنوا",
+    "trendStudentsDeclined": "{count} طالب تراجعوا",
+    "trendStudentsStable": "{count} طالب ثابتون"
   },
   "student": {
     "mySubjects": "مقرراتي",
