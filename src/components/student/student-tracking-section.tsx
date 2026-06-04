@@ -35,7 +35,6 @@ import {
   ArrowDownRight,
   Filter,
   Info,
-  LayoutList,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -124,71 +123,6 @@ function formatTime(dateStr: string): string {
   } catch {
     return '';
   }
-}
-
-// -------------------------------------------------------
-// Circular Progress Indicator
-// -------------------------------------------------------
-function CircularProgress({
-  value,
-  size = 100,
-  strokeWidth = 8,
-  label,
-  gradientId = 'progressGradient',
-  colorClass,
-}: {
-  value: number;
-  size?: number;
-  strokeWidth?: number;
-  label: string;
-  gradientId?: string;
-  colorClass?: string;
-}) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
-
-  return (
-    <div className="relative flex flex-col items-center gap-1">
-      <svg width={size} height={size} className="transform -rotate-90">
-        {/* Background circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          fill="none"
-          className="text-slate-100 dark:text-slate-800"
-        />
-        {/* Progress arc */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={`url(#${gradientId})`}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-all duration-700 ease-out"
-        />
-        <defs>
-          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={colorClass?.includes('emerald') ? '#10b981' : colorClass?.includes('amber') ? '#f59e0b' : colorClass?.includes('rose') ? '#f43f5e' : '#0284c7'} />
-            <stop offset="100%" stopColor={colorClass?.includes('emerald') ? '#34d399' : colorClass?.includes('amber') ? '#fbbf24' : colorClass?.includes('rose') ? '#fb7185' : '#0d9488'} />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`text-2xl font-bold ${colorClass?.includes('emerald') ? 'text-emerald-700 dark:text-emerald-400' : colorClass?.includes('amber') ? 'text-amber-700 dark:text-amber-400' : colorClass?.includes('rose') ? 'text-rose-700 dark:text-rose-400' : 'text-sky-800 dark:text-sky-400'}`}>
-          {Math.round(value)}%
-        </span>
-      </div>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-    </div>
-  );
 }
 
 // -------------------------------------------------------
@@ -505,7 +439,7 @@ export default function StudentTrackingSection({
   // ─── Timeline filter state ───
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all');
   const [showInstructions, setShowInstructions] = useState(false);
-  const [overviewViewMode, setOverviewViewMode] = useState<'cards' | 'charts'>('cards');
+  const [showPerformanceCharts, setShowPerformanceCharts] = useState(false);
 
   const filteredTimeline = useMemo(() => {
     if (timelineFilter === 'all') return activityTimeline;
@@ -886,298 +820,140 @@ export default function StudentTrackingSection({
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════
-          Section 2: KPI Overview Cards / Charts
+          Section 2: Compact Performance Summary Bar
           ════════════════════════════════════════════════════════════ */}
       <motion.div variants={itemVariants}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-l from-sky-50/60 via-teal-50/40 to-white dark:from-sky-900/10 dark:via-teal-900/5 dark:to-card border border-sky-100/60 dark:border-sky-900/30">
+          <div className="flex items-center gap-2 me-1">
             <Activity className="h-4 w-4 text-sky-600" />
-            <p className="text-sm font-medium text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
+            <p className="text-sm font-bold text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
           </div>
-          {/* Toggle between Cards and Charts */}
-          <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/30 p-0.5">
-            <button
-              onClick={() => setOverviewViewMode('cards')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                overviewViewMode === 'cards'
-                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <LayoutList className="h-3 w-3" />
-              {t('teacher.cardView')}
-            </button>
-            <button
-              onClick={() => setOverviewViewMode('charts')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                overviewViewMode === 'charts'
-                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <BarChart3 className="h-3 w-3" />
-              {t('teacher.chartView')}
-            </button>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-100/80 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400 text-xs font-medium">
+              <TrendingUp className="h-3 w-3" />
+              {Math.round(metrics.overallPerformance)}% {t('student.trackingOverallProgress')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100/80 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-medium">
+              <Zap className="h-3 w-3" />
+              {Math.round(metrics.efficiency)}% {t('student.trackingEfficiency')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100/80 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 text-xs font-medium">
+              <ShieldCheck className="h-3 w-3" />
+              {Math.round(metrics.disciplineScore)}% {t('student.trackingDisciplineScore')}
+            </span>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${growthConfig.key === 'improving' ? 'bg-emerald-100/80 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : growthConfig.key === 'stable' ? 'bg-sky-100/80 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400' : 'bg-rose-100/80 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'}`}>
+              {growthConfig.key === 'improving' ? <ArrowUpRight className="h-3 w-3" /> : growthConfig.key === 'stable' ? <ArrowRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+              {metrics.growthIndex.toFixed(2)} {t('student.trackingGrowthIndex')}
+            </span>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${riskConfig.bgColor} ${riskConfig.textColor}`}>
+              <AlertTriangle className="h-3 w-3" />
+              {getRiskLevelLabel(metrics.riskLevel)}
+            </span>
           </div>
+          <button
+            onClick={() => setShowPerformanceCharts(!showPerformanceCharts)}
+            className="ms-auto flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-white dark:bg-gray-800 text-muted-foreground hover:text-foreground shadow-sm border border-gray-200 dark:border-gray-700 transition-colors"
+          >
+            <BarChart3 className="h-3 w-3" />
+            {showPerformanceCharts ? (locale === 'ar' ? 'إخفاء الرسوم' : 'Hide Charts') : (locale === 'ar' ? 'عرض الرسوم' : 'Show Charts')}
+          </button>
         </div>
+        {/* Collapsible Charts */}
+        <AnimatePresence>
+          {showPerformanceCharts && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+              className="overflow-hidden"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
+                {/* Area Chart: Performance Trend */}
+                <div className="rounded-xl border border-sky-100/60 dark:border-sky-900/30 bg-sky-50/30 dark:bg-sky-900/5 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="h-4 w-4 text-sky-600" />
+                    <p className="text-xs font-medium text-foreground">{t('teacher.performanceTrend')}</p>
+                  </div>
+                  {studentTrendData.length < 2 ? (
+                    <div className="py-6 text-center text-muted-foreground text-xs">
+                      <BarChart3 className="h-6 w-6 mx-auto mb-1 opacity-30" />
+                      {t('teacher.noTrendData')}
+                    </div>
+                  ) : (
+                    <div className="h-[180px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={studentTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="stuPerfGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <RechartsCartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
+                          <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                          <RechartsTooltip
+                            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                            formatter={((value: unknown) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']) as never}
+                          />
+                          <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#stuPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
 
-        {overviewViewMode === 'cards' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          {/* Card 1: Overall Performance */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center">
-              <CircularProgress
-                value={metrics.overallPerformance}
-                size={80}
-                strokeWidth={7}
-                label={t('student.trackingOverallProgress')}
-                gradientId="overallGrad"
-                colorClass={performanceConfig.color}
-              />
-              <Badge
-                className={`mt-2 text-[10px] px-2 py-0.5 ${performanceConfig.bgColor} ${performanceConfig.textColor} border-0`}
-              >
-                {performanceConfig.icon} {t(`student.trackingExamPerformance`)}
-              </Badge>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Efficiency */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center">
-              {metrics.efficiencyLevel === 'insufficient' ? (
-                <>
-                  <div className="relative flex flex-col items-center">
-                    <svg width={80} height={80} className="transform -rotate-90">
-                      <circle
-                        cx={40}
-                        cy={40}
-                        r={33}
-                        stroke="currentColor"
-                        strokeWidth={7}
-                        fill="none"
-                        className="text-slate-100 dark:text-slate-800"
-                      />
-                      <circle
-                        cx={40}
-                        cy={40}
-                        r={33}
-                        stroke="#94a3b8"
-                        strokeWidth={7}
-                        fill="none"
-                        strokeDasharray={2 * Math.PI * 33}
-                        strokeDashoffset={2 * Math.PI * 33 * 0.75}
-                        strokeLinecap="round"
-                        strokeOpacity={0.3}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">—</span>
+                {/* Pie Chart: Student Performance Level */}
+                <div className="rounded-xl border border-amber-100/60 dark:border-amber-900/30 bg-amber-50/30 dark:bg-amber-900/5 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award className="h-4 w-4 text-amber-500" />
+                    <p className="text-xs font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="h-[150px] w-[150px] shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={studentLevelPieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={38}
+                            outerRadius={68}
+                            paddingAngle={3}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {studentLevelPieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.isCurrent ? entry.color : '#e5e7eb'} fillOpacity={entry.isCurrent ? 1 : 0.3} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip
+                            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                            formatter={((value: unknown, name: unknown) => [value === 1 ? (locale === 'ar' ? 'مستواك الحالي' : 'Your Level') : '', name || '']) as never}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-col gap-1.5 flex-1">
+                      {studentLevelPieData.map((entry) => (
+                        <div key={entry.name} className={`flex items-center gap-2 p-1 rounded-md ${entry.isCurrent ? 'bg-muted/50' : ''}`}>
+                          <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.isCurrent ? entry.color : '#d1d5db', opacity: entry.isCurrent ? 1 : 0.5 }} />
+                          <span className={`text-[11px] flex-1 ${entry.isCurrent ? 'text-foreground font-bold' : 'text-muted-foreground'}`}>{entry.name}</span>
+                          {entry.isCurrent && (
+                            <Badge className="text-[8px] px-1.5 py-0" style={{ backgroundColor: entry.color, color: '#fff' }}>
+                              {Math.round(metrics.overallPerformance)}%
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground">{t('student.trackingEfficiencyInsufficient')}</span>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 text-center leading-tight">
-                    {t('student.trackingEfficiencyInsufficientNote')}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <CircularProgress
-                    value={metrics.efficiency}
-                    size={80}
-                    strokeWidth={7}
-                    label={t('student.trackingEfficiency') || 'Efficiency'}
-                    gradientId="efficiencyGrad"
-                    colorClass={efficiencyConfig.color}
-                  />
-                  <Badge
-                    className={`mt-2 text-[10px] px-2 py-0.5 ${efficiencyConfig.bgColor} ${efficiencyConfig.textColor} border-0`}
-                  >
-                    {metrics.efficiencyLevel === 'high' ? '⚡' : metrics.efficiencyLevel === 'medium' ? '●' : '▼'}
-                  </Badge>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Discipline Score */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center">
-              <div className="flex h-[80px] w-[80px] items-center justify-center rounded-full bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 ring-2 ring-violet-100 dark:ring-violet-900/40">
-                <ShieldCheck className="h-8 w-8 text-violet-600 dark:text-violet-400" />
-              </div>
-              <span className="text-xl font-bold text-violet-700 dark:text-violet-400 mt-2">
-                {Math.round(metrics.disciplineScore)}%
-              </span>
-              <span className="text-xs font-medium text-muted-foreground">{t('student.trackingDisciplineScore')}</span>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5 text-center leading-tight">
-                {t('student.trackingDisciplineTooltip')}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Card 4: Growth Index */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4 flex flex-col items-center">
-              <div className={`flex h-[80px] w-[80px] items-center justify-center rounded-full ${
-                growthConfig.key === 'improving'
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-100 dark:ring-emerald-900/40'
-                  : growthConfig.key === 'stable'
-                  ? 'bg-sky-50 dark:bg-sky-900/15 ring-2 ring-sky-100 dark:ring-sky-900/40'
-                  : 'bg-rose-50 dark:bg-rose-900/20 ring-2 ring-rose-100 dark:ring-rose-900/40'
-              }`}>
-                {growthConfig.key === 'improving' ? (
-                  <ArrowUpRight className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-                ) : growthConfig.key === 'stable' ? (
-                  <ArrowRight className="h-8 w-8 text-sky-600 dark:text-sky-400" />
-                ) : (
-                  <ArrowDownRight className="h-8 w-8 text-rose-600 dark:text-rose-400" />
-                )}
-              </div>
-              <span className={`text-xl font-bold mt-2 ${growthConfig.textColor}`}>
-                {metrics.growthIndex.toFixed(2)}
-              </span>
-              <span className="text-xs font-medium text-muted-foreground">{t('student.trackingGrowthIndex')}</span>
-              <Badge
-                className={`mt-1 text-[10px] px-2 py-0.5 ${growthConfig.key === 'improving' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : growthConfig.key === 'stable' ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'} border-0`}
-              >
-                {growthConfig.icon} {getGrowthTrendLabel(metrics.growthTrend)}
-              </Badge>
-            </CardContent>
-          </Card>
-
-          {/* Card 5: Risk Level */}
-          <Card className={`${riskConfig.borderColor} shadow-sm`}>
-            <CardContent className="p-4 flex flex-col items-center">
-              <div className={`flex h-[80px] w-[80px] items-center justify-center rounded-full ${riskConfig.bgColor} ring-2 ${riskConfig.borderColor}`}>
-                <AlertTriangle className={`h-8 w-8 ${riskConfig.textColor}`} />
-              </div>
-              <Badge
-                className={`mt-2 text-xs px-2.5 py-0.5 ${riskConfig.bgColor} ${riskConfig.textColor} ${riskConfig.borderColor} border`}
-              >
-                {getRiskLevelLabel(metrics.riskLevel)}
-              </Badge>
-              <span className="text-xs font-medium text-muted-foreground mt-1">{t('student.trackingRiskLevel')}</span>
-              {metrics.riskReasons.length > 0 ? (
-                <div className="mt-1.5 space-y-0.5 w-full">
-                  {metrics.riskReasons.slice(0, 3).map((reason, idx) => (
-                    <p key={idx} className="text-[10px] text-muted-foreground/80 truncate text-center">
-                      • {getRiskReasonLabel(reason)}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[10px] text-muted-foreground/60 mt-1">{t('student.trackingNoRiskReasons')}</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        ) : (
-        /* ── Chart View ── */
-        <div className="space-y-5">
-          {/* Area Chart: Performance Trend */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp className="h-4 w-4 text-sky-600" />
-                <p className="text-sm font-medium text-foreground">{t('teacher.performanceTrend')}</p>
-              </div>
-              {studentTrendData.length < 2 ? (
-                <div className="py-8 text-center text-muted-foreground text-xs">
-                  <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  {t('teacher.noTrendData')}
-                </div>
-              ) : (
-                <div className="h-[200px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={studentTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="stuPerfGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <RechartsCartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
-                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-                      <RechartsTooltip
-                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
-                        formatter={(value: number) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']}
-                      />
-                      <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#stuPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Pie Chart: Student Performance Level */}
-          <Card className="border-amber-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Award className="h-4 w-4 text-amber-500" />
-                <p className="text-sm font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <div className="h-[180px] w-[180px] shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={studentLevelPieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={75}
-                        paddingAngle={3}
-                        dataKey="value"
-                        stroke="none"
-                      >
-                        {studentLevelPieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.isCurrent ? entry.color : '#e5e7eb'} fillOpacity={entry.isCurrent ? 1 : 0.3} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip
-                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
-                        formatter={(value: number, name: string) => [value === 1 ? (locale === 'ar' ? 'مستواك الحالي' : 'Your Level') : '', name]}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-col gap-2 flex-1">
-                  {studentLevelPieData.map((entry) => (
-                    <div key={entry.name} className={`flex items-center gap-2.5 p-1.5 rounded-md ${entry.isCurrent ? 'bg-muted/50' : ''}`}>
-                      <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.isCurrent ? entry.color : '#d1d5db', opacity: entry.isCurrent ? 1 : 0.5 }} />
-                      <span className={`text-xs flex-1 ${entry.isCurrent ? 'text-foreground font-bold' : 'text-muted-foreground'}`}>{entry.name}</span>
-                      {entry.isCurrent && (
-                        <Badge className={`text-[8px] px-1.5 py-0`} style={{ backgroundColor: entry.color, color: '#fff' }}>
-                          {Math.round(metrics.overallPerformance)}%
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* KPI Summary Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
-              <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{Math.round(metrics.overallPerformance)}%</p>
-              <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الأداء العام' : 'Overall'}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-              <p className="text-lg font-bold text-teal-700 dark:text-teal-400">{Math.round(metrics.attendanceScore)}%</p>
-              <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الحضور' : 'Attendance'}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
-              <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{Math.round(metrics.examPerformance)}%</p>
-              <p className="text-[9px] text-muted-foreground">{locale === 'ar' ? 'الاختبارات' : 'Exams'}</p>
-            </div>
-          </div>
-        </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* ════════════════════════════════════════════════════════════

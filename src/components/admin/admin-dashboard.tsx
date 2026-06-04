@@ -3526,7 +3526,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         direction: 'rtl',
                         maxWidth: '160px',
                       }}
-                      formatter={(value, name) => [value, name]}
+                      formatter={((value: unknown, name: unknown) => [value, name]) as never}
                     />
                     <Legend
                       content={({ payload }) => (

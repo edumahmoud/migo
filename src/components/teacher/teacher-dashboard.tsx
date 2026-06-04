@@ -1424,12 +1424,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 borderRadius: '8px',
                                 fontSize: '11px',
                               }}
-                              formatter={(value: number, name: string) => [
+                              formatter={((value: unknown, name: unknown) => [
                                 `${value}%`,
                                 name === 'performance'
                                   ? (locale === 'ar' ? 'الأداء' : 'Performance')
                                   : (locale === 'ar' ? 'الحضور' : 'Attendance'),
-                              ]}
+                              ]) as never}
                             />
                             <Area
                               type="monotone"
@@ -1506,7 +1506,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                   borderRadius: '8px',
                                   fontSize: '11px',
                                 }}
-                                formatter={(value: number, name: string) => [`${value} ${locale === 'ar' ? 'طالب' : 'students'}`, name]}
+                                formatter={((value: unknown, name: unknown) => [`${value} ${locale === 'ar' ? 'طالب' : 'students'}`, name]) as never}
                               />
                             </PieChart>
                           </ResponsiveContainer>
@@ -2298,7 +2298,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     />
                     <Tooltip
                        
-                      formatter={(value: any) => [`${value ?? 0}%`, t('teacher.chartPerformanceAvg')]}
+                      formatter={((value: unknown) => [`${value ?? 0}%`, t('teacher.chartPerformanceAvg')]) as never}
                       contentStyle={{ direction: 'rtl', textAlign: 'right' }}
                     />
                     <Bar
@@ -2347,7 +2347,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       contentStyle={{ direction: 'rtl', textAlign: 'right' }}
                     />
                     <Legend
-                      formatter={(value) => <span style={{ color: '#374151', fontSize: 12 }}>{value}</span>}
+                      formatter={((value: unknown) => <span style={{ color: '#374151', fontSize: 12 }}>{String(value)}</span>) as never}
                     />
                   </PieChart>
                 </ResponsiveContainer>

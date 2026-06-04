@@ -41,7 +41,6 @@ import {
   Info,
   ArrowUpRight,
   ArrowDownRight,
-  LayoutList,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -284,9 +283,8 @@ export default function TeacherStudentTrackingSection({
   const [sortBy, setSortBy] = useState<SortOption>('performance');
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk'>('level');
+  const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk' | 'charts'>('level');
   const [showInstructions, setShowInstructions] = useState(false);
-  const [overviewViewMode, setOverviewViewMode] = useState<'cards' | 'charts'>('cards');
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
@@ -1011,236 +1009,44 @@ export default function TeacherStudentTrackingSection({
         </DialogContent>
       </Dialog>
 
-      {/* ── Overview Cards / Charts Toggle ── */}
+      {/* ── Compact Performance Summary Bar ── */}
       <motion.div variants={itemVariants}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 rounded-xl bg-gradient-to-l from-sky-50/60 via-teal-50/40 to-white dark:from-sky-900/10 dark:via-teal-900/5 dark:to-card border border-sky-100/60 dark:border-sky-900/30">
+          <div className="flex items-center gap-2 me-1">
             <Activity className="h-4 w-4 text-sky-600" />
-            <p className="text-sm font-medium text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
+            <p className="text-sm font-bold text-foreground">{locale === 'ar' ? 'ملخص الأداء' : 'Performance Summary'}</p>
           </div>
-          {/* Toggle between Cards and Charts */}
-          <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-muted/30 p-0.5">
-            <button
-              onClick={() => setOverviewViewMode('cards')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                overviewViewMode === 'cards'
-                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <LayoutList className="h-3 w-3" />
-              {t('teacher.cardView')}
-            </button>
-            <button
-              onClick={() => setOverviewViewMode('charts')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-all ${
-                overviewViewMode === 'charts'
-                  ? 'bg-white dark:bg-gray-800 text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <BarChart3 className="h-3 w-3" />
-              {t('teacher.chartView')}
-            </button>
-          </div>
-        </div>
-
-        {overviewViewMode === 'cards' ? (
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
-          {/* Total Students */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-900/15 ring-2 ring-sky-100">
-                  <Users className="h-5 w-5 text-sky-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-400">{overviewStats.totalStudents}</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingTotalStudents')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Average Performance */}
-          <Card className="border-teal-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-900/20 ring-2 ring-teal-100">
-                  <TrendingUp className="h-5 w-5 text-teal-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-500">{Math.round(overviewStats.avgPerformance)}%</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingAvgPerformance')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Avg Attendance Score */}
-          <Card className="border-amber-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-100">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-500">{Math.round(overviewStats.avgAttendance)}%</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingAttendanceRate')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Avg Discipline Score */}
-          <Card className="border-violet-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-900/20 ring-2 ring-violet-100">
-                  <ShieldCheck className="h-5 w-5 text-violet-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-violet-700 dark:text-violet-500">{Math.round(overviewStats.avgDiscipline)}%</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingDisciplineScore')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* At Risk Students */}
-          <Card className="border-rose-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-900/20 ring-2 ring-rose-100">
-                  <AlertTriangle className="h-5 w-5 text-rose-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-rose-700 dark:text-rose-500">{overviewStats.atRiskStudents}</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingRiskLevel')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Top Performers */}
-          <Card className="border-emerald-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-100">
-                  <Award className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{overviewStats.topPerformers}</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingTopPerformers')}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        ) : (
-        /* ── Chart View ── */
-        <div className="space-y-5">
-          {/* Area Chart: Performance Trend */}
-          <Card className="border-sky-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp className="h-4 w-4 text-sky-600" />
-                <p className="text-sm font-medium text-foreground">{t('teacher.performanceTrend')}</p>
-              </div>
-              {trackingTrendData.length < 2 ? (
-                <div className="py-8 text-center text-muted-foreground text-xs">
-                  <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  {t('teacher.noTrendData')}
-                </div>
-              ) : (
-                <div className="h-[200px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trackingTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="trackPerfGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
-                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
-                        formatter={(value: number) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']}
-                      />
-                      <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#trackPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Pie Chart: Student Level Distribution */}
-          <Card className="border-amber-100/50 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Award className="h-4 w-4 text-amber-500" />
-                <p className="text-sm font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
-              </div>
-              {trackingLevelPieData.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground text-xs">
-                  <Award className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  {t('teacher.noPerformanceData')}
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="h-[180px] w-[180px] shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={trackingLevelPieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                          {trackingLevelPieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
-                          formatter={(value: number, name: string) => [`${value} ${locale === 'ar' ? 'طالب' : 'students'}`, name]}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex flex-col gap-2 flex-1">
-                    {trackingLevelPieData.map((entry) => {
-                      const pct = studentPerformanceData.length > 0 ? Math.round((entry.value / studentPerformanceData.length) * 100) : 0;
-                      return (
-                        <div key={entry.name} className="flex items-center gap-2.5">
-                          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                          <span className="text-xs text-foreground flex-1">{entry.name}</span>
-                          <span className="text-xs font-bold text-foreground">{entry.value}</span>
-                          <span className="text-[10px] text-muted-foreground">({pct}%)</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* KPI Summary Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 text-center">
-              <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{overviewStats.totalStudents}</p>
-              <p className="text-[9px] text-muted-foreground">{t('teacher.trackingTotalStudents')}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-              <p className="text-lg font-bold text-teal-700 dark:text-teal-400">{Math.round(overviewStats.avgPerformance)}%</p>
-              <p className="text-[9px] text-muted-foreground">{t('teacher.trackingAvgPerformance')}</p>
-            </div>
-            <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 text-center">
-              <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{Math.round(overviewStats.avgAttendance)}%</p>
-              <p className="text-[9px] text-muted-foreground">{t('teacher.trackingAttendanceRate')}</p>
-            </div>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100/80 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 text-xs font-medium">
+              <Users className="h-3 w-3" />
+              {overviewStats.totalStudents} {t('teacher.trackingTotalStudents')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-100/80 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400 text-xs font-medium">
+              <TrendingUp className="h-3 w-3" />
+              {Math.round(overviewStats.avgPerformance)}% {t('teacher.trackingAvgPerformance')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100/80 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-xs font-medium">
+              <Clock className="h-3 w-3" />
+              {Math.round(overviewStats.avgAttendance)}% {t('teacher.trackingAttendanceRate')}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-100/80 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 text-xs font-medium">
+              <ShieldCheck className="h-3 w-3" />
+              {Math.round(overviewStats.avgDiscipline)}% {t('teacher.trackingDisciplineScore')}
+            </span>
+            {overviewStats.atRiskStudents > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100/80 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 text-xs font-medium">
+                <AlertTriangle className="h-3 w-3" />
+                {overviewStats.atRiskStudents} {t('teacher.trackingRiskLevel')}
+              </span>
+            )}
+            {overviewStats.topPerformers > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100/80 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                <Award className="h-3 w-3" />
+                {overviewStats.topPerformers} {t('teacher.trackingTopPerformers')}
+              </span>
+            )}
           </div>
         </div>
-        )}
       </motion.div>
 
       {/* Section Health Indicator */}
@@ -1345,6 +1151,17 @@ export default function TeacherStudentTrackingSection({
                   }`}
                 >
                   {t('teacher.trackingRiskLevel')}
+                </button>
+                <button
+                  onClick={() => setActiveFilterTab('charts')}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    activeFilterTab === 'charts'
+                      ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:text-foreground'
+                  }`}
+                >
+                  <BarChart3 className="h-3 w-3" />
+                  {t('teacher.chartView')}
                 </button>
               </div>
             </div>
@@ -1470,7 +1287,7 @@ export default function TeacherStudentTrackingSection({
                     </div>
                   </div>
                 </motion.div>
-              ) : (
+              ) : activeFilterTab === 'risk' ? (
                 /* Risk Level Distribution Tab */
                 <motion.div
                   key="risk-tab"
@@ -1549,7 +1366,98 @@ export default function TeacherStudentTrackingSection({
                     </div>
                   </div>
                 </motion.div>
-              )}
+              ) : activeFilterTab === 'charts' ? (
+                /* ── Charts Tab: Performance Trend + Level Distribution ── */
+                <motion.div
+                  key="charts-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Area Chart: Performance Trend */}
+                    <div className="rounded-xl border border-sky-100/60 dark:border-sky-900/30 bg-sky-50/30 dark:bg-sky-900/5 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className="h-4 w-4 text-sky-600" />
+                        <p className="text-xs font-medium text-foreground">{t('teacher.performanceTrend')}</p>
+                      </div>
+                      {trackingTrendData.length < 2 ? (
+                        <div className="py-6 text-center text-muted-foreground text-xs">
+                          <BarChart3 className="h-6 w-6 mx-auto mb-1 opacity-30" />
+                          {t('teacher.noTrendData')}
+                        </div>
+                      ) : (
+                        <div className="h-[180px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={trackingTrendData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="trackPerfGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
+                              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickFormatter={(v: string) => v.slice(5)} />
+                              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                              <Tooltip
+                                contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                                formatter={((value: unknown) => [`${value}%`, locale === 'ar' ? 'الأداء' : 'Performance']) as never}
+                              />
+                              <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2.5} fill="url(#trackPerfGrad)" dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 0 }} activeDot={{ r: 5, stroke: '#0ea5e9', strokeWidth: 2, fill: '#fff' }} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pie Chart: Student Level Distribution */}
+                    <div className="rounded-xl border border-amber-100/60 dark:border-amber-900/30 bg-amber-50/30 dark:bg-amber-900/5 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Award className="h-4 w-4 text-amber-500" />
+                        <p className="text-xs font-medium text-foreground">{t('teacher.studentLevelDistribution')}</p>
+                      </div>
+                      {trackingLevelPieData.length === 0 ? (
+                        <div className="py-6 text-center text-muted-foreground text-xs">
+                          <Award className="h-6 w-6 mx-auto mb-1 opacity-30" />
+                          {t('teacher.noPerformanceData')}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row items-center gap-3">
+                          <div className="h-[150px] w-[150px] shrink-0">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={trackingLevelPieData} cx="50%" cy="50%" innerRadius={38} outerRadius={68} paddingAngle={2} dataKey="value" stroke="none">
+                                  {trackingLevelPieData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <Tooltip
+                                  contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '11px' }}
+                                  formatter={((value: unknown, name: unknown) => [`${value} ${locale === 'ar' ? 'طالب' : 'students'}`, name]) as never}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="flex flex-col gap-1.5 flex-1">
+                            {trackingLevelPieData.map((entry) => {
+                              const pct = studentPerformanceData.length > 0 ? Math.round((entry.value / studentPerformanceData.length) * 100) : 0;
+                              return (
+                                <div key={entry.name} className="flex items-center gap-2">
+                                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                                  <span className="text-[11px] text-foreground flex-1">{entry.name}</span>
+                                  <span className="text-[11px] font-bold text-foreground">{entry.value}</span>
+                                  <span className="text-[9px] text-muted-foreground">({pct}%)</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ) : null}
             </AnimatePresence>
 
             {/* Active filter indicators */}
