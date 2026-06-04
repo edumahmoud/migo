@@ -44,6 +44,7 @@ export interface FileUploadTask {
   profileId: string;
   subjectIds: string[]; // Course IDs to assign after upload
   folderId?: string | null; // Folder to upload into
+  fileRecord?: Record<string, unknown> | null; // DB record returned after successful upload
 }
 
 interface FileUploadState {
@@ -522,6 +523,8 @@ async function startUpload(taskId: string) {
 
         if (result.success && result.data?.id) {
           uploadSucceeded = true;
+          // Store the file record for instant UI updates in the uploading component
+          store.updateTask(taskId, { fileRecord: result.data });
           console.log(`[File Upload] Server-side upload succeeded for ${displayName}`);
         } else {
           console.warn(`[File Upload] Server-side upload failed for ${displayName}:`, result.error, '— falling back to direct storage');
@@ -697,6 +700,8 @@ async function startUpload(taskId: string) {
 
         if (result.success && result.data?.id) {
           uploadSucceeded = true;
+          // Store the file record for instant UI updates in the uploading component
+          store.updateTask(taskId, { fileRecord: result.data });
         } else {
           console.error('[File Upload] Create record error:', result.error);
           await supabase.storage.from('user-files').remove([storagePath]);

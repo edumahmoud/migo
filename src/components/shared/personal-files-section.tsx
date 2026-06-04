@@ -458,22 +458,44 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // -------------------------------------------------------
   // Auto-refresh files when background uploads complete
-  // Uses a debounce ref to prevent double-fetching when both
-  // the Realtime subscription and this effect fire at the same time.
+  // Instantly adds files with fileRecord to local state for
+  // immediate appearance in the current folder. Falls back to
+  // debounced fetchFiles for tasks without fileRecord data.
   // -------------------------------------------------------
-  const prevCompletedCountRef = useRef(0);
+  const prevCompletedIdsRef = useRef<Set<string>>(new Set());
   const lastFetchTimeRef = useRef(0);
   useEffect(() => {
-    const completedCount = uploadTasks.filter(t => t.status === 'success').length;
-    // When completed count increases (a new upload finished), refresh file list
-    if (completedCount > prevCompletedCountRef.current) {
-      const now = Date.now();
-      if (now - lastFetchTimeRef.current > 500) {
-        lastFetchTimeRef.current = now;
-        fetchFiles(false);
+    const completedTasks = uploadTasks.filter(t => t.status === 'success');
+    const completedIds = new Set(completedTasks.map(t => t.id));
+
+    // Find newly completed tasks (not seen before)
+    const newCompleted = completedTasks.filter(t => !prevCompletedIdsRef.current.has(t.id));
+
+    if (newCompleted.length > 0) {
+      // Add files with fileRecord to local state instantly
+      for (const task of newCompleted) {
+        if (task.fileRecord && task.fileRecord.id) {
+          const fileRecord = task.fileRecord as unknown as UserFile;
+          // Avoid duplicates
+          setFiles(prev => {
+            if (prev.some(f => f.id === fileRecord.id)) return prev;
+            return [fileRecord, ...prev];
+          });
+        }
+      }
+
+      // For tasks without fileRecord, fall back to debounced fetch
+      const needsFetch = newCompleted.some(t => !t.fileRecord || !t.fileRecord.id);
+      if (needsFetch) {
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current > 500) {
+          lastFetchTimeRef.current = now;
+          fetchFiles(false);
+        }
       }
     }
-    prevCompletedCountRef.current = completedCount;
+
+    prevCompletedIdsRef.current = completedIds;
   }, [uploadTasks, fetchFiles]);
 
   // -------------------------------------------------------
@@ -618,13 +640,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           setFiles(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f));
         }
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, () => {
-        // New file uploaded (possibly from another tab/device) — full refetch to get complete data
-        // Debounce: skip if we just fetched (e.g., from uploadTasks effect in same tab)
-        const now = Date.now();
-        if (now - lastFetchTimeRef.current > 500) {
-          lastFetchTimeRef.current = now;
-          fetchFiles(false);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        // New file uploaded (possibly from another tab/device)
+        // Add to local state instantly if not already present
+        const newFile = payload.new as UserFile;
+        if (newFile?.id) {
+          setFiles(prev => {
+            if (prev.some(f => f.id === newFile.id)) return prev;
+            return [newFile, ...prev];
+          });
         }
       })
       .subscribe();

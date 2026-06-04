@@ -247,8 +247,8 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   // -------------------------------------------------------
   // Fetch assignments
   // -------------------------------------------------------
-  const fetchAssignments = useCallback(async () => {
-    setLoading(true);
+  const fetchAssignments = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('assignments')
@@ -260,7 +260,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     } catch (err) {
       console.error('Fetch assignments error:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [subjectId]);
 
@@ -356,7 +356,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'assignments', filter: `subject_id=eq.${subjectId}` },
-        () => { fetchAssignments(); }
+        () => { fetchAssignments(true); }
       )
       .subscribe();
 
