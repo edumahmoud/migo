@@ -690,7 +690,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#94a3b8" />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                        <Tooltip formatter={(value: number) => `${value}%` as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Tooltip formatter={(value) => `${value}%` as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                         <Area type="monotone" dataKey="performance" stroke="#0ea5e9" strokeWidth={2} fill="url(#adminPerfGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -717,7 +717,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => value as never} />
+                        <Tooltip formatter={(value) => value as never} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                       </PieChart>
                     </ResponsiveContainer>
@@ -742,7 +742,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="range" tick={{ fontSize: 10 }} stroke="#94a3b8" />
                     <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                    <Tooltip formatter={(value: number) => value as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Tooltip formatter={(value) => value as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                       {performanceDistributionData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -860,7 +860,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#94a3b8" />
                       <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} stroke="#94a3b8" />
-                      <Tooltip formatter={(value: number, name: string) => [`${value}%`, name === 'avg' ? (locale === 'ar' ? 'الأداء' : 'Performance') : name === 'avgAtt' ? (locale === 'ar' ? 'الحضور' : 'Attendance') : name] as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Tooltip formatter={(value, name) => [`${value}%`, name === 'avg' ? (locale === 'ar' ? 'الأداء' : 'Performance') : name === 'avgAtt' ? (locale === 'ar' ? 'الحضور' : 'Attendance') : name] as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                       <Legend wrapperStyle={{ fontSize: 10 }} />
                       <Bar dataKey="avg" fill="#8b5cf6" radius={[0, 4, 4, 0]} name={locale === 'ar' ? 'الأداء' : 'Performance'} />
                       <Bar dataKey="avgAtt" fill="#14b8a6" radius={[0, 4, 4, 0]} name={locale === 'ar' ? 'الحضور' : 'Attendance'} />
@@ -1118,7 +1118,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => value as never} />
+                        <Tooltip formatter={(value) => value as never} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                       </PieChart>
                     </ResponsiveContainer>
@@ -1143,7 +1143,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="#94a3b8" />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                        <Tooltip formatter={(value: number) => `${value}%` as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Tooltip formatter={(value) => `${value}%` as never} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                         <Bar dataKey="present" stackId="a" fill="#10b981" name={locale === 'ar' ? 'حاضر' : 'Present'} />
                         <Bar dataKey="late" stackId="a" fill="#f59e0b" name={locale === 'ar' ? 'متأخر' : 'Late'} />
@@ -1219,7 +1219,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => value as never} />
+                        <Tooltip formatter={(value) => value as never} />
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                       </PieChart>
                     </ResponsiveContainer>
