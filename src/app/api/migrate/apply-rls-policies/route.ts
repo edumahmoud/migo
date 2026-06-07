@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * Verify admin data access and provide RLS fix SQL.
@@ -7,6 +8,12 @@ import { supabaseServer } from '@/lib/supabase-server';
  * Body: { "confirm": true }
  */
 export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     const body = await request.json();
     if (!body.confirm) {
@@ -33,7 +40,7 @@ export async function POST(request: NextRequest) {
         .select('*', { count: 'exact', head: true });
       
       if (error) {
-        results.push(`${table}: ERROR - ${error.message}`);
+        results.push(`${table}: ERROR`);
       } else {
         results.push(`${table}: OK (${count})`);
       }
@@ -46,9 +53,9 @@ export async function POST(request: NextRequest) {
       note: 'Run supabase/fix_admin_rls_policies.sql in Supabase Dashboard SQL Editor for client-side query access.',
     });
   } catch (error) {
-    console.error('Migration error:', error);
+    console.error('[Migration] Error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed', details: error instanceof Error ? error.message : String(error) },
+      { success: false, error: 'حدث خطأ أثناء تنفيذ الترحيل' },
       { status: 500 }
     );
   }

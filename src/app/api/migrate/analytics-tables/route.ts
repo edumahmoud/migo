@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/analytics-tables
  * Creates analytics cache, snapshots, and cohort precomputation tables.
  * Safe to run multiple times (IF NOT EXISTS).
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -130,13 +137,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.cohort_analyt
       `.trim(),
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }
 
-export async function GET() {
-  return POST();
+export async function GET(request: NextRequest) {
+  return POST(request);
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 /**
  * GET /api/check-ban
@@ -10,39 +11,11 @@ import { supabaseServer } from '@/lib/supabase-server';
 export async function GET(request: NextRequest) {
   try {
     // ─── Authentication required ───
-    const authHeader = request.headers.get('Authorization');
-    let authenticatedUserId: string | null = null;
-    let isAuthenticated = false;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user: authUser }, error: authError } = await supabaseServer.auth.getUser(token);
-      if (!authError && authUser) {
-        authenticatedUserId = authUser.id;
-        isAuthenticated = true;
-      }
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
     }
-
-    // Also check for cookie-based auth (Supabase session cookie)
-    if (!isAuthenticated) {
-      // Try to get user from the request cookies
-      try {
-        const { data: { user: cookieUser } } = await supabaseServer.auth.getUser();
-        if (cookieUser) {
-          authenticatedUserId = cookieUser.id;
-          isAuthenticated = true;
-        }
-      } catch {
-        // Cookie auth failed, continue
-      }
-    }
-
-    if (!isAuthenticated || !authenticatedUserId) {
-      return NextResponse.json(
-        { success: false, error: 'يرجى تسجيل الدخول أولاً' },
-        { status: 401 }
-      );
-    }
+    const authenticatedUserId = authResult.user.id;
 
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
@@ -56,19 +29,23 @@ export async function GET(request: NextRequest) {
     }
 
     // ─── Authorization: Users can only check their own ban status ───
-    // Get the authenticated user's profile to check their role and verify ownership
-    const { data: authProfile } = await supabaseServer
-      .from('users')
-      .select('id, email, role')
-      .eq('id', authenticatedUserId)
-      .single();
-
-    const isAdmin = authProfile && ['admin', 'superadmin'].includes(authProfile.role as string);
+    const userRole = await getUserRole(authenticatedUserId);
+    const isAdmin = userRole === 'admin' || userRole === 'superadmin';
 
     // Non-admin users can only check their own ban status
     if (!isAdmin) {
+      // Get user email for ownership check
+      let authEmail: string | undefined;
+      if (email) {
+        const { data: profile } = await supabaseServer
+          .from('users')
+          .select('email')
+          .eq('id', authenticatedUserId)
+          .single();
+        authEmail = profile?.email;
+      }
       const isOwnCheck = (userId && userId === authenticatedUserId) ||
-                         (email && email === authProfile?.email);
+                         (email && email === authEmail);
       if (!isOwnCheck) {
         return NextResponse.json(
           { success: false, error: 'يمكنك التحقق من حالة الحظر الخاصة بك فقط' },

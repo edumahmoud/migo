@@ -1,11 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/migrate/enhanced-ban
  * Checks if the enhanced ban system columns exist.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     const { error: checkError } = await supabaseServer
       .from('banned_users')
@@ -25,9 +32,10 @@ export async function GET() {
       sql: getMigrationSQL(),
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }
@@ -37,7 +45,13 @@ export async function GET() {
  * Apply the enhanced ban system migration by executing SQL directly.
  * Uses the Supabase PostgreSQL wire protocol via the REST API.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Check if columns already exist
     const { error: checkError } = await supabaseServer
@@ -106,9 +120,10 @@ export async function POST() {
       sql: getMigrationSQL(),
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: 'حدث خطأ أثناء تنفيذ الترحيل',
       sql: getMigrationSQL(),
     }, { status: 500 });
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/superadmin
@@ -7,6 +8,12 @@ import { supabaseServer } from '@/lib/supabase-server';
  * The CHECK constraint must be updated first via supabase/migrations/add_superadmin_role.sql
  */
 export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     const results: string[] = [];
 
@@ -19,7 +26,8 @@ export async function POST(request: NextRequest) {
     if (saError) {
       results.push('Warning: Could not query superadmins - CHECK constraint may need updating');
       results.push('Please run the migration SQL in supabase/migrations/add_superadmin_role.sql manually');
-      return NextResponse.json({ success: false, results, error: saError.message }, { status: 500 });
+      console.error('[Migration] Superadmin query error:', saError);
+      return NextResponse.json({ success: false, results, error: 'حدث خطأ أثناء تنفيذ الترحيل' }, { status: 500 });
     }
 
     if (superadmins && superadmins.length === 0) {
@@ -32,7 +40,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (firstError) {
-        results.push(`Error finding first user: ${firstError.message}`);
+        results.push('Error finding first user');
       } else if (firstUser) {
         const { error: updateError } = await supabaseServer
           .from('users')
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest) {
           .eq('id', firstUser.id);
 
         if (updateError) {
-          results.push(`Error promoting first user: ${updateError.message}`);
+          results.push('Error promoting first user');
           results.push('Please run the migration SQL first: supabase/migrations/add_superadmin_role.sql');
         } else {
           results.push(`Successfully promoted ${firstUser.name} (${firstUser.email}) to superadmin`);

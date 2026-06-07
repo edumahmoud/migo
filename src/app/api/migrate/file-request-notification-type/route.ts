@@ -1,8 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // Migration: Add 'file_request' notification type to the check constraint
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Test if 'file_request' type is already accepted
     const testId = '00000000-0000-0000-0000-000000000000';
@@ -40,6 +47,6 @@ ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK (
   }
 }
 
-export async function GET() {
-  return POST();
+export async function GET(request: NextRequest) {
+  return POST(request);
 }

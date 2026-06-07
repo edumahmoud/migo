@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/migrate/add-username
@@ -7,7 +8,13 @@ import { supabaseServer } from '@/lib/supabase-server';
  * POST /api/migrate/add-username
  * Checks and reports migration status.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   // Check if username column exists
   const { error: checkError } = await supabaseServer
     .from('users')
@@ -32,7 +39,13 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
   });
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   const { error: checkError } = await supabaseServer
     .from('users')
     .select('username')

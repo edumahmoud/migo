@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/migrate/link-request-notifications
@@ -8,7 +9,13 @@ import { supabaseServer } from '@/lib/supabase-server';
  * Checks if the migration has been applied and returns status.
  * If pending, returns the SQL that needs to be run in Supabase Dashboard SQL Editor.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Check if 'link_request' type is allowed by trying to query notifications with that type
     // If the constraint doesn't include 'link_request', this won't error but we can test with an insert
@@ -58,9 +65,10 @@ CHECK (type IN ('assignment', 'grade', 'enrollment', 'file', 'system', 'attendan
         });
       }
 
+      console.error('[Migration] Link request notification test error:', testError);
       return NextResponse.json({
         status: 'error',
-        message: testError.message,
+        message: 'حدث خطأ أثناء تنفيذ الترحيل',
       });
     }
 
@@ -76,9 +84,10 @@ CHECK (type IN ('assignment', 'grade', 'enrollment', 'file', 'system', 'attendan
       message: 'link_request notification type متاح بالفعل في قاعدة البيانات',
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }

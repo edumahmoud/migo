@@ -107,8 +107,8 @@ export async function GET(request: NextRequest) {
         }
 
         if (pError) {
-          console.error('[Chat API] Conversations error:', pError);
-          return NextResponse.json({ error: pError.message }, { status: 500 });
+          console.error('[Chat API] Conversations fetch error:', pError);
+          return NextResponse.json({ error: 'فشل في جلب المحادثات' }, { status: 500 });
         }
 
         if (!participations || participations.length === 0) {
@@ -140,96 +140,167 @@ export async function GET(request: NextRequest) {
 
         if (convsError) {
           console.error('[Chat API] Conversations fetch error:', convsError);
-          return NextResponse.json({ error: convsError.message }, { status: 500 });
+          return NextResponse.json({ error: 'فشل في جلب المحادثات' }, { status: 500 });
         }
 
-        // Step 3: For each conversation, get last message and unread count
-        const conversations = await Promise.all(
-          (convsData || []).map(async (conv: Record<string, unknown>) => {
-            const convId = conv.id as string;
-            const lastReadAt = lastReadMap.get(convId) || null;
+        // Step 3: Batch fetch data for all conversations (N+1 fix)
+        // Instead of querying per-conversation (150-250 queries for 50 convs),
+        // we use batch queries (~5 queries total) and group results in memory.
 
-            // Get last message
-            const { data: lastMsgs } = await supabaseServer
-              .from('messages')
-              .select('id, sender_id, content, created_at')
-              .eq('conversation_id', convId)
-              .order('created_at', { ascending: false })
-              .limit(1);
+        // 3a: Batch fetch last messages for all conversations
+        const lastMessageMap = new Map<string, Record<string, unknown>>();
+        if (convIds.length > 0) {
+          const { data: allLastMessages } = await supabaseServer
+            .from('messages')
+            .select('id, sender_id, content, created_at, conversation_id')
+            .in('conversation_id', convIds)
+            .order('created_at', { ascending: false });
 
-            // Get unread count
-            let unreadCount = 0;
-            if (lastReadAt) {
-              const { count } = await supabaseServer
-                .from('messages')
-                .select('id', { count: 'exact', head: true })
-                .eq('conversation_id', convId)
-                .gt('created_at', lastReadAt)
-                .neq('sender_id', userId);
-              unreadCount = count || 0;
-            } else {
-              const { count } = await supabaseServer
-                .from('messages')
-                .select('id', { count: 'exact', head: true })
-                .eq('conversation_id', convId)
-                .neq('sender_id', userId);
-              unreadCount = count || 0;
+          // Group by conversation_id and take the first (latest) for each
+          if (allLastMessages) {
+            for (const msg of allLastMessages) {
+              const msgConvId = (msg as Record<string, unknown>).conversation_id as string;
+              if (!lastMessageMap.has(msgConvId)) {
+                lastMessageMap.set(msgConvId, msg as Record<string, unknown>);
+              }
             }
+          }
+        }
 
-            // Get other participant for individual chats
-            let otherParticipant = null;
-            if (conv.type === 'individual') {
-              const { data: otherParts } = await supabaseServer
-                .from('conversation_participants')
-                .select('user_id')
-                .eq('conversation_id', convId)
-                .neq('user_id', userId)
-                .limit(1);
+        // 3b: Batch fetch unread message counts
+        // We fetch all messages not sent by the current user across all conversations,
+        // then count in JavaScript based on per-conversation lastReadAt
+        const unreadCountMap = new Map<string, number>();
+        if (convIds.length > 0) {
+          const { data: allUnreadMessages } = await supabaseServer
+            .from('messages')
+            .select('id, conversation_id, sender_id, created_at')
+            .in('conversation_id', convIds)
+            .neq('sender_id', userId);
 
-              if (otherParts && otherParts.length > 0) {
-                const otherUserId = (otherParts[0] as { user_id: string }).user_id;
-                const { data: otherUser } = await supabaseServer
-                  .from('users')
-                  .select('id, name, email, avatar_url, title_id, gender, role')
-                  .eq('id', otherUserId)
-                  .single();
-                otherParticipant = otherUser || null;
-              } else if ((conv.title as string)?.startsWith('pending:')) {
-                // Pending conversation: recipient not yet added as participant.
-                // Extract recipient ID from the title marker.
-                const pendingRecipientId = (conv.title as string).replace('pending:', '');
-                if (pendingRecipientId) {
-                  const { data: pendingUser } = await supabaseServer
-                    .from('users')
-                    .select('id, name, email, avatar_url, title_id, gender, role')
-                    .eq('id', pendingRecipientId)
-                    .single();
-                  otherParticipant = pendingUser || null;
-                }
+          if (allUnreadMessages) {
+            for (const msg of allUnreadMessages) {
+              const msgConvId = (msg as Record<string, unknown>).conversation_id as string;
+              const msgCreatedAt = (msg as Record<string, unknown>).created_at as string;
+              const lastReadAt = lastReadMap.get(msgConvId);
+
+              // Count as unread if: no lastReadAt OR message is newer than lastReadAt
+              if (!lastReadAt || msgCreatedAt > lastReadAt) {
+                unreadCountMap.set(msgConvId, (unreadCountMap.get(msgConvId) || 0) + 1);
+              }
+            }
+          }
+        }
+
+        // 3c: Batch fetch other participants for individual chats
+        const individualConvIds = (convsData || [])
+          .filter((conv: Record<string, unknown>) => conv.type === 'individual')
+          .map((conv: Record<string, unknown>) => conv.id as string);
+
+        const otherParticipantMap = new Map<string, Record<string, unknown>>();
+
+        if (individualConvIds.length > 0) {
+          const { data: allParticipants } = await supabaseServer
+            .from('conversation_participants')
+            .select('conversation_id, user_id')
+            .in('conversation_id', individualConvIds)
+            .neq('user_id', userId);
+
+          if (allParticipants && allParticipants.length > 0) {
+            // Get unique user IDs
+            const otherUserIds = [...new Set(
+              allParticipants.map((p: Record<string, unknown>) => p.user_id as string)
+            )];
+
+            // Batch fetch user profiles
+            const { data: otherUsers } = await supabaseServer
+              .from('users')
+              .select('id, name, email, avatar_url, title_id, gender, role')
+              .in('id', otherUserIds);
+
+            const userMap = new Map<string, Record<string, unknown>>();
+            if (otherUsers) {
+              for (const u of otherUsers) {
+                userMap.set((u as Record<string, unknown>).id as string, u as Record<string, unknown>);
               }
             }
 
-            return {
-              id: convId,
-              type: conv.type,
-              subjectId: conv.subject_id,
-              title: conv.title,
-              createdAt: conv.created_at,
-              updatedAt: conv.updated_at,
-              lastReadAt,
-              lastMessage: lastMsgs?.[0] || null,
-              unreadCount,
-              otherParticipant,
-            };
-          })
-        );
+            // Map conversation_id → other participant
+            for (const p of allParticipants) {
+              const pConvId = (p as Record<string, unknown>).conversation_id as string;
+              const pUserId = (p as Record<string, unknown>).user_id as string;
+              const userData = userMap.get(pUserId);
+              if (userData) {
+                otherParticipantMap.set(pConvId, userData);
+              }
+            }
+          }
+
+          // Handle pending conversations (title starts with 'pending:')
+          // These are individual chats where the recipient isn't yet a participant
+          const pendingConvs = (convsData || [])
+            .filter((conv: Record<string, unknown>) =>
+              conv.type === 'individual' &&
+              (conv.title as string)?.startsWith('pending:')
+            ) as Record<string, unknown>[];
+
+          // Only fetch pending users for conversations where we didn't already find a participant
+          const pendingConvUserIds: { convId: string; userId: string }[] = [];
+          for (const conv of pendingConvs) {
+            const convId = conv.id as string;
+            if (!otherParticipantMap.has(convId)) {
+              const pendingRecipientId = (conv.title as string).replace('pending:', '');
+              if (pendingRecipientId) {
+                pendingConvUserIds.push({ convId, userId: pendingRecipientId });
+              }
+            }
+          }
+
+          if (pendingConvUserIds.length > 0) {
+            const pendingIds = [...new Set(pendingConvUserIds.map(p => p.userId))];
+            const { data: pendingUsers } = await supabaseServer
+              .from('users')
+              .select('id, name, email, avatar_url, title_id, gender, role')
+              .in('id', pendingIds);
+
+            if (pendingUsers) {
+              const pendingUserMap = new Map<string, Record<string, unknown>>();
+              for (const u of pendingUsers) {
+                pendingUserMap.set((u as Record<string, unknown>).id as string, u as Record<string, unknown>);
+              }
+              for (const { convId, userId: pendingUserId } of pendingConvUserIds) {
+                const userData = pendingUserMap.get(pendingUserId);
+                if (userData) {
+                  otherParticipantMap.set(convId, userData);
+                }
+              }
+            }
+          }
+        }
+
+        // 3d: Build conversation objects without per-item queries
+        const conversations = (convsData || []).map((conv: Record<string, unknown>) => {
+          const convId = conv.id as string;
+          return {
+            id: convId,
+            type: conv.type,
+            subjectId: conv.subject_id,
+            title: conv.title,
+            createdAt: conv.created_at,
+            updatedAt: conv.updated_at,
+            lastReadAt: lastReadMap.get(convId) || null,
+            lastMessage: lastMessageMap.get(convId) || null,
+            unreadCount: unreadCountMap.get(convId) || 0,
+            otherParticipant: otherParticipantMap.get(convId) || null,
+          };
+        });
 
         // Sort by updated_at (most recent first)
         const sorted = conversations
           .filter(Boolean)
           .sort((a, b) => new Date((b as Record<string, unknown>).updatedAt as string || (b as Record<string, unknown>).createdAt as string).getTime() - new Date((a as Record<string, unknown>).updatedAt as string || (a as Record<string, unknown>).createdAt as string).getTime());
 
-        // Also fetch archived conversations details
+        // Also fetch archived conversations details (batched — same N+1 fix)
         let archivedConversations: unknown[] = [];
         if (archivedParticipations.length > 0) {
           const archivedConvIds = archivedParticipations.map((p: { conversation_id: string }) => p.conversation_id);
@@ -244,59 +315,122 @@ export async function GET(request: NextRequest) {
             .in('id', archivedConvIds);
 
           if (archivedConvsData && archivedConvsData.length > 0) {
-            archivedConversations = await Promise.all(
-              archivedConvsData.map(async (conv: Record<string, unknown>) => {
+            // Batch: Get the latest message for all archived conversations
+            const archivedLastMessageMap = new Map<string, Record<string, unknown>>();
+            const { data: allArchivedLastMessages } = await supabaseServer
+              .from('messages')
+              .select('id, sender_id, content, created_at, conversation_id')
+              .in('conversation_id', archivedConvIds)
+              .order('created_at', { ascending: false });
+
+            if (allArchivedLastMessages) {
+              for (const msg of allArchivedLastMessages) {
+                const msgConvId = (msg as Record<string, unknown>).conversation_id as string;
+                if (!archivedLastMessageMap.has(msgConvId)) {
+                  archivedLastMessageMap.set(msgConvId, msg as Record<string, unknown>);
+                }
+              }
+            }
+
+            // Batch: Get other participants for individual archived chats
+            const archivedIndividualConvIds = archivedConvsData
+              .filter((conv: Record<string, unknown>) => conv.type === 'individual')
+              .map((conv: Record<string, unknown>) => conv.id as string);
+
+            const archivedOtherParticipantMap = new Map<string, Record<string, unknown>>();
+
+            if (archivedIndividualConvIds.length > 0) {
+              const { data: allArchivedParticipants } = await supabaseServer
+                .from('conversation_participants')
+                .select('conversation_id, user_id')
+                .in('conversation_id', archivedIndividualConvIds)
+                .neq('user_id', userId);
+
+              if (allArchivedParticipants && allArchivedParticipants.length > 0) {
+                const archivedOtherUserIds = [...new Set(
+                  allArchivedParticipants.map((p: Record<string, unknown>) => p.user_id as string)
+                )];
+
+                const { data: archivedOtherUsers } = await supabaseServer
+                  .from('users')
+                  .select('id, name, email, avatar_url, title_id, gender, role')
+                  .in('id', archivedOtherUserIds);
+
+                const archivedUserMap = new Map<string, Record<string, unknown>>();
+                if (archivedOtherUsers) {
+                  for (const u of archivedOtherUsers) {
+                    archivedUserMap.set((u as Record<string, unknown>).id as string, u as Record<string, unknown>);
+                  }
+                }
+
+                for (const p of allArchivedParticipants) {
+                  const pConvId = (p as Record<string, unknown>).conversation_id as string;
+                  const pUserId = (p as Record<string, unknown>).user_id as string;
+                  const userData = archivedUserMap.get(pUserId);
+                  if (userData) {
+                    archivedOtherParticipantMap.set(pConvId, userData);
+                  }
+                }
+              }
+
+              // Handle pending archived conversations (title starts with 'pending:')
+              const archivedPendingConvs = archivedConvsData
+                .filter((conv: Record<string, unknown>) =>
+                  conv.type === 'individual' &&
+                  (conv.title as string)?.startsWith('pending:')
+                ) as Record<string, unknown>[];
+
+              const archivedPendingConvUserIds: { convId: string; userId: string }[] = [];
+              for (const conv of archivedPendingConvs) {
                 const convId = conv.id as string;
-                const lastReadAt = archivedLastReadMap.get(convId) || null;
-                const { data: lastMsgs } = await supabaseServer
-                  .from('messages')
-                  .select('id, sender_id, content, created_at')
-                  .eq('conversation_id', convId)
-                  .order('created_at', { ascending: false })
-                  .limit(1);
-                let otherParticipant = null;
-                if (conv.type === 'individual') {
-                  const { data: otherParts } = await supabaseServer
-                    .from('conversation_participants')
-                    .select('user_id')
-                    .eq('conversation_id', convId)
-                    .neq('user_id', userId)
-                    .limit(1);
-                  if (otherParts && otherParts.length > 0) {
-                    const otherUserId = (otherParts[0] as { user_id: string }).user_id;
-                    const { data: otherUser } = await supabaseServer
-                      .from('users')
-                      .select('id, name, email, avatar_url, title_id, gender, role')
-                      .eq('id', otherUserId)
-                      .single();
-                    otherParticipant = otherUser || null;
-                  } else if ((conv.title as string)?.startsWith('pending:')) {
-                    const pendingRecipientId = (conv.title as string).replace('pending:', '');
-                    if (pendingRecipientId) {
-                      const { data: pendingUser } = await supabaseServer
-                        .from('users')
-                        .select('id, name, email, avatar_url, title_id, gender, role')
-                        .eq('id', pendingRecipientId)
-                        .single();
-                      otherParticipant = pendingUser || null;
+                if (!archivedOtherParticipantMap.has(convId)) {
+                  const pendingRecipientId = (conv.title as string).replace('pending:', '');
+                  if (pendingRecipientId) {
+                    archivedPendingConvUserIds.push({ convId, userId: pendingRecipientId });
+                  }
+                }
+              }
+
+              if (archivedPendingConvUserIds.length > 0) {
+                const archivedPendingIds = [...new Set(archivedPendingConvUserIds.map(p => p.userId))];
+                const { data: archivedPendingUsers } = await supabaseServer
+                  .from('users')
+                  .select('id, name, email, avatar_url, title_id, gender, role')
+                  .in('id', archivedPendingIds);
+
+                if (archivedPendingUsers) {
+                  const archivedPendingUserMap = new Map<string, Record<string, unknown>>();
+                  for (const u of archivedPendingUsers) {
+                    archivedPendingUserMap.set((u as Record<string, unknown>).id as string, u as Record<string, unknown>);
+                  }
+                  for (const { convId, userId: pendingUserId } of archivedPendingConvUserIds) {
+                    const userData = archivedPendingUserMap.get(pendingUserId);
+                    if (userData) {
+                      archivedOtherParticipantMap.set(convId, userData);
                     }
                   }
                 }
-                return {
-                  id: convId,
-                  type: conv.type,
-                  subjectId: conv.subject_id,
-                  title: conv.title,
-                  createdAt: conv.created_at,
-                  updatedAt: conv.updated_at,
-                  lastReadAt,
-                  lastMessage: lastMsgs?.[0] || null,
-                  unreadCount: 0,
-                  otherParticipant,
-                  isArchived: true,
-                };
-              })
-            );
+              }
+            }
+
+            // Build archived conversation objects without per-item queries
+            archivedConversations = archivedConvsData.map((conv: Record<string, unknown>) => {
+              const convId = conv.id as string;
+              return {
+                id: convId,
+                type: conv.type,
+                subjectId: conv.subject_id,
+                title: conv.title,
+                createdAt: conv.created_at,
+                updatedAt: conv.updated_at,
+                lastReadAt: archivedLastReadMap.get(convId) || null,
+                lastMessage: archivedLastMessageMap.get(convId) || null,
+                unreadCount: 0,
+                otherParticipant: archivedOtherParticipantMap.get(convId) || null,
+                isArchived: true,
+              };
+            });
+
             archivedConversations.sort((a, b) =>
               new Date((b as Record<string, unknown>).updatedAt as string || (b as Record<string, unknown>).createdAt as string).getTime() -
               new Date((a as Record<string, unknown>).updatedAt as string || (a as Record<string, unknown>).createdAt as string).getTime()
@@ -322,8 +456,8 @@ export async function GET(request: NextRequest) {
           .limit(limit);
 
         if (error) {
-          console.error('[Chat API] Messages error:', error);
-          return NextResponse.json({ error: error.message }, { status: 500 });
+          console.error('[Chat API] Messages fetch error:', error);
+          return NextResponse.json({ error: 'فشل في جلب الرسائل' }, { status: 500 });
         }
 
         // Enrich with sender info

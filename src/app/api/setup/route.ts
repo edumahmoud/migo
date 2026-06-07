@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // ─── GET: Check if the system is initialized ───
 export async function GET() {
@@ -62,48 +63,20 @@ export async function GET() {
 // ─── POST: Save institution data ───
 export async function POST(request: NextRequest) {
   try {
-    // ─── Role check: Only superadmin can modify institution settings ───
-    const userId = request.headers.get('x-user-id');
-    if (userId) {
-      const { data: userProfile } = await supabaseServer
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .single();
+    // ─── Auth check ───
+    // For initial setup (no users yet), allow without authentication
+    const { count: userCount } = await supabaseServer
+      .from('users')
+      .select('*', { count: 'exact', head: true });
 
-      if (!userProfile || userProfile.role !== 'superadmin') {
-        return NextResponse.json({ error: 'غير مصرح: مدير النظام فقط يمكنه تعديل بيانات المؤسسة' }, { status: 403 });
-      }
-    } else {
-      // Try Bearer token auth
-      const authHeader = request.headers.get('authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.slice(7);
-        const { createClient } = await import('@supabase/supabase-js');
-        const { data: { user } } = await supabaseServer.auth.getUser(token);
-        if (user) {
-          const { data: userProfile } = await supabaseServer
-            .from('users')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-
-          if (!userProfile || userProfile.role !== 'superadmin') {
-            return NextResponse.json({ error: 'غير مصرح: مدير النظام فقط يمكنه تعديل بيانات المؤسسة' }, { status: 403 });
-          }
-        }
-      } else {
-        // No auth info provided — for initial setup (no users yet), allow the request
-        // But if there are already users, require auth
-        const { count } = await supabaseServer
-          .from('users')
-          .select('*', { count: 'exact', head: true });
-
-        if (count && count > 0) {
-          return NextResponse.json({ error: 'غير مصرح: يجب تسجيل الدخول لتعديل بيانات المؤسسة' }, { status: 401 });
-        }
+    if (userCount && userCount > 0) {
+      // System already has users — require superadmin auth
+      const adminResult = await requireSuperAdmin(request);
+      if (!adminResult.success) {
+        return authErrorResponse(adminResult);
       }
     }
+    // If no users exist, this is initial setup — proceed without auth
 
     const body = await request.json();
     const {

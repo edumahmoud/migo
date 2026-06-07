@@ -1,10 +1,15 @@
-// ⚠️ NOTE: This Prisma schema is NOT used by the application.
-// The app uses Supabase (PostgreSQL) directly via the Supabase JS client.
-// This file is a leftover from project scaffolding and can be safely removed.
-// The actual database schema is defined in:
-//   - supabase/schema.sql
+// =====================================================
+// NOTE: This project uses Supabase (PostgreSQL) directly
+// via the Supabase JS client, not Prisma ORM.
+//
+// The database schema is defined in:
 //   - supabase/COMPLETE_SCHEMA.sql
 //   - supabase/migrations/
+//
+// Do NOT add models here. This file exists only because
+// Prisma is installed as a dependency for potential future
+// use or tooling compatibility.
+// =====================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,22 +18,4 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

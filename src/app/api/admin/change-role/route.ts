@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
+    // ─── Auth: Require admin or superadmin ───
+    const adminResult = await requireAdmin(request);
+    if (!adminResult.success) {
+      return authErrorResponse(adminResult);
+    }
+
     const body = await request.json();
     const { userId, newRole } = body;
 
@@ -20,92 +27,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Verify the requester is authenticated - try Bearer token first, then cookie auth
-    let authUser = null;
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-      if (!error && user) authUser = user;
-    }
+    const requesterRole = adminResult.role;
 
-    if (!authUser) {
-      try {
-        const serverClient = await getSupabaseServerClient();
-        const { data: { user }, error } = await serverClient.auth.getUser();
-        if (!error && user) authUser = user;
-      } catch {
-        // Cookie auth failed
-      }
-    }
-
-    if (!authUser) {
-      return NextResponse.json(
-        { success: false, error: 'يجب تسجيل الدخول أولاً' },
-        { status: 401 }
-      );
-    }
-
-    // 2. Get the requester's profile to verify they are admin or superadmin
-    const { data: requesterProfile, error: requesterError } = await supabaseServer
-      .from('users')
-      .select('role')
-      .eq('id', authUser.id)
-      .single();
-
-    if (requesterError || !requesterProfile) {
-      return NextResponse.json(
-        { success: false, error: 'لم يتم العثور على الملف الشخصي' },
-        { status: 404 }
-      );
-    }
-
-    if (requesterProfile.role !== 'admin' && requesterProfile.role !== 'superadmin') {
-      return NextResponse.json(
-        { success: false, error: 'غير مصرح بتغيير الأدوار' },
-        { status: 403 }
-      );
-    }
-
-    // 3. Only superadmin can assign superadmin role
-    if (newRole === 'superadmin' && requesterProfile.role !== 'superadmin') {
+    // 2. Only superadmin can assign superadmin role
+    if (newRole === 'superadmin' && requesterRole !== 'superadmin') {
       return NextResponse.json(
         { success: false, error: 'فقط مدير المنصة يمكنه تعيين دور مدير المنصة' },
         { status: 403 }
       );
     }
 
-    // 4. Only superadmin can change another superadmin's role
+    // 3. Only superadmin can change another superadmin's role
     const { data: targetUser } = await supabaseServer
       .from('users')
       .select('role')
       .eq('id', userId)
       .single();
 
-    if (targetUser?.role === 'superadmin' && requesterProfile.role !== 'superadmin') {
+    if (targetUser?.role === 'superadmin' && requesterRole !== 'superadmin') {
       return NextResponse.json(
         { success: false, error: 'فقط مدير المنصة يمكنه تغيير دور مدير المنصة' },
         { status: 403 }
       );
     }
 
-    // 5. Admin cannot change other admin's roles (only superadmin can)
-    if (targetUser?.role === 'admin' && requesterProfile.role === 'admin') {
+    // 4. Admin cannot change other admin's roles (only superadmin can)
+    if (targetUser?.role === 'admin' && requesterRole === 'admin') {
       return NextResponse.json(
         { success: false, error: 'غير مصرح بتغيير دور مشرف آخر' },
         { status: 403 }
       );
     }
 
-    // 6. Admin cannot assign admin role (only superadmin can)
-    if (newRole === 'admin' && requesterProfile.role !== 'superadmin') {
+    // 5. Admin cannot assign admin role (only superadmin can)
+    if (newRole === 'admin' && requesterRole !== 'superadmin') {
       return NextResponse.json(
         { success: false, error: 'فقط مدير المنصة يمكنه تعيين دور المشرف' },
         { status: 403 }
       );
     }
 
-    // 7. Update user role using service role (bypasses RLS)
+    // 6. Update user role using service role (bypasses RLS)
     const { data, error } = await supabaseServer
       .from('users')
       .update({ role: newRole, updated_at: new Date().toISOString() })
@@ -121,13 +83,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 8. If changing to teacher, make sure they have a teacher_code
+    // 7. If changing to teacher, make sure they have a teacher_code
     // AND auto-link them to the admin who promoted them
     if (newRole === 'teacher') {
       const existing = data as Record<string, unknown>;
       if (!existing.teacher_code) {
-        // Generate a teacher code (6 alphanumeric characters)
-        const teacherCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // Use crypto.randomUUID() for cryptographically secure random code
+        // Take first 6 chars of a UUID (without dashes) for a short, unique code
+        const teacherCode = crypto.randomUUID().replace(/-/g, '').substring(0, 6).toUpperCase();
         await supabaseServer
           .from('users')
           .update({ teacher_code: teacherCode })
@@ -143,14 +106,14 @@ export async function POST(request: NextRequest) {
         .eq('is_primary', true)
         .maybeSingle();
 
-      if (!existingPrimaryLink && requesterProfile.role !== 'superadmin') {
+      if (!existingPrimaryLink && requesterRole !== 'superadmin') {
         // Link to the promoting admin (not superadmin — superadmin doesn't supervise directly)
         await supabaseServer
           .from('teacher_supervisor_links')
           .upsert(
             {
               teacher_id: userId,
-              supervisor_id: authUser.id,
+              supervisor_id: adminResult.user.id,
               is_primary: true,
             },
             { onConflict: 'teacher_id,supervisor_id' }
@@ -158,7 +121,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 9. If changing from teacher to something else, clean up teacher_code
+    // 8. If changing from teacher to something else, clean up teacher_code
     if (newRole !== 'teacher') {
       await supabaseServer
         .from('users')

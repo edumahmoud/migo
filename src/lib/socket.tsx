@@ -118,12 +118,22 @@ export function getSocket(): Socket | null {
 
     socketInstance = io(getSocketUrl(), SOCKET_OPTIONS);
 
-    socketInstance.on('connect', () => {
+    socketInstance.on('connect', async () => {
       reconnectAttempts = 0;
       if (authCredentials) {
+        // Get JWT token for server-side verification
+        let token: string | undefined;
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const { data: { session } } = await supabase.auth.getSession();
+          token = session?.access_token || undefined;
+        } catch {
+          // Session unavailable
+        }
         socketInstance!.emit('auth', {
           userId: authCredentials.userId,
           userName: authCredentials.userName,
+          token,
         });
       }
     });
@@ -148,11 +158,23 @@ export function getSocket(): Socket | null {
   return socketInstance;
 }
 
-export function setSocketAuth(userId: string, userName: string): void {
+export async function setSocketAuth(userId: string, userName: string): Promise<void> {
   authCredentials = { userId, userName };
   const socket = getSocket();
+
+  // Get the current JWT token for server-side verification
+  let token: string | undefined;
+  try {
+    const { supabase } = await import('@/lib/supabase');
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token || undefined;
+  } catch {
+    // Session unavailable — connect without token (server will reject if JWT verification is enabled)
+    console.warn('[Socket] Failed to get session token for Socket.IO auth');
+  }
+
   if (socket?.connected) {
-    socket.emit('auth', { userId, userName });
+    socket.emit('auth', { userId, userName, token });
   }
 }
 

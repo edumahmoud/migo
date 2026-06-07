@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
-import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/initiated-by
  * Adds an `initiated_by` column to the `teacher_student_links` table.
  * Uses the Supabase service role key via the REST API (same pattern as /api/migrate).
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -73,11 +80,13 @@ UPDATE public.teacher_student_links SET initiated_by = 'student' WHERE initiated
       });
     }
 
-    return NextResponse.json({ status: 'error', message: errorData.message }, { status: 500 });
+    console.error('[Migration] Initiated-by REST API error:', errorData);
+    return NextResponse.json({ status: 'error', message: 'حدث خطأ أثناء تنفيذ الترحيل' }, { status: 500 });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }
@@ -86,6 +95,6 @@ UPDATE public.teacher_student_links SET initiated_by = 'student' WHERE initiated
  * GET /api/migrate/initiated-by
  * Delegates to POST to check/run the migration.
  */
-export async function GET() {
-  return POST();
+export async function GET(request: NextRequest) {
+  return POST(request);
 }

@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/subject-teachers
  * One-time migration: Creates subject_teachers junction table and backfills existing data.
  * See: supabase/migrations/v10_subject_teachers.sql
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     const results: string[] = [];
 
@@ -57,7 +64,7 @@ export async function POST() {
           .upsert(rows, { onConflict: 'subject_id,teacher_id' });
 
         if (insertError) {
-          results.push(`Error backfilling owner entries: ${insertError.message}`);
+          results.push('Error backfilling owner entries');
         } else {
           results.push(`Backfilled ${rows.length} owner entries in subject_teachers`);
         }

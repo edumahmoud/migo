@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate
  * Runs pending database migrations for attendance GPS features.
  * Uses the Supabase service role key via the REST API.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -53,11 +60,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.attendance_re
       });
     }
 
-    return NextResponse.json({ status: 'error', message: errorData.message }, { status: 500 });
+    console.error('[Migration] REST API error:', errorData);
+    return NextResponse.json({ status: 'error', message: 'حدث خطأ أثناء تنفيذ الترحيل' }, { status: 500 });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({ 
       status: 'error', 
-      message: err instanceof Error ? err.message : 'Unknown error' 
+      message: 'حدث خطأ أثناء تنفيذ الترحيل' 
     }, { status: 500 });
   }
 }
@@ -67,7 +76,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.attendance_re
  * Migrate lecture_notes file references from old [FILE:url:name] to new [FILE|||url|||name] format.
  * The old format breaks because URLs contain ':' (like https://...).
  */
-export async function PUT() {
+export async function PUT(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     const { data: notes, error: fetchError } = await supabaseServer
       .from('lecture_notes')
@@ -75,7 +90,8 @@ export async function PUT() {
       .like('content', '[FILE:%');
 
     if (fetchError) {
-      return NextResponse.json({ success: false, error: fetchError.message }, { status: 500 });
+      console.error('[Migration] Fetch error:', fetchError);
+      return NextResponse.json({ success: false, error: 'حدث خطأ أثناء جلب البيانات' }, { status: 500 });
     }
 
     if (!notes || notes.length === 0) {
@@ -114,8 +130,8 @@ export async function PUT() {
   }
 }
 
-export async function GET() {
-  return POST();
+export async function GET(request: NextRequest) {
+  return POST(request);
 }
 
 /**
@@ -123,7 +139,13 @@ export async function GET() {
  * Add visibility column to user_files table if not exists.
  * Also creates index for faster lookups.
  */
-export async function PATCH() {
+export async function PATCH(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Check if visibility column exists
     const { data, error } = await supabaseServer
@@ -184,9 +206,10 @@ CREATE INDEX IF NOT EXISTS idx_user_files_visibility ON user_files(visibility);
       message: 'visibility column already exists on user_files',
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }
@@ -196,7 +219,13 @@ CREATE INDEX IF NOT EXISTS idx_user_files_visibility ON user_files(visibility);
  * V8 Migration: Add status column to subject_students for enrollment approval flow.
  * Default is 'approved' so existing enrollments remain active.
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Check if status column exists
     const { data, error } = await supabaseServer
@@ -272,9 +301,10 @@ CREATE POLICY "View enrollments"
       `.trim(),
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }

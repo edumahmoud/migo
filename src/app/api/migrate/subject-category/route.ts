@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/subject-category
  * Adds the `category` TEXT column to `subjects` table.
  * Checks if column exists and returns SQL for manual execution if not.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Check if category column exists by trying to select it
     const { data, error } = await supabaseServer
@@ -36,18 +43,20 @@ ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS category TEXT DEFAULT NULL;
       });
     }
 
+    console.error('[Migration] Subject category check error:', error);
     return NextResponse.json({
       status: 'error',
-      message: error.message,
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }
 
-export async function GET() {
-  return POST();
+export async function GET(request: NextRequest) {
+  return POST(request);
 }

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/assignments-due-date
@@ -7,7 +8,13 @@ import { supabaseServer } from '@/lib/supabase-server';
  * This is needed because DATE strips time info, causing tasks to show
  * as expired (انتهى) at 2AM local time (UTC midnight + timezone offset).
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -55,7 +62,7 @@ export async function POST() {
     if (insertError) {
       return NextResponse.json({
         success: false,
-        error: `Failed to insert test record: ${insertError.message}`,
+        error: 'فشل في إدراج سجل الاختبار',
         sql: getMigrationSQL(),
       }, { status: 500 });
     }
@@ -83,9 +90,10 @@ export async function POST() {
       sql: getMigrationSQL(),
     }, { status: 202 });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: 'حدث خطأ أثناء تنفيذ الترحيل',
       sql: getMigrationSQL(),
     }, { status: 500 });
   }
@@ -95,7 +103,13 @@ export async function POST() {
  * GET /api/migrate/assignments-due-date
  * Checks if migration is needed without making changes.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -130,9 +144,10 @@ export async function GET() {
       sql: needsMigration ? getMigrationSQL() : undefined,
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       needsMigration: true,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: 'حدث خطأ أثناء تنفيذ الترحيل',
       sql: getMigrationSQL(),
     });
   }

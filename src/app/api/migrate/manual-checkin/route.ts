@@ -1,12 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/manual-checkin
  * V5 Migration: Update check_in_method constraint to include 'manual',
  * and add RLS policy for teachers to insert attendance records for their sessions.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
     // Test if 'manual' is accepted in the check_in_method constraint
     // We'll try a dry-run by checking the constraint
@@ -63,9 +70,10 @@ END $$;
       note: 'The manual registration feature works without this migration (uses server-side fallback), but the migration adds proper tracking with check_in_method = "manual" and allows client-side inserts too.',
     });
   } catch (err) {
+    console.error('[Migration] Error:', err);
     return NextResponse.json({
       status: 'error',
-      message: err instanceof Error ? err.message : 'Unknown error',
+      message: 'حدث خطأ أثناء تنفيذ الترحيل',
     }, { status: 500 });
   }
 }

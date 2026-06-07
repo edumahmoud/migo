@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateRequest, getUserRole } from '@/lib/auth-helpers';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/migrate/fix-teams-updated-at
@@ -10,20 +10,16 @@ import { authenticateRequest, getUserRole } from '@/lib/auth-helpers';
  * UPDATE operations to fail with: "record 'new' has no field 'updated_at'"
  *
  * Uses the Supabase SQL API to execute DDL statements.
- * Requires admin or superadmin access.
+ * Requires superadmin access.
  */
 export async function POST(request: NextRequest) {
+  // ─── Security: Only superadmin can run migrations ───
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) {
+    return authErrorResponse(adminResult);
+  }
+
   try {
-    const authResult = await authenticateRequest(request);
-    if (!authResult.success) {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
-    }
-
-    const role = await getUserRole(authResult.user.id);
-    if (role !== 'admin' && role !== 'superadmin') {
-      return NextResponse.json({ error: 'يتطلب صلاحيات المدير' }, { status: 403 });
-    }
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
