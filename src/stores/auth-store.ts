@@ -210,6 +210,7 @@ interface AuthState {
   
   // Actions
   setUser: (user: UserProfile | null) => void;
+  setLoginInProgress: (inProgress: boolean) => void;
   initialize: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
@@ -253,6 +254,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   passwordRecoveryMode: false,
   
   setUser: (user) => set({ user, loading: false }),
+  
+  setLoginInProgress: (inProgress: boolean) => {
+    _loginInProgress = inProgress;
+  },
   
   clearPasswordRecovery: () => set({ passwordRecoveryMode: false }),
   

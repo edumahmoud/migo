@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       const isFirstUser = (userCount ?? 0) === 0;
       const defaultRole = isFirstUser ? 'superadmin' : 'student';
 
-      const { data: newProfile, error: insertError } = await supabaseServer
+      let { data: newProfile, error: insertError } = await supabaseServer
         .from('users')
         .insert({
           id: authUser.id,
@@ -64,6 +64,69 @@ export async function GET(request: NextRequest) {
         })
         .select()
         .single();
+
+      // If inserting 'superadmin' fails (CHECK constraint doesn't include it),
+      // try inserting as 'admin' first, then we'll fix the constraint later.
+      if (insertError && defaultRole === 'superadmin') {
+        const err = insertError as { code?: string; message?: string };
+        const isCheckViolation = err.code === '23514' ||
+          (err.message || '').includes('check constraint') ||
+          (err.message || '').includes('violates');
+
+        if (isCheckViolation) {
+          console.warn('[auth/me] CHECK constraint blocks superadmin role — inserting as admin first, then promoting');
+          // Insert as 'admin' first (which is allowed by the CHECK constraint)
+          const { data: adminProfile, error: adminInsertError } = await supabaseServer
+            .from('users')
+            .insert({
+              id: authUser.id,
+              email: authUser.email || '',
+              name: userName,
+              role: 'admin',
+              avatar_url: avatarUrl,
+            })
+            .select()
+            .single();
+
+          if (!adminInsertError && adminProfile) {
+            // Now try to alter the CHECK constraint to include 'superadmin'
+            try {
+              await supabaseServer.rpc('exec_sql', {
+                sql: `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+                      ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));`
+              });
+            } catch {
+              // RPC might not exist — try direct update anyway
+              console.warn('[auth/me] Could not alter CHECK constraint via RPC');
+            }
+
+            // Try to update the role to 'superadmin' now
+            const { data: promotedProfile, error: promoteError } = await supabaseServer
+              .from('users')
+              .update({ role: 'superadmin', updated_at: new Date().toISOString() })
+              .eq('id', authUser.id)
+              .select()
+              .single();
+
+            if (!promoteError && promotedProfile) {
+              newProfile = promotedProfile;
+            } else {
+              // If promotion still fails, keep as admin and sync app_metadata
+              console.warn('[auth/me] Could not promote to superadmin — keeping as admin. Run add_superadmin_role.sql migration!');
+              newProfile = adminProfile;
+            }
+
+            // Sync app_metadata
+            try {
+              await supabaseServer.auth.admin.updateUserById(authUser.id, {
+                app_metadata: { role: newProfile?.role || 'admin' },
+              });
+            } catch { /* non-critical */ }
+
+            return NextResponse.json({ profile: newProfile, isNew: true });
+          }
+        }
+      }
 
       if (insertError) {
         // Might be a duplicate key error (race condition with trigger)

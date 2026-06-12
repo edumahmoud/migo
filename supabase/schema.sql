@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'admin')),
+  role TEXT NOT NULL CHECK (role IN ('student', 'teacher', 'admin', 'superadmin')),
   teacher_code TEXT UNIQUE,
   avatar_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -270,13 +270,22 @@ CREATE TRIGGER trg_users_updated_at
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  user_count integer;
 BEGIN
+  -- Count existing users to check if this is the first user
+  SELECT COUNT(*) INTO user_count FROM public.users;
+  
+  -- First user becomes superadmin, all others get their specified role (default: student)
   INSERT INTO public.users (id, email, name, role)
   VALUES (
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+    CASE 
+      WHEN user_count = 0 THEN 'superadmin'
+      ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+    END
   );
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN

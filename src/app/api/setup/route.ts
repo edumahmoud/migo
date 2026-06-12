@@ -391,5 +391,34 @@ BEGIN
   RETURN json_build_object('action', 'created', 'id', v_id);
 END;
 $$;
+
+-- 4. Add superadmin to users role CHECK constraint
+-- This is CRITICAL: without it, the DB trigger fails silently when creating
+-- the first user with role='superadmin', causing "فشل في إنشاء الحساب" error
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));
+
+-- 5. Update auth trigger to make first user superadmin
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  user_count integer;
+BEGIN
+  SELECT COUNT(*) INTO user_count FROM public.users;
+  INSERT INTO public.users (id, email, name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    CASE
+      WHEN user_count = 0 THEN 'superadmin'
+      ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+    END
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 `;
 }

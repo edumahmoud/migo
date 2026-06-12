@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 
 // ─── Types ───
@@ -191,6 +192,12 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
     // `user` in Zustand) causes the parent to hide the SetupWizard before
     // we can transition to the institution-info step.
     onStart?.();
+
+    // CRITICAL: Set _loginInProgress flag in auth store to prevent
+    // onAuthStateChange from overwriting the correct profile with a
+    // fallback profile that defaults to role='student'.
+    useAuthStore.getState().setLoginInProgress(true);
+
     try {
       // Sign up with role = superadmin
       const { data: signUpData, error: authError } = await supabase.auth.signUp({
@@ -212,6 +219,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         } else {
           toast.error(t('errorCreatingAccount'));
         }
+        useAuthStore.getState().setLoginInProgress(false);
         onError?.();
         return;
       }
@@ -220,6 +228,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       const needsConfirmation = !!signUpData.user && !signUpData.session;
       if (needsConfirmation) {
         toast.error(t('emailConfirmationMustBeDisabled'));
+        useAuthStore.getState().setLoginInProgress(false);
         onError?.();
         return;
       }
@@ -227,34 +236,89 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       const authUser = signUpData.user;
       if (!authUser) {
         toast.error(t('failedToCreateAccount'));
+        useAuthStore.getState().setLoginInProgress(false);
         onError?.();
         return;
       }
 
-      // The auth trigger should create the profile and promote to superadmin
-      // Wait for the auth trigger to create the profile (with retry)
+      // Wait for the auth trigger to create the profile, then use server-side API
+      // to fetch it (bypasses RLS and ensures we get the correct role).
+      // We try /api/auth/me first (most reliable), then fall back to client-side query.
       let profile: Record<string, unknown> | null = null;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise((r) => setTimeout(r, 1000));
-        const { data: p } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single();
-        if (p) {
-          profile = p;
-          break;
+
+      // Give the DB trigger time to create the profile
+      await new Promise((r) => setTimeout(r, 1500));
+
+      // Use server-side API to fetch profile (bypasses RLS)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const meRes = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            if (meData.profile) {
+              profile = meData.profile;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Setup] Server-side profile fetch failed, trying client-side:', err);
+      }
+
+      // Fallback: try client-side query (subject to RLS, but works if trigger created profile)
+      if (!profile) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          const { data: p } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+          if (p) {
+            profile = p;
+            break;
+          }
         }
       }
 
       if (!profile) {
-        toast.error(t('failedToCreateAccount'));
-        onError?.();
-        return;
+        // Profile not found after all retries — the DB trigger likely failed
+        // because the CHECK constraint doesn't include 'superadmin'.
+        // Try calling check-first-user which will attempt to create/promote via server-side.
+        console.warn('[Setup] Profile not found via polling, attempting server-side promotion...');
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const promoteRes = await fetch('/api/auth/check-first-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token || ''}`,
+            },
+            body: JSON.stringify({ userId: authUser.id }),
+          });
+          const promoteData = await promoteRes.json();
+          if (promoteData.success && promoteData.user) {
+            profile = promoteData.user;
+          } else {
+            console.error('[Setup] Failed to promote/create first user profile:', promoteData.error);
+            toast.error(t('failedToCreateAccount'));
+            useAuthStore.getState().setLoginInProgress(false);
+            onError?.();
+            return;
+          }
+        } catch (err) {
+          console.error('[Setup] Error calling check-first-user:', err);
+          toast.error(t('failedToCreateAccount'));
+          useAuthStore.getState().setLoginInProgress(false);
+          onError?.();
+          return;
+        }
       }
 
       // Ensure superadmin role
-      if (profile.role !== 'superadmin') {
+      if (profile && profile.role !== 'superadmin') {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           const promoteRes = await fetch('/api/auth/check-first-user', {
@@ -270,6 +334,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
             // Promotion failed — this is critical for first user
             console.error('[Setup] Failed to promote first user to superadmin:', promoteData.error);
             toast.error(t('errorCreatingAccount'));
+            useAuthStore.getState().setLoginInProgress(false);
             onError?.();
             return;
           }
@@ -277,9 +342,15 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         } catch (err) {
           console.error('[Setup] Error calling check-first-user:', err);
           toast.error(t('errorCreatingAccount'));
+          useAuthStore.getState().setLoginInProgress(false);
           onError?.();
           return;
         }
+      }
+
+      // Update auth store with the correct superadmin profile
+      if (profile) {
+        useAuthStore.getState().setUser(profile as unknown as import('@/lib/types').UserProfile);
       }
 
       setAdminUserId(authUser.id);
@@ -290,6 +361,11 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       onError?.();
     } finally {
       setCreatingAccount(false);
+      // Clear _loginInProgress flag after a delay to allow onAuthStateChange
+      // events to be safely skipped
+      setTimeout(() => {
+        useAuthStore.getState().setLoginInProgress(false);
+      }, 5000);
     }
   };
 
@@ -481,7 +557,36 @@ BEGIN
   RETURNING id INTO v_id;
   RETURN json_build_object('action','created','id',v_id);
 END;
-$$;`;
+$$;
+
+-- 4. Add superadmin to users role CHECK constraint
+-- This is CRITICAL: without it, the DB trigger fails silently when creating
+-- the first user with role='superadmin', causing "فشل في إنشاء الحساب" error
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));
+
+-- 5. Update auth trigger to make first user superadmin
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  user_count integer;
+BEGIN
+  SELECT COUNT(*) INTO user_count FROM public.users;
+  INSERT INTO public.users (id, email, name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    CASE
+      WHEN user_count = 0 THEN 'superadmin'
+      ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+    END
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;`;
 
     const handleCheckTable = async () => {
       setCheckingMigration(true);

@@ -139,6 +139,78 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (updateError) {
+      // If the update fails, it might be because the CHECK constraint doesn't include 'superadmin'
+      const err = updateError as { code?: string; message?: string };
+      const isCheckViolation = err.code === '23514' ||
+        (err.message || '').includes('check constraint') ||
+        (err.message || '').includes('violates');
+
+      if (isCheckViolation) {
+        console.warn('[check-first-user] CHECK constraint blocks superadmin — attempting to fix constraint...');
+
+        // Try to fix the CHECK constraint using raw SQL via Supabase RPC
+        // Note: This requires the exec_sql RPC or a custom migration function.
+        // If it doesn't exist, we'll try updating anyway after logging a warning.
+        try {
+          // Use Supabase's built-in SQL execution via the management API
+          // Since we can't run DDL via the JS client directly, we'll try the RPC approach
+          await supabaseServer.rpc('exec_sql', {
+            sql: `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+                  ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));`
+          });
+        } catch {
+          console.warn('[check-first-user] Could not alter CHECK constraint via RPC. The user must run add_superadmin_role.sql manually.');
+        }
+
+        // Try the update again after attempting to fix the constraint
+        const { data: retryData, error: retryError } = await supabaseServer
+          .from('users')
+          .update({ role: 'superadmin', updated_at: new Date().toISOString() })
+          .eq('id', userId)
+          .select()
+          .single();
+
+        if (retryError) {
+          // Still failing — update role to 'admin' as a fallback (better than 'student')
+          console.error('[check-first-user] Still cannot promote to superadmin, falling back to admin role');
+          const { data: adminData, error: adminError } = await supabaseServer
+            .from('users')
+            .update({ role: 'admin', updated_at: new Date().toISOString() })
+            .eq('id', userId)
+            .select()
+            .single();
+
+          if (adminError) {
+            console.error('[check-first-user] Error promoting first user to admin:', adminError);
+            return NextResponse.json(
+              { success: false, error: 'خطأ في ترقية الحساب — يرجى تشغيل ملف SQL الخاص بإضافة دور superadmin' },
+              { status: 500 }
+            );
+          }
+
+          // Sync app_metadata with admin role
+          await syncAppMetadata(userId, 'admin');
+
+          return NextResponse.json({
+            success: true,
+            promoted: true,
+            role: 'admin',
+            user: adminData,
+            warning: 'تم إنشاء الحساب كمدير (admin) بدلاً من مدير أعلى (superadmin). يرجى تشغيل ملف add_superadmin_role.sql في محرر SQL ثم ترقية الحساب يدوياً.',
+          });
+        }
+
+        // Retry succeeded after fixing constraint
+        await syncAppMetadata(userId, 'superadmin');
+        console.log('[check-first-user] Successfully promoted first user to superadmin (after fixing CHECK constraint):', userId);
+        return NextResponse.json({
+          success: true,
+          promoted: true,
+          role: 'superadmin',
+          user: retryData,
+        });
+      }
+
       console.error('[check-first-user] Error promoting first user to superadmin:', updateError);
       return NextResponse.json(
         { success: false, error: 'خطأ في ترقية الحساب' },
