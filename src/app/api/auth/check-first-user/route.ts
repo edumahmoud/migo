@@ -5,11 +5,13 @@ import { supabaseServer } from '@/lib/supabase-server';
  * POST /api/auth/check-first-user
  * Checks if the given user is the first user on the platform.
  * If so, promotes them to 'superadmin'.
- * This is called after successful registration (email+password or Google OAuth).
+ *
+ * Handles the case where the DB trigger failed to create the profile
+ * (e.g., CHECK constraint doesn't include 'superadmin') by creating
+ * the profile directly with the correct role.
  *
  * SECURITY: Requires valid Bearer token. Verifies that the authenticated user
- * matches the userId being promoted. Uses atomic DB-level check via the
- * `system_initialized` table to prevent race conditions.
+ * matches the userId being promoted.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +47,6 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Verify the authenticated user matches the userId being promoted ───
-    // This prevents one user from promoting a different user to superadmin.
     if (authUser.id !== userId) {
       console.warn(`[check-first-user] Auth user ${authUser.id} attempted to promote different user ${userId}`);
       return NextResponse.json(
@@ -54,19 +55,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── Check if user is already a superadmin ───
-    // If the user already has the superadmin role, no promotion is needed.
-    // This avoids unnecessary DB operations and prevents errors when the
-    // system_initialized table doesn't exist but the user was already promoted
-    // by the DB trigger or a previous call.
+    // ─── Step 1: Check if user already has a profile ───
     const { data: currentProfile } = await supabaseServer
       .from('users')
-      .select('role')
+      .select('*')
       .eq('id', userId)
       .single();
 
+    // ─── If profile exists and is already superadmin → done ───
     if (currentProfile?.role === 'superadmin') {
-      // Already superadmin — sync app_metadata just in case and return
       await syncAppMetadata(userId, 'superadmin');
       return NextResponse.json({
         success: true,
@@ -76,30 +73,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ─── Atomic first-user check using system_initialized table ───
-    // Try to insert a row into `system_initialized`. If it already exists (unique constraint),
-    // someone else was first. This prevents race conditions where two users register
-    // simultaneously and both get superadmin.
+    // ─── Step 2: Check if this is the first user ───
     let isFirstUser = false;
+
+    // Try atomic check via system_initialized table
     const { error: initError } = await supabaseServer
       .from('system_initialized')
       .insert({ initialized: true, initialized_by: userId });
 
     if (initError) {
-      // If the insert failed (likely unique constraint violation), the system
-      // was already initialized — this user is NOT the first user.
-      const isDuplicate = initError.code === '23505' || (initError.message || '').includes('duplicate') || (initError.message || '').includes('unique');
+      const isDuplicate = initError.code === '23505' ||
+        (initError.message || '').includes('duplicate') ||
+        (initError.message || '').includes('unique');
+
       if (isDuplicate) {
-        // System already initialized — no promotion needed
+        // System already initialized — not the first user
         return NextResponse.json({
           success: true,
           promoted: false,
-          role: null,
+          role: currentProfile?.role || null,
+          user: currentProfile || null,
         });
       }
 
-      // The `system_initialized` table might not exist yet.
-      // Fall back to the count-based check, but still use the authenticated userId.
+      // system_initialized table might not exist — fall back to count check
       console.warn('[check-first-user] system_initialized table not found, falling back to count check:', initError.message);
 
       const { count, error: countError } = await supabaseServer
@@ -114,123 +111,147 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // If this is the first (and only) user, promote to superadmin
       isFirstUser = count !== null && count <= 1;
     } else {
-      // Successfully inserted into system_initialized — we are the first user!
       isFirstUser = true;
     }
 
     if (!isFirstUser) {
-      // Not the first user - no promotion needed
       return NextResponse.json({
         success: true,
         promoted: false,
-        role: null,
+        role: currentProfile?.role || null,
+        user: currentProfile || null,
       });
     }
 
-    // ─── Promote the first user to superadmin ───
-    const { data, error: updateError } = await supabaseServer
-      .from('users')
-      .update({ role: 'superadmin', updated_at: new Date().toISOString() })
-      .eq('id', userId)
-      .select()
-      .single();
+    // ─── Step 3: Ensure the first user gets superadmin role ───
+    const userName = authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'مستخدم';
 
-    if (updateError) {
-      // If the update fails, it might be because the CHECK constraint doesn't include 'superadmin'
-      const err = updateError as { code?: string; message?: string };
-      const isCheckViolation = err.code === '23514' ||
-        (err.message || '').includes('check constraint') ||
-        (err.message || '').includes('violates');
+    if (!currentProfile) {
+      // ─── Profile doesn't exist — CREATE it ───
+      // The DB trigger failed (likely CHECK constraint doesn't include 'superadmin').
+      // Try inserting with 'superadmin' first, then fall back to 'admin'.
 
-      if (isCheckViolation) {
-        console.warn('[check-first-user] CHECK constraint blocks superadmin — attempting to fix constraint...');
+      // Try superadmin first
+      const { data: newProfile, error: insertError } = await supabaseServer
+        .from('users')
+        .insert({
+          id: userId,
+          email: authUser.email || '',
+          name: userName,
+          role: 'superadmin',
+        })
+        .select()
+        .single();
 
-        // Try to fix the CHECK constraint using raw SQL via Supabase RPC
-        // Note: This requires the exec_sql RPC or a custom migration function.
-        // If it doesn't exist, we'll try updating anyway after logging a warning.
-        try {
-          // Use Supabase's built-in SQL execution via the management API
-          // Since we can't run DDL via the JS client directly, we'll try the RPC approach
-          await supabaseServer.rpc('exec_sql', {
-            sql: `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
-                  ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));`
-          });
-        } catch {
-          console.warn('[check-first-user] Could not alter CHECK constraint via RPC. The user must run add_superadmin_role.sql manually.');
-        }
-
-        // Try the update again after attempting to fix the constraint
-        const { data: retryData, error: retryError } = await supabaseServer
-          .from('users')
-          .update({ role: 'superadmin', updated_at: new Date().toISOString() })
-          .eq('id', userId)
-          .select()
-          .single();
-
-        if (retryError) {
-          // Still failing — update role to 'admin' as a fallback (better than 'student')
-          console.error('[check-first-user] Still cannot promote to superadmin, falling back to admin role');
-          const { data: adminData, error: adminError } = await supabaseServer
-            .from('users')
-            .update({ role: 'admin', updated_at: new Date().toISOString() })
-            .eq('id', userId)
-            .select()
-            .single();
-
-          if (adminError) {
-            console.error('[check-first-user] Error promoting first user to admin:', adminError);
-            return NextResponse.json(
-              { success: false, error: 'خطأ في ترقية الحساب — يرجى تشغيل ملف SQL الخاص بإضافة دور superadmin' },
-              { status: 500 }
-            );
-          }
-
-          // Sync app_metadata with admin role
-          await syncAppMetadata(userId, 'admin');
-
-          return NextResponse.json({
-            success: true,
-            promoted: true,
-            role: 'admin',
-            user: adminData,
-            warning: 'تم إنشاء الحساب كمدير (admin) بدلاً من مدير أعلى (superadmin). يرجى تشغيل ملف add_superadmin_role.sql في محرر SQL ثم ترقية الحساب يدوياً.',
-          });
-        }
-
-        // Retry succeeded after fixing constraint
+      if (!insertError && newProfile) {
+        // Successfully created with superadmin role
         await syncAppMetadata(userId, 'superadmin');
-        console.log('[check-first-user] Successfully promoted first user to superadmin (after fixing CHECK constraint):', userId);
+        console.log('[check-first-user] Created first user profile as superadmin:', userId);
         return NextResponse.json({
           success: true,
           promoted: true,
           role: 'superadmin',
-          user: retryData,
+          user: newProfile,
         });
       }
 
-      console.error('[check-first-user] Error promoting first user to superadmin:', updateError);
-      return NextResponse.json(
-        { success: false, error: 'خطأ في ترقية الحساب' },
-        { status: 500 }
-      );
+      // superadmin INSERT failed — likely CHECK constraint
+      console.warn('[check-first-user] Cannot insert as superadmin, trying admin:', insertError);
+
+      // Try inserting as 'admin' (always allowed by CHECK constraint)
+      const { data: adminProfile, error: adminInsertError } = await supabaseServer
+        .from('users')
+        .insert({
+          id: userId,
+          email: authUser.email || '',
+          name: userName,
+          role: 'admin',
+        })
+        .select()
+        .single();
+
+      if (adminInsertError) {
+        // Might be duplicate key (race condition with trigger that created it as 'student')
+        const err = adminInsertError as { code?: string; message?: string };
+        if (err.code === '23505' || (err.message || '').includes('duplicate key')) {
+          // Profile was created by the trigger — fetch it
+          const { data: retryProfile } = await supabaseServer
+            .from('users')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+          if (retryProfile) {
+            // Try to promote the existing profile
+            const promotedProfile = await tryPromoteToSuperadmin(userId);
+            const finalProfile = promotedProfile || retryProfile;
+            const finalRole = finalProfile.role || retryProfile.role;
+            await syncAppMetadata(userId, finalRole);
+
+            return NextResponse.json({
+              success: true,
+              promoted: promotedProfile?.role === 'superadmin',
+              role: finalRole,
+              user: finalProfile,
+            });
+          }
+        }
+
+        console.error('[check-first-user] Error creating profile:', adminInsertError);
+        return NextResponse.json(
+          { success: false, error: 'خطأ في إنشاء الملف الشخصي' },
+          { status: 500 }
+        );
+      }
+
+      // Profile created as 'admin' — try to promote to superadmin
+      const promotedProfile = await tryPromoteToSuperadmin(userId);
+
+      if (promotedProfile) {
+        await syncAppMetadata(userId, 'superadmin');
+        return NextResponse.json({
+          success: true,
+          promoted: true,
+          role: 'superadmin',
+          user: promotedProfile,
+        });
+      }
+
+      // Can't promote to superadmin — keep as admin
+      await syncAppMetadata(userId, 'admin');
+      console.warn('[check-first-user] Keeping first user as admin (superadmin not in CHECK constraint)');
+      return NextResponse.json({
+        success: true,
+        promoted: true,
+        role: 'admin',
+        user: adminProfile,
+        warning: 'تم إنشاء الحساب كمدير. يرجى تشغيل SQL لإضافة دور superadmin ثم ترقية الحساب من الإعدادات.',
+      });
     }
 
-    // ─── Sync app_metadata so middleware recognizes the superadmin role ───
-    // Without this, the middleware and createFallbackProfile() won't see
-    // the user as superadmin, causing auth failures when saving institution
-    // settings or accessing admin pages.
-    await syncAppMetadata(userId, 'superadmin');
+    // ─── Profile exists but not superadmin — UPDATE it ───
+    const promotedProfile = await tryPromoteToSuperadmin(userId);
 
-    console.log('[check-first-user] Successfully promoted first user to superadmin:', userId);
+    if (promotedProfile) {
+      await syncAppMetadata(userId, 'superadmin');
+      return NextResponse.json({
+        success: true,
+        promoted: true,
+        role: 'superadmin',
+        user: promotedProfile,
+      });
+    }
 
+    // Can't promote — keep current role
+    await syncAppMetadata(userId, currentProfile.role || 'admin');
     return NextResponse.json({
       success: true,
-      promoted: true,
-      role: 'superadmin',
-      user: data,
+      promoted: false,
+      role: currentProfile.role,
+      user: currentProfile,
+      warning: 'لم يتم ترقية الحساب. يرجى تشغيل SQL لإضافة دور superadmin.',
     });
   } catch (error) {
     console.error('[check-first-user] Error:', error);
@@ -242,11 +263,59 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * Try to update a user's role to 'superadmin'.
+ * Returns the updated profile if successful, null if it fails
+ * (e.g., CHECK constraint doesn't include 'superadmin').
+ */
+async function tryPromoteToSuperadmin(userId: string): Promise<Record<string, unknown> | null> {
+  // Try direct update
+  const { data, error } = await supabaseServer
+    .from('users')
+    .update({ role: 'superadmin', updated_at: new Date().toISOString() })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (!error && data) {
+    return data;
+  }
+
+  // If CHECK constraint violation, try to fix the constraint
+  const err = error as { code?: string; message?: string };
+  const isCheckViolation = err.code === '23514' ||
+    (err.message || '').includes('check constraint') ||
+    (err.message || '').includes('violates');
+
+  if (isCheckViolation) {
+    console.warn('[check-first-user] CHECK constraint blocks superadmin — attempting to fix...');
+
+    try {
+      await supabaseServer.rpc('exec_sql', {
+        sql: `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+              ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));`
+      });
+    } catch {
+      console.warn('[check-first-user] Could not alter CHECK constraint via RPC');
+    }
+
+    // Try again after constraint fix
+    const { data: retryData, error: retryError } = await supabaseServer
+      .from('users')
+      .update({ role: 'superadmin', updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (!retryError && retryData) {
+      return retryData;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Sync the user's role to Supabase auth app_metadata.
- * This is critical for:
- * - Middleware role checks (avoids extra DB queries)
- * - createFallbackProfile() which reads app_metadata.role
- * - RLS policies that check app_metadata
  */
 async function syncAppMetadata(userId: string, role: string): Promise<void> {
   try {
@@ -255,7 +324,6 @@ async function syncAppMetadata(userId: string, role: string): Promise<void> {
     });
     console.log(`[check-first-user] Synced app_metadata.role=${role} for user ${userId}`);
   } catch (err) {
-    // Non-critical: the DB role is already updated, this is just a sync optimization
     console.warn('[check-first-user] Failed to sync app_metadata (non-critical):', err);
   }
 }

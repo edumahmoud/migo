@@ -56,3 +56,4 @@ server.log
 # Skills directory
 /skills/upload/
 upload/
+tool-results/

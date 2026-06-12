@@ -1,0 +1,1163 @@
+     1→'use client';
+     2→
+     3→import { useState, useMemo, useEffect } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  GraduationCap,
+     7→  Mail,
+     8→  Lock,
+     9→  Eye,
+    10→  EyeOff,
+    11→  Loader2,
+    12→  User,
+    13→  Building2,
+    14→  School,
+    15→  Landmark,
+    16→  MapPin,
+    17→  Phone,
+    18→  Globe,
+    19→  Calendar,
+    20→  FileText,
+    21→  CheckCircle2,
+    22→  ArrowLeft,
+    23→  ArrowRight,
+    24→  ImagePlus,
+    25→  AlertCircle,
+    26→} from 'lucide-react';
+    27→import { Button } from '@/components/ui/button';
+    28→import { Input } from '@/components/ui/input';
+    29→import { Label } from '@/components/ui/label';
+    30→import { supabase } from '@/lib/supabase';
+    31→import { useTranslations } from '@/i18n/use-translations';
+    32→import { useInstitutionStore } from '@/stores/institution-store';
+    33→import { useAuthStore } from '@/stores/auth-store';
+    34→import { toast } from 'sonner';
+    35→
+    36→// ─── Types ───
+    37→
+    38→type InstitutionType = 'center' | 'school' | 'university';
+    39→type WizardStep = 'db-migration' | 'admin-account' | 'institution-info' | 'complete';
+    40→
+    41→interface SetupWizardProps {
+    42→  onComplete: () => void;
+    43→  onStart?: () => void;
+    44→  onError?: () => void;  // Called when signup fails, to reset wizardInProgress
+    45→}
+    46→
+    47→// ─── Password Strength ───
+    48→
+    49→function getPasswordStrength(password: string) {
+    50→  let score = 0;
+    51→  if (password.length >= 6) score++;
+    52→  if (password.length >= 8) score++;
+    53→  if (/[A-Z]/.test(password)) score++;
+    54→  if (/[0-9]/.test(password)) score++;
+    55→  if (/[^A-Za-z0-9]/.test(password)) score++;
+    56→  if (score <= 1) return { score, labelKey: 'weak', color: 'bg-red-500' };
+    57→  if (score <= 2) return { score, labelKey: 'fair', color: 'bg-yellow-500' };
+    58→  if (score <= 3) return { score, labelKey: 'good', color: 'bg-blue-500' };
+    59→  return { score, labelKey: 'strong', color: 'bg-teal-500' };
+    60→}
+    61→
+    62→// ─── Step Indicator ───
+    63→
+    64→function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep; showMigration: boolean }) {
+    65→  const { t } = useTranslations('setup');
+    66→  const steps = [
+    67→    ...(showMigration ? [{ key: 'db-migration' as const, label: t('dbSetup'), num: 0 }] : []),
+    68→    { key: 'admin-account' as const, label: t('adminAccount'), num: showMigration ? 2 : 1 },
+    69→    { key: 'institution-info' as const, label: t('institutionData'), num: showMigration ? 3 : 2 },
+    70→    { key: 'complete' as const, label: t('done'), num: showMigration ? 4 : 3 },
+    71→  ];
+    72→
+    73→  const currentIndex = steps.findIndex((s) => s.key === currentStep);
+    74→
+    75→  return (
+    76→    <div className="flex items-center justify-center gap-2 mb-8">
+    77→      {steps.map((step, idx) => {
+    78→        const isActive = idx === currentIndex;
+    79→        const isDone = idx < currentIndex;
+    80→        return (
+    81→          <div key={step.key} className="flex items-center gap-2">
+    82→            <div className="flex items-center gap-1.5">
+    83→              <div
+    84→                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 ${
+    85→                  isDone
+    86→                    ? 'bg-sky-600 text-white'
+    87→                    : isActive
+    88→                    ? 'bg-sky-700 text-white shadow-lg shadow-sky-500/30'
+    89→                    : 'bg-white/20 text-white/60'
+    90→                }`}
+    91→              >
+    92→                {isDone ? <CheckCircle2 className="h-4 w-4" /> : step.num}
+    93→              </div>
+    94→              <span
+    95→                className={`text-xs font-medium transition-colors ${
+    96→                  isActive ? 'text-white' : isDone ? 'text-sky-200' : 'text-white/50'
+    97→                }`}
+    98→              >
+    99→                {step.label}
+   100→              </span>
+   101→            </div>
+   102→            {idx < steps.length - 1 && (
+   103→              <div
+   104→                className={`h-0.5 w-8 rounded-full transition-colors ${
+   105→                  idx < currentIndex ? 'bg-sky-400' : 'bg-white/20'
+   106→                }`}
+   107→              />
+   108→            )}
+   109→          </div>
+   110→        );
+   111→      })}
+   112→    </div>
+   113→  );
+   114→}
+   115→
+   116→// ─── Main Component ───
+   117→
+   118→export default function SetupWizard({ onComplete, onStart, onError }: SetupWizardProps) {
+   119→  const { t, direction } = useTranslations('setup');
+   120→  const { t: tc } = useTranslations('common');
+   121→  const { t: ta } = useTranslations('auth');
+   122→  const [step, setStep] = useState<WizardStep>('admin-account');
+   123→  const [tableExists, setTableExists] = useState(true); // assume table exists until proven otherwise
+   124→
+   125→  // Check if the institution_settings table exists on mount
+   126→  useEffect(() => {
+   127→    fetch('/api/setup')
+   128→      .then((res) => res.json())
+   129→      .then((data) => {
+   130→        if (data.tableExists === false) {
+   131→          setTableExists(false);
+   132→          setStep('db-migration');
+   133→        }
+   134→      })
+   135→      .catch(() => {});
+   136→  }, []);
+   137→
+   138→  // ─── Step 1: Admin Account ───
+   139→  const [adminName, setAdminName] = useState('');
+   140→  const [adminEmail, setAdminEmail] = useState('');
+   141→  const [adminPassword, setAdminPassword] = useState('');
+   142→  const [adminConfirmPassword, setAdminConfirmPassword] = useState('');
+   143→  const [showPassword, setShowPassword] = useState(false);
+   144→  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+   145→  const [creatingAccount, setCreatingAccount] = useState(false);
+   146→  const [adminUserId, setAdminUserId] = useState<string | null>(null);
+   147→  const [checkingMigration, setCheckingMigration] = useState(false);
+   148→
+   149→  // ─── Step 2: Institution ───
+   150→  const [institutionName, setInstitutionName] = useState('');
+   151→  const [institutionNameEn, setInstitutionNameEn] = useState('');
+   152→  const [institutionType, setInstitutionType] = useState<InstitutionType>('center');
+   153→  const [institutionCountry, setInstitutionCountry] = useState('');
+   154→  const [institutionCity, setInstitutionCity] = useState('');
+   155→  const [institutionAddress, setInstitutionAddress] = useState('');
+   156→  const [institutionPhone, setInstitutionPhone] = useState('');
+   157→  const [institutionEmail, setInstitutionEmail] = useState('');
+   158→  const [institutionWebsite, setInstitutionWebsite] = useState('');
+   159→  const [institutionAcademicYear, setInstitutionAcademicYear] = useState('');
+   160→  const [institutionDescription, setInstitutionDescription] = useState('');
+   161→  const [institutionTagline, setInstitutionTagline] = useState('');
+   162→  const [savingInstitution, setSavingInstitution] = useState(false);
+   163→
+   164→  const passwordStrength = useMemo(() => getPasswordStrength(adminPassword), [adminPassword]);
+   165→
+   166→  // ─── Step 1: Create admin account ───
+   167→  const handleCreateAdmin = async () => {
+   168→    if (!adminName.trim()) {
+   169→      toast.error(t('pleaseEnterAdminName'));
+   170→      return;
+   171→    }
+   172→    if (!adminEmail.trim()) {
+   173→      toast.error(t('pleaseEnterAdminEmail'));
+   174→      return;
+   175→    }
+   176→    if (!adminPassword) {
+   177→      toast.error(t('pleaseEnterPassword'));
+   178→      return;
+   179→    }
+   180→    if (adminPassword.length < 6) {
+   181→      toast.error(ta('passwordMinLength'));
+   182→      return;
+   183→    }
+   184→    if (adminPassword !== adminConfirmPassword) {
+   185→      toast.error(ta('passwordsDontMatch'));
+   186→      return;
+   187→    }
+   188→
+   189→    setCreatingAccount(true);
+   190→    // Signal that the wizard is now in progress BEFORE the signup call.
+   191→    // This prevents a race condition where the auth state change (which sets
+   192→    // `user` in Zustand) causes the parent to hide the SetupWizard before
+   193→    // we can transition to the institution-info step.
+   194→    onStart?.();
+   195→
+   196→    // CRITICAL: Set _loginInProgress flag in auth store to prevent
+   197→    // onAuthStateChange from overwriting the correct profile with a
+   198→    // fallback profile that defaults to role='student'.
+   199→    useAuthStore.getState().setLoginInProgress(true);
+   200→
+   201→    try {
+   202→      // Sign up with role = superadmin
+   203→      const { data: signUpData, error: authError } = await supabase.auth.signUp({
+   204→        email: adminEmail.trim().toLowerCase(),
+   205→        password: adminPassword,
+   206→        options: {
+   207→          data: { name: adminName.trim(), role: 'superadmin' },
+   208→        },
+   209→      });
+   210→
+   211→      if (authError) {
+   212→        const msg = (authError.message || '').toLowerCase();
+   213→        if (msg.includes('already registered') || msg.includes('user_already_exists')) {
+   214→          toast.error(ta('userAlreadyExists'));
+   215→        } else if (msg.includes('weak')) {
+   216→          toast.error(t('weakPasswordChooseStronger'));
+   217→        } else if (msg.includes('signup is disabled') || msg.includes('signups not allowed')) {
+   218→          toast.error(t('signupDisabled'));
+   219→        } else {
+   220→          toast.error(t('errorCreatingAccount'));
+   221→        }
+   222→        useAuthStore.getState().setLoginInProgress(false);
+   223→        onError?.();
+   224→        return;
+   225→      }
+   226→
+   227→      // Check if email confirmation is required
+   228→      const needsConfirmation = !!signUpData.user && !signUpData.session;
+   229→      if (needsConfirmation) {
+   230→        toast.error(t('emailConfirmationMustBeDisabled'));
+   231→        useAuthStore.getState().setLoginInProgress(false);
+   232→        onError?.();
+   233→        return;
+   234→      }
+   235→
+   236→      const authUser = signUpData.user;
+   237→      if (!authUser) {
+   238→        toast.error(t('failedToCreateAccount'));
+   239→        useAuthStore.getState().setLoginInProgress(false);
+   240→        onError?.();
+   241→        return;
+   242→      }
+   243→
+   244→      // Wait for the auth trigger to create the profile, then use server-side API
+   245→      // to fetch it (bypasses RLS and ensures we get the correct role).
+   246→      // We try /api/auth/me first (most reliable), then fall back to client-side query.
+   247→      let profile: Record<string, unknown> | null = null;
+   248→
+   249→      // Give the DB trigger time to create the profile
+   250→      await new Promise((r) => setTimeout(r, 1500));
+   251→
+   252→      // Use server-side API to fetch profile (bypasses RLS)
+   253→      try {
+   254→        const { data: { session } } = await supabase.auth.getSession();
+   255→        if (session?.access_token) {
+   256→          const meRes = await fetch('/api/auth/me', {
+   257→            headers: { 'Authorization': `Bearer ${session.access_token}` },
+   258→          });
+   259→          if (meRes.ok) {
+   260→            const meData = await meRes.json();
+   261→            if (meData.profile) {
+   262→              profile = meData.profile;
+   263→            }
+   264→          }
+   265→        }
+   266→      } catch (err) {
+   267→        console.warn('[Setup] Server-side profile fetch failed, trying client-side:', err);
+   268→      }
+   269→
+   270→      // Fallback: try client-side query (subject to RLS, but works if trigger created profile)
+   271→      if (!profile) {
+   272→        for (let attempt = 0; attempt < 3; attempt++) {
+   273→          await new Promise((r) => setTimeout(r, 1000));
+   274→          const { data: p } = await supabase
+   275→            .from('users')
+   276→            .select('*')
+   277→            .eq('id', authUser.id)
+   278→            .single();
+   279→          if (p) {
+   280→            profile = p;
+   281→            break;
+   282→          }
+   283→        }
+   284→      }
+   285→
+   286→      if (!profile) {
+   287→        // Profile not found after all retries — the DB trigger likely failed
+   288→        // because the CHECK constraint doesn't include 'superadmin'.
+   289→        // Try calling check-first-user which will attempt to create/promote via server-side.
+   290→        console.warn('[Setup] Profile not found via polling, attempting server-side promotion...');
+   291→        try {
+   292→          const { data: { session } } = await supabase.auth.getSession();
+   293→          const promoteRes = await fetch('/api/auth/check-first-user', {
+   294→            method: 'POST',
+   295→            headers: {
+   296→              'Content-Type': 'application/json',
+   297→              'Authorization': `Bearer ${session?.access_token || ''}`,
+   298→            },
+   299→            body: JSON.stringify({ userId: authUser.id }),
+   300→          });
+   301→          const promoteData = await promoteRes.json();
+   302→          if (promoteData.success && promoteData.user) {
+   303→            profile = promoteData.user;
+   304→          } else {
+   305→            console.error('[Setup] Failed to promote/create first user profile:', promoteData.error);
+   306→            toast.error(t('failedToCreateAccount'));
+   307→            useAuthStore.getState().setLoginInProgress(false);
+   308→            onError?.();
+   309→            return;
+   310→          }
+   311→        } catch (err) {
+   312→          console.error('[Setup] Error calling check-first-user:', err);
+   313→          toast.error(t('failedToCreateAccount'));
+   314→          useAuthStore.getState().setLoginInProgress(false);
+   315→          onError?.();
+   316→          return;
+   317→        }
+   318→      }
+   319→
+   320→      // Ensure superadmin role
+   321→      if (profile && profile.role !== 'superadmin') {
+   322→        try {
+   323→          const { data: { session } } = await supabase.auth.getSession();
+   324→          const promoteRes = await fetch('/api/auth/check-first-user', {
+   325→            method: 'POST',
+   326→            headers: {
+   327→              'Content-Type': 'application/json',
+   328→              'Authorization': `Bearer ${session?.access_token || ''}`,
+   329→            },
+   330→            body: JSON.stringify({ userId: authUser.id }),
+   331→          });
+   332→          const promoteData = await promoteRes.json();
+   333→          if (!promoteData.success || !promoteData.promoted) {
+   334→            // Promotion failed — this is critical for first user
+   335→            console.error('[Setup] Failed to promote first user to superadmin:', promoteData.error);
+   336→            toast.error(t('errorCreatingAccount'));
+   337→            useAuthStore.getState().setLoginInProgress(false);
+   338→            onError?.();
+   339→            return;
+   340→          }
+   341→          profile = promoteData.user || profile;
+   342→        } catch (err) {
+   343→          console.error('[Setup] Error calling check-first-user:', err);
+   344→          toast.error(t('errorCreatingAccount'));
+   345→          useAuthStore.getState().setLoginInProgress(false);
+   346→          onError?.();
+   347→          return;
+   348→        }
+   349→      }
+   350→
+   351→      // Update auth store with the correct superadmin profile
+   352→      if (profile) {
+   353→        useAuthStore.getState().setUser(profile as unknown as import('@/lib/types').UserProfile);
+   354→      }
+   355→
+   356→      setAdminUserId(authUser.id);
+   357→      toast.success(t('adminAccountCreatedSuccess'));
+   358→      setStep('institution-info');
+   359→    } catch {
+   360→      toast.error(tc('unexpectedError'));
+   361→      onError?.();
+   362→    } finally {
+   363→      setCreatingAccount(false);
+   364→      // Clear _loginInProgress flag after a delay to allow onAuthStateChange
+   365→      // events to be safely skipped
+   366→      setTimeout(() => {
+   367→        useAuthStore.getState().setLoginInProgress(false);
+   368→      }, 5000);
+   369→    }
+   370→  };
+   371→
+   372→  // ─── Step 2: Save institution data ───
+   373→  const handleSaveInstitution = async () => {
+   374→    if (!institutionName.trim()) {
+   375→      toast.error(t('pleaseEnterInstitutionName'));
+   376→      return;
+   377→    }
+   378→    if (!institutionType) {
+   379→      toast.error(t('pleaseSelectInstitutionType'));
+   380→      return;
+   381→    }
+   382→
+   383→    setSavingInstitution(true);
+   384→    try {
+   385→      // Get auth token — by this point the admin account was created in Step 1,
+   386→      // so the API requires superadmin auth when users exist
+   387→      const { data: { session } } = await supabase.auth.getSession();
+   388→      const token = session?.access_token || '';
+   389→
+   390→      const res = await fetch('/api/setup', {
+   391→        method: 'POST',
+   392→        headers: {
+   393→          'Content-Type': 'application/json',
+   394→          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+   395→        },
+   396→        body: JSON.stringify({
+   397→          action: 'save_institution',
+   398→          name: institutionName.trim(),
+   399→          nameEn: institutionNameEn.trim() || null,
+   400→          type: institutionType,
+   401→          tagline: institutionTagline.trim() || null,
+   402→          country: institutionCountry.trim() || null,
+   403→          city: institutionCity.trim() || null,
+   404→          address: institutionAddress.trim() || null,
+   405→          phone: institutionPhone.trim() || null,
+   406→          email: institutionEmail.trim() || null,
+   407→          website: institutionWebsite.trim() || null,
+   408→          academic_year: institutionAcademicYear.trim() || null,
+   409→          description: institutionDescription.trim() || null,
+   410→        }),
+   411→      });
+   412→
+   413→      const result = await res.json();
+   414→      if (!res.ok || result.error) {
+   415→        console.error('[Setup] Failed to save institution:', result.error, 'status:', res.status);
+   416→        toast.error(result.error || t('failedToSaveInstitutionData'));
+   417→        return;
+   418→      }
+   419→
+   420→      // Update the institution store so the UI (title, favicon, manifest) reflects
+   421→      // the new institution data immediately without requiring a page refresh.
+   422→      useInstitutionStore.getState().setInstitution({
+   423→        name: institutionName.trim(),
+   424→        name_en: institutionNameEn.trim() || null,
+   425→        type: institutionType,
+   426→        tagline: institutionTagline.trim() || null,
+   427→        country: institutionCountry.trim() || null,
+   428→        city: institutionCity.trim() || null,
+   429→        address: institutionAddress.trim() || null,
+   430→        phone: institutionPhone.trim() || null,
+   431→        email: institutionEmail.trim() || null,
+   432→        website: institutionWebsite.trim() || null,
+   433→        academic_year: institutionAcademicYear.trim() || null,
+   434→        description: institutionDescription.trim() || null,
+   435→      });
+   436→
+   437→      toast.success(t('institutionDataSavedSuccess'));
+   438→      setStep('complete');
+   439→    } catch {
+   440→      toast.error(tc('unexpectedError'));
+   441→    } finally {
+   442→      setSavingInstitution(false);
+   443→    }
+   444→  };
+   445→
+   446→  // ─── Render Step 0: DB Migration ───
+   447→  const renderMigrationStep = () => {
+   448→    const migrationSQL = `-- انسخ هذا الكود وشغّله في محرر SQL في لوحة تحكم Supabase
+   449→-- (Dashboard → SQL Editor → New Query)
+   450→-- ثم اضغط "تم تنفيذ SQL" للاستمرار
+   451→
+   452→-- 1. Institution settings table
+   453→CREATE TABLE IF NOT EXISTS institution_settings (
+   454→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   455→  name TEXT NOT NULL,
+   456→  name_en TEXT,
+   457→  type TEXT NOT NULL CHECK (type IN ('center', 'school', 'university')),
+   458→  logo_url TEXT,
+   459→  tagline TEXT,
+   460→  country TEXT,
+   461→  city TEXT,
+   462→  address TEXT,
+   463→  phone TEXT,
+   464→  email TEXT,
+   465→  website TEXT,
+   466→  timezone TEXT,
+   467→  academic_year TEXT,
+   468→  description TEXT,
+   469→  created_at TIMESTAMPTZ DEFAULT NOW(),
+   470→  updated_at TIMESTAMPTZ DEFAULT NOW()
+   471→);
+   472→
+   473→ALTER TABLE institution_settings ENABLE ROW LEVEL SECURITY;
+   474→
+   475→DO $$ BEGIN
+   476→  CREATE POLICY "Anyone can read institution_settings" ON institution_settings
+   477→    FOR SELECT USING (true);
+   478→EXCEPTION WHEN duplicate_object THEN NULL;
+   479→END $$;
+   480→
+   481→DO $$ BEGIN
+   482→  CREATE POLICY "Service can insert institution_settings" ON institution_settings
+   483→    FOR INSERT WITH CHECK (true);
+   484→EXCEPTION WHEN duplicate_object THEN NULL;
+   485→END $$;
+   486→
+   487→DO $$ BEGIN
+   488→  CREATE POLICY "Service can update institution_settings" ON institution_settings
+   489→    FOR UPDATE USING (true);
+   490→EXCEPTION WHEN duplicate_object THEN NULL;
+   491→END $$;
+   492→
+   493→CREATE OR REPLACE FUNCTION update_institution_updated_at()
+   494→RETURNS TRIGGER AS $$
+   495→BEGIN
+   496→  NEW.updated_at = NOW();
+   497→  RETURN NEW;
+   498→END;
+   499→$$ LANGUAGE plpgsql;
+   500→
+   501→DROP TRIGGER IF EXISTS trg_institution_updated_at ON institution_settings;
+   502→CREATE TRIGGER trg_institution_updated_at
+   503→  BEFORE UPDATE ON institution_settings
+   504→  FOR EACH ROW EXECUTE FUNCTION update_institution_updated_at();
+   505→
+   506→-- 2. System initialized table (prevents race condition for first-user superadmin)
+   507→CREATE TABLE IF NOT EXISTS system_initialized (
+   508→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   509→  initialized BOOLEAN NOT NULL DEFAULT true,
+   510→  initialized_by UUID,
+   511→  created_at TIMESTAMPTZ DEFAULT NOW()
+   512→);
+   513→
+   514→-- Ensure only one row can exist (atomic first-user check)
+   515→CREATE UNIQUE INDEX IF NOT EXISTS system_initialized_single_row
+   516→  ON system_initialized ((initialized));
+   517→
+   518→ALTER TABLE system_initialized ENABLE ROW LEVEL SECURITY;
+   519→
+   520→DO $$ BEGIN
+   521→  CREATE POLICY "Service can insert system_initialized" ON system_initialized
+   522→    FOR INSERT WITH CHECK (true);
+   523→EXCEPTION WHEN duplicate_object THEN NULL;
+   524→END $$;
+   525→
+   526→DO $$ BEGIN
+   527→  CREATE POLICY "Service can read system_initialized" ON system_initialized
+   528→    FOR SELECT USING (true);
+   529→EXCEPTION WHEN duplicate_object THEN NULL;
+   530→END $$;
+   531→
+   532→-- 3. Setup initialization RPC function
+   533→CREATE OR REPLACE FUNCTION setup_initialize_system(
+   534→  p_name TEXT, p_name_en TEXT DEFAULT NULL,
+   535→  p_type TEXT DEFAULT 'center', p_logo_url TEXT DEFAULT NULL,
+   536→  p_tagline TEXT DEFAULT NULL,
+   537→  p_country TEXT DEFAULT NULL, p_city TEXT DEFAULT NULL,
+   538→  p_address TEXT DEFAULT NULL, p_phone TEXT DEFAULT NULL,
+   539→  p_email TEXT DEFAULT NULL, p_website TEXT DEFAULT NULL,
+   540→  p_timezone TEXT DEFAULT NULL,
+   541→  p_academic_year TEXT DEFAULT NULL, p_description TEXT DEFAULT NULL
+   542→)
+   543→RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
+   544→DECLARE v_id UUID; v_existing_id UUID;
+   545→BEGIN
+   546→  SELECT id INTO v_existing_id FROM institution_settings LIMIT 1;
+   547→  IF v_existing_id IS NOT NULL THEN
+   548→    UPDATE institution_settings SET name=p_name, name_en=p_name_en, type=p_type,
+   549→      logo_url=p_logo_url, tagline=p_tagline, country=p_country, city=p_city, address=p_address,
+   550→      phone=p_phone, email=p_email, website=p_website, timezone=p_timezone,
+   551→      academic_year=p_academic_year, description=p_description
+   552→    WHERE id=v_existing_id;
+   553→    RETURN json_build_object('action','updated','id',v_existing_id);
+   554→  END IF;
+   555→  INSERT INTO institution_settings(name,name_en,type,logo_url,tagline,country,city,address,phone,email,website,timezone,academic_year,description)
+   556→  VALUES(p_name,p_name_en,p_type,p_logo_url,p_tagline,p_country,p_city,p_address,p_phone,p_email,p_website,p_timezone,p_academic_year,p_description)
+   557→  RETURNING id INTO v_id;
+   558→  RETURN json_build_object('action','created','id',v_id);
+   559→END;
+   560→$$;
+   561→
+   562→-- 4. Add superadmin to users role CHECK constraint
+   563→-- This is CRITICAL: without it, the DB trigger fails silently when creating
+   564→-- the first user with role='superadmin', causing "فشل في إنشاء الحساب" error
+   565→ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+   566→ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));
+   567→
+   568→-- 5. Update auth trigger to make first user superadmin
+   569→CREATE OR REPLACE FUNCTION public.handle_new_user()
+   570→RETURNS TRIGGER AS $$
+   571→DECLARE
+   572→  user_count integer;
+   573→BEGIN
+   574→  SELECT COUNT(*) INTO user_count FROM public.users;
+   575→  INSERT INTO public.users (id, email, name, role)
+   576→  VALUES (
+   577→    NEW.id,
+   578→    NEW.email,
+   579→    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+   580→    CASE
+   581→      WHEN user_count = 0 THEN 'superadmin'
+   582→      ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'student')
+   583→    END
+   584→  );
+   585→  RETURN NEW;
+   586→EXCEPTION WHEN OTHERS THEN
+   587→  RETURN NEW;
+   588→END;
+   589→$$ LANGUAGE plpgsql SECURITY DEFINER;`;
+   590→
+   591→    const handleCheckTable = async () => {
+   592→      setCheckingMigration(true);
+   593→      try {
+   594→        const res = await fetch('/api/setup');
+   595→        const data = await res.json();
+   596→        if (data.tableExists) {
+   597→          setTableExists(true);
+   598→          setStep('admin-account');
+   599→          toast.success(t('tableCreated'));
+   600→        } else {
+   601→          toast.error(t('tableNotCreatedExecuteSQL'));
+   602→        }
+   603→      } catch {
+   604→        toast.error(t('errorDuringVerification'));
+   605→      } finally {
+   606→        setCheckingMigration(false);
+   607→      }
+   608→    };
+   609→
+   610→    return (
+   611→      <motion.div
+   612→        key="migration-step"
+   613→        initial={{ opacity: 0, x: 50 }}
+   614→        animate={{ opacity: 1, x: 0 }}
+   615→        exit={{ opacity: 0, x: -50 }}
+   616→        transition={{ duration: 0.4, ease: 'easeOut' as const }}
+   617→        className="space-y-5"
+   618→      >
+   619→        <div className="text-center mb-6">
+   620→          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-400 to-red-500 shadow-lg">
+   621→            <GraduationCap className="h-8 w-8 text-white" />
+   622→          </div>
+   623→          <h2 className="text-2xl font-bold text-white">{t('dbSetup')}</h2>
+   624→          <p className="text-sky-100 mt-2 text-sm">{t('mustCreateTableFirst')}</p>
+   625→        </div>
+   626→
+   627→        <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
+   628→          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+   629→          <span>{t('copySqlInstructionDetail')}</span>
+   630→        </div>
+   631→
+   632→        <div className="relative">
+   633→          <pre className="rounded-xl bg-black/30 border border-white/10 p-4 text-xs text-sky-200 overflow-x-auto max-h-64 overflow-y-auto font-mono" dir="ltr">
+   634→            {migrationSQL}
+   635→          </pre>
+   636→          <Button
+   637→            type="button"
+   638→            size="sm"
+   639→            onClick={() => {
+   640→              navigator.clipboard.writeText(migrationSQL);
+   641→              toast.success(t('sqlCopied'));
+   642→            }}
+   643→            className="absolute top-2 start-2 bg-white/20 hover:bg-white/30 text-white border-0 text-xs"
+   644→          >
+   645→            {tc('copy')}
+   646→          </Button>
+   647→        </div>
+   648→
+   649→        <Button
+   650→          onClick={handleCheckTable}
+   651→          disabled={checkingMigration}
+   652→          className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
+   653→        >
+   654→          {checkingMigration ? (
+   655→            <>
+   656→              <Loader2 className="h-5 w-5 animate-spin" />
+   657→              <span>{t('verifying')}</span>
+   658→            </>
+   659→          ) : (
+   660→            <>
+   661→              <CheckCircle2 className="h-5 w-5 me-1" />
+   662→              <span>{t('executeSQLVerify')}</span>
+   663→            </>
+   664→          )}
+   665→        </Button>
+   666→      </motion.div>
+   667→    );
+   668→  };
+   669→
+   670→  // ─── Render Step 1: Admin Account ───
+   671→  const renderAdminStep = () => (
+   672→    <motion.div
+   673→      key="admin-step"
+   674→      initial={{ opacity: 0, x: 50 }}
+   675→      animate={{ opacity: 1, x: 0 }}
+   676→      exit={{ opacity: 0, x: -50 }}
+   677→      transition={{ duration: 0.4, ease: 'easeOut' as const }}
+   678→      className="space-y-5"
+   679→    >
+   680→      <div className="text-center mb-6">
+   681→        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg">
+   682→          <User className="h-8 w-8 text-white" />
+   683→        </div>
+   684→        <h2 className="text-2xl font-bold text-white">{t('createPlatformAdminAccount')}</h2>
+   685→        <p className="text-sky-100 mt-2 text-sm">{t('adminFullPrivileges')}</p>
+   686→      </div>
+   687→
+   688→      {/* Admin Name */}
+   689→      <div className="space-y-1.5">
+   690→        <Label className="text-sky-100 font-medium text-sm">{t('adminName')}</Label>
+   691→        <div className="relative">
+   692→          <Input
+   693→            type="text"
+   694→            placeholder={ta('enterFullName')}
+   695→            value={adminName}
+   696→            onChange={(e) => setAdminName(e.target.value)}
+   697→            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20"
+   698→            disabled={creatingAccount}
+   699→            maxLength={100}
+   700→          />
+   701→          <User className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   702→        </div>
+   703→      </div>
+   704→
+   705→      {/* Admin Email */}
+   706→      <div className="space-y-1.5">
+   707→        <Label className="text-sky-100 font-medium text-sm">{t('adminEmail')}</Label>
+   708→        <div className="relative">
+   709→          <Input
+   710→            type="email"
+   711→            placeholder="admin@institution.com"
+   712→            value={adminEmail}
+   713→            onChange={(e) => setAdminEmail(e.target.value)}
+   714→            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20"
+   715→            disabled={creatingAccount}
+   716→            dir="ltr"
+   717→            maxLength={254}
+   718→          />
+   719→          <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   720→        </div>
+   721→      </div>
+   722→
+   723→      {/* Admin Password */}
+   724→      <div className="space-y-1.5">
+   725→        <Label className="text-sky-100 font-medium text-sm">{t('adminPassword')}</Label>
+   726→        <div className="relative">
+   727→          <Input
+   728→            type={showPassword ? 'text' : 'password'}
+   729→            placeholder={t('createStrongPassword')}
+   730→            value={adminPassword}
+   731→            onChange={(e) => setAdminPassword(e.target.value)}
+   732→            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pe-10 ps-10"
+   733→            disabled={creatingAccount}
+   734→            dir="ltr"
+   735→          />
+   736→          <Lock className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   737→          <button
+   738→            type="button"
+   739→            onClick={() => setShowPassword(!showPassword)}
+   740→            className="absolute end-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+   741→          >
+   742→            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   743→          </button>
+   744→        </div>
+   745→        {adminPassword && (
+   746→          <div className="flex gap-1 mt-1">
+   747→            {[1, 2, 3, 4, 5].map((level) => (
+   748→              <div
+   749→                key={level}
+   750→                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+   751→                  level <= passwordStrength.score ? passwordStrength.color : 'bg-white/10'
+   752→                }`}
+   753→              />
+   754→            ))}
+   755→            <span className="text-xs text-white/60 ms-2">{t('passwordStrength')}: {ta(`passwordStrength.${passwordStrength.labelKey}`)}</span>
+   756→          </div>
+   757→        )}
+   758→      </div>
+   759→
+   760→      {/* Confirm Password */}
+   761→      <div className="space-y-1.5">
+   762→        <Label className="text-sky-100 font-medium text-sm">{t('confirmPassword')}</Label>
+   763→        <div className="relative">
+   764→          <Input
+   765→            type={showConfirmPassword ? 'text' : 'password'}
+   766→            placeholder={ta('reenterPassword')}
+   767→            value={adminConfirmPassword}
+   768→            onChange={(e) => setAdminConfirmPassword(e.target.value)}
+   769→            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pe-10 ps-10"
+   770→            disabled={creatingAccount}
+   771→            dir="ltr"
+   772→          />
+   773→          <Lock className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   774→          <button
+   775→            type="button"
+   776→            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+   777→            className="absolute end-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+   778→          >
+   779→            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   780→          </button>
+   781→        </div>
+   782→      </div>
+   783→
+   784→      {/* Info Box */}
+   785→      <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
+   786→        <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
+   787→        <span>{t('adminSuperAdminNote')}</span>
+   788→      </div>
+   789→
+   790→      {/* Next Button */}
+   791→      <Button
+   792→        onClick={handleCreateAdmin}
+   793→        disabled={creatingAccount}
+   794→        className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
+   795→      >
+   796→        {creatingAccount ? (
+   797→          <>
+   798→            <Loader2 className="h-5 w-5 animate-spin" />
+   799→            <span>{t('creating')}</span>
+   800→          </>
+   801→        ) : (
+   802→          <>
+   803→            <span>{t('createAdminAccount')}</span>
+   804→            <ArrowLeft className="h-5 w-5 ms-1" />
+   805→          </>
+   806→        )}
+   807→      </Button>
+   808→    </motion.div>
+   809→  );
+   810→
+   811→  // ─── Render Step 2: Institution Info ───
+   812→  const renderInstitutionStep = () => {
+   813→    const institutionTypes: { key: InstitutionType; label: string; icon: React.ReactNode }[] = [
+   814→      { key: 'center', label: t('trainingCenter'), icon: <Building2 className="h-6 w-6" /> },
+   815→      { key: 'school', label: t('school'), icon: <School className="h-6 w-6" /> },
+   816→      { key: 'university', label: t('university'), icon: <Landmark className="h-6 w-6" /> },
+   817→    ];
+   818→
+   819→    return (
+   820→      <motion.div
+   821→        key="institution-step"
+   822→        initial={{ opacity: 0, x: 50 }}
+   823→        animate={{ opacity: 1, x: 0 }}
+   824→        exit={{ opacity: 0, x: -50 }}
+   825→        transition={{ duration: 0.4, ease: 'easeOut' as const }}
+   826→        className="space-y-5"
+   827→      >
+   828→        <div className="text-center mb-6">
+   829→          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 shadow-lg">
+   830→            <Building2 className="h-8 w-8 text-white" />
+   831→          </div>
+   832→          <h2 className="text-2xl font-bold text-white">{t('institutionData')}</h2>
+   833→          <p className="text-sky-100 mt-2 text-sm">{t('enterInstitutionDataDesc')}</p>
+   834→        </div>
+   835→
+   836→        {/* Institution Type Selector */}
+   837→        <div className="space-y-2">
+   838→          <Label className="text-sky-100 font-medium text-sm">{t('institutionTypeLabel')}</Label>
+   839→          <div className="grid grid-cols-3 gap-3">
+   840→            {institutionTypes.map(({ key, label, icon }) => (
+   841→              <button
+   842→                key={key}
+   843→                type="button"
+   844→                onClick={() => setInstitutionType(key)}
+   845→                className={`flex flex-col items-center gap-2 rounded-xl p-4 border-2 transition-all duration-200 ${
+   846→                  institutionType === key
+   847→                    ? 'border-amber-400 bg-amber-400/20 text-amber-200 shadow-lg shadow-amber-400/10'
+   848→                    : 'border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:bg-white/10'
+   849→                }`}
+   850→              >
+   851→                {icon}
+   852→                <span className="text-xs font-bold">{label}</span>
+   853→              </button>
+   854→            ))}
+   855→          </div>
+   856→        </div>
+   857→
+   858→        {/* Institution Name (Arabic) */}
+   859→        <div className="space-y-1.5">
+   860→          <Label className="text-sky-100 font-medium text-sm">{t('institutionName')} <span className="text-red-300">*</span></Label>
+   861→          <div className="relative">
+   862→            <Input
+   863→              type="text"
+   864→              placeholder={t(`${institutionType}Placeholder`)}
+   865→              value={institutionName}
+   866→              onChange={(e) => setInstitutionName(e.target.value)}
+   867→              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   868→              disabled={savingInstitution}
+   869→            />
+   870→            <Building2 className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   871→          </div>
+   872→        </div>
+   873→
+   874→        {/* Institution Name (English) */}
+   875→        <div className="space-y-1.5">
+   876→          <Label className="text-sky-100 font-medium text-sm">{t('institutionEnglishName')}</Label>
+   877→          <div className="relative">
+   878→            <Input
+   879→              type="text"
+   880→              placeholder="Institution Name"
+   881→              value={institutionNameEn}
+   882→              onChange={(e) => setInstitutionNameEn(e.target.value)}
+   883→              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   884→              disabled={savingInstitution}
+   885→              dir="ltr"
+   886→            />
+   887→            <FileText className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   888→          </div>
+   889→        </div>
+   890→
+   891→        {/* Tagline */}
+   892→        <div className="space-y-1.5">
+   893→          <Label className="text-sky-100 font-medium text-sm">{t('institutionTagline')}</Label>
+   894→          <div className="relative">
+   895→            <Input
+   896→              type="text"
+   897→              placeholder={t('taglinePlaceholder')}
+   898→              value={institutionTagline}
+   899→              onChange={(e) => setInstitutionTagline(e.target.value)}
+   900→              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   901→              disabled={savingInstitution}
+   902→              maxLength={200}
+   903→            />
+   904→            <FileText className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   905→          </div>
+   906→          <p className="text-[10px] text-sky-200/60">{t('taglineDescription')}</p>
+   907→        </div>
+   908→
+   909→        {/* Country + City */}
+   910→        <div className="grid grid-cols-2 gap-3">
+   911→          <div className="space-y-1.5">
+   912→            <Label className="text-sky-100 font-medium text-sm">{t('country')}</Label>
+   913→            <div className="relative">
+   914→              <Input
+   915→                type="text"
+   916→                placeholder={t('countryPlaceholder')}
+   917→                value={institutionCountry}
+   918→                onChange={(e) => setInstitutionCountry(e.target.value)}
+   919→                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   920→                disabled={savingInstitution}
+   921→              />
+   922→              <MapPin className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   923→            </div>
+   924→          </div>
+   925→          <div className="space-y-1.5">
+   926→            <Label className="text-sky-100 font-medium text-sm">{t('city')}</Label>
+   927→            <div className="relative">
+   928→              <Input
+   929→                type="text"
+   930→                placeholder={t('cityPlaceholder')}
+   931→                value={institutionCity}
+   932→                onChange={(e) => setInstitutionCity(e.target.value)}
+   933→                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   934→                disabled={savingInstitution}
+   935→              />
+   936→            </div>
+   937→          </div>
+   938→        </div>
+   939→
+   940→        {/* Address */}
+   941→        <div className="space-y-1.5">
+   942→          <Label className="text-sky-100 font-medium text-sm">{t('address')}</Label>
+   943→          <div className="relative">
+   944→            <Input
+   945→              type="text"
+   946→              placeholder={t('addressPlaceholder')}
+   947→              value={institutionAddress}
+   948→              onChange={(e) => setInstitutionAddress(e.target.value)}
+   949→              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   950→              disabled={savingInstitution}
+   951→            />
+   952→          </div>
+   953→        </div>
+   954→
+   955→        {/* Phone + Email */}
+   956→        <div className="grid grid-cols-2 gap-3">
+   957→          <div className="space-y-1.5">
+   958→            <Label className="text-sky-100 font-medium text-sm">{t('phoneNumber')}</Label>
+   959→            <div className="relative">
+   960→              <Input
+   961→                type="tel"
+   962→                placeholder="+966 5x xxx xxxx"
+   963→                value={institutionPhone}
+   964→                onChange={(e) => setInstitutionPhone(e.target.value)}
+   965→                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   966→                disabled={savingInstitution}
+   967→                dir="ltr"
+   968→              />
+   969→              <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   970→            </div>
+   971→          </div>
+   972→          <div className="space-y-1.5">
+   973→            <Label className="text-sky-100 font-medium text-sm">{t('institutionEmail')}</Label>
+   974→            <div className="relative">
+   975→              <Input
+   976→                type="email"
+   977→                placeholder="info@institution.com"
+   978→                value={institutionEmail}
+   979→                onChange={(e) => setInstitutionEmail(e.target.value)}
+   980→                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+   981→                disabled={savingInstitution}
+   982→                dir="ltr"
+   983→              />
+   984→              <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+   985→            </div>
+   986→          </div>
+   987→        </div>
+   988→
+   989→        {/* Website + Academic Year */}
+   990→        <div className="grid grid-cols-2 gap-3">
+   991→          <div className="space-y-1.5">
+   992→            <Label className="text-sky-100 font-medium text-sm">{t('website')}</Label>
+   993→            <div className="relative">
+   994→              <Input
+   995→                type="url"
+   996→                placeholder="www.institution.com"
+   997→                value={institutionWebsite}
+   998→                onChange={(e) => setInstitutionWebsite(e.target.value)}
+   999→                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+  1000→                disabled={savingInstitution}
+  1001→                dir="ltr"
+  1002→              />
+  1003→              <Globe className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+  1004→            </div>
+  1005→          </div>
+  1006→          <div className="space-y-1.5">
+  1007→            <Label className="text-sky-100 font-medium text-sm">{t('academicYearLabel')}</Label>
+  1008→            <div className="relative">
+  1009→              <Input
+  1010→                type="text"
+  1011→                placeholder="2025/2026"
+  1012→                value={institutionAcademicYear}
+  1013→                onChange={(e) => setInstitutionAcademicYear(e.target.value)}
+  1014→                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
+  1015→                disabled={savingInstitution}
+  1016→                dir="ltr"
+  1017→              />
+  1018→              <Calendar className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+  1019→            </div>
+  1020→          </div>
+  1021→        </div>
+  1022→
+  1023→        {/* Description */}
+  1024→        <div className="space-y-1.5">
+  1025→          <Label className="text-sky-100 font-medium text-sm">{t('institutionDescription')}</Label>
+  1026→          <textarea
+  1027→            placeholder={t('institutionDescPlaceholder')}
+  1028→            value={institutionDescription}
+  1029→            onChange={(e) => setInstitutionDescription(e.target.value)}
+  1030→            className="w-full rounded-xl border border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20 px-3 py-2.5 text-sm resize-none h-20"
+  1031→            disabled={savingInstitution}
+  1032→          />
+  1033→        </div>
+  1034→
+  1035→        {/* Buttons */}
+  1036→        <div className="flex items-center gap-3">
+  1037→          <Button
+  1038→            type="button"
+  1039→            variant="outline"
+  1040→            onClick={() => setStep('admin-account')}
+  1041→            className="flex-1 h-11 bg-white/10 border-sky-400/50 text-sky-100 hover:bg-sky-500/20 hover:text-white hover:border-sky-300/70"
+  1042→          >
+  1043→            <ArrowRight className="h-4 w-4 me-1" />
+  1044→            {t('back')}
+  1045→          </Button>
+  1046→          <Button
+  1047→            onClick={handleSaveInstitution}
+  1048→            disabled={savingInstitution}
+  1049→            className="flex-[2] h-11 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
+  1050→          >
+  1051→            {savingInstitution ? (
+  1052→              <>
+  1053→                <Loader2 className="h-5 w-5 animate-spin" />
+  1054→                <span>{t('saving')}</span>
+  1055→              </>
+  1056→            ) : (
+  1057→              <>
+  1058→                <span>{t('saveAndFinish')}</span>
+  1059→                <CheckCircle2 className="h-5 w-5 ms-1" />
+  1060→              </>
+  1061→            )}
+  1062→          </Button>
+  1063→        </div>
+  1064→      </motion.div>
+  1065→    );
+  1066→  };
+  1067→
+  1068→  // ─── Render Step 3: Complete ───
+  1069→  const renderCompleteStep = () => (
+  1070→    <motion.div
+  1071→      key="complete-step"
+  1072→      initial={{ opacity: 0, scale: 0.9 }}
+  1073→      animate={{ opacity: 1, scale: 1 }}
+  1074→      transition={{ duration: 0.5, ease: 'easeOut' as const }}
+  1075→      className="text-center space-y-6"
+  1076→    >
+  1077→      <motion.div
+  1078→        initial={{ scale: 0 }}
+  1079→        animate={{ scale: 1 }}
+  1080→        transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+  1081→        className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-500 to-teal-500 shadow-2xl shadow-sky-500/30"
+  1082→      >
+  1083→        <CheckCircle2 className="h-12 w-12 text-white" />
+  1084→      </motion.div>
+  1085→
+  1086→      <div>
+  1087→        <h2 className="text-3xl font-bold text-white mb-2">{t('setupCompleteSuccess')}</h2>
+  1088→        <p className="text-sky-100 text-lg">
+  1089→          {t('systemSetupSuccessPrefix')} <span className="font-bold text-amber-300">{institutionName}</span> {t('systemSetupSuccessSuffix')}
+  1090→        </p>
+  1091→      </div>
+  1092→
+  1093→      <div className="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 p-5 space-y-3">
+  1094→        <div className="flex items-center justify-between">
+  1095→          <span className="text-white/70 text-sm">{t('institutionName')}</span>
+  1096→          <span className="text-white font-bold">{institutionName}</span>
+  1097→        </div>
+  1098→        <div className="flex items-center justify-between">
+  1099→          <span className="text-white/70 text-sm">{t('institutionTypeLabel')}</span>
+  1100→          <span className="text-white font-bold">
+  1101→            {institutionType === 'center' ? t('trainingCenter') : institutionType === 'school' ? t('school') : t('university')}
+  1102→          </span>
+  1103→        </div>
+  1104→        <div className="flex items-center justify-between">
+  1105→          <span className="text-white/70 text-sm">{t('adminAccount')}</span>
+  1106→          <span className="text-white font-bold">{adminName}</span>
+  1107→        </div>
+  1108→      </div>
+  1109→
+  1110→      <Button
+  1111→        onClick={onComplete}
+  1112→        className="w-full h-12 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
+  1113→      >
+  1114→        <span>{t('startUsingSystem')}</span>
+  1115→        <ArrowLeft className="h-5 w-5 ms-1" />
+  1116→      </Button>
+  1117→    </motion.div>
+  1118→  );
+  1119→
+  1120→  return (
+  1121→    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir={direction}>
+  1122→      {/* Background decorations */}
+  1123→      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+  1124→        <div className="absolute -top-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+  1125→        <div className="absolute -bottom-40 -start-40 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
+  1126→        <div className="absolute top-1/3 start-1/3 w-72 h-72 bg-sky-400/10 rounded-full blur-2xl" />
+  1127→      </div>
+  1128→
+  1129→      <div className="relative z-10 w-full max-w-lg">
+  1130→        {/* Logo */}
+  1131→        <motion.div
+  1132→          initial={{ opacity: 0, y: -20 }}
+  1133→          animate={{ opacity: 1, y: 0 }}
+  1134→          className="text-center mb-6"
+  1135→        >
+  1136→          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg shadow-sky-500/30">
+  1137→            <GraduationCap className="h-7 w-7 text-white" />
+  1138→          </div>
+  1139→          <h1 className="text-xl font-bold text-white">{t('setupTitle')}</h1>
+  1140→        </motion.div>
+  1141→
+  1142→        {/* Step Indicator */}
+  1143→        <StepIndicator currentStep={step} showMigration={!tableExists} />
+  1144→
+  1145→        {/* Content Card */}
+  1146→        <motion.div
+  1147→          initial={{ opacity: 0, y: 20 }}
+  1148→          animate={{ opacity: 1, y: 0 }}
+  1149→          transition={{ delay: 0.2 }}
+  1150→          className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-6 shadow-2xl"
+  1151→        >
+  1152→          <AnimatePresence mode="wait">
+  1153→            {step === 'db-migration' && renderMigrationStep()}
+  1154→            {step === 'admin-account' && renderAdminStep()}
+  1155→            {step === 'institution-info' && renderInstitutionStep()}
+  1156→            {step === 'complete' && renderCompleteStep()}
+  1157→          </AnimatePresence>
+  1158→        </motion.div>
+  1159→      </div>
+  1160→    </div>
+  1161→  );
+  1162→}
+  1163→
