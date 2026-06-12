@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
+import { useInstitutionStore } from '@/stores/institution-store';
 import { toast } from 'sonner';
 
 // ─── Types ───
@@ -335,9 +336,27 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
 
       const result = await res.json();
       if (!res.ok || result.error) {
+        console.error('[Setup] Failed to save institution:', result.error, 'status:', res.status);
         toast.error(result.error || t('failedToSaveInstitutionData'));
         return;
       }
+
+      // Update the institution store so the UI (title, favicon, manifest) reflects
+      // the new institution data immediately without requiring a page refresh.
+      useInstitutionStore.getState().setInstitution({
+        name: institutionName.trim(),
+        name_en: institutionNameEn.trim() || null,
+        type: institutionType,
+        tagline: institutionTagline.trim() || null,
+        country: institutionCountry.trim() || null,
+        city: institutionCity.trim() || null,
+        address: institutionAddress.trim() || null,
+        phone: institutionPhone.trim() || null,
+        email: institutionEmail.trim() || null,
+        website: institutionWebsite.trim() || null,
+        academic_year: institutionAcademicYear.trim() || null,
+        description: institutionDescription.trim() || null,
+      });
 
       toast.success(t('institutionDataSavedSuccess'));
       setStep('complete');
@@ -354,6 +373,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
 -- (Dashboard → SQL Editor → New Query)
 -- ثم اضغط "تم تنفيذ SQL" للاستمرار
 
+-- 1. Institution settings table
 CREATE TABLE IF NOT EXISTS institution_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -407,6 +427,33 @@ CREATE TRIGGER trg_institution_updated_at
   BEFORE UPDATE ON institution_settings
   FOR EACH ROW EXECUTE FUNCTION update_institution_updated_at();
 
+-- 2. System initialized table (prevents race condition for first-user superadmin)
+CREATE TABLE IF NOT EXISTS system_initialized (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  initialized BOOLEAN NOT NULL DEFAULT true,
+  initialized_by UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure only one row can exist (atomic first-user check)
+CREATE UNIQUE INDEX IF NOT EXISTS system_initialized_single_row
+  ON system_initialized ((initialized));
+
+ALTER TABLE system_initialized ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Service can insert system_initialized" ON system_initialized
+    FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Service can read system_initialized" ON system_initialized
+    FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- 3. Setup initialization RPC function
 CREATE OR REPLACE FUNCTION setup_initialize_system(
   p_name TEXT, p_name_en TEXT DEFAULT NULL,
   p_type TEXT DEFAULT 'center', p_logo_url TEXT DEFAULT NULL,

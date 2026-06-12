@@ -122,6 +122,16 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Sync app_metadata for the new profile so middleware/fallback profile works correctly
+      // This is critical for first users (superadmin) to be recognized by the middleware
+      if (isFirstUser && defaultRole === 'superadmin') {
+        try {
+          await supabaseAdmin.auth.admin.updateUserById(user.id, {
+            app_metadata: { role: 'superadmin' },
+          });
+        } catch { /* non-critical: DB role is already set */ }
+      }
+
       // Redirect to home - new Google user will be routed to student-dashboard
       // Update the redirect URL and rebuild the response with auth cookies
       redirectUrl = `${origin}?new_user=true`;

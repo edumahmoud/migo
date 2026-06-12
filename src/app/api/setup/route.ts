@@ -69,12 +69,16 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select('*', { count: 'exact', head: true });
 
+    console.log('[setup] POST: userCount =', userCount);
+
     if (userCount && userCount > 0) {
       // System already has users — require superadmin auth
       const adminResult = await requireSuperAdmin(request);
       if (!adminResult.success) {
+        console.warn('[setup] POST: Superadmin auth failed:', adminResult.error);
         return authErrorResponse(adminResult);
       }
+      console.log('[setup] POST: Superadmin authenticated, userId =', adminResult.user.id);
     }
     // If no users exist, this is initial setup — proceed without auth
 
@@ -123,6 +127,7 @@ export async function POST(request: NextRequest) {
         });
 
       if (!rpcError && rpcData) {
+        console.log('[setup] RPC succeeded:', rpcData);
         // RPC succeeded, but tagline might not be supported by the old function
         // Try to update tagline separately if provided
         if (tagline !== undefined) {
@@ -138,6 +143,10 @@ export async function POST(request: NextRequest) {
           }
         }
         return NextResponse.json({ success: true, action: rpcData.action || 'created', via: 'rpc' });
+      }
+
+      if (rpcError) {
+        console.warn('[setup] RPC failed, falling back to direct insert/update:', rpcError.message);
       }
 
       // RPC not available - try direct insert (table might exist without RPC)
@@ -261,6 +270,7 @@ function getMigrationSQL(): string {
 -- Run this SQL in your Supabase SQL Editor
 -- =========================================
 
+-- 1. Institution settings table
 CREATE TABLE IF NOT EXISTS institution_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -314,6 +324,33 @@ CREATE TRIGGER trg_institution_updated_at
   BEFORE UPDATE ON institution_settings
   FOR EACH ROW EXECUTE FUNCTION update_institution_updated_at();
 
+-- 2. System initialized table (atomic first-user superadmin check)
+CREATE TABLE IF NOT EXISTS system_initialized (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  initialized BOOLEAN NOT NULL DEFAULT true,
+  initialized_by UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure only one row can exist (atomic first-user check)
+CREATE UNIQUE INDEX IF NOT EXISTS system_initialized_single_row
+  ON system_initialized ((initialized));
+
+ALTER TABLE system_initialized ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Service can insert system_initialized" ON system_initialized
+    FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Service can read system_initialized" ON system_initialized
+    FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- 3. Setup initialization RPC function
 CREATE OR REPLACE FUNCTION setup_initialize_system(
   p_name TEXT,
   p_name_en TEXT DEFAULT NULL,

@@ -77,10 +77,27 @@ export async function GET(request: NextRequest) {
             .single();
 
           if (retryProfile) {
+            // Sync app_metadata for the recovered profile
+            if (retryProfile.role) {
+              try {
+                await supabaseServer.auth.admin.updateUserById(authUser.id, {
+                  app_metadata: { role: retryProfile.role },
+                });
+              } catch { /* non-critical */ }
+            }
             return NextResponse.json({ profile: retryProfile, isNew: true });
           }
         }
         return NextResponse.json({ error: 'فشل في إنشاء الملف الشخصي' }, { status: 500 });
+      }
+
+      // Sync app_metadata for the new profile so middleware/fallback profile works correctly
+      if (defaultRole === 'superadmin') {
+        try {
+          await supabaseServer.auth.admin.updateUserById(authUser.id, {
+            app_metadata: { role: 'superadmin' },
+          });
+        } catch { /* non-critical: DB role is already set */ }
       }
 
       return NextResponse.json({ profile: newProfile, isNew: true });

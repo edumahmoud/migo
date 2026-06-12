@@ -303,6 +303,11 @@ function HomeContent() {
   const handleSetupComplete = useCallback(() => {
     setNeedsSetup(false);
     setWizardInProgress(false);
+    // Reset institution store so it re-fetches fresh data after setup
+    // Without this, the store's `loaded: true` flag prevents re-fetching
+    import('@/stores/institution-store').then(({ useInstitutionStore }) => {
+      useInstitutionStore.getState().reset();
+    }).catch(() => { /* non-critical */ });
     // Re-initialize auth to pick up the new admin account
     initialize();
   }, [initialize]);
