@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       phone,
       email,
       website,
+      timezone,
       academic_year,
       description,
     } = body;
@@ -116,6 +117,7 @@ export async function POST(request: NextRequest) {
           p_phone: phone || null,
           p_email: email || null,
           p_website: website || null,
+          p_timezone: timezone || null,
           p_academic_year: academic_year || null,
           p_description: description || null,
         });
@@ -157,6 +159,7 @@ export async function POST(request: NextRequest) {
           phone: phone || null,
           email: email || null,
           website: website || null,
+          timezone: timezone || null,
           academic_year: academic_year || null,
           description: description || null,
         };
@@ -202,6 +205,7 @@ export async function POST(request: NextRequest) {
         phone: phone || null,
         email: email || null,
         website: website || null,
+        timezone: timezone || null,
         academic_year: academic_year || null,
         description: description || null,
       };
@@ -270,6 +274,7 @@ CREATE TABLE IF NOT EXISTS institution_settings (
   phone TEXT,
   email TEXT,
   website TEXT,
+  timezone TEXT,
   academic_year TEXT,
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -321,6 +326,7 @@ CREATE OR REPLACE FUNCTION setup_initialize_system(
   p_phone TEXT DEFAULT NULL,
   p_email TEXT DEFAULT NULL,
   p_website TEXT DEFAULT NULL,
+  p_timezone TEXT DEFAULT NULL,
   p_academic_year TEXT DEFAULT NULL,
   p_description TEXT DEFAULT NULL
 )
@@ -338,12 +344,12 @@ BEGIN
       name = p_name, name_en = p_name_en, type = p_type,
       logo_url = p_logo_url, tagline = p_tagline, country = p_country, city = p_city,
       address = p_address, phone = p_phone, email = p_email,
-      website = p_website, academic_year = p_academic_year, description = p_description
+      website = p_website, timezone = p_timezone, academic_year = p_academic_year, description = p_description
     WHERE id = v_existing_id;
     RETURN json_build_object('action', 'updated', 'id', v_existing_id);
   END IF;
-  INSERT INTO institution_settings (name, name_en, type, logo_url, tagline, country, city, address, phone, email, website, academic_year, description)
-  VALUES (p_name, p_name_en, p_type, p_logo_url, p_tagline, p_country, p_city, p_address, p_phone, p_email, p_website, p_academic_year, p_description)
+  INSERT INTO institution_settings (name, name_en, type, logo_url, tagline, country, city, address, phone, email, website, timezone, academic_year, description)
+  VALUES (p_name, p_name_en, p_type, p_logo_url, p_tagline, p_country, p_city, p_address, p_phone, p_email, p_website, p_timezone, p_academic_year, p_description)
   RETURNING id INTO v_id;
   RETURN json_build_object('action', 'created', 'id', v_id);
 END;

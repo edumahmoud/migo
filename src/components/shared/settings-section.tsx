@@ -679,7 +679,7 @@ export default function SettingsSection({
             // Ensure push_subscriptions table exists
             await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
 
-            const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
+            const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
             const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4);
             const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/');
             const rawData = window.atob(base64);

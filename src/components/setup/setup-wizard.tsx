@@ -231,21 +231,32 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       }
 
       // The auth trigger should create the profile and promote to superadmin
-      // Wait a moment for the trigger to fire
-      await new Promise((r) => setTimeout(r, 1500));
+      // Wait for the auth trigger to create the profile (with retry)
+      let profile: Record<string, unknown> | null = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const { data: p } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+        if (p) {
+          profile = p;
+          break;
+        }
+      }
 
-      // Ensure the user profile exists and has superadmin role
-      const { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
+      if (!profile) {
+        toast.error(t('failedToCreateAccount'));
+        onError?.();
+        return;
+      }
 
-      if (profile && profile.role !== 'superadmin') {
-        // Try to promote via API
+      // Ensure superadmin role
+      if (profile.role !== 'superadmin') {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          await fetch('/api/auth/check-first-user', {
+          const promoteRes = await fetch('/api/auth/check-first-user', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -253,8 +264,20 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
             },
             body: JSON.stringify({ userId: authUser.id }),
           });
-        } catch {
-          // Non-critical
+          const promoteData = await promoteRes.json();
+          if (!promoteData.success || !promoteData.promoted) {
+            // Promotion failed — this is critical for first user
+            console.error('[Setup] Failed to promote first user to superadmin:', promoteData.error);
+            toast.error(t('errorCreatingAccount'));
+            onError?.();
+            return;
+          }
+          profile = promoteData.user || profile;
+        } catch (err) {
+          console.error('[Setup] Error calling check-first-user:', err);
+          toast.error(t('errorCreatingAccount'));
+          onError?.();
+          return;
         }
       }
 
@@ -282,9 +305,17 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
 
     setSavingInstitution(true);
     try {
+      // Get auth token — by this point the admin account was created in Step 1,
+      // so the API requires superadmin auth when users exist
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
       const res = await fetch('/api/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           action: 'save_institution',
           name: institutionName.trim(),
@@ -336,6 +367,7 @@ CREATE TABLE IF NOT EXISTS institution_settings (
   phone TEXT,
   email TEXT,
   website TEXT,
+  timezone TEXT,
   academic_year TEXT,
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -382,6 +414,7 @@ CREATE OR REPLACE FUNCTION setup_initialize_system(
   p_country TEXT DEFAULT NULL, p_city TEXT DEFAULT NULL,
   p_address TEXT DEFAULT NULL, p_phone TEXT DEFAULT NULL,
   p_email TEXT DEFAULT NULL, p_website TEXT DEFAULT NULL,
+  p_timezone TEXT DEFAULT NULL,
   p_academic_year TEXT DEFAULT NULL, p_description TEXT DEFAULT NULL
 )
 RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -391,13 +424,13 @@ BEGIN
   IF v_existing_id IS NOT NULL THEN
     UPDATE institution_settings SET name=p_name, name_en=p_name_en, type=p_type,
       logo_url=p_logo_url, tagline=p_tagline, country=p_country, city=p_city, address=p_address,
-      phone=p_phone, email=p_email, website=p_website,
+      phone=p_phone, email=p_email, website=p_website, timezone=p_timezone,
       academic_year=p_academic_year, description=p_description
     WHERE id=v_existing_id;
     RETURN json_build_object('action','updated','id',v_existing_id);
   END IF;
-  INSERT INTO institution_settings(name,name_en,type,logo_url,tagline,country,city,address,phone,email,website,academic_year,description)
-  VALUES(p_name,p_name_en,p_type,p_logo_url,p_tagline,p_country,p_city,p_address,p_phone,p_email,p_website,p_academic_year,p_description)
+  INSERT INTO institution_settings(name,name_en,type,logo_url,tagline,country,city,address,phone,email,website,timezone,academic_year,description)
+  VALUES(p_name,p_name_en,p_type,p_logo_url,p_tagline,p_country,p_city,p_address,p_phone,p_email,p_website,p_timezone,p_academic_year,p_description)
   RETURNING id INTO v_id;
   RETURN json_build_object('action','created','id',v_id);
 END;

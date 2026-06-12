@@ -126,7 +126,8 @@ function _deferSWReload(): void {
   console.log('[PWA] SW reload deferred (user is busy or page just loaded)');
 }
 
-// VAPID public key from environment (with fallback hardcoded key — must match web-push.ts fallback pair)
+// VAPID public key from environment (with fallback — must match web-push.ts FALLBACK_VAPID_PUBLIC_KEY)
+// Public keys are safe to include in client-side code. The private key is never bundled.
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
 
 /**

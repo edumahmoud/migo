@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTranslations } from '@/i18n/use-translations';
 
-// VAPID key hardcoded as fallback (must match web-push.ts fallback pair)
+// VAPID public key hardcoded as fallback (must match web-push.ts FALLBACK_VAPID_PUBLIC_KEY)
+// Public keys are safe to include in client-side code. The private key is never bundled.
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
 
 /**

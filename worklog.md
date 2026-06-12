@@ -168,3 +168,58 @@ Stage Summary:
 - Intelligent insights: sudden drop, improvement streak, most improved, engagement scores
 - Drill-down course analytics with student rankings
 - Full Arabic/English bilingual support with 58 new translation keys
+
+---
+Task ID: 3-5
+Agent: Bug Fix Agent
+Task: Fix three critical bugs: institution settings not saving during setup, timezone not persisting, first account superadmin promotion unreliable
+
+Work Log:
+- Bug 1: Added auth token to handleSaveInstitution in setup-wizard.tsx
+  - The wizard's Step 2 (institution save) was missing the Authorization header
+  - By this point the admin account was already created in Step 1, so users table was non-empty
+  - The /api/setup route requires superadmin auth when users exist, causing 401/403
+  - Added `supabase.auth.getSession()` + conditional `Authorization: Bearer` header, matching institution-section.tsx pattern
+- Bug 2: Added timezone column support throughout the setup API pipeline
+  - Added `timezone` to POST handler destructured fields in route.ts
+  - Added `timezone` to RPC call parameters (`p_timezone`)
+  - Added `timezone` to direct update object and direct insert object
+  - Updated getMigrationSQL() table DDL to include `timezone TEXT` column
+  - Updated setup_initialize_system() RPC function to accept `p_timezone` parameter
+  - Updated RPC function body: UPDATE and INSERT statements include timezone column
+  - Also updated the inline migration SQL in setup-wizard.tsx renderMigrationStep() to match
+- Bug 3: Replaced fragile 1.5s timeout with robust retry loop for superadmin promotion
+  - Replaced single `setTimeout(1500)` with retry loop (5 attempts, 1s intervals)
+  - Each retry checks if user profile exists in `users` table before proceeding
+  - If profile not found after all retries, shows error and aborts (instead of silently continuing)
+  - After calling check-first-user API, now verifies the response: checks `success` and `promoted` fields
+  - If promotion fails, logs error and shows toast error instead of silently continuing
+  - Catches network errors from check-first-user and shows error instead of ignoring
+
+Stage Summary:
+- Institution settings now save correctly during first-time setup (auth token included)
+- Timezone is now persisted when saving institution data from the dashboard
+- First account superadmin promotion is reliable with retry logic and error handling
+- All lint checks pass
+
+---
+Task ID: 6
+Agent: Notification Store Refactor Agent
+Task: R1 - Extract notification store merge logic into pure functions (Reliability P2)
+
+Work Log:
+- Added `mergeNotifications()` pure function before store creation (lines 293-327) that:
+  - Builds a Set of DB notification IDs for O(1) lookup
+  - Filters local-only notifications (id starts with 'notif-') that don't have a DB ID match
+  - Suppresses local-only notifications that match a DB notification by content (title+type+message)
+  - Deduplicates DB notifications within the batch (defensive)
+  - Merges unique DB + surviving local, sorts by createdAt descending, caps at 100
+- Added `computeUnreadCount()` pure function (lines 329-334) that counts unread notifications
+- Replaced inline merge logic in `refetchNotifications` set() callback (was ~30 lines) with 3-line call to pure functions
+- All lint checks pass cleanly
+
+Stage Summary:
+- Merge logic extracted into two pure, independently testable functions
+- `refetchNotifications` set() callback simplified from ~30 lines to 3 lines
+- Single source of truth for merge logic reduces surface area for unreadCount mismatches
+- No behavioral changes — logic is identical, just restructured for testability

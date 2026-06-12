@@ -8,19 +8,20 @@ import webpush from 'web-push';
  * when keys are missing or invalid (e.g. wrong length) during
  * Vercel's static page generation step.
  *
- * SECURITY: VAPID keys should be set via environment variables.
- * However, fallback keys are provided so push notifications work
- * even without explicit env configuration. These fallback keys
- * MUST match the client-side fallback key in sw-registration.tsx
- * and notification-permission.tsx.
+ * SECURITY MODEL:
+ * - VAPID_PRIVATE_KEY: MUST be set via the VAPID_PRIVATE_KEY environment
+ *   variable. There is NO fallback — if not set, push notifications are
+ *   disabled. This prevents unauthorized push notification delivery by
+ *   anyone with repo access.
+ * - VAPID_PUBLIC_KEY: A fallback public key is provided for client-side
+ *   use (public keys are safe to bundle). The client-side fallback must
+ *   match this value.
  */
 
-// ─── Fallback VAPID key pair (must match client-side fallbacks) ───
-// These are used when NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
-// are not set in environment variables. This ensures push notifications
-// work out of the box without additional configuration.
+// ─── Fallback VAPID public key (must match client-side fallbacks) ───
+// This is used when NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set in environment
+// variables. Public keys are safe to include in source code.
 const FALLBACK_VAPID_PUBLIC_KEY = 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
-const FALLBACK_VAPID_PRIVATE_KEY = 'w3x4P4X5K0eJ1sR8fL2mN9oU7vB6cA5yD0gT3hH7iI8';
 
 let vapidInitialized = false;
 let vapidInitError: string | null = null;
@@ -33,15 +34,18 @@ function ensureVapidInitialized(): boolean {
   if (vapidInitialized) return !vapidInitError;
   if (vapidInitError) return false;
 
-  // VAPID keys from env vars, with fallback keys for out-of-the-box support
+  // VAPID public key from env var, with fallback (public keys are safe to bundle)
   const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || FALLBACK_VAPID_PUBLIC_KEY;
-  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || FALLBACK_VAPID_PRIVATE_KEY;
+  // VAPID private key — NO fallback. Must be set via environment variable.
+  // This is a security requirement: the private key must never be committed to source code.
+  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     vapidInitError = 'VAPID keys not configured';
     console.warn(
-      '⚠️ [Push] VAPID keys not configured. Push notifications will not work. ' +
-      'Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in .env'
+      '⚠️ [Push] VAPID_PRIVATE_KEY is not set. Push notifications will NOT work. ' +
+      'Set VAPID_PRIVATE_KEY in your .env file. ' +
+      'NEXT_PUBLIC_VAPID_PUBLIC_KEY is optional (a fallback public key is provided).'
     );
     return false;
   }

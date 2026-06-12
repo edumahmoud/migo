@@ -290,6 +290,49 @@ export function playNotificationFeedback(): void {
   } catch { /* audio not available, non-critical */ }
 }
 
+/**
+ * Pure function: Merge DB notifications with local-only notifications.
+ * DB data is the source of truth. Local-only notifications that have
+ * a matching DB counterpart (by title+type+message) are replaced by the DB version.
+ */
+function mergeNotifications(
+  dbNotifications: Notification[],
+  localNotifications: Notification[]
+): Notification[] {
+  const dbIdSet = new Set(dbNotifications.map((n) => n.id));
+
+  // Keep local-only notifications that don't have a DB counterpart yet
+  const survivingLocal = localNotifications
+    .filter((n) => n.id.startsWith('notif-') && !dbIdSet.has(n.id))
+    .filter((n) => {
+      // Suppress local-only notifications that match a DB notification by content
+      return !dbNotifications.some(
+        (dbN) => dbN.title === n.title && dbN.type === n.type && dbN.message === n.message
+      );
+    });
+
+  // Deduplicate DB IDs within the new results (defensive)
+  const uniqueDb: Notification[] = [];
+  const seenInBatch = new Set<string>();
+  for (const n of dbNotifications) {
+    if (!seenInBatch.has(n.id)) {
+      seenInBatch.add(n.id);
+      uniqueDb.push(n);
+    }
+  }
+
+  return [...uniqueDb, ...survivingLocal]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 100);
+}
+
+/**
+ * Pure function: Compute unread count from a list of notifications.
+ */
+function computeUnreadCount(notifications: Notification[]): number {
+  return notifications.filter((n) => !n.read).length;
+}
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
@@ -355,37 +398,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       // Merge intelligently — DB data is the source of truth
       set((state) => {
-        const dbIdSet = new Set(filteredDbNotifications.map((n) => n.id));
-
-        // Keep local-only notifications that don't have a DB counterpart yet
-        const localOnly = state.notifications.filter(
-          (n) => n.id.startsWith('notif-') && !dbIdSet.has(n.id)
-        );
-
-        // Suppress local-only notifications that match a DB notification by title+type
-        // (The DB version supersedes the local optimistic version)
-        const survivingLocal = localOnly.filter((n) => {
-          return !filteredDbNotifications.some(
-            (dbN) => dbN.title === n.title && dbN.type === n.type && dbN.message === n.message
-          );
-        });
-
-        // Deduplicate DB IDs within the new results (defensive)
-        const uniqueDbNotifications: Notification[] = [];
-        const seenInBatch = new Set<string>();
-        for (const n of filteredDbNotifications) {
-          if (!seenInBatch.has(n.id)) {
-            seenInBatch.add(n.id);
-            uniqueDbNotifications.push(n);
-          }
-        }
-
-        // Merge: DB notifications first (authoritative), then surviving local-only
-        const merged = [...uniqueDbNotifications, ...survivingLocal]
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 100);
-
-        const unreadCount = merged.filter((n) => !n.read).length;
+        const merged = mergeNotifications(filteredDbNotifications, state.notifications);
+        const unreadCount = computeUnreadCount(merged);
         return { notifications: merged, unreadCount };
       });
 

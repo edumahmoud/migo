@@ -460,17 +460,22 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: 'فشل في جلب الرسائل' }, { status: 500 });
         }
 
-        // Enrich with sender info
-        const enrichedMessages = await Promise.all(
-          (messages || []).map(async (msg: Record<string, unknown>) => {
-            const { data: sender } = await supabaseServer
-              .from('users')
-              .select('id, name, email, avatar_url, title_id, gender, role')
-              .eq('id', msg.sender_id as string)
-              .single();
-            return { ...msg, sender: sender || null };
-          })
-        );
+        // Enrich with sender info — batch fetch to avoid N+1 queries
+        const senderIds = [...new Set((messages || []).map((msg: Record<string, unknown>) => msg.sender_id as string))];
+        const { data: senders } = await supabaseServer
+          .from('users')
+          .select('id, name, email, avatar_url, title_id, gender, role')
+          .in('id', senderIds);
+        const senderMap = new Map<string, Record<string, unknown>>();
+        if (senders) {
+          for (const s of senders) {
+            senderMap.set((s as Record<string, unknown>).id as string, s as Record<string, unknown>);
+          }
+        }
+        const enrichedMessages = (messages || []).map((msg: Record<string, unknown>) => ({
+          ...msg,
+          sender: senderMap.get(msg.sender_id as string) || null,
+        }));
 
         return NextResponse.json({ messages: enrichedMessages.reverse() });
       }
@@ -498,17 +503,22 @@ export async function GET(request: NextRequest) {
           .select('user_id, joined_at, last_read_at')
           .eq('conversation_id', conversationId);
 
-        // Enrich with user info
-        const participants = await Promise.all(
-          (parts || []).map(async (p: Record<string, unknown>) => {
-            const { data: user } = await supabaseServer
-              .from('users')
-              .select('id, name, email, avatar_url, title_id, gender, role')
-              .eq('id', p.user_id as string)
-              .single();
-            return { ...p, users: user || null };
-          })
-        );
+        // Enrich with user info — batch fetch to avoid N+1 queries
+        const userIds = [...new Set((parts || []).map((p: Record<string, unknown>) => p.user_id as string))];
+        const { data: users } = await supabaseServer
+          .from('users')
+          .select('id, name, email, avatar_url, title_id, gender, role')
+          .in('id', userIds);
+        const userMap = new Map<string, Record<string, unknown>>();
+        if (users) {
+          for (const u of users) {
+            userMap.set((u as Record<string, unknown>).id as string, u as Record<string, unknown>);
+          }
+        }
+        const participants = (parts || []).map((p: Record<string, unknown>) => ({
+          ...p,
+          users: userMap.get(p.user_id as string) || null,
+        }));
 
         return NextResponse.json({ participants });
       }
