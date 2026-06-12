@@ -109,41 +109,62 @@ export async function getUserRole(userId: string): Promise<UserRole | null> {
 
 /**
  * Authenticate + verify the user is an admin or superadmin.
- * Always checks the database for the role — never trusts JWT claims alone.
+ * Checks the database for the role first, then falls back to app_metadata
+ * for the superadmin case (handles CHECK constraint issue).
  */
 export async function requireAdmin(request: NextRequest): Promise<AuthResponse & { role?: UserRole }> {
   const authResult = await authenticateRequest(request);
   if (!authResult.success) return authResult;
 
   const role = await getUserRole(authResult.user.id);
-  if (!role || (role !== 'admin' && role !== 'superadmin')) {
-    return {
-      success: false,
-      error: 'غير مصرح بالوصول',
-      status: 403,
-    };
+  if (role === 'admin' || role === 'superadmin') {
+    return { ...authResult, role };
   }
 
-  return { ...authResult, role };
+  // Check app_metadata for superadmin fallback (handles CHECK constraint issue)
+  const appRole = authResult.user.app_metadata?.role as UserRole | undefined;
+  if (appRole === 'superadmin') {
+    return { ...authResult, role: 'superadmin' };
+  }
+
+  return {
+    success: false,
+    error: 'غير مصرح بالوصول',
+    status: 403,
+  };
 }
 
 /**
  * Authenticate + verify the user is a superadmin only.
+ * Checks the DB role first (primary source of truth).
+ * If DB says not superadmin, also checks app_metadata.role as a fallback.
+ * This handles the case where the DB CHECK constraint blocks 'superadmin'
+ * but app_metadata has been set correctly via the admin API.
  */
 export async function requireSuperAdmin(request: NextRequest): Promise<AuthResponse & { role?: UserRole }> {
   const authResult = await authenticateRequest(request);
   if (!authResult.success) return authResult;
 
   const role = await getUserRole(authResult.user.id);
-  if (role !== 'superadmin') {
-    return {
-      success: false,
-      error: 'هذا الإجراء يتطلب صلاحيات مدير المنصة فقط',
-      status: 403,
-    };
+
+  if (role === 'superadmin') {
+    return { ...authResult, role };
   }
 
-  return { ...authResult, role };
+  // DB role is not 'superadmin' — check app_metadata as fallback.
+  // This handles the case where the CHECK constraint prevents storing 'superadmin'
+  // in the DB but app_metadata was set correctly via supabaseServer.auth.admin.updateUserById().
+  const appRole = authResult.user.app_metadata?.role as UserRole | undefined;
+  if (appRole === 'superadmin') {
+    console.warn(`[Auth] requireSuperAdmin: DB role='${role}' but app_metadata.role='superadmin' — allowing via app_metadata`);
+    return { ...authResult, role: 'superadmin' };
+  }
+
+  return {
+    success: false,
+    error: 'هذا الإجراء يتطلب صلاحيات مدير المنصة فقط',
+    status: 403,
+  };
 }
 
 /**

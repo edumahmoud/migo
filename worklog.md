@@ -223,3 +223,20 @@ Stage Summary:
 - `refetchNotifications` set() callback simplified from ~30 lines to 3 lines
 - Single source of truth for merge logic reduces surface area for unreadCount mismatches
 - No behavioral changes — logic is identical, just restructured for testability
+
+---
+Task ID: 1
+Agent: full-stack-developer
+Task: Fix setup wizard and superadmin creation
+
+Work Log:
+- Rewrote /api/auth/check-first-user/route.ts: Made app_metadata the PRIMARY mechanism for superadmin role, removed broken supabaseServer.rpc('exec_sql') calls, added robust error handling, override profile role from app_metadata when DB CHECK constraint blocks 'superadmin'
+- Updated /api/auth/me/route.ts: Added applySuperadminOverride() function that checks if app_metadata.role='superadmin' but DB profile has different role, tries to UPDATE DB profile to 'superadmin', falls back to overriding returned role from app_metadata, removed broken supabaseServer.rpc('exec_sql') call
+- Updated /lib/auth-helpers.ts: requireSuperAdmin() and requireAdmin() now also check app_metadata.role as fallback when DB role is not 'superadmin', handles CHECK constraint issue gracefully
+- Updated /components/setup/setup-wizard.tsx: Made all fetch calls robust (check response.ok, content-type includes 'json', wrap .json() in try/catch) for /api/auth/me, /api/auth/check-first-user, and /api/setup endpoints
+- Updated /stores/auth-store.ts: Added overrideSuperadminFromAppMetadata() helper function, applied it in 3 places where /api/auth/me profile is fetched (initialize, onAuthStateChange, signInWithEmail) to ensure superadmin role from app_metadata takes precedence when DB CHECK constraint blocks 'superadmin'
+
+Stage Summary:
+- Bug 1 (JSON parse error): All fetch calls in setup-wizard now check content-type and wrap .json() in try/catch, preventing "Unexpected token '<'" errors
+- Bug 2 (first user as student): app_metadata is now the PRIMARY mechanism for superadmin — supabaseServer.auth.admin.updateUserById() ALWAYS works; DB role is secondary and gets overridden from app_metadata when CHECK constraint blocks 'superadmin'
+- Feature change (remove institution step): Setup wizard already only has db-migration, admin-account, and complete steps; institution info already only editable from admin settings

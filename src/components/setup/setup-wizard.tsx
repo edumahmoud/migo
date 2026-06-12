@@ -111,11 +111,18 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
   // Check if the institution_settings table exists on mount
   useEffect(() => {
     fetch('/api/setup')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.tableExists === false) {
-          setTableExists(false);
-          setStep('db-migration');
+      .then(async (res) => {
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('json')) {
+          try {
+            const data = await res.json();
+            if (data.tableExists === false) {
+              setTableExists(false);
+              setStep('db-migration');
+            }
+          } catch {
+            // JSON parse failed — ignore
+          }
         }
       })
       .catch(() => {});
@@ -224,9 +231,18 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
             headers: { 'Authorization': `Bearer ${session.access_token}` },
           });
           if (meRes.ok) {
-            const meData = await meRes.json();
-            if (meData.profile) {
-              profile = meData.profile;
+            const contentType = meRes.headers.get('content-type') || '';
+            if (contentType.includes('json')) {
+              try {
+                const meData = await meRes.json();
+                if (meData.profile) {
+                  profile = meData.profile;
+                }
+              } catch (jsonErr) {
+                console.warn('[Setup] /api/auth/me JSON parse failed:', jsonErr);
+              }
+            } else {
+              console.warn('[Setup] /api/auth/me returned non-JSON response');
             }
           }
         }
@@ -263,24 +279,42 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
             },
             body: JSON.stringify({ userId: authUser.id }),
           });
-          const promoteData = await promoteRes.json();
 
-          if (promoteData.success && promoteData.user) {
+          // Robust JSON parsing — check content-type and wrap in try/catch
+          let promoteData: { success?: boolean; user?: Record<string, unknown>; warning?: string; error?: string; role?: string } | null = null;
+          const promoteContentType = promoteRes.headers.get('content-type') || '';
+          if (promoteRes.ok && promoteContentType.includes('json')) {
+            try {
+              promoteData = await promoteRes.json();
+            } catch (jsonErr) {
+              console.warn('[Setup] check-first-user JSON parse failed:', jsonErr);
+            }
+          } else if (!promoteRes.ok) {
+            console.warn('[Setup] check-first-user returned status:', promoteRes.status);
+            // Try to parse as JSON anyway for error message
+            try {
+              promoteData = await promoteRes.json();
+            } catch {
+              // Not JSON — ignore
+            }
+          }
+
+          if (promoteData?.success && promoteData.user) {
             profile = promoteData.user;
 
             // Show warning if promoted to admin instead of superadmin
             if (promoteData.warning) {
               toast.warning(promoteData.warning, { duration: 8000 });
             }
-          } else if (promoteData.success && profile) {
+          } else if (promoteData?.success && profile) {
             // Profile exists but promotion didn't happen (not first user)
             // This shouldn't happen during setup, but handle gracefully
             console.warn('[Setup] Profile exists but not promoted:', promoteData);
           } else {
             // Critical failure — but the auth account WAS created
             // Don't block the setup — let them continue and fix later
-            console.error('[Setup] check-first-user failed:', promoteData.error);
-            toast.warning(t('adminAccountCreatedSuccess') + ' — ' + (promoteData.error || t('errorCreatingAccount')), { duration: 8000 });
+            console.error('[Setup] check-first-user failed:', promoteData?.error);
+            toast.warning(t('adminAccountCreatedSuccess') + ' — ' + (promoteData?.error || t('errorCreatingAccount')), { duration: 8000 });
           }
         } catch (err) {
           console.error('[Setup] check-first-user request failed:', err);
@@ -453,8 +487,16 @@ $$;`;
       setCheckingMigration(true);
       try {
         const res = await fetch('/api/setup');
-        const data = await res.json();
-        if (data.tableExists) {
+        const contentType = res.headers.get('content-type') || '';
+        let data: { tableExists?: boolean } | null = null;
+        if (res.ok && contentType.includes('json')) {
+          try {
+            data = await res.json();
+          } catch {
+            // JSON parse failed
+          }
+        }
+        if (data?.tableExists) {
           setTableExists(true);
           setStep('admin-account');
           toast.success(t('tableCreated'));

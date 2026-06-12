@@ -166,6 +166,25 @@ async function checkAndPromoteFirstUser(userId: string): Promise<UserProfile | n
 
 type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin';
 
+/**
+ * Override the profile's role from app_metadata if the user is a superadmin.
+ * This handles the case where the DB CHECK constraint prevents storing 'superadmin'
+ * but app_metadata has been set correctly via the admin API.
+ * 
+ * IMPORTANT: app_metadata.role is set server-side by supabaseServer.auth.admin.updateUserById()
+ * and is NOT user-modifiable. It is a reliable source of truth for superadmin status.
+ */
+function overrideSuperadminFromAppMetadata(
+  profile: UserProfile,
+  authUser: { app_metadata?: Record<string, unknown> }
+): UserProfile {
+  const appRole = authUser.app_metadata?.role as UserRole | undefined;
+  if (appRole === 'superadmin' && profile.role !== 'superadmin') {
+    return { ...profile, role: 'superadmin' };
+  }
+  return profile;
+}
+
 /** Create a fallback profile from auth metadata when RLS blocks DB reads */
 function createFallbackProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown>; created_at?: string; updated_at?: string }): UserProfile {
   const userName = (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || authUser.email?.split('@')[0] || 'مستخدم';
@@ -330,8 +349,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             
             if (res.ok) {
               const data = await res.json();
-              const profile = data.profile as UserProfile | null;
+              let profile = data.profile as UserProfile | null;
               const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+              
+              // Override role from app_metadata if superadmin (handles CHECK constraint issue)
+              if (profile && session?.user) {
+                profile = overrideSuperadminFromAppMetadata(profile, session.user);
+              }
               
               if (profile) {
                 // Check if user is banned
@@ -512,8 +536,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           
           if (res.ok) {
             const data = await res.json();
-            const profile = data.profile as UserProfile | null;
+            let profile = data.profile as UserProfile | null;
             const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+            
+            // Override role from app_metadata if superadmin (handles CHECK constraint issue)
+            if (profile && session?.user) {
+              profile = overrideSuperadminFromAppMetadata(profile, session.user);
+            }
             
             if (profile) {
               await registerSession(profile.id);
@@ -652,8 +681,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         
         if (res.ok) {
           const data = await res.json();
-          const profile = data.profile as UserProfile | null;
+          let profile = data.profile as UserProfile | null;
           const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+          
+          // Override role from app_metadata if superadmin (handles CHECK constraint issue)
+          if (profile && authUser) {
+            profile = overrideSuperadminFromAppMetadata(profile, authUser);
+          }
           
           if (profile) {
             await registerSession(authUser.id);

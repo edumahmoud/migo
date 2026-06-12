@@ -2,6 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
 
 /**
+ * Override the profile's role from app_metadata if the user is a superadmin.
+ * This handles the case where the DB CHECK constraint prevents storing 'superadmin'
+ * but the app_metadata has been set correctly via the admin API.
+ * Also attempts to UPDATE the DB profile to 'superadmin' if the constraint has been fixed.
+ */
+async function applySuperadminOverride(
+  profile: Record<string, unknown>,
+  authUser: { id: string; app_metadata?: Record<string, unknown> }
+): Promise<Record<string, unknown>> {
+  const appRole = authUser.app_metadata?.role as string | undefined;
+
+  if (appRole === 'superadmin' && profile.role !== 'superadmin') {
+    // Try to UPDATE the DB profile to 'superadmin' (CHECK constraint might have been fixed)
+    try {
+      const { data: updatedProfile, error: updateError } = await supabaseServer
+        .from('users')
+        .update({ role: 'superadmin', updated_at: new Date().toISOString() })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+
+      if (!updateError && updatedProfile) {
+        console.log(`[auth/me] Promoted DB profile to superadmin for user ${authUser.id}`);
+        return updatedProfile;
+      }
+    } catch {
+      // UPDATE failed — fall through to override
+    }
+
+    // Can't update DB — override the role from app_metadata so the frontend sees 'superadmin'
+    console.warn(`[auth/me] DB profile role is '${profile.role}' but app_metadata says 'superadmin' — overriding`);
+    return { ...profile, role: 'superadmin' };
+  }
+
+  return profile;
+}
+
+/**
  * GET /api/auth/me
  * Fetches the current authenticated user's profile using the service role key.
  * This bypasses RLS policies that might block client-side queries.
@@ -89,18 +127,14 @@ export async function GET(request: NextRequest) {
             .single();
 
           if (!adminInsertError && adminProfile) {
-            // Now try to alter the CHECK constraint to include 'superadmin'
+            // PRIMARY: Set app_metadata.role = 'superadmin' first (ALWAYS works, bypasses DB constraints)
             try {
-              await supabaseServer.rpc('exec_sql', {
-                sql: `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
-                      ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));`
+              await supabaseServer.auth.admin.updateUserById(authUser.id, {
+                app_metadata: { role: 'superadmin' },
               });
-            } catch {
-              // RPC might not exist — try direct update anyway
-              console.warn('[auth/me] Could not alter CHECK constraint via RPC');
-            }
+            } catch { /* non-critical */ }
 
-            // Try to update the role to 'superadmin' now
+            // SECONDARY: Try to update the DB role to 'superadmin' (works if CHECK constraint has been fixed)
             const { data: promotedProfile, error: promoteError } = await supabaseServer
               .from('users')
               .update({ role: 'superadmin', updated_at: new Date().toISOString() })
@@ -111,17 +145,10 @@ export async function GET(request: NextRequest) {
             if (!promoteError && promotedProfile) {
               newProfile = promotedProfile;
             } else {
-              // If promotion still fails, keep as admin and sync app_metadata
-              console.warn('[auth/me] Could not promote to superadmin — keeping as admin. Run add_superadmin_role.sql migration!');
-              newProfile = adminProfile;
+              // DB promotion failed — override role from app_metadata so frontend sees 'superadmin'
+              console.warn('[auth/me] Could not promote DB to superadmin — overriding from app_metadata');
+              newProfile = { ...adminProfile, role: 'superadmin' };
             }
-
-            // Sync app_metadata
-            try {
-              await supabaseServer.auth.admin.updateUserById(authUser.id, {
-                app_metadata: { role: newProfile?.role || 'admin' },
-              });
-            } catch { /* non-critical */ }
 
             return NextResponse.json({ profile: newProfile, isNew: true });
           }
@@ -202,21 +229,29 @@ export async function GET(request: NextRequest) {
       profile.avatar_url = null;
     }
 
+    // ─── Superadmin override from app_metadata ───
+    // If app_metadata says 'superadmin' but DB profile has a different role
+    // (due to CHECK constraint blocking 'superadmin'), override the profile role.
+    // This is the KEY mechanism: app_metadata is ALWAYS set correctly via
+    // supabaseServer.auth.admin.updateUserById(), which bypasses DB constraints.
+    const updatedProfile = await applySuperadminOverride(profile, authUser);
+
     // Sync role to auth app_metadata so middleware can check it without DB query
     // This is critical for when RLS policies cause infinite recursion (42P17)
     // The middleware falls back to checking app_metadata.role
     const currentAppRole = authUser.app_metadata?.role;
-    if (currentAppRole !== profile.role) {
+    const effectiveRole = updatedProfile.role || profile.role;
+    if (currentAppRole !== effectiveRole) {
       try {
         await supabaseServer.auth.admin.updateUserById(authUser.id, {
-          app_metadata: { role: profile.role },
+          app_metadata: { role: effectiveRole },
         });
       } catch {
         // Non-critical: if this fails, the middleware will still try the DB query
       }
     }
 
-    return NextResponse.json({ profile, banInfo });
+    return NextResponse.json({ profile: updatedProfile, banInfo });
   } catch (err) {
     console.error('[auth/me] Error:', err);
     return NextResponse.json({ error: 'حدث خطأ غير متوقع' }, { status: 500 });
