@@ -2528,35 +2528,57 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const fetchFlaggedComments = useCallback(async () => {
     setFlaggedLoading(true);
     try {
+      // Two separate queries to avoid PostgREST JOIN errors (PGRST200)
+      // when FK relationship between video_comments and subject_videos is missing
       const { data, error } = await supabase
         .from('video_comments')
-        .select('*, video:subject_videos(id, title)')
+        .select('*')
         .eq('is_flagged', true)
         .order('flagged_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching flagged comments:', error);
+        console.error('Error fetching flagged comments:', error.message || error);
+        setFlaggedComments([]);
       } else {
-        // Enrich with user names
+        // Enrich with user names and video titles
         const comments = (data || []) as any[];
         if (comments.length > 0) {
-          const userIds = [...new Set(comments.map((c: any) => c.user_id))];
-          const { data: users } = await supabase
-            .from('users')
-            .select('id, name, title_id, gender, role')
-            .in('id', userIds);
+          // Fetch video titles separately if there are video_ids
+          const videoIds = [...new Set(comments.map((c: any) => c.video_id).filter(Boolean))] as string[];
+          const videoMap = new Map<string, { id: string; title: string }>();
+          if (videoIds.length > 0) {
+            const { data: videoData } = await supabase
+              .from('subject_videos')
+              .select('id, title')
+              .in('id', videoIds);
+            if (videoData) {
+              for (const v of videoData as any[]) {
+                videoMap.set(v.id, v);
+              }
+            }
+          }
 
+          // Fetch user names
+          const userIds = [...new Set(comments.map((c: any) => c.user_id).filter(Boolean))] as string[];
           const userMap = new Map<string, any>();
-          if (users) {
-            for (const u of users as any[]) {
-              userMap.set(u.id, u);
+          if (userIds.length > 0) {
+            const { data: users } = await supabase
+              .from('users')
+              .select('id, name, title_id, gender, role')
+              .in('id', userIds);
+            if (users) {
+              for (const u of users as any[]) {
+                userMap.set(u.id, u);
+              }
             }
           }
 
           const enriched = comments.map((c: any) => {
             const user = userMap.get(c.user_id);
+            const video = videoMap.get(c.video_id);
             return {
               ...c,
+              video: video || null,
               user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : t('common.user'),
             };
           });
@@ -2567,6 +2589,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       }
     } catch (err) {
       console.error('Fetch flagged comments error:', err);
+      setFlaggedComments([]);
     } finally {
       setFlaggedLoading(false);
     }

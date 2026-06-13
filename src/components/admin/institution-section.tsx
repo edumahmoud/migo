@@ -161,10 +161,17 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       const formData = new FormData();
       formData.append('file', file);
 
+      // Get auth token for the request (same as handleSave)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
       // Use the dedicated institution-logo endpoint instead of /api/avatar
       // This avoids overwriting the user's avatar_url in the database
       const res = await fetch('/api/institution-logo', {
         method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: formData,
       });
 
@@ -596,7 +603,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <div className="relative">
                     <Input
                       type="tel"
-                      placeholder="+966 5x xxx xxxx"
+                      placeholder="+20 1xx xxx xxxx"
                       value={institution.phone || ''}
                       onChange={(e) => updateField('phone', e.target.value)}
                       className="h-10 text-sm ps-10"
