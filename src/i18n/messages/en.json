@@ -1383,6 +1383,11 @@
     "avatarRemoved": "Avatar removed",
     "avatarUploadFailed": "Avatar upload failed",
     "status": {
+      "online": "Online",
+      "busy": "Busy",
+      "away": "Away",
+      "invisible": "Invisible",
+      "offline": "Offline",
       "changedToast": "Status changed to {status}",
       "awayDetail": "You appear as away to other users",
       "awayFromDevice": "Away from device",
@@ -3530,7 +3535,12 @@
     "quizStartingNow": "Quiz Starting Now!",
     "quizStartingNowDesc": "Quiz \"{title}\" has started — you can enter now",
     "assignmentDueNow": "Assignment Time!",
-    "assignmentDueNowDesc": "Assignment \"{title}\" is now available"
+    "assignmentDueNowDesc": "Assignment \"{title}\" is now available",
+    "trackingCurrentStatus": "Current Status",
+    "trackingLevelWeak": "Weak",
+    "trackingLevelFair": "Fair",
+    "trackingLevelGood": "Good",
+    "trackingLevelExcellent": "Excellent"
   },
   "supabaseConfig": {
     "configError": "Configuration Error",

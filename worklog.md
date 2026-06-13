@@ -281,3 +281,44 @@ Stage Summary:
 - Dev server running on port 3000, API routes returning proper JSON
 - Browser verification shows app renders correctly (Supabase env vars not in sandbox, expected)
 - The fix ensures: trigger ALWAYS creates profile row, check-first-user ignores stale system_initialized, app_metadata is source of truth for superadmin
+
+---
+Task ID: 1
+Agent: Fix Agent
+Task: Fix JOIN queries and missing translations
+
+Work Log:
+- Fixed subjects-section.tsx: Replaced `subject_students.select('id, subject_id, status, subjects(*)')` with two separate queries (enrollment data + subjects by ID), combined manually using Map lookup
+- Fixed subjects-section.tsx teacher branch: Replaced `subject_teachers.select('subject_id, role, subjects(*)')` with two separate queries, combined manually
+- Fixed todo-section.tsx: Replaced `user_todos.select('*, subjects(name)')` with two separate queries (todos + subjects by ID), combined using subjectNameLookup
+- Fixed calendar-section.tsx: Replaced `user_todos.select('*, subjects(name)')` with two separate queries (todos + subjects by ID), combined using todoSubjectNameMap
+- Added missing translations to ar.json and en.json:
+  - student section: trackingCurrentStatus, trackingLevelWeak, trackingLevelFair, trackingLevelGood, trackingLevelExcellent
+  - settings.status section: online, busy, away, invisible, offline
+- Lint passes cleanly with no errors
+
+Stage Summary:
+- All 4 PostgREST JOIN queries (PGRST200) replaced with two-query pattern across 3 files
+- Both student and teacher branches in subjects-section.tsx fixed
+- 10 translation keys added (5 in student section, 5 in settings.status section) to both ar.json and en.json
+- No behavioral changes — same state updates, cache updates, and rendering logic preserved
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix all console errors and app reload on files section
+
+Work Log:
+- Fixed subject_students↔subjects JOIN (PGRST200): replaced with two separate queries in subjects-section.tsx
+- Fixed user_todos↔subjects JOIN: replaced with two separate queries in todo-section.tsx and calendar-section.tsx
+- Added missing translations: student.trackingCurrentStatus, trackingLevelWeak/Fair/Good/Excellent in ar.json and en.json
+- Added missing translations: settings.status.online/busy/away/invisible/offline in ar.json and en.json
+- Added SectionErrorBoundary around ALL sections in student-dashboard.tsx (prevents root error.tsx auto-reload)
+- Added SectionErrorBoundary around ALL sections in teacher-dashboard.tsx
+- Root cause of app reload: SectionErrorBoundary was missing → errors propagated to root error.tsx which auto-calls reset() after 3s
+
+Stage Summary:
+- All JOIN queries replaced with safe two-query approach (avoids PGRST200)
+- All missing translations added
+- SectionErrorBoundary wraps every section in both dashboards → no more app reloads from section errors
+- Lint passes clean, dev server running

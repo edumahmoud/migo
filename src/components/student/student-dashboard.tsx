@@ -73,6 +73,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import AssignmentsSection from '@/components/shared/assignments-section';
 import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
@@ -4892,41 +4893,43 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return renderDashboard();
       case 'subjects':
         return selectedSubjectId
-          ? <CoursePage profile={profile} role="student" />
-          : <SubjectsSection profile={profile} role="student" />;
+          ? <SectionErrorBoundary name="Course"><CoursePage profile={profile} role="student" /></SectionErrorBoundary>
+          : <SectionErrorBoundary name="Subjects"><SubjectsSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'summaries':
         return renderSummaries();
       case 'assignments':
-        return <AssignmentsSection profile={profile} role="student" />;
+        return <SectionErrorBoundary name="Assignments"><AssignmentsSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'files':
-        return <PersonalFilesSection profile={profile} role="student" />;
+        return <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'videos':
-        return <AllVideosSection profile={profile} role="student" />;
+        return <SectionErrorBoundary name="Videos"><AllVideosSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'teachers':
         return renderTeachers();
       case 'chat':
-        return <ChatSection profile={profile} role="student" />;
+        return <SectionErrorBoundary name="Chat"><ChatSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'settings':
-        return <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />;
+        return <SectionErrorBoundary name="Settings"><SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} /></SectionErrorBoundary>;
       case 'notifications':
-        return <NotificationsSection />;
+        return <SectionErrorBoundary name="Notifications"><NotificationsSection /></SectionErrorBoundary>;
       case 'reports':
-        return <ReportsSection profile={profile} role="student" />;
+        return <SectionErrorBoundary name="Reports"><ReportsSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'todos':
-        return <TodoSection profile={profile} />;
+        return <SectionErrorBoundary name="Todos"><TodoSection profile={profile} /></SectionErrorBoundary>;
       case 'calendar':
-        return <CalendarSection profile={profile} />;
+        return <SectionErrorBoundary name="Calendar"><CalendarSection profile={profile} /></SectionErrorBoundary>;
       case 'tracking':
         return (
-          <StudentTrackingSection
-            profileId={profile.id}
-            attendanceRecords={attendanceRecords}
-            attendanceSessions={attendanceSessions}
-            quizzes={quizzes}
-            scores={scores}
-            submissions={submissions}
-            assignments={assignments}
-          />
+          <SectionErrorBoundary name="Tracking">
+            <StudentTrackingSection
+              profileId={profile.id}
+              attendanceRecords={attendanceRecords}
+              attendanceSessions={attendanceSessions}
+              quizzes={quizzes}
+              scores={scores}
+              submissions={submissions}
+              assignments={assignments}
+            />
+          </SectionErrorBoundary>
         );
       default:
         return null;

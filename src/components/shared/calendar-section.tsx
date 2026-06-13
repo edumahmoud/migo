@@ -284,13 +284,24 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
     try {
       const allEvents: CalendarEvent[] = [];
 
-      // 1. Todos — join subjects to get subject_name
-      const { data: todos, error: todosError } = await supabase.from('user_todos').select('*, subjects(name)').eq('user_id', profile.id);
+      // 1. Todos — two separate queries to avoid PostgREST JOIN (PGRST200)
+      const { data: todos, error: todosError } = await supabase.from('user_todos').select('*').eq('user_id', profile.id);
       if (todosError) console.error('Error fetching todos:', todosError);
+      // Build subject name lookup for todos
+      const todoSubjectIds = [...new Set(
+        (todos || [])
+          .map((t: Record<string, unknown>) => t.subject_id as string | null)
+          .filter((id): id is string => !!id)
+      )];
+      const todoSubjectNameMap: Record<string, string> = {};
+      if (todoSubjectIds.length > 0) {
+        const { data: todoSubjects } = await supabase.from('subjects').select('id, name').in('id', todoSubjectIds);
+        if (todoSubjects) for (const s of todoSubjects as { id: string; name: string }[]) todoSubjectNameMap[s.id] = s.name;
+      }
       if (todos && todos.length > 0) {
         for (const todo of todos) {
           if (todo.due_date) {
-            const subjectName = (todo.subjects as { name: string } | null)?.name || null;
+            const subjectName = todo.subject_id ? (todoSubjectNameMap[todo.subject_id] || null) : null;
             allEvents.push({
               id: `todo-${todo.id}`, type: 'todo', title: todo.title || '',
               description: todo.description || null, date: toDateString(parseLocalDate(todo.due_date.split('T')[0])),

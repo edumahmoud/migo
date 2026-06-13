@@ -67,6 +67,7 @@ import ChatSection from '@/components/shared/chat-section';
 import StatCard from '@/components/shared/stat-card';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import NotificationsSection from '@/components/shared/notifications-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import TodoSection from '@/components/shared/todo-section';
@@ -2493,21 +2494,21 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               >
                 {activeSection === 'dashboard' && renderDashboard()}
                 {activeSection === 'subjects' && (selectedSubjectId
-                  ? <CoursePage profile={profile} role="teacher" />
-                  : <SubjectsSection profile={profile} role="teacher" />)}
-                {activeSection === 'summaries' && <TeacherSummariesSection profile={profile} />}
-                {activeSection === 'questionBank' && <QuestionBankSection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} />}
+                  ? <SectionErrorBoundary name="Course"><CoursePage profile={profile} role="teacher" /></SectionErrorBoundary>
+                  : <SectionErrorBoundary name="Subjects"><SubjectsSection profile={profile} role="teacher" /></SectionErrorBoundary>)}
+                {activeSection === 'summaries' && <SectionErrorBoundary name="Summaries"><TeacherSummariesSection profile={profile} /></SectionErrorBoundary>}
+                {activeSection === 'questionBank' && <SectionErrorBoundary name="QuestionBank"><QuestionBankSection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} /></SectionErrorBoundary>}
                 {activeSection === 'students' && renderStudents()}
-                {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
-                {activeSection === 'videos' && <AllVideosSection profile={profile} role="teacher" />}
-                {activeSection === 'reports' && <ReportsSection profile={profile} role="teacher" />}
-                {activeSection === 'todos' && <TodoSection profile={profile} />}
-                {activeSection === 'calendar' && <CalendarSection profile={profile} />}
+                {activeSection === 'files' && <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="teacher" /></SectionErrorBoundary>}
+                {activeSection === 'videos' && <SectionErrorBoundary name="Videos"><AllVideosSection profile={profile} role="teacher" /></SectionErrorBoundary>}
+                {activeSection === 'reports' && <SectionErrorBoundary name="Reports"><ReportsSection profile={profile} role="teacher" /></SectionErrorBoundary>}
+                {activeSection === 'todos' && <SectionErrorBoundary name="Todos"><TodoSection profile={profile} /></SectionErrorBoundary>}
+                {activeSection === 'calendar' && <SectionErrorBoundary name="Calendar"><CalendarSection profile={profile} /></SectionErrorBoundary>}
                 {activeSection === 'analytics' && renderAnalytics()}
-                {activeSection === 'tracking' && <TeacherStudentTrackingSection profile={profile} students={students} scores={scores} quizzes={quizzes} teacherSubmissions={teacherSubmissions} teacherAssignments={teacherAssignments} teacherAttendanceSessions={teacherAttendanceSessions} teacherAttendanceRecords={teacherAttendanceRecords} subjects={teacherSubjects} />}
-                {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}
-                {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
-                {activeSection === 'notifications' && <NotificationsSection />}
+                {activeSection === 'tracking' && <SectionErrorBoundary name="Tracking"><TeacherStudentTrackingSection profile={profile} students={students} scores={scores} quizzes={quizzes} teacherSubmissions={teacherSubmissions} teacherAssignments={teacherAssignments} teacherAttendanceSessions={teacherAttendanceSessions} teacherAttendanceRecords={teacherAttendanceRecords} subjects={teacherSubjects} /></SectionErrorBoundary>}
+                {activeSection === 'chat' && <SectionErrorBoundary name="Chat"><ChatSection profile={profile} role="teacher" /></SectionErrorBoundary>}
+                {activeSection === 'settings' && <SectionErrorBoundary name="Settings"><SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} /></SectionErrorBoundary>}
+                {activeSection === 'notifications' && <SectionErrorBoundary name="Notifications"><NotificationsSection /></SectionErrorBoundary>}
               </motion.div>
             </AnimatePresence>
           )}

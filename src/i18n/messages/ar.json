@@ -1384,6 +1384,11 @@
     "avatarRemoved": "تم إزالة الصورة الشخصية",
     "avatarUploadFailed": "فشل رفع الصورة",
     "status": {
+      "online": "متصل",
+      "busy": "مشغول",
+      "away": "بعيد",
+      "invisible": "مخفي",
+      "offline": "غير متصل",
       "awayDetail": "ستظهر بعيداً للمستخدمين الآخرين",
       "awayFromDevice": "بعيد عن الجهاز",
       "busyDetail": "ستظهر مشغولاً للمستخدمين الآخرين",
@@ -3531,7 +3536,12 @@
     "quizStartingNow": "بدأ الاختبار الآن!",
     "quizStartingNowDesc": "اختبار \"{title}\" قد بدأ — يمكنك الدخول الآن",
     "assignmentDueNow": "حان وقت المهمة!",
-    "assignmentDueNowDesc": "المهمة \"{title}\" أصبحت متاحة الآن"
+    "assignmentDueNowDesc": "المهمة \"{title}\" أصبحت متاحة الآن",
+    "trackingCurrentStatus": "الحالة الحالية",
+    "trackingLevelWeak": "ضعيف",
+    "trackingLevelFair": "مقبول",
+    "trackingLevelGood": "جيد",
+    "trackingLevelExcellent": "ممتاز"
   },
   "supabaseConfig": {
     "configError": "خطأ في الإعدادات",

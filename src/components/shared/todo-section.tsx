@@ -348,15 +348,35 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   const fetchTodos = useCallback(async () => {
     setLoading(true);
     try {
+      // Two separate queries to avoid PostgREST JOIN (PGRST200)
       const { data, error } = await supabase
         .from('user_todos')
-        .select('*, subjects(name)')
+        .select('*')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching todos:', error);
       } else {
+        // Build subject name lookup from separate query
+        const subjectNameLookup: Record<string, string> = {};
+        const uniqueSubjectIds = [...new Set(
+          (data || [])
+            .map((row: Record<string, unknown>) => row.subject_id as string | null)
+            .filter((id): id is string => !!id)
+        )];
+        if (uniqueSubjectIds.length > 0) {
+          const { data: subjectData } = await supabase
+            .from('subjects')
+            .select('id, name')
+            .in('id', uniqueSubjectIds);
+          if (subjectData) {
+            for (const s of subjectData as { id: string; name: string }[]) {
+              subjectNameLookup[s.id] = s.name;
+            }
+          }
+        }
+
         const mapped: UserTodo[] = (data || []).map((row: Record<string, unknown>) => ({
           id: row.id as string,
           user_id: row.user_id as string,
@@ -366,8 +386,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           category: row.category as TodoCategory,
           due_date: (row.due_date as string) || null,
           subject_id: (row.subject_id as string) || null,
-          subject_name:
-            (row.subjects as { name: string } | null)?.name || null,
+          subject_name: (row.subject_id as string) ? (subjectNameLookup[row.subject_id as string] || null) : null,
           source: (row.source as TodoSource) || 'manual',
           completed: row.completed as boolean,
           completed_at: (row.completed_at as string) || null,

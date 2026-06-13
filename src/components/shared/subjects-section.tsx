@@ -316,7 +316,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             .order('created_at', { ascending: false }),
           supabase
             .from('subject_teachers')
-            .select('subject_id, role, subjects(*)')
+            .select('subject_id, role')
             .eq('teacher_id', profile.id)
             .eq('role', 'co_teacher'),
         ]);
@@ -343,15 +343,21 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         // Mark owned subjects
         ownedSubjects = ownedSubjects.map(s => ({ ...s, is_co_teacher: false }));
 
-        // Process co-taught subjects
+        // Process co-taught subjects — separate query to avoid PostgREST JOIN (PGRST200)
         let coTaughtSubjects: Subject[] = [];
-        if (!coTeacherResult.error && coTeacherResult.data) {
-          (coTeacherResult.data as Record<string, unknown>[]).forEach((entry) => {
-            const subject = entry.subjects as Subject | null;
-            if (subject && !ownedSubjects.find(s => s.id === subject.id)) {
-              coTaughtSubjects.push({ ...subject, is_co_teacher: true });
+        if (!coTeacherResult.error && coTeacherResult.data && coTeacherResult.data.length > 0) {
+          const coSubjectIds = (coTeacherResult.data as { subject_id: string }[]).map(e => e.subject_id);
+          const { data: coSubjectData } = await supabase
+            .from('subjects')
+            .select('*')
+            .in('id', coSubjectIds);
+          if (coSubjectData) {
+            for (const subject of coSubjectData as Subject[]) {
+              if (!ownedSubjects.find(s => s.id === subject.id)) {
+                coTaughtSubjects.push({ ...subject, is_co_teacher: true });
+              }
             }
-          });
+          }
         }
 
         // Combine and sort: owned first, then co-taught
@@ -366,56 +372,75 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           timestamp: Date.now(),
         });
       } else {
-        // Student: single join query — also fetch enrollment status
-        const { data, error } = await supabase
+        // Student: two separate queries to avoid PostgREST JOIN (PGRST200)
+        const { data: enrollmentData, error: enrollmentError } = await supabase
           .from('subject_students')
-          .select('id, subject_id, status, subjects(*)')
+          .select('id, subject_id, status')
           .eq('student_id', profile.id);
 
-        if (error) {
-          console.error('Error fetching enrolled subjects:', error.message, error.code);
-        } else if (data && data.length > 0) {
-          // Build enrollment status map and enrollment ID map
-          const statusMap: Record<string, string> = {};
-          const subjectsList: Subject[] = [];
-          const enrollmentMap: Record<string, string> = {};
+        if (enrollmentError) {
+          console.error('Error fetching enrolled subjects:', enrollmentError.message, enrollmentError.code);
+        } else if (enrollmentData && enrollmentData.length > 0) {
+          // Fetch subjects separately using the subject_ids from enrollments
+          const subjectIds = enrollmentData.map((e: { subject_id: string }) => e.subject_id);
+          const { data: subjectData, error: subjectError } = await supabase
+            .from('subjects')
+            .select('*')
+            .in('id', subjectIds);
 
-          (data as Record<string, unknown>[]).forEach((e) => {
-            const subject = e.subjects as Subject | null;
-            if (subject) {
-              subjectsList.push(subject);
-              // status might be undefined if column doesn't exist yet
-              statusMap[subject.id] = (e.status as string) || 'approved';
-              // Map enrollment ID → subject ID for Realtime DELETE handling
-              if (e.id) enrollmentMap[e.id as string] = subject.id;
-            }
-          });
-
-          setSubjects(subjectsList);
-          setEnrollmentStatuses(statusMap);
-          enrollmentIdMapRef.current = enrollmentMap;
-
-          // Save to cache (teacherNames will be updated after fetchTeacherNames completes)
-          subjectsCache.set(cacheKey, {
-            data: subjectsList,
-            teacherNames: {},
-            enrollmentStatuses: statusMap,
-            timestamp: Date.now(),
-          });
-
-          // Fetch teacher names separately (non-blocking)
-          // Set loading to false first so subjects render immediately
-          setLoadingSubjects(false);
-          fetchTeacherNames(subjectsList).then((nameMap) => {
-            if (nameMap) {
-              // Update cache with teacher names
-              const cached = subjectsCache.get(cacheKey);
-              if (cached) {
-                cached.teacherNames = nameMap;
+          if (subjectError) {
+            console.error('Error fetching subjects by IDs:', subjectError.message, subjectError.code);
+          } else {
+            // Build lookup map from subject data
+            const subjectMap = new Map<string, Subject>();
+            if (subjectData) {
+              for (const s of subjectData as Subject[]) {
+                subjectMap.set(s.id, s);
               }
             }
-          });
-          return; // Early return — loadingSubjects already set to false above
+
+            // Build enrollment status map and enrollment ID map
+            const statusMap: Record<string, string> = {};
+            const subjectsList: Subject[] = [];
+            const enrollmentMap: Record<string, string> = {};
+
+            enrollmentData.forEach((e: { id: string; subject_id: string; status?: string }) => {
+              const subject = subjectMap.get(e.subject_id);
+              if (subject) {
+                subjectsList.push(subject);
+                // status might be undefined if column doesn't exist yet
+                statusMap[subject.id] = e.status || 'approved';
+                // Map enrollment ID → subject ID for Realtime DELETE handling
+                if (e.id) enrollmentMap[e.id] = subject.id;
+              }
+            });
+
+            setSubjects(subjectsList);
+            setEnrollmentStatuses(statusMap);
+            enrollmentIdMapRef.current = enrollmentMap;
+
+            // Save to cache (teacherNames will be updated after fetchTeacherNames completes)
+            subjectsCache.set(cacheKey, {
+              data: subjectsList,
+              teacherNames: {},
+              enrollmentStatuses: statusMap,
+              timestamp: Date.now(),
+            });
+
+            // Fetch teacher names separately (non-blocking)
+            // Set loading to false first so subjects render immediately
+            setLoadingSubjects(false);
+            fetchTeacherNames(subjectsList).then((nameMap) => {
+              if (nameMap) {
+                // Update cache with teacher names
+                const cached = subjectsCache.get(cacheKey);
+                if (cached) {
+                  cached.teacherNames = nameMap;
+                }
+              }
+            });
+            return; // Early return — loadingSubjects already set to false above
+          }
         } else {
           setSubjects([]);
           setEnrollmentStatuses({});
