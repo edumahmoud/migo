@@ -514,10 +514,13 @@ function HomeContent() {
 
   // Show loading spinner ONLY if:
   // 1. Auth is still loading AND we don't have a persisted session (fresh start)
-  // 2. Setup check isn't done yet — BUT if we have a persisted session, skip this too!
-  //    (setupCheckDone requires a network call that can be slow on mobile)
+  // 2. Setup check isn't done yet — ALWAYS wait for this before showing auth page!
+  //    We must know if there are users in the DB before deciding between
+  //    setup wizard (no users) or login page (has users).
+  //    Previously, persisted sessions skipped this check, which could flash
+  //    the login page even when no users exist (fresh install after logout).
   const showFullLoading = (loading || !initialized) && !hasPersistedSession;
-  if (showFullLoading || (!setupCheckDone && !hasPersistedSession)) {
+  if (showFullLoading || !setupCheckDone) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <motion.div
@@ -544,7 +547,10 @@ function HomeContent() {
   // Once the wizard starts (wizardInProgress), keep showing it even after
   // the user creates their admin account and gets a session, so they can
   // complete the institution details step.
-  if (needsSetup && (!user || wizardInProgress)) {
+  // CRITICAL: If needsSetup is true, ALWAYS show the wizard, even if a user
+  // session exists (e.g., from another tab). The setup wizard must complete
+  // before anyone can log in.
+  if (needsSetup) {
     return <SetupWizard onComplete={handleSetupComplete} onStart={handleWizardStart} onError={handleWizardError} />;
   }
 
