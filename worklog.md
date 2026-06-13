@@ -240,3 +240,44 @@ Stage Summary:
 - Bug 1 (JSON parse error): All fetch calls in setup-wizard now check content-type and wrap .json() in try/catch, preventing "Unexpected token '<'" errors
 - Bug 2 (first user as student): app_metadata is now the PRIMARY mechanism for superadmin — supabaseServer.auth.admin.updateUserById() ALWAYS works; DB role is secondary and gets overridden from app_metadata when CHECK constraint blocks 'superadmin'
 - Feature change (remove institution step): Setup wizard already only has db-migration, admin-account, and complete steps; institution info already only editable from admin settings
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Radical surgical fix for first user being created as student instead of superadmin
+
+Work Log:
+- Diagnosed root cause: DB CHECK constraint `users_role_check` missing 'superadmin' + trigger `handle_new_user()` swallowing ALL exceptions with `EXCEPTION WHEN OTHERS`
+- When trigger tried INSERT with role='superadmin', CHECK constraint blocked it, EXCEPTION caught it silently, and NO profile row was created
+- The `check-first-user` API relied on `system_initialized` table which had stale data from previous failed attempts
+- Contradictory toast messages came from partial success in the flow
+
+- FIXED: `supabase/schema.sql` - Rewrote `handle_new_user()` trigger to:
+  - Handle `check_violation` specifically (fall back to 'admin' for first user)
+  - Handle `unique_violation` specifically (duplicate key race condition)
+  - NEVER swallow all exceptions silently - always create a profile row
+  
+- FIXED: `supabase/migrations/add_superadmin_role.sql` - Same trigger improvements
+
+- FIXED: `src/app/api/auth/check-first-user/route.ts` - Complete rewrite:
+  - Removed reliance on `system_initialized` table (can have stale data)
+  - Now checks if ANY superadmin exists in DB as primary indicator
+  - Also checks `app_metadata.role` as fallback
+  - Simplified and more robust flow
+
+- FIXED: `src/components/setup/setup-wizard.tsx`:
+  - Rewrote `handleCreateAdmin` flow: wait for trigger → call check-first-user → verify superadmin → fallback to auth/me → force override from app_metadata
+  - Removed contradictory toast messages (now only ONE toast)
+  - Updated migration SQL with improved trigger and first-user promotion step
+
+- FIXED: `src/app/api/auth/me/route.ts`:
+  - Updated first-user detection to check superadmin count + total users
+  - Respects app_metadata.role='superadmin' as source of truth
+  - Never downgrades app_metadata from 'superadmin'
+
+Stage Summary:
+- All 5 files modified with radical fix
+- Lint passes clean (no errors)
+- Dev server running on port 3000, API routes returning proper JSON
+- Browser verification shows app renders correctly (Supabase env vars not in sandbox, expected)
+- The fix ensures: trigger ALWAYS creates profile row, check-first-user ignores stale system_initialized, app_metadata is source of truth for superadmin

@@ -213,16 +213,32 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         return;
       }
 
-      // ─── IMMEDIATELY ensure superadmin role ───
-      // CRITICAL: Call /api/auth/check-first-user FIRST, before /api/auth/me.
-      // /api/auth/me can create the profile as 'student' and sync app_metadata
-      // to 'student', which would destroy the superadmin status.
-      // check-first-user sets app_metadata='superadmin' FIRST (always works),
-      // then creates/updates the DB profile.
+      // ─── ENSURE SUPERADMIN ROLE ───
+      // Flow: Wait for trigger → call check-first-user → verify role is superadmin
       let profile: Record<string, unknown> | null = null;
-      let setupSucceeded = false;
+      let isSuperadmin = false;
 
-      // Step 1: Call check-first-user IMMEDIATELY (no waiting for trigger)
+      // Step 1: Wait briefly for the DB trigger to create the profile row
+      // The trigger (handle_new_user) runs AFTER INSERT on auth.users
+      // and creates the public.users row. We need to wait for it.
+      console.log('[Setup] Waiting for trigger to create profile...');
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((r) => setTimeout(r, 800));
+        const { data: p } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+        if (p) {
+          profile = p;
+          console.log(`[Setup] Profile found on attempt ${attempt + 1}, role=${p.role}`);
+          break;
+        }
+      }
+
+      // Step 2: Call check-first-user to promote to superadmin
+      // This is the PRIMARY mechanism: sets app_metadata.role='superadmin'
+      // and tries to update the DB profile.
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const promoteRes = await fetch('/api/auth/check-first-user', {
@@ -235,7 +251,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         });
 
         // Robust JSON parsing
-        let promoteData: { success?: boolean; user?: Record<string, unknown>; warning?: string; error?: string; role?: string } | null = null;
+        let promoteData: { success?: boolean; user?: Record<string, unknown>; warning?: string; error?: string; role?: string; promoted?: boolean } | null = null;
         const promoteContentType = promoteRes.headers.get('content-type') || '';
         if (promoteRes.ok && promoteContentType.includes('json')) {
           try {
@@ -252,15 +268,15 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
           }
         }
 
-        if (promoteData?.success && promoteData.user) {
-          profile = promoteData.user;
-          setupSucceeded = true;
-          if (promoteData.warning) {
-            toast.warning(promoteData.warning, { duration: 8000 });
+        if (promoteData?.success) {
+          // Use the profile from check-first-user (may have overridden role from app_metadata)
+          if (promoteData.user) {
+            profile = promoteData.user;
           }
-        } else if (promoteData?.success && promoteData.role === 'superadmin') {
-          // Success but no user object — role is set in app_metadata
-          setupSucceeded = true;
+          if (promoteData.role === 'superadmin' || (promoteData.user?.role === 'superadmin')) {
+            isSuperadmin = true;
+            console.log('[Setup] User promoted to superadmin successfully');
+          }
         } else {
           console.error('[Setup] check-first-user failed:', promoteData?.error);
         }
@@ -268,9 +284,8 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         console.error('[Setup] check-first-user request failed:', err);
       }
 
-      // Step 2: If check-first-user didn't return a profile, call /api/auth/me
-      // This is safe now because app_metadata is already set to 'superadmin'
-      if (!profile) {
+      // Step 3: If check-first-user didn't work, try /api/auth/me as fallback
+      if (!isSuperadmin) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.access_token) {
@@ -284,6 +299,9 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
                   const meData = await meRes.json();
                   if (meData.profile) {
                     profile = meData.profile;
+                    if (profile.role === 'superadmin') {
+                      isSuperadmin = true;
+                    }
                   }
                 } catch (jsonErr) {
                   console.warn('[Setup] /api/auth/me JSON parse failed:', jsonErr);
@@ -296,29 +314,15 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         }
       }
 
-      // Step 3: Final fallback — client-side query (with retries)
-      if (!profile) {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          await new Promise((r) => setTimeout(r, 1000));
-          const { data: p } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authUser.id)
-            .single();
-          if (p) {
-            profile = p;
-            break;
-          }
-        }
-      }
-
-      // Step 4: Override role from app_metadata if needed
-      // This handles the case where DB profile is 'student' but app_metadata says 'superadmin'
-      if (profile && profile.role !== 'superadmin') {
+      // Step 4: If still not superadmin, force override from app_metadata
+      // app_metadata is set by check-first-user via admin API — it's always correct
+      if (!isSuperadmin && profile) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user?.app_metadata?.role === 'superadmin') {
             profile = { ...profile, role: 'superadmin' };
+            isSuperadmin = true;
+            console.log('[Setup] Forced superadmin from app_metadata override');
           }
         } catch { /* ignore */ }
       }
@@ -328,11 +332,14 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         useAuthStore.getState().setUser(profile as unknown as import('@/lib/types').UserProfile);
       }
 
-      // Show ONLY ONE toast
-      if (setupSucceeded) {
+      // Show result — ONE toast only
+      if (isSuperadmin) {
         toast.success(t('adminAccountCreatedSuccess'));
       } else {
+        // Even if we couldn't fully verify superadmin, the account was created
+        // The user can refresh and the auth/me endpoint will apply the override
         toast.warning(t('adminAccountCreatedSuccess'), { duration: 5000 });
+        console.warn('[Setup] Could not fully verify superadmin status — user may need to refresh');
       }
       setStep('complete');
     } catch {
@@ -436,29 +443,58 @@ ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'teacher', 'admin', 'superadmin'));
 
 -- 4. Update auth trigger: first user becomes superadmin
+-- Handles CHECK constraint failure gracefully: falls back to 'admin' for first user
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   user_count integer;
+  insert_role text;
+  user_name text;
 BEGIN
+  user_name := COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1));
   SELECT COUNT(*) INTO user_count FROM public.users;
-  INSERT INTO public.users (id, email, name, role)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    CASE
-      WHEN user_count = 0 THEN 'superadmin'
-      ELSE COALESCE(NEW.raw_user_meta_data->>'role', 'student')
-    END
-  );
-  RETURN NEW;
-EXCEPTION WHEN OTHERS THEN
+  IF user_count = 0 THEN
+    insert_role := 'superadmin';
+  ELSE
+    insert_role := COALESCE(NEW.raw_user_meta_data->>'role', 'student');
+  END IF;
+  BEGIN
+    INSERT INTO public.users (id, email, name, role)
+    VALUES (NEW.id, NEW.email, user_name, insert_role);
+    RETURN NEW;
+  EXCEPTION
+    WHEN check_violation THEN
+      IF insert_role = 'superadmin' THEN
+        INSERT INTO public.users (id, email, name, role)
+        VALUES (NEW.id, NEW.email, user_name, 'admin');
+      ELSE
+        INSERT INTO public.users (id, email, name, role)
+        VALUES (NEW.id, NEW.email, user_name, 'student');
+      END IF;
+      RETURN NEW;
+    WHEN unique_violation THEN
+      RETURN NEW;
+  END;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Setup initialization RPC function
+-- 5. Promote first user to superadmin if not already
+DO $$
+DECLARE
+  first_user_id UUID;
+  superadmin_count integer;
+BEGIN
+  SELECT COUNT(*) INTO superadmin_count FROM public.users WHERE role = 'superadmin';
+  IF superadmin_count = 0 THEN
+    SELECT id INTO first_user_id FROM public.users ORDER BY created_at ASC LIMIT 1;
+    IF first_user_id IS NOT NULL THEN
+      UPDATE public.users SET role = 'superadmin', updated_at = NOW() WHERE id = first_user_id;
+    END IF;
+  END IF;
+END $$;
+
+-- 6. Setup initialization RPC function
 CREATE OR REPLACE FUNCTION setup_initialize_system(
   p_name TEXT, p_name_en TEXT DEFAULT NULL,
   p_type TEXT DEFAULT 'center', p_logo_url TEXT DEFAULT NULL,
