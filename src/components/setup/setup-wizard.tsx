@@ -213,44 +213,90 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         return;
       }
 
-      // ─── Wait for profile creation and ensure superadmin role ───
-      // Strategy: Call /api/auth/check-first-user which handles:
-      // 1. Creating the profile if the DB trigger failed
-      // 2. Promoting to superadmin if the role isn't correct
-      // 3. Handling CHECK constraint issues gracefully
+      // ─── IMMEDIATELY ensure superadmin role ───
+      // CRITICAL: Call /api/auth/check-first-user FIRST, before /api/auth/me.
+      // /api/auth/me can create the profile as 'student' and sync app_metadata
+      // to 'student', which would destroy the superadmin status.
+      // check-first-user sets app_metadata='superadmin' FIRST (always works),
+      // then creates/updates the DB profile.
       let profile: Record<string, unknown> | null = null;
+      let setupSucceeded = false;
 
-      // Wait for the DB trigger to (attempt to) create the profile
-      await new Promise((r) => setTimeout(r, 1500));
-
-      // Try server-side API first (bypasses RLS)
+      // Step 1: Call check-first-user IMMEDIATELY (no waiting for trigger)
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const meRes = await fetch('/api/auth/me', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` },
-          });
-          if (meRes.ok) {
-            const contentType = meRes.headers.get('content-type') || '';
-            if (contentType.includes('json')) {
-              try {
-                const meData = await meRes.json();
-                if (meData.profile) {
-                  profile = meData.profile;
-                }
-              } catch (jsonErr) {
-                console.warn('[Setup] /api/auth/me JSON parse failed:', jsonErr);
-              }
-            } else {
-              console.warn('[Setup] /api/auth/me returned non-JSON response');
-            }
+        const promoteRes = await fetch('/api/auth/check-first-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+          },
+          body: JSON.stringify({ userId: authUser.id }),
+        });
+
+        // Robust JSON parsing
+        let promoteData: { success?: boolean; user?: Record<string, unknown>; warning?: string; error?: string; role?: string } | null = null;
+        const promoteContentType = promoteRes.headers.get('content-type') || '';
+        if (promoteRes.ok && promoteContentType.includes('json')) {
+          try {
+            promoteData = await promoteRes.json();
+          } catch (jsonErr) {
+            console.warn('[Setup] check-first-user JSON parse failed:', jsonErr);
+          }
+        } else if (!promoteRes.ok) {
+          console.warn('[Setup] check-first-user returned status:', promoteRes.status);
+          try {
+            promoteData = await promoteRes.json();
+          } catch {
+            // Not JSON — ignore
           }
         }
+
+        if (promoteData?.success && promoteData.user) {
+          profile = promoteData.user;
+          setupSucceeded = true;
+          if (promoteData.warning) {
+            toast.warning(promoteData.warning, { duration: 8000 });
+          }
+        } else if (promoteData?.success && promoteData.role === 'superadmin') {
+          // Success but no user object — role is set in app_metadata
+          setupSucceeded = true;
+        } else {
+          console.error('[Setup] check-first-user failed:', promoteData?.error);
+        }
       } catch (err) {
-        console.warn('[Setup] /api/auth/me failed:', err);
+        console.error('[Setup] check-first-user request failed:', err);
       }
 
-      // Fallback: client-side query
+      // Step 2: If check-first-user didn't return a profile, call /api/auth/me
+      // This is safe now because app_metadata is already set to 'superadmin'
+      if (!profile) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            const meRes = await fetch('/api/auth/me', {
+              headers: { 'Authorization': `Bearer ${session.access_token}` },
+            });
+            if (meRes.ok) {
+              const contentType = meRes.headers.get('content-type') || '';
+              if (contentType.includes('json')) {
+                try {
+                  const meData = await meRes.json();
+                  if (meData.profile) {
+                    profile = meData.profile;
+                  }
+                } catch (jsonErr) {
+                  console.warn('[Setup] /api/auth/me JSON parse failed:', jsonErr);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[Setup] /api/auth/me failed:', err);
+        }
+      }
+
+      // Step 3: Final fallback — client-side query (with retries)
       if (!profile) {
         for (let attempt = 0; attempt < 3; attempt++) {
           await new Promise((r) => setTimeout(r, 1000));
@@ -266,61 +312,15 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         }
       }
 
-      // If still no profile or not superadmin → call check-first-user
-      // This will CREATE the profile if missing and PROMOTE to superadmin
-      if (!profile || profile.role !== 'superadmin') {
+      // Step 4: Override role from app_metadata if needed
+      // This handles the case where DB profile is 'student' but app_metadata says 'superadmin'
+      if (profile && profile.role !== 'superadmin') {
         try {
           const { data: { session } } = await supabase.auth.getSession();
-          const promoteRes = await fetch('/api/auth/check-first-user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token || ''}`,
-            },
-            body: JSON.stringify({ userId: authUser.id }),
-          });
-
-          // Robust JSON parsing — check content-type and wrap in try/catch
-          let promoteData: { success?: boolean; user?: Record<string, unknown>; warning?: string; error?: string; role?: string } | null = null;
-          const promoteContentType = promoteRes.headers.get('content-type') || '';
-          if (promoteRes.ok && promoteContentType.includes('json')) {
-            try {
-              promoteData = await promoteRes.json();
-            } catch (jsonErr) {
-              console.warn('[Setup] check-first-user JSON parse failed:', jsonErr);
-            }
-          } else if (!promoteRes.ok) {
-            console.warn('[Setup] check-first-user returned status:', promoteRes.status);
-            // Try to parse as JSON anyway for error message
-            try {
-              promoteData = await promoteRes.json();
-            } catch {
-              // Not JSON — ignore
-            }
+          if (session?.user?.app_metadata?.role === 'superadmin') {
+            profile = { ...profile, role: 'superadmin' };
           }
-
-          if (promoteData?.success && promoteData.user) {
-            profile = promoteData.user;
-
-            // Show warning if promoted to admin instead of superadmin
-            if (promoteData.warning) {
-              toast.warning(promoteData.warning, { duration: 8000 });
-            }
-          } else if (promoteData?.success && profile) {
-            // Profile exists but promotion didn't happen (not first user)
-            // This shouldn't happen during setup, but handle gracefully
-            console.warn('[Setup] Profile exists but not promoted:', promoteData);
-          } else {
-            // Critical failure — but the auth account WAS created
-            // Don't block the setup — let them continue and fix later
-            console.error('[Setup] check-first-user failed:', promoteData?.error);
-            toast.warning(t('adminAccountCreatedSuccess') + ' — ' + (promoteData?.error || t('errorCreatingAccount')), { duration: 8000 });
-          }
-        } catch (err) {
-          console.error('[Setup] check-first-user request failed:', err);
-          // Don't block — account was created, just role might be wrong
-          toast.warning(t('adminAccountCreatedSuccess'), { duration: 5000 });
-        }
+        } catch { /* ignore */ }
       }
 
       // Update auth store with the profile we have
@@ -328,7 +328,12 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
         useAuthStore.getState().setUser(profile as unknown as import('@/lib/types').UserProfile);
       }
 
-      toast.success(t('adminAccountCreatedSuccess'));
+      // Show ONLY ONE toast
+      if (setupSucceeded) {
+        toast.success(t('adminAccountCreatedSuccess'));
+      } else {
+        toast.warning(t('adminAccountCreatedSuccess'), { duration: 5000 });
+      }
       setStep('complete');
     } catch {
       toast.error(tc('unexpectedError'));

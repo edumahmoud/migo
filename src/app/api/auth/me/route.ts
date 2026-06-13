@@ -167,8 +167,19 @@ export async function GET(request: NextRequest) {
             .single();
 
           if (retryProfile) {
-            // Sync app_metadata for the recovered profile
-            if (retryProfile.role) {
+            // CRITICAL: Do NOT blindly sync app_metadata from the DB profile.
+            // The trigger may have created the profile as 'student' but this user
+            // might be the first user who should be 'superadmin'.
+            // Only sync app_metadata if the existing app_metadata is NOT 'superadmin'.
+            const existingAppRole = authUser.app_metadata?.role as string | undefined;
+            if (existingAppRole === 'superadmin') {
+              // app_metadata already correctly says superadmin — don't overwrite it!
+              // Override the returned profile role from app_metadata instead.
+              const overriddenProfile = { ...retryProfile, role: 'superadmin' };
+              return NextResponse.json({ profile: overriddenProfile, isNew: true });
+            }
+            // app_metadata doesn't say superadmin — safe to sync from DB
+            if (retryProfile.role && existingAppRole !== retryProfile.role) {
               try {
                 await supabaseServer.auth.admin.updateUserById(authUser.id, {
                   app_metadata: { role: retryProfile.role },
@@ -236,12 +247,22 @@ export async function GET(request: NextRequest) {
     // supabaseServer.auth.admin.updateUserById(), which bypasses DB constraints.
     const updatedProfile = await applySuperadminOverride(profile, authUser);
 
-    // Sync role to auth app_metadata so middleware can check it without DB query
-    // This is critical for when RLS policies cause infinite recursion (42P17)
-    // The middleware falls back to checking app_metadata.role
-    const currentAppRole = authUser.app_metadata?.role;
+    // Sync role to auth app_metadata so middleware can check it without DB query.
+    // This is critical for when RLS policies cause infinite recursion (42P17).
+    // The middleware falls back to checking app_metadata.role.
+    //
+    // CRITICAL RULE: If app_metadata already says 'superadmin', NEVER overwrite it
+    // with the DB profile's role. The DB might say 'student' or 'admin' because
+    // the CHECK constraint blocks 'superadmin', but app_metadata is the source
+    // of truth for superadmin status (set via admin API which bypasses constraints).
+    const currentAppRole = authUser.app_metadata?.role as string | undefined;
     const effectiveRole = updatedProfile.role || profile.role;
-    if (currentAppRole !== effectiveRole) {
+    if (currentAppRole === 'superadmin') {
+      // app_metadata already says superadmin — NEVER downgrade it.
+      // The updatedProfile already has the override applied by applySuperadminOverride.
+      // No need to sync — app_metadata is already correct.
+    } else if (currentAppRole !== effectiveRole) {
+      // Only sync if we're NOT downgrading from superadmin
       try {
         await supabaseServer.auth.admin.updateUserById(authUser.id, {
           app_metadata: { role: effectiveRole },
