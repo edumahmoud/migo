@@ -317,6 +317,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     onRestore: undefined,
   });
 
+  // ─── Clear stale SW reload flag on mount ───
+  // When navigating between sections, a stale _sw_reload_pending flag
+  // in localStorage can cause checkAndApplyPendingSWReload() to trigger
+  // a full page reload. Clear it on mount to prevent this.
+  useEffect(() => {
+    try {
+      localStorage.removeItem('_sw_reload_pending');
+    } catch {}
+  }, []);
+
   // ─── Course assignment state ───
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -621,72 +631,92 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // -------------------------------------------------------
   // Real-time subscription for user_files (personal files)
+  // NOTE: fetchFiles removed from deps — callbacks use setFiles directly
   // -------------------------------------------------------
   useEffect(() => {
-    const channel = supabase
-      .channel(`user-files-${profile.id}`)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        // Instant removal from state — no full refetch needed
-        const deletedId = payload.old?.id;
-        if (deletedId) {
-          setFiles(prev => prev.filter(f => f.id !== deletedId));
-          setSelectedFileIds(prev => { const next = new Set(prev); next.delete(deletedId); return next; });
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        // Instant update in state
-        const updated = payload.new as UserFile;
-        if (updated) {
-          setFiles(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f));
-        }
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        // New file uploaded (possibly from another tab/device)
-        // Add to local state instantly if not already present
-        const newFile = payload.new as UserFile;
-        if (newFile?.id) {
-          setFiles(prev => {
-            if (prev.some(f => f.id === newFile.id)) return prev;
-            return [newFile, ...prev];
-          });
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [profile.id, fetchFiles]);
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`user-files-${profile.id}`)
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
+          const deletedId = payload.old?.id;
+          if (deletedId) {
+            setFiles(prev => prev.filter(f => f.id !== deletedId));
+            setSelectedFileIds(prev => { const next = new Set(prev); next.delete(deletedId); return next; });
+          }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
+          const updated = payload.new as UserFile;
+          if (updated) {
+            setFiles(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f));
+          }
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
+          const newFile = payload.new as UserFile;
+          if (newFile?.id) {
+            setFiles(prev => {
+              if (prev.some(f => f.id === newFile.id)) return prev;
+              return [newFile, ...prev];
+            });
+          }
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] user_files channel error — Realtime may not be enabled for this table');
+          }
+        });
+    } catch (err) {
+      console.warn('[Realtime] Failed to subscribe to user_files:', err);
+    }
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [profile.id]);
 
   // -------------------------------------------------------
   // Real-time subscription for user_folders
+  // NOTE: currentFolderId removed from deps to avoid re-subscribing
+  // on every folder navigation. The DELETE handler uses a ref instead.
   // -------------------------------------------------------
+  const currentFolderIdRef = useRef(currentFolderId);
+  useEffect(() => { currentFolderIdRef.current = currentFolderId; }, [currentFolderId]);
+
   useEffect(() => {
-    const channel = supabase
-      .channel(`user-folders-${profile.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        const newFolder = payload.new as UserFolder;
-        if (newFolder) {
-          // Avoid duplicate if handleCreateFolder already added it
-          setFolders(prev => {
-            if (prev.some(f => f.id === newFolder.id)) return prev;
-            return [...prev, newFolder].sort((a, b) => a.name.localeCompare(b.name));
-          });
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        const updated = payload.new as UserFolder;
-        if (updated) {
-          setFolders(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f).sort((a, b) => a.name.localeCompare(b.name)));
-        }
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
-        const deletedId = payload.old?.id;
-        if (deletedId) {
-          setFolders(prev => prev.filter(f => f.id !== deletedId));
-          if (currentFolderId === deletedId) setCurrentFolderId(null);
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [profile.id, currentFolderId]);
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`user-folders-${profile.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
+          const newFolder = payload.new as UserFolder;
+          if (newFolder) {
+            setFolders(prev => {
+              if (prev.some(f => f.id === newFolder.id)) return prev;
+              return [...prev, newFolder].sort((a, b) => a.name.localeCompare(b.name));
+            });
+          }
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
+          const updated = payload.new as UserFolder;
+          if (updated) {
+            setFolders(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f).sort((a, b) => a.name.localeCompare(b.name)));
+          }
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_folders', filter: `user_id=eq.${profile.id}` }, (payload) => {
+          const deletedId = payload.old?.id;
+          if (deletedId) {
+            setFolders(prev => prev.filter(f => f.id !== deletedId));
+            // Use ref to avoid re-subscribing on folder navigation
+            if (currentFolderIdRef.current === deletedId) setCurrentFolderId(null);
+          }
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] user_folders channel error — Realtime may not be enabled for this table');
+          }
+        });
+    } catch (err) {
+      console.warn('[Realtime] Failed to subscribe to user_folders:', err);
+    }
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [profile.id]);
 
   // -------------------------------------------------------
   // Fetch file share & course counts (batch)
@@ -742,19 +772,32 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // -------------------------------------------------------
   // Real-time subscription for file_shares (shared with me updates)
+  // NOTE: fetchSharedFiles kept as ref to avoid stale closure
   // -------------------------------------------------------
+  const fetchSharedFilesRef = useRef(fetchSharedFiles);
+  useEffect(() => { fetchSharedFilesRef.current = fetchSharedFiles; }, [fetchSharedFiles]);
+
   useEffect(() => {
-    const channel = supabase
-      .channel(`file-shares-${profile.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
-        fetchSharedFiles();
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
-        fetchSharedFiles();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [profile.id, fetchSharedFiles]);
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`file-shares-${profile.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
+          fetchSharedFilesRef.current();
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
+          fetchSharedFilesRef.current();
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] file_shares channel error — Realtime may not be enabled for this table');
+          }
+        });
+    } catch (err) {
+      console.warn('[Realtime] Failed to subscribe to file_shares:', err);
+    }
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [profile.id]);
 
   // Keep pendingUploads ref in sync for reliable reads in async handlers
   useEffect(() => {
