@@ -299,7 +299,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
                   const meData = await meRes.json();
                   if (meData.profile) {
                     profile = meData.profile;
-                    if (profile.role === 'superadmin') {
+                    if (profile && profile.role === 'superadmin') {
                       isSuperadmin = true;
                     }
                   }
