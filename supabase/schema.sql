@@ -342,3 +342,225 @@ FROM public.users u
 JOIN public.teacher_student_links tsl ON u.id = tsl.student_id
 JOIN public.scores s ON u.id = s.student_id
 WHERE s.teacher_id = tsl.teacher_id;
+
+-- =====================================================
+-- SCORM PACKAGES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.scorm_packages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  version TEXT NOT NULL DEFAULT '1.2' CHECK (version IN ('1.2', '2004')),
+  manifest_xml TEXT NOT NULL,
+  uploaded_by UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  subject_id UUID NOT NULL REFERENCES public.subjects(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draft', 'archived')),
+  entry_point TEXT NOT NULL,
+  total_objects INTEGER NOT NULL DEFAULT 0,
+  package_size BIGINT NOT NULL DEFAULT 0,
+  storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scorm_packages_subject_id ON public.scorm_packages(subject_id);
+CREATE INDEX IF NOT EXISTS idx_scorm_packages_uploaded_by ON public.scorm_packages(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_scorm_packages_status ON public.scorm_packages(status);
+
+-- =====================================================
+-- SCORM RESOURCES TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.scorm_resources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  package_id UUID NOT NULL REFERENCES public.scorm_packages(id) ON DELETE CASCADE,
+  identifier TEXT NOT NULL,
+  title TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'sco' CHECK (type IN ('sco', 'asset')),
+  href TEXT,
+  scorm_type TEXT NOT NULL DEFAULT 'sco',
+  parent_identifier TEXT,
+  order_index INTEGER NOT NULL DEFAULT 0,
+  launch_url TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_scorm_resources_package_id ON public.scorm_resources(package_id);
+CREATE INDEX IF NOT EXISTS idx_scorm_resources_type ON public.scorm_resources(type);
+CREATE INDEX IF NOT EXISTS idx_scorm_resources_parent_identifier ON public.scorm_resources(parent_identifier);
+
+-- =====================================================
+-- SCORM TRACKING TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.scorm_tracking (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  package_id UUID NOT NULL REFERENCES public.scorm_packages(id) ON DELETE CASCADE,
+  resource_id UUID NOT NULL REFERENCES public.scorm_resources(id) ON DELETE CASCADE,
+  completion_status TEXT NOT NULL DEFAULT 'not_attempted' CHECK (completion_status IN ('not_attempted', 'incomplete', 'completed', 'unknown')),
+  success_status TEXT NOT NULL DEFAULT 'unknown' CHECK (success_status IN ('passed', 'failed', 'unknown')),
+  score_raw DECIMAL(5,2),
+  score_min DECIMAL(5,2),
+  score_max DECIMAL(5,2),
+  score_scaled DECIMAL(5,2),
+  total_time TEXT NOT NULL DEFAULT '00:00:00',
+  session_time TEXT NOT NULL DEFAULT '00:00:00',
+  suspend_data TEXT,
+  launch_count INTEGER NOT NULL DEFAULT 0,
+  last_accessed TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(student_id, resource_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scorm_tracking_student_id ON public.scorm_tracking(student_id);
+CREATE INDEX IF NOT EXISTS idx_scorm_tracking_package_id ON public.scorm_tracking(package_id);
+CREATE INDEX IF NOT EXISTS idx_scorm_tracking_resource_id ON public.scorm_tracking(resource_id);
+CREATE INDEX IF NOT EXISTS idx_scorm_tracking_student_resource ON public.scorm_tracking(student_id, resource_id);
+CREATE INDEX IF NOT EXISTS idx_scorm_tracking_last_accessed ON public.scorm_tracking(last_accessed DESC);
+
+-- Enable RLS on SCORM tables
+ALTER TABLE public.scorm_packages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scorm_resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scorm_tracking ENABLE ROW LEVEL SECURITY;
+
+-- ===== SCORM PACKAGES POLICIES =====
+DROP POLICY IF EXISTS "Teachers can view scorm packages" ON public.scorm_packages;
+CREATE POLICY "Teachers can view scorm packages" ON public.scorm_packages
+  FOR SELECT USING (
+    subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+    OR public.is_admin()
+  );
+
+DROP POLICY IF EXISTS "Students can view scorm packages" ON public.scorm_packages;
+CREATE POLICY "Students can view scorm packages" ON public.scorm_packages
+  FOR SELECT USING (
+    subject_id IN (SELECT public.get_student_subject_ids(auth.uid()))
+  );
+
+DROP POLICY IF EXISTS "Teachers can create scorm packages" ON public.scorm_packages;
+CREATE POLICY "Teachers can create scorm packages" ON public.scorm_packages
+  FOR INSERT WITH CHECK (
+    subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+    OR public.is_admin()
+  );
+
+DROP POLICY IF EXISTS "Teachers can update scorm packages" ON public.scorm_packages;
+CREATE POLICY "Teachers can update scorm packages" ON public.scorm_packages
+  FOR UPDATE USING (
+    subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+    OR public.is_admin()
+  );
+
+DROP POLICY IF EXISTS "Teachers can delete scorm packages" ON public.scorm_packages;
+CREATE POLICY "Teachers can delete scorm packages" ON public.scorm_packages
+  FOR DELETE USING (
+    subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+    OR public.is_admin()
+  );
+
+-- ===== SCORM RESOURCES POLICIES =====
+DROP POLICY IF EXISTS "Teachers can view scorm resources" ON public.scorm_resources;
+CREATE POLICY "Teachers can view scorm resources" ON public.scorm_resources
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND (
+        p.subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+        OR public.is_admin()
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Students can view scorm resources" ON public.scorm_resources;
+CREATE POLICY "Students can view scorm resources" ON public.scorm_resources
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND p.subject_id IN (SELECT public.get_student_subject_ids(auth.uid()))
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can create scorm resources" ON public.scorm_resources;
+CREATE POLICY "Teachers can create scorm resources" ON public.scorm_resources
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND (
+        p.subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+        OR public.is_admin()
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can update scorm resources" ON public.scorm_resources;
+CREATE POLICY "Teachers can update scorm resources" ON public.scorm_resources
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND (
+        p.subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+        OR public.is_admin()
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can delete scorm resources" ON public.scorm_resources;
+CREATE POLICY "Teachers can delete scorm resources" ON public.scorm_resources
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND (
+        p.subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+        OR public.is_admin()
+      )
+    )
+  );
+
+-- ===== SCORM TRACKING POLICIES =====
+DROP POLICY IF EXISTS "Students can read own scorm tracking" ON public.scorm_tracking;
+CREATE POLICY "Students can read own scorm tracking" ON public.scorm_tracking
+  FOR SELECT USING (student_id = auth.uid());
+
+DROP POLICY IF EXISTS "Teachers can read scorm tracking for their subjects" ON public.scorm_tracking;
+CREATE POLICY "Teachers can read scorm tracking for their subjects" ON public.scorm_tracking
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND (
+        p.subject_id IN (SELECT public.get_teacher_subject_ids(auth.uid()))
+        OR public.is_admin()
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Students can insert own scorm tracking" ON public.scorm_tracking;
+CREATE POLICY "Students can insert own scorm tracking" ON public.scorm_tracking
+  FOR INSERT WITH CHECK (
+    student_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.scorm_packages p
+      WHERE p.id = package_id
+      AND p.subject_id IN (SELECT public.get_student_subject_ids(auth.uid()))
+    )
+  );
+
+DROP POLICY IF EXISTS "Students can update own scorm tracking" ON public.scorm_tracking;
+CREATE POLICY "Students can update own scorm tracking" ON public.scorm_tracking
+  FOR UPDATE USING (student_id = auth.uid())
+  WITH CHECK (student_id = auth.uid());
+
+-- Triggers for scorm tables
+DROP TRIGGER IF EXISTS trg_scorm_packages_updated_at ON public.scorm_packages;
+CREATE TRIGGER trg_scorm_packages_updated_at
+  BEFORE UPDATE ON public.scorm_packages
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+DROP TRIGGER IF EXISTS trg_scorm_tracking_updated_at ON public.scorm_tracking;
+CREATE TRIGGER trg_scorm_tracking_updated_at
+  BEFORE UPDATE ON public.scorm_tracking
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();

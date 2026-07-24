@@ -322,3 +322,100 @@ Stage Summary:
 - All missing translations added
 - SectionErrorBoundary wraps every section in both dashboards → no more app reloads from section errors
 - Lint passes clean, dev server running
+
+---
+Task ID: SCORM-SUPPORT
+Agent: SCORM Schema & Types Developer
+Task: Create database schema and TypeScript types for SCORM support (v60 migration, types, schema.sql update)
+
+Work Log:
+- Created migration file `/home/z/my-project/supabase/migrations/v60_scorm_support.sql` with 3 tables:
+  - `scorm_packages`: stores uploaded SCORM package metadata (id, title, description, version, manifest_xml, uploaded_by, subject_id, status, entry_point, total_objects, package_size, storage_path, created_at, updated_at)
+  - `scorm_resources`: stores individual SCORM resources/SCO items parsed from manifest (id, package_id, identifier, title, type, href, scorm_type, parent_identifier, order_index, launch_url)
+  - `scorm_tracking`: stores student progress data (id, student_id, package_id, resource_id, completion_status, success_status, score_raw/min/max/scaled, total_time, session_time, suspend_data, launch_count, last_accessed, created_at, updated_at) with UNIQUE(student_id, resource_id)
+- Added RLS policies for each table using existing helper functions `get_teacher_subject_ids()`, `get_student_subject_ids()`, `is_admin()`:
+  - Teachers/admins can CRUD packages and resources for their subjects
+  - Students can read packages and resources for enrolled subjects
+  - Students can insert/update their own tracking data
+  - Teachers/admins can read all tracking data for their subjects
+- Added triggers for auto-update `updated_at` on scorm_packages and scorm_tracking
+- Added Realtime publication entries for all 3 tables
+- Used `gen_random_uuid()` for UUID defaults and `now()` for timestamp defaults (per instructions)
+- Created TypeScript types at `/home/z/my-project/src/lib/scorm-types.ts` matching the database schema, including:
+  - ScormPackage, ScormResource, ScormTracking interfaces
+  - Type enums: ScormVersion, ScormPackageStatus, ScormResourceType, ScormCompletionStatus, ScormSuccessStatus
+  - Supporting types: ScormLaunchData, ScormCmiData, ScormTrackingUpsertRequest, ScormPackageUploadRequest, ScormTrackingSummary, ScormStudentProgress
+- Updated `/home/z/my-project/supabase/schema.sql` to append SCORM tables at the end (lines 345-567)
+- Ran `bun run lint` — passes clean with no issues
+
+Stage Summary:
+- SCORM database schema complete with 3 tables, proper indexes, CHECK constraints, RLS policies, triggers, and Realtime support
+- TypeScript types fully match the database schema with comprehensive API-ready types
+- Both migration file and schema.sql updated consistently
+- Lint passes clean
+
+---
+Task ID: SCORM-API-ROUTES
+Agent: SCORM API Routes Developer
+Task: Create SCORM upload, tracking, launch, and list API routes
+
+Work Log:
+- Created `/home/z/my-project/src/app/api/scorm/upload/route.ts` — SCORM Package Upload API:
+  - Accepts multipart FormData with `file` (.zip) and `subjectId` (UUID)
+  - Requires teacher/admin authentication via `requireTeacher`
+  - Validates file is .zip and size < 50MB
+  - Extracts ZIP in memory using JSZip (already installed as v3.10.1)
+  - Finds and parses `imsmanifest.xml` from ZIP (handles nested folder manifests)
+  - Determines SCORM version (1.2 or 2004) from manifest namespace patterns
+  - Extracts entry point, organization items, and resources via regex/string parsing
+  - Uploads extracted content files to Supabase Storage bucket `scorm-packages` at `{subjectId}/{packageId}/`
+  - Saves package metadata to `scorm_packages` table
+  - Saves individual resources/SCOs to `scorm_resources` table
+  - Returns package ID, parsed structure, and upload status
+  - Includes proper content-type mapping for all common web file types
+  - Handles cleanup on failure (removes uploaded storage files if DB insert fails)
+
+- Created `/home/z/my-project/src/app/api/scorm/track/route.ts` — SCORM Tracking API:
+  - POST handler: Upserts tracking data for a student
+    - Accepts: `{ studentId, packageId, resourceId, completionStatus, successStatus, scoreRaw, scoreMin, scoreMax, scoreScaled, sessionTime, suspendData }`
+    - Uses `authenticateRequest` for auth (any authenticated user)
+    - Verifies `studentId === authUser.id` (students can only update their own tracking)
+    - Validates completion_status and success_status values against CHECK constraints
+    - Upserts to `scorm_tracking` table with onConflict: `student_id,resource_id`
+  - GET handler: Fetches tracking data
+    - Teachers/admins: can get tracking for any student (packageId required, studentId optional)
+    - Students: can only get their own tracking (packageId + resourceId required)
+    - Enriches data with student names, emails, avatars, and resource titles
+
+- Created `/home/z/my-project/src/app/api/scorm/launch/route.ts` — SCORM Launch API:
+  - GET handler: Returns launch data for a SCORM resource
+    - Accepts query params: `packageId` and `resourceId`
+    - Requires authentication via `authenticateRequest`
+    - Verifies student enrollment in the subject (checks `subject_students` table)
+    - Creates initial tracking record if none exists (completion_status: 'not_attempted')
+    - Updates `last_accessed` and increments `launch_count` on each launch
+    - Builds CMI data model for SCORM 1.2 (cmi.core.*) or SCORM 2004 (cmi.*) fields
+    - Returns: `{ launchUrl, packageVersion, packageTitle, resourceTitle, resourceType, trackingData, cmiData }`
+
+- Created `/home/z/my-project/src/app/api/scorm/list/route.ts` — SCORM List API:
+  - GET handler: Returns all SCORM packages for a subject
+    - Accepts query param: `subjectId`
+    - Requires authentication via `authenticateRequest`
+    - Fetches packages with all metadata fields
+    - Fetches associated resources organized by `order_index`
+    - Fetches uploader names from users table
+    - Organizes resources into tree structure based on `parent_identifier`
+    - Returns enriched packages with nested resource hierarchy and uploader names
+
+- Verified jszip was already installed (v3.10.1 in package.json) — no installation needed
+- Ran `bun run lint` — passes clean with no issues
+
+Stage Summary:
+- 4 SCORM API routes created covering the full lifecycle: upload → list → launch → track
+- All routes follow existing project patterns (auth-helpers, supabaseServer, error handling)
+- Regex/string-based XML parsing avoids adding new dependencies
+- Proper auth enforcement: teacher/admin for upload, any user for tracking/launch/list
+- Enrollment verification for student access
+- CMI data model supports both SCORM 1.2 and 2004 standards
+- Resource tree organization for hierarchical SCORM content
+- Lint passes clean
