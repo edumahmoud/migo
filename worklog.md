@@ -49,3 +49,61 @@ Stage Summary:
 - SCORM Tracking: ✅ Already existed (track route), now connected to player
 - Translations: ✅ 48 keys in both Arabic and English
 - Lint: ✅ Clean, no errors
+
+---
+Task ID: 2
+Agent: main-agent
+Task: Add SCORM question bank export with bank selection + platform-level SCORM import
+
+Work Log:
+- Updated SCORM Export API route `/api/scorm/export/route.ts`
+  - Added `contentType: 'questionBank'` support
+  - Added `bankIds` and `questionIds` parameters for selective export
+  - Created `exportQuestionBankAsScorm()` function that:
+    - Fetches question banks from Supabase (filtered by bankIds/questionIds)
+    - Groups questions by bank
+    - Generates interactive quiz HTML for each bank with SCORM API integration
+    - Supports MCQ, boolean, completion, and matching question types
+    - Calculates scores and reports to SCORM 1.2/2004 API
+    - Includes question navigation, progress bar, and results review
+  - Updated `generateManifest()` to support `hrefOverride` for quiz resources
+  - Fixed XSD string syntax (single quotes instead of mixed backtick+single quotes)
+
+- Created Platform-Level SCORM Import API route `/api/scorm/platform-import/route.ts`
+  - Accepts FormData with: file (ZIP), name (subject name), description, version
+  - Parses ZIP with JSZip, reads imsmanifest.xml
+  - Regex-based manifest parsing for items and resources
+  - Creates new subject (course) on the platform
+  - Creates draft lessons from manifest items
+  - Uploads ZIP to Supabase Storage (scorm-packages bucket)
+  - Creates scorm_packages and scorm_resources records
+  - Error handling with cleanup (subject deletion, storage removal on failures)
+  - maxDuration = 120 for large file processing
+
+- Updated scorm-tab.tsx component
+  - Export modal now shows 3 content type options: Lessons, Full Course, Question Banks
+  - Question bank export shows bank selection with checkboxes
+  - Select All / Deselect All buttons for bank selection
+  - Question count displayed per bank
+  - Added "Import Course from SCORM" button (amber/orange color)
+  - Added platform import modal with:
+    - Course name input (required)
+    - Course description textarea
+    - File upload with .zip validation
+    - Import & Create Course button
+  - Cleaned up unused imports (FileCheck, MoreHorizontal, Settings, Edit, SectionErrorBoundary, CourseTab)
+
+- Updated i18n messages
+  - ar.json: 15+ new keys (selectBanks, selectAll, deselectAll, loadingBanks, noBanks, questions, banks, selectedCount, selectBankError, platformImportTitle, platformImportDesc, platformImportName, platformImportDescription, platformImportButton, platformImporting, platformImportSuccess, platformImportError)
+  - en.json: Same 15+ keys in English
+  - Changed "exportQuiz" from "الاختبارات"/"Quizzes" to "بنوك الأسئلة"/"Question Banks"
+  - Updated "quizJsonNote" to mention SCORM export option for question banks
+
+Stage Summary:
+- SCORM Question Bank Export: ✅ NEW - Interactive quiz HTML with SCORM API tracking, bank/question selection
+- Platform-Level SCORM Import: ✅ NEW - Create new course from external SCORM package
+- SCORM Tab UI: ✅ Updated - 3 export options + bank selection + platform import modal
+- i18n: ✅ 15+ new keys in both Arabic and English
+- Lint: ✅ Clean, no errors
+- Dev server: ✅ Running on port 3000
+- Git: ✅ Committed locally (push failed due to no GitHub auth token)
