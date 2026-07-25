@@ -4,9 +4,9 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 import JSZip from 'jszip';
 import type { ScormVersion } from '@/lib/scorm-types';
 
-// ─── POST Handler: Export subject lesson content as a SCORM package ───
-// NOTE: Question banks are exported/imported separately using JSON format only.
-//       SCORM export is exclusively for lesson/course content.
+// ─── POST Handler: Export content as a SCORM package ───
+// Supports: lesson, subject, questionBank
+// Question bank export allows selecting specific banks or questions
 
 export async function POST(request: NextRequest) {
   const authResult = await requireTeacher(request);
@@ -14,13 +14,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { subjectId, contentType, contentIds, version, title, description } = body as {
+    const { subjectId, contentType, contentIds, version, title, description, bankIds, questionIds } = body as {
       subjectId: string;
-      contentType: 'lesson' | 'subject';
+      contentType: 'lesson' | 'subject' | 'questionBank';
       contentIds?: string[];
       version?: ScormVersion;
       title?: string;
       description?: string;
+      bankIds?: string[];
+      questionIds?: string[];
     };
 
     if (!subjectId || !contentType) {
@@ -75,9 +77,19 @@ export async function POST(request: NextRequest) {
       case 'subject':
         zip = await exportSubjectAsScorm(subjectId, scormVersion, packageTitle, packageDescription, authResult.user.id);
         break;
+      case 'questionBank':
+        zip = await exportQuestionBankAsScorm(
+          subjectId,
+          bankIds || [],
+          questionIds || [],
+          scormVersion,
+          packageTitle,
+          authResult.user.id
+        );
+        break;
       default:
         return NextResponse.json(
-          { success: false, error: `Invalid contentType: ${contentType}. Only 'lesson' and 'subject' are supported for SCORM export. Question banks use JSON format.` },
+          { success: false, error: `Invalid contentType: ${contentType}. Supported types: 'lesson', 'subject', 'questionBank'` },
           { status: 400 }
         );
     }
@@ -196,7 +208,7 @@ async function exportSubjectAsScorm(
   }
 
   if (!lessons || lessons.length === 0) {
-    throw new Error('No published lessons found in this subject. Please publish at least one lesson before exporting as SCORM. Note: Question banks are exported separately using JSON format.');
+    throw new Error('No published lessons found in this subject. Please publish at least one lesson before exporting as SCORM.');
   }
 
   const zip = new JSZip();
@@ -234,6 +246,461 @@ async function exportSubjectAsScorm(
   return zip;
 }
 
+// ─── Export Question Banks as SCORM Package ───
+// Supports selective export: bankIds to select whole banks, questionIds to select individual questions
+
+async function exportQuestionBankAsScorm(
+  subjectId: string,
+  bankIds: string[],
+  questionIds: string[],
+  version: ScormVersion,
+  packageTitle: string,
+  userId: string
+): Promise<JSZip> {
+  // ── Fetch question banks ──
+  let banksQuery = supabaseServer
+    .from('question_banks')
+    .select('id, name, description, subject_id, teacher_id')
+    .eq('subject_id', subjectId);
+
+  if (bankIds.length > 0) {
+    banksQuery = banksQuery.in('id', bankIds);
+  }
+
+  const { data: banks, error: banksError } = await banksQuery;
+  if (banksError) {
+    console.error('[SCORM Export] Question banks query error:', banksError.message);
+    throw new Error(`Failed to fetch question banks: ${banksError.message}`);
+  }
+
+  if (!banks || banks.length === 0) {
+    throw new Error('No question banks found for export. Please select at least one question bank.');
+  }
+
+  const zip = new JSZip();
+  const items: Array<{ identifier: string; title: string; identifierref: string }> = [];
+
+  // ── Fetch questions for each bank ──
+  const allBankIds = banks.map(b => b.id);
+
+  let questionsQuery = supabaseServer
+    .from('bank_questions')
+    .select('id, bank_id, type, question, options, correct_answer, pairs, difficulty, category')
+    .in('bank_id', allBankIds)
+    .order('created_at', { ascending: true });
+
+  // If specific question IDs are provided, filter to only those
+  if (questionIds.length > 0) {
+    questionsQuery = questionsQuery.in('id', questionIds);
+  }
+
+  const { data: questions, error: questionsError } = await questionsQuery;
+  if (questionsError) {
+    console.error('[SCORM Export] Bank questions query error:', questionsError.message);
+    throw new Error(`Failed to fetch bank questions: ${questionsError.message}`);
+  }
+
+  if (!questions || questions.length === 0) {
+    throw new Error('No questions found in the selected question banks. Please select banks with questions.');
+  }
+
+  // ── Group questions by bank ──
+  const questionsByBank: Record<string, Array<Record<string, unknown>>> = {};
+  for (const q of questions) {
+    if (!questionsByBank[q.bank_id]) {
+      questionsByBank[q.bank_id] = [];
+    }
+    questionsByBank[q.bank_id].push(q);
+  }
+
+  // ── Generate quiz HTML for each bank ──
+  const quizzesFolder = zip.folder('quizzes');
+  let quizIndex = 0;
+
+  for (const bank of banks) {
+    const bankQuestions = questionsByBank[bank.id] || [];
+    if (bankQuestions.length === 0) continue; // Skip empty banks
+
+    quizIndex++;
+    const scoId = `quiz_${bank.id}`;
+    const resourceId = `res_quiz_${bank.id}`;
+    const htmlFileName = `quiz_${quizIndex}.html`;
+
+    const quizHtml = generateQuizHtml(bank, bankQuestions, version);
+    quizzesFolder!.file(htmlFileName, quizHtml);
+
+    items.push({
+      identifier: scoId,
+      title: bank.name || `Quiz ${quizIndex}`,
+      identifierref: resourceId,
+    });
+  }
+
+  if (items.length === 0) {
+    throw new Error('No questions found to export. Please select question banks that contain questions.');
+  }
+
+  // Generate manifest — each quiz is a SCO
+  const manifestItems = items.map(item => ({
+    ...item,
+    hrefOverride: `quizzes/${item.identifierref.replace('res_quiz_', 'quiz_')}.html`,
+  }));
+
+  const manifest = generateManifest(
+    packageTitle,
+    manifestItems,
+    version,
+    'questionBank',
+    packageDescription || ''
+  );
+  zip.file('imsmanifest.xml', manifest);
+
+  // Add SCORM API wrapper script
+  zip.file('scorm_api_wrapper.js', generateScormApiWrapper(version));
+
+  // Add required XSD files
+  addXsdFiles(zip, version);
+
+  return zip;
+}
+
+// ─── Quiz HTML Generation ───
+// Generates an interactive quiz page with SCORM API integration for score tracking
+
+function generateQuizHtml(
+  bank: Record<string, unknown>,
+  questions: Array<Record<string, unknown>>,
+  version: ScormVersion
+): string {
+  const bankName = (bank.name as string) || 'Quiz';
+  const bankDescription = (bank.description as string) || '';
+
+  // Serialize questions as JSON for the quiz engine
+  const quizData = questions.map(q => ({
+    id: q.id,
+    type: q.type,
+    question: q.question,
+    options: q.options,
+    correct_answer: q.correct_answer,
+    pairs: q.pairs,
+    difficulty: q.difficulty,
+    category: q.category,
+  }));
+
+  const quizDataJson = JSON.stringify(quizData);
+
+  const apiInitCode = version === '1.2'
+    ? `var scormApi = window.API || parent.API || opener.API || null;`
+    : `var scormApi = window.API_1484_11 || parent.API_1484_11 || opener.API_1484_11 || null;`;
+
+  const scormSetPrefix = version === '1.2' ? 'cmi.core' : 'cmi';
+
+  return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(bankName)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f5f5f5; color: #333; padding: 20px; direction: rtl; }
+    .quiz-container { max-width: 800px; margin: 0 auto; background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .quiz-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #e0e0e0; }
+    .quiz-title { font-size: 24px; font-weight: bold; color: #1a1a1a; }
+    .quiz-desc { font-size: 14px; color: #666; margin-top: 8px; }
+    .question-card { margin-bottom: 24px; padding: 16px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa; }
+    .question-number { font-size: 12px; color: #0369A1; font-weight: bold; margin-bottom: 8px; }
+    .question-text { font-size: 16px; font-weight: 500; margin-bottom: 12px; line-height: 1.6; }
+    .options-list { list-style: none; padding: 0; }
+    .option-item { padding: 12px 16px; margin-bottom: 8px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+    .option-item:hover { border-color: #0369A1; background: #f0f9ff; }
+    .option-item.selected { border-color: #0369A1; background: #0369A1; color: white; }
+    .boolean-options { display: flex; gap: 12px; }
+    .boolean-btn { padding: 12px 24px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 16px; font-weight: 500; }
+    .boolean-btn:hover { border-color: #0369A1; }
+    .boolean-btn.selected { border-color: #0369A1; background: #0369A1; color: white; }
+    .completion-input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; direction: rtl; }
+    .completion-input:focus { border-color: #0369A1; outline: none; }
+    .matching-container { display: flex; flex-direction: column; gap: 12px; }
+    .match-row { display: flex; gap: 12px; align-items: center; }
+    .match-left { flex: 1; padding: 8px 12px; background: #f0f9ff; border-radius: 8px; font-size: 14px; }
+    .match-select { flex: 1; padding: 8px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: white; }
+    .progress-bar { width: 100%; height: 6px; background: #e0e0e0; border-radius: 3px; margin-bottom: 24px; }
+    .progress-fill { height: 100%; background: #0369A1; border-radius: 3px; transition: width 0.3s; }
+    .submit-btn { display: block; width: 100%; padding: 16px; background: #0369A1; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 24px; transition: all 0.2s; }
+    .submit-btn:hover { background: #0284c7; }
+    .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .results-container { text-align: center; padding: 32px; }
+    .score-display { font-size: 48px; font-weight: bold; color: #0369A1; }
+    .score-label { font-size: 16px; color: #666; margin-top: 8px; }
+    .pass-badge { display: inline-block; padding: 8px 16px; background: #10b981; color: white; border-radius: 8px; font-weight: bold; margin-top: 16px; }
+    .fail-badge { display: inline-block; padding: 8px 16px; background: #ef4444; color: white; border-radius: 8px; font-weight: bold; margin-top: 16px; }
+    .review-section { margin-top: 24px; }
+    .review-item { padding: 12px; margin-bottom: 8px; border-radius: 8px; }
+    .review-item.correct { background: #f0fdf4; border: 1px solid #10b981; }
+    .review-item.incorrect { background: #fef2f2; border: 1px solid #ef4444; }
+    .review-q { font-weight: 500; margin-bottom: 4px; }
+    .review-answer { font-size: 14px; }
+    .nav-buttons { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+    .nav-btn { padding: 8px 16px; border: 1px solid #0369A1; border-radius: 8px; cursor: pointer; background: white; color: #0369A1; }
+    .nav-btn:hover { background: #0369A1; color: white; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="quiz-container">
+    <div class="quiz-header">
+      <div class="quiz-title">${escapeHtml(bankName)}</div>
+      ${bankDescription ? `<div class="quiz-desc">${escapeHtml(bankDescription)}</div>` : ''}
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+
+    <div id="quizContent"></div>
+
+    <div class="nav-buttons">
+      <button class="nav-btn" id="prevBtn" onclick="prevQuestion()" style="display:none">السابق</button>
+      <button class="nav-btn" id="nextBtn" onclick="nextQuestion()">التالي</button>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitQuiz()" disabled>تسليم الاختبار</button>
+
+    <div id="resultsContainer" class="hidden">
+      <div class="results-container">
+        <div class="score-display" id="scoreDisplay"></div>
+        <div class="score-label" id="scoreLabel"></div>
+        <div id="passBadge"></div>
+        <div class="review-section" id="reviewSection"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="scorm_api_wrapper.js"></script>
+  <script>
+    ${apiInitCode}
+
+    // Initialize SCORM
+    if (scormApi) {
+      scormApi.LMSInitialize("");
+      scormApi.LMSSetValue("${scormSetPrefix}.lesson_status", "incomplete");
+      scormApi.LMSCommit("");
+    }
+
+    var questions = ${quizDataJson};
+    var currentQ = 0;
+    var answers = {};
+    var totalQuestions = questions.length;
+    var passingScore = 60;
+
+    function renderQuestion(index) {
+      var q = questions[index];
+      var html = '<div class="question-card">';
+      html += '<div class="question-number">السؤال ' + (index + 1) + ' من ' + totalQuestions + '</div>';
+      html += '<div class="question-text">' + escapeHtmlContent(String(q.question)) + '</div>';
+
+      if (q.type === 'mcq') {
+        html += '<ul class="options-list">';
+        var opts = q.options || [];
+        for (var i = 0; i < opts.length; i++) {
+          var selClass = (answers[q.id] === opts[i]) ? ' selected' : '';
+          html += '<li class="option-item' + selClass + '" onclick="selectOption(\\'' + q.id + '\\', \\'' + escapeJs(String(opts[i])) + '\\')">' + escapeHtmlContent(String(opts[i])) + '</li>';
+        }
+        html += '</ul>';
+      } else if (q.type === 'boolean') {
+        var trueSel = (answers[q.id] === 'true') ? ' selected' : '';
+        var falseSel = (answers[q.id] === 'false') ? ' selected' : '';
+        html += '<div class="boolean-options">';
+        html += '<button class="boolean-btn' + trueSel + '" onclick="selectOption(\\'' + q.id + '\\', \\'' + 'true' + '\\')">صحيح</button>';
+        html += '<button class="boolean-btn' + falseSel + '" onclick="selectOption(\\'' + q.id + '\\', \\'' + 'false' + '\\')">خطأ</button>';
+        html += '</div>';
+      } else if (q.type === 'completion') {
+        html += '<input type="text" class="completion-input" placeholder="اكتب الإجابة هنا..." value="' + (answers[q.id] || '') + '" onchange="selectOption(\\'' + q.id + '\\', this.value)" />';
+      } else if (q.type === 'matching') {
+        html += '<div class="matching-container">';
+        var pairs = q.pairs || [];
+        var shuffledValues = pairs.map(function(p) { return p.value; });
+        // Shuffle values
+        for (var i = shuffledValues.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var temp = shuffledValues[i];
+          shuffledValues[i] = shuffledValues[j];
+          shuffledValues[j] = temp;
+        }
+        for (var i = 0; i < pairs.length; i++) {
+          var selVal = answers[q.id] ? answers[q.id][pairs[i].key] : '';
+          html += '<div class="match-row">';
+          html += '<div class="match-left">' + escapeHtmlContent(pairs[i].key) + '</div>';
+          html += '<select class="match-select" onchange="selectMatch(\\'' + q.id + '\\', \\'' + escapeJs(pairs[i].key) + '\\', this.value)">';
+          html += '<option value="">اختر...</option>';
+          for (var j = 0; j < shuffledValues.length; j++) {
+            var isSel = (selVal === shuffledValues[j]) ? ' selected' : '';
+            html += '<option value="' + escapeHtmlContent(shuffledValues[j]) + '"' + isSel + '>' + escapeHtmlContent(shuffledValues[j]) + '</option>';
+          }
+          html += '</select>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+
+      html += '</div>';
+
+      // Update progress bar
+      var progress = ((index + 1) / totalQuestions) * 100;
+      document.getElementById('progressFill').style.width = progress + '%';
+
+      // Update navigation buttons
+      document.getElementById('prevBtn').style.display = (index > 0) ? 'inline-block' : 'none';
+      document.getElementById('nextBtn').style.display = (index < totalQuestions - 1) ? 'inline-block' : 'none';
+
+      // Check if all questions answered
+      var answeredCount = 0;
+      for (var key in answers) { answeredCount++; }
+      document.getElementById('submitBtn').disabled = (answeredCount < totalQuestions);
+
+      document.getElementById('quizContent').innerHTML = html;
+    }
+
+    function selectOption(qId, value) {
+      answers[qId] = value;
+      renderQuestion(currentQ);
+    }
+
+    function selectMatch(qId, key, value) {
+      if (!answers[qId]) answers[qId] = {};
+      answers[qId][key] = value;
+      renderQuestion(currentQ);
+    }
+
+    function nextQuestion() {
+      if (currentQ < totalQuestions - 1) {
+        currentQ++;
+        renderQuestion(currentQ);
+      }
+    }
+
+    function prevQuestion() {
+      if (currentQ > 0) {
+        currentQ--;
+        renderQuestion(currentQ);
+      }
+    }
+
+    function calculateScore() {
+      var correct = 0;
+      var total = totalQuestions;
+
+      for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var userAnswer = answers[q.id];
+
+        if (q.type === 'mcq' || q.type === 'boolean' || q.type === 'completion') {
+          var correctAnswer = String(q.correct_answer || '').trim().toLowerCase();
+          var userStr = String(userAnswer || '').trim().toLowerCase();
+          if (userStr === correctAnswer) correct++;
+        } else if (q.type === 'matching') {
+          var pairs = q.pairs || [];
+          var allCorrect = true;
+          for (var j = 0; j < pairs.length; j++) {
+            var expected = String(pairs[j].value).trim().toLowerCase();
+            var actual = userAnswer && userAnswer[pairs[j].key] ? String(userAnswer[pairs[j].key]).trim().toLowerCase() : '';
+            if (actual !== expected) allCorrect = false;
+          }
+          if (allCorrect) correct++;
+        }
+      }
+
+      return { correct: correct, total: total, percentage: Math.round((correct / total) * 100) };
+    }
+
+    function submitQuiz() {
+      var result = calculateScore();
+      var passed = result.percentage >= passingScore;
+
+      // Hide quiz content, show results
+      document.getElementById('quizContent').innerHTML = '';
+      document.getElementById('prevBtn').style.display = 'none';
+      document.getElementById('nextBtn').style.display = 'none';
+      document.getElementById('submitBtn').style.display = 'none';
+      document.getElementById('progressFill').style.width = '100%';
+
+      // Show results
+      document.getElementById('resultsContainer').classList.remove('hidden');
+      document.getElementById('scoreDisplay').textContent = result.percentage + '%';
+      document.getElementById('scoreLabel').textContent = result.correct + ' من ' + result.total + ' أسئلة صحيحة';
+      document.getElementById('passBadge').innerHTML = passed
+        ? '<div class="pass-badge">ناجح ✓</div>'
+        : '<div class="fail-badge">راسب ✗</div>';
+
+      // Review section
+      var reviewHtml = '';
+      for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var userAnswer = answers[q.id];
+        var isCorrect = false;
+
+        if (q.type === 'mcq' || q.type === 'boolean' || q.type === 'completion') {
+          var correctAnswer = String(q.correct_answer || '').trim().toLowerCase();
+          var userStr = String(userAnswer || '').trim().toLowerCase();
+          isCorrect = (userStr === correctAnswer);
+        } else if (q.type === 'matching') {
+          var pairs = q.pairs || [];
+          var allCorrect = true;
+          for (var j = 0; j < pairs.length; j++) {
+            var expected = String(pairs[j].value).trim().toLowerCase();
+            var actual = userAnswer && userAnswer[pairs[j].key] ? String(userAnswer[pairs[j].key]).trim().toLowerCase() : '';
+            if (actual !== expected) allCorrect = false;
+          }
+          isCorrect = allCorrect;
+        }
+
+        var cls = isCorrect ? 'correct' : 'incorrect';
+        reviewHtml += '<div class="review-item ' + cls + '">';
+        reviewHtml += '<div class="review-q">' + escapeHtmlContent(String(q.question)) + '</div>';
+        reviewHtml += '<div class="review-answer">إجابتك: ' + escapeHtmlContent(String(userAnswer || 'لم يتم الإجابة')) + '</div>';
+        if (!isCorrect) {
+          reviewHtml += '<div class="review-answer">الإجابة الصحيحة: ' + escapeHtmlContent(String(q.correct_answer || '')) + '</div>';
+        }
+        reviewHtml += '</div>';
+      }
+      document.getElementById('reviewSection').innerHTML = reviewHtml;
+
+      // Report to SCORM
+      if (scormApi) {
+        if ('${version}' === '1.2') {
+          scormApi.LMSSetValue("cmi.core.score.raw", String(result.percentage));
+          scormApi.LMSSetValue("cmi.core.score.min", "0");
+          scormApi.LMSSetValue("cmi.core.score.max", "100");
+          scormApi.LMSSetValue("cmi.core.lesson_status", passed ? "passed" : "failed");
+        } else {
+          scormApi.LMSSetValue("cmi.score.raw", String(result.percentage));
+          scormApi.LMSSetValue("cmi.score.min", "0");
+          scormApi.LMSSetValue("cmi.score.max", "100");
+          scormApi.LMSSetValue("cmi.score.scaled", String(result.percentage / 100));
+          scormApi.LMSSetValue("cmi.completion_status", "completed");
+          scormApi.LMSSetValue("cmi.success_status", passed ? "passed" : "failed");
+        }
+        scormApi.LMSCommit("");
+        scormApi.LMSFinish("");
+      }
+    }
+
+    function escapeHtmlContent(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function escapeJs(str) {
+      return str.replace(/\\\\/g, '\\\\\\\\\\').replace(/'/g, "\\\\\\\\'").replace(/"/g, '\\\\\\\\\\"');
+    }
+
+    // Start the quiz
+    renderQuestion(0);
+  </script>
+</body>
+</html>`;
+}
+
 // ─── HTML Generation Helpers ───
 
 function generateLessonHtml(lesson: Record<string, unknown>, version: ScormVersion): string {
@@ -244,7 +711,6 @@ function generateLessonHtml(lesson: Record<string, unknown>, version: ScormVersi
   if (lesson.content_html && typeof lesson.content_html === 'string') {
     contentHtml = lesson.content_html;
   } else if (lesson.published_json && typeof lesson.published_json === 'object') {
-    // Convert published_json to HTML if it's an object
     try {
       const jsonContent = lesson.published_json as Record<string, unknown>;
       if (jsonContent.html) {
@@ -321,7 +787,6 @@ function generateLessonHtml(lesson: Record<string, unknown>, version: ScormVersi
     // Initialize SCORM
     if (scormApi) {
       scormApi.LMSInitialize("");
-      // Set initial status
       if ('${version}' === '1.2') {
         scormApi.LMSSetValue("cmi.core.lesson_status", "incomplete");
       } else {
@@ -398,7 +863,7 @@ function convertBlocksToHtml(blocks: Array<Record<string, unknown>>): string {
 
 function generateManifest(
   title: string,
-  items: Array<{ identifier: string; title: string; identifierref: string }>,
+  items: Array<{ identifier: string; title: string; identifierref: string; hrefOverride?: string }>,
   version: ScormVersion,
   contentType: string,
   description?: string
@@ -406,8 +871,9 @@ function generateManifest(
   const manifestIdentifier = `manifest_${contentType}_${Date.now()}`;
   const orgIdentifier = `org_${contentType}`;
 
-  // Determine href for each resource (only lessons now — no quizzes)
-  const getHref = (item: { identifierref: string }) => {
+  // Determine href for each resource
+  const getHref = (item: { identifierref: string; hrefOverride?: string }) => {
+    if (item.hrefOverride) return item.hrefOverride;
     if (contentType === 'subject') {
       return `lessons/${item.identifierref.replace('res_lesson_', 'lesson_')}.html`;
     }
@@ -604,56 +1070,14 @@ function escapeXml(str: string): string {
 
 // ─── Minimal XSD content stubs (required by SCORM validators) ───
 
-const IMSCP_V1P1_XSD = `<?xml version="1.0" encoding="UTF-8"?>
-<xsd:schema targetNamespace="http://www.imsproject.org/xsd/imscp_v1p1"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns="http://www.imsproject.org/xsd/imscp_v1p1"
-  elementFormDefault="qualified">
-  <xsd:element name="manifest" type="xsd:anyType" />
-  <xsd:element name="organization" type="xsd:anyType" />
-  <xsd:element name="item" type="xsd:anyType" />
-  <xsd:element name="resource" type="xsd:anyType" />
-  <xsd:element name="file" type="xsd:anyType" />
-</xsd:schema>`;
+const IMSCP_V1P1_XSD = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema targetNamespace="http://www.imsproject.org/xsd/imscp_v1p1" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.imsproject.org/xsd/imscp_v1p1" elementFormDefault="qualified"><xsd:element name="manifest" type="xsd:anyType" /><xsd:element name="organization" type="xsd:anyType" /><xsd:element name="item" type="xsd:anyType" /><xsd:element name="resource" type="xsd:anyType" /><xsd:element name="file" type="xsd:anyType" /></xsd:schema>';
 
-const IMSMD_V1P2P2_XSD = `<?xml version="1.0" encoding="UTF-8"?>
-<xsd:schema targetNamespace="http://www.imsglobal.org/xsd/imsmd_v1p2"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns="http://www.imsglobal.org/xsd/imsmd_v1p2"
-  elementFormDefault="qualified">
-  <xsd:element name="metadata" type="xsd:anyType" />
-  <xsd:element name="schema" type="xsd:string" />
-  <xsd:element name="schemaversion" type="xsd:string" />
-</xsd:schema>`;
+const IMSMD_V1P2P2_XSD = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema targetNamespace="http://www.imsglobal.org/xsd/imsmd_v1p2" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.imsglobal.org/xsd/imsmd_v1p2" elementFormDefault="qualified"><xsd:element name="metadata" type="xsd:anyType" /><xsd:element name="schema" type="xsd:string" /><xsd:element name="schemaversion" type="xsd:string" /></xsd:schema>';
 
-const ADLCP_ROOTV1P2_XSD = `<?xml version="1.0" encoding="UTF-8"?>
-<xsd:schema targetNamespace="http://www.adlnet.org/xsd/adlcp_v1p2"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns="http://www.adlnet.org/xsd/adlcp_v1p2"
-  elementFormDefault="qualified">
-  <xsd:element name="scormType" type="xsd:string" />
-</xsd:schema>`;
+const ADLCP_ROOTV1P2_XSD = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema targetNamespace="http://www.adlnet.org/xsd/adlcp_v1p2" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.adlnet.org/xsd/adlcp_v1p2" elementFormDefault="qualified"><xsd:element name="scormType" type="xsd:string" /></xsd:schema>';
 
-const ADLCP_V1P3_XSD = `<?xml version="1.0" encoding="UTF-8"?>
-<xsd:schema targetNamespace="http://www.adlnet.org/xsd/adlcp_v1p3"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns="http://www.adlnet.org/xsd/adlcp_v1p3"
-  elementFormDefault="qualified">
-  <xsd:element name="scormType" type="xsd:string" />
-</xsd:schema>`;
+const ADLCP_V1P3_XSD = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema targetNamespace="http://www.adlnet.org/xsd/adlcp_v1p3" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.adlnet.org/xsd/adlcp_v1p3" elementFormDefault="qualified"><xsd:element name="scormType" type="xsd:string" /></xsd:schema>';
 
-const IMSSS_V1P0_XSD = `<?xml version="1.0" encoding="UTF-8"?>
-<xsd:schema targetNamespace="http://www.imsglobal.org/xsd/imsss"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns="http://www.imsglobal.org/xsd/imsss"
-  elementFormDefault="qualified">
-  <xsd:element name="sequencing" type="xsd:anyType" />
-</xsd:schema>`;
+const IMSSS_V1P0_XSD = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema targetNamespace="http://www.imsglobal.org/xsd/imsss" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.imsglobal.org/xsd/imsss" elementFormDefault="qualified"><xsd:element name="sequencing" type="xsd:anyType" /></xsd:schema>';
 
-const ADLSEQ_V1P3_XSD = `<?xml version="1.0" encoding="UTF-8"?>
-<xsd:schema targetNamespace="http://www.adlnet.org/xsd/adlseq_v1p3"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-  xmlns="http://www.adlnet.org/xsd/adlseq_v1p3"
-  elementFormDefault="qualified">
-  <xsd:element name="sequencing" type="xsd:anyType" />
-</xsd:schema>`;
+const ADLSEQ_V1P3_XSD = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema targetNamespace="http://www.adlnet.org/xsd/adlseq_v1p3" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.adlnet.org/xsd/adlseq_v1p3" elementFormDefault="qualified"><xsd:element name="sequencing" type="xsd:anyType" /></xsd:schema>';

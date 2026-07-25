@@ -4,15 +4,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Package, Upload, Download, Trash2, Play, Eye, Loader2,
   ChevronDown, ChevronRight, AlertCircle, CheckCircle2,
-  Clock, BarChart3, BookOpen, X, MoreHorizontal,
-  Archive, Edit, Settings
+  Clock, BarChart3, BookOpen, X,
+  Archive, ListChecks
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
-import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
-import type { UserProfile, Subject, CourseTab } from '@/lib/types';
+
+import type { UserProfile, Subject, QuestionBank } from '@/lib/types';
 import type { ScormPackage, ScormResource, ScormVersion } from '@/lib/scorm-types';
 import ScormPlayer from './scorm-player';
 
@@ -35,9 +35,22 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
 
   // ── Export modal state ──
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [exportContentType, setExportContentType] = useState<'lesson' | 'subject'>('subject');
+  const [exportContentType, setExportContentType] = useState<'lesson' | 'subject' | 'questionBank'>('subject');
   const [exportVersion, setExportVersion] = useState<ScormVersion>('1.2');
   const [exporting, setExporting] = useState(false);
+
+  // ── Question bank selection state ──
+  const [questionBanks, setQuestionBanks] = useState<Array<QuestionBank & { question_count?: number }>>([]);
+  const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+
+  // ── Platform-level SCORM import state ──
+  const [platformImportOpen, setPlatformImportOpen] = useState(false);
+  const [platformImporting, setPlatformImporting] = useState(false);
+  const [platformImportName, setPlatformImportName] = useState('');
+  const [platformImportDescription, setPlatformImportDescription] = useState('');
+  const [platformImportFile, setPlatformImportFile] = useState<File | null>(null);
+  const platformImportFileRef = useRef<HTMLInputElement>(null);
 
   // ── Delete confirmation state ──
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -87,7 +100,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      // Fetch tracking data for all packages
       const trackingMap: Record<string, Record<string, unknown>> = {};
 
       for (const pkg of packages) {
@@ -115,6 +127,41 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
   useEffect(() => {
     fetchTracking();
   }, [fetchTracking]);
+
+  // ── Fetch question banks for export selection ──
+  const fetchQuestionBanks = useCallback(async () => {
+    if (exportContentType !== 'questionBank') return;
+    try {
+      setLoadingBanks(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const response = await fetch(`/api/question-bank?subjectId=${subject.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setQuestionBanks(result.data || []);
+        // Auto-select all banks
+        const allIds = (result.data || []).map((b: QuestionBank) => b.id);
+        setSelectedBankIds(allIds);
+      } else {
+        console.error('[ScormTab] Question banks fetch error:', result.error);
+      }
+    } catch (err) {
+      console.error('[ScormTab] Question banks fetch error:', err);
+    } finally {
+      setLoadingBanks(false);
+    }
+  }, [exportContentType, subject.id]);
+
+  useEffect(() => {
+    fetchQuestionBanks();
+  }, [fetchQuestionBanks]);
 
   // ── Upload SCORM package ──
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,7 +208,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       toast.error(t('scorm.uploadError') || 'Failed to upload SCORM package');
     } finally {
       setUploading(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -203,19 +249,31 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
+      const exportBody: Record<string, unknown> = {
+        subjectId: subject.id,
+        contentType: exportContentType,
+        version: exportVersion,
+        title: subject.name,
+        description: subject.description || '',
+      };
+
+      // Add bankIds for question bank export
+      if (exportContentType === 'questionBank') {
+        if (selectedBankIds.length === 0) {
+          toast.error(t('scorm.selectBankError') || 'Please select at least one question bank');
+          setExporting(false);
+          return;
+        }
+        exportBody.bankIds = selectedBankIds;
+      }
+
       const response = await fetch('/api/scorm/export', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          subjectId: subject.id,
-          contentType: exportContentType,
-          version: exportVersion,
-          title: subject.name,
-          description: subject.description || '',
-        }),
+        body: JSON.stringify(exportBody),
       });
 
       if (!response.ok) {
@@ -245,6 +303,71 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
     }
   };
 
+  // ── Toggle bank selection ──
+  const toggleBankSelection = (bankId: string) => {
+    setSelectedBankIds(prev => {
+      if (prev.includes(bankId)) {
+        return prev.filter(id => id !== bankId);
+      }
+      return [...prev, bankId];
+    });
+  };
+
+  const toggleAllBanks = () => {
+    if (selectedBankIds.length === questionBanks.length) {
+      setSelectedBankIds([]);
+    } else {
+      setSelectedBankIds(questionBanks.map(b => b.id));
+    }
+  };
+
+  // ── Platform-level SCORM import handler ──
+  const handlePlatformImport = async () => {
+    if (!platformImportFile || !platformImportName.trim()) {
+      toast.error(t('scorm.selectBankError') || 'Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setPlatformImporting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const formData = new FormData();
+      formData.append('file', platformImportFile);
+      formData.append('name', platformImportName.trim());
+      formData.append('description', platformImportDescription.trim());
+
+      const response = await fetch('/api/scorm/platform-import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(t('scorm.platformImportSuccess') || 'Course imported from SCORM package successfully');
+        setPlatformImportOpen(false);
+        setPlatformImportName('');
+        setPlatformImportDescription('');
+        setPlatformImportFile(null);
+        if (platformImportFileRef.current) {
+          platformImportFileRef.current.value = '';
+        }
+      } else {
+        toast.error(result.error || t('scorm.platformImportError') || 'Failed to import course from SCORM package');
+      }
+    } catch (err) {
+      console.error('[ScormTab] Platform import error:', err);
+      toast.error(t('scorm.platformImportError') || 'Failed to import course from SCORM package');
+    } finally {
+      setPlatformImporting(false);
+    }
+  };
+
   // ── Launch SCORM content ──
   const handleLaunch = (pkg: ScormPackage, resource: ScormResource) => {
     setActivePlayer({
@@ -255,7 +378,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
 
   // ── Handle progress update from SCORM player ──
   const handleProgressUpdate = useCallback((data: Record<string, unknown>) => {
-    // Update local tracking data
     if (activePlayer?.resourceId) {
       setTrackingData(prev => ({
         ...prev,
@@ -267,7 +389,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
   // ── Close player ──
   const handleClosePlayer = useCallback(() => {
     setActivePlayer(null);
-    // Refresh tracking data
     fetchTracking();
   }, [fetchTracking]);
 
@@ -328,6 +449,15 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
           >
             <Download className="h-4 w-4" />
             {t('scorm.exportScorm') || 'Export as SCORM'}
+          </button>
+
+          {/* Platform Import button — Import external SCORM to create new course */}
+          <button
+            onClick={() => setPlatformImportOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+          >
+            <Archive className="h-4 w-4" />
+            {t('scorm.platformImportTitle') || 'Import Course from SCORM'}
           </button>
         </div>
       )}
@@ -398,7 +528,7 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-background rounded-xl shadow-xl max-w-md w-full p-6 border border-border"
+              className="bg-background rounded-xl shadow-xl max-w-lg w-full p-6 border border-border max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold">{t('scorm.exportTitle') || 'Export as SCORM'}</h3>
@@ -411,15 +541,15 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
                 {/* Content Type Selection */}
                 <div>
                   <label className="text-sm font-medium mb-2 block">{t('scorm.exportContentType') || 'Content Type'}</label>
-                  {/* Note: Question banks are exported/imported separately using JSON format only */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {[
                       { value: 'lesson', label: t('scorm.exportLesson') || 'Lessons', icon: <BookOpen className="h-4 w-4" /> },
                       { value: 'subject', label: t('scorm.exportSubject') || 'Full Course', icon: <Package className="h-4 w-4" /> },
+                      { value: 'questionBank', label: t('scorm.exportQuiz') || 'Question Banks', icon: <ListChecks className="h-4 w-4" /> },
                     ].map(option => (
                       <button
                         key={option.value}
-                        onClick={() => setExportContentType(option.value as 'lesson' | 'subject')}
+                        onClick={() => setExportContentType(option.value as 'lesson' | 'subject' | 'questionBank')}
                         className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all text-sm ${
                           exportContentType === option.value
                             ? 'border-sky-700 bg-sky-50 text-sky-700 dark:bg-sky-900/20'
@@ -431,10 +561,77 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {t('scorm.quizJsonNote') || 'Question banks are exported/imported separately using JSON format from the Question Bank section.'}
-                  </p>
                 </div>
+
+                {/* Question Bank Selection — only shown when contentType is 'questionBank' */}
+                {exportContentType === 'questionBank' && (
+                  <div className="border border-border rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-medium">{t('scorm.selectBanks') || 'Select Question Banks'}</label>
+                      <button
+                        onClick={toggleAllBanks}
+                        className="text-xs text-sky-700 hover:underline"
+                      >
+                        {selectedBankIds.length === questionBanks.length
+                          ? (t('scorm.deselectAll') || 'Deselect All')
+                          : (t('scorm.selectAll') || 'Select All')
+                        }
+                      </button>
+                    </div>
+
+                    {loadingBanks && (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-4 w-4 animate-spin text-sky-700" />
+                        <span className="text-sm text-muted-foreground ml-2">{t('scorm.loadingBanks') || 'Loading banks...'}</span>
+                      </div>
+                    )}
+
+                    {!loadingBanks && questionBanks.length === 0 && (
+                      <div className="text-center py-8">
+                        <ListChecks className="h-8 w-8 text-muted-foreground mb-2 mx-auto" />
+                        <p className="text-sm text-muted-foreground">{t('scorm.noBanks') || 'No question banks found in this subject'}</p>
+                      </div>
+                    )}
+
+                    {!loadingBanks && questionBanks.length > 0 && (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {questionBanks.map(bank => (
+                          <div
+                            key={bank.id}
+                            onClick={() => toggleBankSelection(bank.id)}
+                            className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${
+                              selectedBankIds.includes(bank.id)
+                                ? 'bg-sky-50 border-sky-700 dark:bg-sky-900/20'
+                                : 'bg-muted/30 hover:bg-muted/50'
+                            }`}
+                          >
+                            <div className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                              selectedBankIds.includes(bank.id)
+                                ? 'border-sky-700 bg-sky-700'
+                                : 'border-muted-foreground/30'
+                            }`}>
+                              {selectedBankIds.includes(bank.id) && (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium truncate block">{bank.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {(bank as Record<string, unknown>).question_count || 0} {t('scorm.questions') || 'questions'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedBankIds.length > 0 && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {t('scorm.selectedCount') || 'Selected'}: {selectedBankIds.length} {t('scorm.banks') || 'banks'}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* SCORM Version Selection */}
                 <div>
@@ -463,11 +660,111 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
                 {/* Export Button */}
                 <button
                   onClick={handleExport}
-                  disabled={exporting}
+                  disabled={exporting || (exportContentType === 'questionBank' && selectedBankIds.length === 0)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 font-medium"
                 >
                   {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   {exporting ? (t('scorm.exporting') || 'Exporting...') : (t('scorm.exportButton') || 'Export SCORM Package')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Platform Import Modal ── */}
+      <AnimatePresence>
+        {platformImportOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-background rounded-xl shadow-xl max-w-md w-full p-6 border border-border"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">{t('scorm.platformImportTitle') || 'Import Course from SCORM'}</h3>
+                <button onClick={() => setPlatformImportOpen(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <p className="text-sm text-muted-foreground mb-4">
+                {t('scorm.platformImportDesc') || 'Upload an external SCORM package to create a new course on the platform'}
+              </p>
+
+              <div className="space-y-4">
+                {/* Course Name */}
+                <div>
+                  <label className="text-sm font-medium mb-1 block">{t('scorm.platformImportName') || 'Course Name'} *</label>
+                  <input
+                    type="text"
+                    value={platformImportName}
+                    onChange={(e) => setPlatformImportName(e.target.value)}
+                    placeholder={t('scorm.platformImportName') || 'Course Name'}
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-sky-700 text-sm"
+                  />
+                </div>
+
+                {/* Course Description */}
+                <div>
+                  <label className="text-sm font-medium mb-1 block">{t('scorm.platformImportDescription') || 'Course Description'}</label>
+                  <textarea
+                    value={platformImportDescription}
+                    onChange={(e) => setPlatformImportDescription(e.target.value)}
+                    placeholder={t('scorm.platformImportDescription') || 'Course Description'}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-sky-700 text-sm resize-none"
+                  />
+                </div>
+
+                {/* File Upload */}
+                <div>
+                  <label className="text-sm font-medium mb-1 block">{t('common.upload') || 'Upload'} (.zip) *</label>
+                  <div
+                    onClick={() => platformImportFileRef.current?.click()}
+                    className="flex items-center gap-3 p-3 border border-border rounded-lg cursor-pointer hover:border-sky-700/50 transition-colors"
+                  >
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      {platformImportFile ? (
+                        <span className="text-sm font-medium truncate block">{platformImportFile.name}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Click to select a SCORM ZIP file</span>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    ref={platformImportFileRef}
+                    type="file"
+                    accept=".zip"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (!file.name.toLowerCase().endsWith('.zip')) {
+                          toast.error(t('scorm.onlyZipAllowed') || 'Only .zip files are allowed');
+                          return;
+                        }
+                        setPlatformImportFile(file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Import Button */}
+                <button
+                  onClick={handlePlatformImport}
+                  disabled={platformImporting || !platformImportFile || !platformImportName.trim()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 font-medium"
+                >
+                  {platformImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                  {platformImporting ? (t('scorm.platformImporting') || 'Importing...') : (t('scorm.platformImportButton') || 'Import & Create Course')}
                 </button>
               </div>
             </motion.div>
