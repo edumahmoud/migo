@@ -338,10 +338,10 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
         // Inject SCORM API based on version
         if (packageVersion === '1.2') {
           const api = createScorm12API(cmiData, trackingCallback);
-          iframeWindow.API = api;
+          (iframeWindow as unknown as Record<string, unknown>).API = api;
         } else {
           const api = createScorm2004API(cmiData, trackingCallback);
-          iframeWindow.API_1484_11 = api;
+          (iframeWindow as unknown as Record<string, unknown>).API_1484_11 = api;
         }
 
         console.log('[ScormPlayer] SCORM API injected:', packageVersion === '1.2' ? 'window.API' : 'window.API_1484_11');
@@ -391,16 +391,16 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
     };
 
     if (packageVersion === '1.2') {
-      (window as Record<string, unknown>).API = createScorm12API(cmiData, trackingCallback);
+      (window as unknown as Record<string, unknown>).API = createScorm12API(cmiData, trackingCallback);
     } else {
-      (window as Record<string, unknown>).API_1484_11 = createScorm2004API(cmiData, trackingCallback);
+      (window as unknown as Record<string, unknown>).API_1484_11 = createScorm2004API(cmiData, trackingCallback);
     }
 
     return () => {
       iframe.removeEventListener('load', handleLoad);
       // Clean up parent window API
-      delete (window as Record<string, unknown>).API;
-      delete (window as Record<string, unknown>).API_1484_11;
+      delete (window as unknown as Record<string, unknown>).API;
+      delete (window as unknown as Record<string, unknown>).API_1484_11;
     };
   }, [launchUrl, packageVersion, cmiData, packageId, resourceId, onProgressUpdate]);
 
