@@ -1098,6 +1098,7 @@
     "exportQuiz": "Quizzes",
     "exportLesson": "Lessons",
     "exportSubject": "Full Course",
+    "quizJsonNote": "Question banks are exported/imported separately using JSON format from the Question Bank section.",
     "scormVersion": "SCORM Version",
     "version12Desc": "Most widely supported",
     "version2004Desc": "More advanced tracking",

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Package, Upload, Download, Trash2, Play, Eye, Loader2,
   ChevronDown, ChevronRight, AlertCircle, CheckCircle2,
-  Clock, BarChart3, FileCheck, BookOpen, X, MoreHorizontal,
+  Clock, BarChart3, BookOpen, X, MoreHorizontal,
   Archive, Edit, Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,7 +35,7 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
 
   // ── Export modal state ──
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  const [exportContentType, setExportContentType] = useState<'quiz' | 'lesson' | 'subject'>('subject');
+  const [exportContentType, setExportContentType] = useState<'lesson' | 'subject'>('subject');
   const [exportVersion, setExportVersion] = useState<ScormVersion>('1.2');
   const [exporting, setExporting] = useState(false);
 
@@ -214,7 +214,7 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
           contentType: exportContentType,
           version: exportVersion,
           title: subject.name,
-          description: subject.description,
+          description: subject.description || '',
         }),
       });
 
@@ -411,15 +411,15 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
                 {/* Content Type Selection */}
                 <div>
                   <label className="text-sm font-medium mb-2 block">{t('scorm.exportContentType') || 'Content Type'}</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Note: Question banks are exported/imported separately using JSON format only */}
+                  <div className="grid grid-cols-2 gap-2">
                     {[
-                      { value: 'quiz', label: t('scorm.exportQuiz') || 'Quizzes', icon: <FileCheck className="h-4 w-4" /> },
                       { value: 'lesson', label: t('scorm.exportLesson') || 'Lessons', icon: <BookOpen className="h-4 w-4" /> },
                       { value: 'subject', label: t('scorm.exportSubject') || 'Full Course', icon: <Package className="h-4 w-4" /> },
                     ].map(option => (
                       <button
                         key={option.value}
-                        onClick={() => setExportContentType(option.value as 'quiz' | 'lesson' | 'subject')}
+                        onClick={() => setExportContentType(option.value as 'lesson' | 'subject')}
                         className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all text-sm ${
                           exportContentType === option.value
                             ? 'border-sky-700 bg-sky-50 text-sky-700 dark:bg-sky-900/20'
@@ -431,6 +431,9 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
                       </button>
                     ))}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {t('scorm.quizJsonNote') || 'Question banks are exported/imported separately using JSON format from the Question Bank section.'}
+                  </p>
                 </div>
 
                 {/* SCORM Version Selection */}

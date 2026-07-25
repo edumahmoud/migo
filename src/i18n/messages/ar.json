@@ -1099,6 +1099,7 @@
     "exportQuiz": "الاختبارات",
     "exportLesson": "الدروس",
     "exportSubject": "المقرر كامل",
+    "quizJsonNote": "بنوك الأسئلة يتم تصديرها واستيرادها بشكل مستقل باستخدام صيغة JSON من قسم بنوك الأسئلة.",
     "scormVersion": "إصدار SCORM",
     "version12Desc": "الأكثر انتشاراً ودعمًا",
     "version2004Desc": "تتبع أكثر تفصيلًا",
