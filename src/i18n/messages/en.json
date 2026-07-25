@@ -1086,8 +1086,8 @@
     "tabScorm": "SCORM"
   },
   "scorm": {
-    "uploadPackage": "Upload SCORM Package",
-    "exportScorm": "Export as SCORM",
+    "uploadPackage": "Import External SCORM Package",
+    "exportScorm": "Export Lessons as SCORM",
     "uploading": "Uploading...",
     "uploadSuccess": "SCORM package uploaded successfully",
     "uploadError": "Failed to upload SCORM package",
@@ -1108,7 +1108,7 @@
     "exportError": "Failed to export SCORM package",
     "loadingPackages": "Loading SCORM packages...",
     "noPackages": "No SCORM Packages",
-    "noPackagesTeacher": "Upload a SCORM package or export your content to get started",
+    "noPackagesTeacher": "Import an external SCORM package from tools like Articulate Storyline or Adobe Captivate, or export your lesson content as SCORM",
     "noPackagesStudent": "No SCORM content is available yet",
     "loading": "Loading SCORM content...",
     "launchError": "Failed to load SCORM content",

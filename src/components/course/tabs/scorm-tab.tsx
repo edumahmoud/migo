@@ -349,7 +349,7 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             {role === 'teacher'
-              ? (t('scorm.noPackagesTeacher') || 'Upload a SCORM package or export your content to get started')
+              ? (t('scorm.noPackagesTeacher') || 'Import an external SCORM package from tools like Articulate Storyline or Adobe Captivate, or export your lesson content as SCORM')
               : (t('scorm.noPackagesStudent') || 'No SCORM content is available yet')
             }
           </p>
