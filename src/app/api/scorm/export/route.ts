@@ -64,8 +64,6 @@ export async function POST(request: NextRequest) {
     const packageDescription = description || subject.description || '';
 
     let zip: JSZip;
-    let manifestXml: string;
-    let totalScos: number;
 
     switch (contentType) {
       case 'quiz':
@@ -83,10 +81,6 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
     }
-
-    // Generate the manifest XML based on version
-    manifestXml = zip.file('imsmanifest.xml')?.asText() || '';
-    totalScos = countScosInZip(zip);
 
     // ── Generate the ZIP buffer ──
     const zipBuffer = await zip.generateAsync({
@@ -889,16 +883,6 @@ function escapeXml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-function countScosInZip(zip: JSZip): number {
-  let count = 0;
-  zip.forEach((relativePath, file) => {
-    if (relativePath.endsWith('.html') && !file.dir) {
-      count++;
-    }
-  });
-  return count;
 }
 
 // ─── Minimal XSD content stubs (required by SCORM validators) ───
