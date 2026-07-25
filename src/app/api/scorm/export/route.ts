@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
           questionIds || [],
           scormVersion,
           packageTitle,
+          packageDescription,
           authResult.user.id
         );
         break;
@@ -255,6 +256,7 @@ async function exportQuestionBankAsScorm(
   questionIds: string[],
   version: ScormVersion,
   packageTitle: string,
+  packageDescription: string,
   userId: string
 ): Promise<JSZip> {
   // ── Fetch question banks ──
@@ -351,7 +353,7 @@ async function exportQuestionBankAsScorm(
     manifestItems,
     version,
     'questionBank',
-    packageDescription || ''
+    packageDescription
   );
   zip.file('imsmanifest.xml', manifest);
 
