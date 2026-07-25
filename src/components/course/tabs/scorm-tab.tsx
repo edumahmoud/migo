@@ -617,7 +617,7 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-medium truncate block">{bank.name}</span>
                               <span className="text-xs text-muted-foreground">
-                                {(bank as Record<string, unknown>).question_count || 0} {t('scorm.questions') || 'questions'}
+                                {bank.question_count ?? 0} {t('scorm.questions') || 'questions'}
                               </span>
                             </div>
                           </div>
