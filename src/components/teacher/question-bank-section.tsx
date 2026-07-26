@@ -35,6 +35,7 @@ import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, Su
 import { stripFileExtension } from '@/lib/utils';
 import { useTranslations } from '@/i18n/use-translations';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import ExportGoogleFormModal from '@/components/question-bank/export-google-form-modal';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -215,6 +216,9 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // ─── Deleting ───
   const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
   const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null);
+
+  // ─── Google Forms export modal ───
+  const [googleFormsModalOpen, setGoogleFormsModalOpen] = useState(false);
 
   // -------------------------------------------------------
   // Data fetching
@@ -1417,6 +1421,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 <Upload className="h-4 w-4" />
                 <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
               </label>
+              <button
+                onClick={() => setGoogleFormsModalOpen(true)}
+                className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-emerald-50 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 px-2.5 text-xs font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                title={t('questionBank.googleFormsExportBtn') || 'Export to Google Forms'}
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#34A853"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.57-3.57C18.46 2.09 15.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                <span className="hidden lg:inline">Google Forms</span>
+              </button>
             </div>
 
             {/* Mobile: secondary actions in dropdown */}
@@ -1441,6 +1453,10 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                     {t('questionBank.importJsonTitle')}
                     <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
                   </label>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setGoogleFormsModalOpen(true)}>
+                  <svg className="h-4 w-4 me-2" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.57-3.57C18.46 2.09 15.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                  {t('questionBank.googleFormsExportBtn') || 'Export to Google Forms'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -2005,6 +2021,13 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       {renderAddQuestionModal()}
       {renderAiModal()}
       {renderEditModal()}
+      <ExportGoogleFormModal
+        open={googleFormsModalOpen}
+        onClose={() => setGoogleFormsModalOpen(false)}
+        selectedQuestionIds={selectedBank?.questions?.map(q => q.id) || []}
+        selectedBankIds={selectedBank ? [selectedBank.id] : []}
+        totalQuestionCount={selectedBank?.questions?.length || 0}
+      />
     </div>
   );
 }

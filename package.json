@@ -74,6 +74,7 @@
     "embla-carousel-react": "^8.6.0",
     "exceljs": "^4.4.0",
     "framer-motion": "^12.23.2",
+    "googleapis": "^173.0.0",
     "html5-qrcode": "^2.3.8",
     "input-otp": "^1.4.2",
     "jszip": "^3.10.1",
