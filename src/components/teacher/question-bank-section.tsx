@@ -220,6 +220,28 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // ─── Google Forms export modal ───
   const [googleFormsModalOpen, setGoogleFormsModalOpen] = useState(false);
 
+  // ─── Detect OAuth callback URL params ───
+  // When the user returns from Google OAuth (same-tab redirect fallback),
+  // auto-open the modal so they can proceed with the export
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('google_auth_success');
+    const authError = urlParams.get('google_auth_error');
+
+    if (authSuccess === 'true') {
+      // Clean URL and open the Google Forms modal
+      window.history.replaceState({}, '', window.location.pathname);
+      setGoogleFormsModalOpen(true);
+      toast.success(t('questionBank.googleFormsAuthSuccess') || 'Google Forms authorization successful!');
+    }
+
+    if (authError) {
+      // Clean URL and show error
+      window.history.replaceState({}, '', window.location.pathname);
+      toast.error(t('questionBank.googleFormsAuthError') || 'Google authorization failed: ' + authError);
+    }
+  }, [t]);
+
   // -------------------------------------------------------
   // Data fetching
   // -------------------------------------------------------

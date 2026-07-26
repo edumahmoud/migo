@@ -113,6 +113,7 @@ export default function ExportGoogleFormModal({
     userForms,
     exportResult,
     error,
+    authJustCompleted,
     checkAuth,
     loadUserForms,
     exportToGoogleForm,
@@ -131,6 +132,14 @@ export default function ExportGoogleFormModal({
   const [formMode, setFormMode] = useState<'createNew' | 'appendToExisting'>('createNew');
   const [existingFormId, setExistingFormId] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // ─── Show success toast when auth just completed ───
+
+  useEffect(() => {
+    if (authJustCompleted && open) {
+      toast.success(t('questionBank.googleFormsAuthSuccess') || 'Google Forms authorization successful!');
+    }
+  }, [authJustCompleted, open, t]);
 
   // ─── Determine current stage (derived from hook state) ───
 
@@ -255,6 +264,11 @@ export default function ExportGoogleFormModal({
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           {t('questionBank.googleFormsCheckingAuth') || 'Checking authorization...'}
+        </div>
+      ) : authStatus?.configured === false ? (
+        // Google OAuth env vars are not set — show configuration message
+        <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/15 p-4 text-sm text-amber-700 dark:text-amber-400 max-w-sm">
+          {t('questionBank.googleFormsNotConfigured') || 'Google Forms integration is not configured. Please set up Google OAuth credentials in the admin settings.'}
         </div>
       ) : (
         <Button

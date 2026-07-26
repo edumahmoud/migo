@@ -3975,6 +3975,8 @@
     "googleFormsAuthDesc": "يجب منح صلاحية الوصول إلى Google Forms API قبل التصدير. هذا يسمح لAttenDo بإنشاء وتكوين الاستمارات نيابة عنك.",
     "googleFormsCheckingAuth": "جارٍ التحقق من الصلاحية...",
     "googleFormsAuthorize": "تفويض Google Forms",
+    "googleFormsAuthSuccess": "تم تفويض Google Forms بنجاح!",
+    "googleFormsAuthError": "فشل تفويض Google",
     "googleFormsQuestionCount": "الأسئلة للتصدير",
     "googleFormsOptions": "خيارات الاستمارة",
     "googleFormsCreateAsQuiz": "إنشاء كاختبار (مع التصحيح)",

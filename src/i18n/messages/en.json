@@ -3974,6 +3974,8 @@
     "googleFormsAuthDesc": "You need to authorize access to Google Forms API before exporting. This allows AttenDo to create and configure forms on your behalf.",
     "googleFormsCheckingAuth": "Checking authorization...",
     "googleFormsAuthorize": "Authorize Google Forms",
+    "googleFormsAuthSuccess": "Google Forms authorization successful!",
+    "googleFormsAuthError": "Google authorization failed",
     "googleFormsQuestionCount": "Questions to export",
     "googleFormsOptions": "Form Options",
     "googleFormsCreateAsQuiz": "Create as Quiz (graded)",

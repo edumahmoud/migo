@@ -34,6 +34,7 @@ export interface GoogleAuthStatus {
   isAuthorized: boolean;
   hasFormsScope: boolean;
   needsIncrementalAuth: boolean;
+  configured?: boolean; // Whether Google OAuth env vars are set
   authUrl?: string;
   tokenExpiry?: string;
 }
