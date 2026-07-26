@@ -107,3 +107,24 @@ Stage Summary:
 - Lint: ✅ Clean, no errors
 - Dev server: ✅ Running on port 3000
 - Git: ✅ Committed locally (push failed due to no GitHub auth token)
+---
+Task ID: 1
+Agent: main
+Task: Fix Google Forms OAuth flow — popup+polling, URL param detection, configured status handling
+
+Work Log:
+- Identified that the original implementation used `window.open` (popup) for Google OAuth, but the main window never detected when authorization completed in the popup
+- Found no URL parameter detection for `google_auth_success=true` / `google_auth_error=...` on the client side
+- Found `GoogleAuthStatus` type missing `configured` field returned by the auth check API
+- Updated `useGoogleForms.ts`: changed to popup+polling approach (polls auth status every 3s while popup open), falls back to same-tab redirect if popup blocked, added `authJustCompleted` flag, added URL param detection
+- Updated `export-google-form-modal.tsx`: added `authJustCompleted` toast notification, added `configured: false` detection to show proper config warning instead of broken authorize button
+- Updated `question-bank-section.tsx`: added useEffect to detect OAuth callback URL params, auto-open modal + show toast on auth success/error
+- Updated `GoogleAuthStatus` type: added optional `configured` field
+- Added i18n keys: `googleFormsAuthSuccess` and `googleFormsAuthError` in both ar.json and en.json
+- Lint passed, pushed to GitHub
+
+Stage Summary:
+- Google Forms OAuth flow now works via popup+polling (checks auth every 3s) and URL param detection (for same-tab fallback)
+- When auth completes, modal auto-transitions from auth-check stage to config stage with success toast
+- When Google OAuth env vars are not configured, shows proper warning instead of broken button
+- Changes pushed to GitHub (commit 2efbd34), will deploy on Vercel
