@@ -202,7 +202,9 @@ function buildQuestionItem(
 
 /**
  * Creates a new Google Form with the specified configuration and questions.
- * Uses batchUpdate for efficient question insertion.
+ *
+ * IMPORTANT: Google Forms API only allows `info.title` in the create request.
+ * Description, questions, and settings must ALL be added via batchUpdate.
  *
  * Returns the form ID, edit URL, responder URL, and export statistics.
  */
@@ -213,12 +215,13 @@ export async function createNewGoogleForm(
 ): Promise<ExportGoogleFormResult> {
   const formsClient = await getFormsClient(userId);
 
-  // ── Step 1: Create the base form ──
+  // ── Step 1: Create the base form with ONLY the title ──
+  // Google Forms API restriction: only info.title can be set during creation.
+  // Everything else (description, questions, settings) must use batchUpdate.
   const createResponse = await formsClient.forms.create({
     requestBody: {
       info: {
         title: config.formTitle,
-        description: config.formDescription || '',
       },
     },
   });
@@ -240,31 +243,35 @@ export async function createNewGoogleForm(
   for (let i = 0; i < supported.length; i++) {
     const item = buildQuestionItem(supported[i], i, config.createAsQuiz);
     if (item) {
+      // If shuffleOptions is enabled, add shuffleOptions to choice questions
+      if (config.shuffleOptions && supported[i].googleFormChoiceType) {
+        const questionItem = (item.questionItem as Record<string, unknown>).question as Record<string, unknown>;
+        if (questionItem.choiceQuestion) {
+          (questionItem.choiceQuestion as Record<string, unknown>).shuffle = true;
+        }
+      }
       questionItems.push(item);
     }
   }
 
-  // ── Step 3: Build batchUpdate requests ──
+  // ── Step 3: Build ALL batchUpdate requests in one call ──
   const requests: Array<Record<string, unknown>> = [];
 
-  // Add question items
-  for (const item of questionItems) {
-    requests.push({ createItem: item });
-  }
-
-  // Configure quiz settings if createAsQuiz is true
-  if (config.createAsQuiz) {
+  // 3a: Add description if provided (must be done via batchUpdate, not create)
+  if (config.formDescription && config.formDescription.trim()) {
     requests.push({
       updateFormInfo: {
         info: {
           title: config.formTitle,
-          description: config.formDescription || '',
+          description: config.formDescription,
         },
-        updateMask: 'title,description',
+        updateMask: 'description',
       },
     });
+  }
 
-    // Set the form as a quiz
+  // 3b: Set quiz mode if requested
+  if (config.createAsQuiz) {
     requests.push({
       updateSettings: {
         settings: {
@@ -277,55 +284,20 @@ export async function createNewGoogleForm(
     });
   }
 
+  // 3c: Add question items
+  for (const item of questionItems) {
+    requests.push({ createItem: item });
+  }
+
   // ── Step 4: Execute batchUpdate with retry ──
-  const result = await executeWithRetry(async () => {
+  await executeWithRetry(async () => {
     return formsClient.forms.batchUpdate({
       formId,
       requestBody: { requests },
     });
   });
 
-  // ── Step 5: Configure additional settings ──
-  if (config.shuffleQuestions || config.shuffleOptions || config.collectEmailAddresses) {
-    const settingsRequests: Array<Record<string, unknown>> = [];
-
-    if (config.shuffleQuestions) {
-      settingsRequests.push({
-        updateSettings: {
-          settings: {
-            quizSettings: {
-              isQuiz: config.createAsQuiz,
-            },
-          },
-          updateMask: 'quizSettings.isQuiz',
-        },
-      });
-    }
-
-    if (config.collectEmailAddresses) {
-      settingsRequests.push({
-        updateSettings: {
-          settings: {
-            quizSettings: {
-              isQuiz: config.createAsQuiz,
-            },
-          },
-          updateMask: 'quizSettings.isQuiz',
-        },
-      });
-    }
-
-    if (settingsRequests.length > 0) {
-      await executeWithRetry(async () => {
-        return formsClient.forms.batchUpdate({
-          formId,
-          requestBody: { requests: settingsRequests },
-        });
-      });
-    }
-  }
-
-  // ── Step 6: Build result ──
+  // ── Step 5: Build result ──
   const editUrl = `https://docs.google.com/forms/d/${formId}/edit`;
   const responderUrl = `https://docs.google.com/forms/d/${formId}/viewform`;
 
@@ -381,6 +353,13 @@ export async function appendToExistingGoogleForm(
   for (let i = 0; i < supported.length; i++) {
     const item = buildQuestionItem(supported[i], startIndex + i, config.createAsQuiz);
     if (item) {
+      // If shuffleOptions is enabled, add shuffleOptions to choice questions
+      if (config.shuffleOptions && supported[i].googleFormChoiceType) {
+        const questionItem = (item.questionItem as Record<string, unknown>).question as Record<string, unknown>;
+        if (questionItem.choiceQuestion) {
+          (questionItem.choiceQuestion as Record<string, unknown>).shuffle = true;
+        }
+      }
       requests.push({ createItem: item });
     }
   }
