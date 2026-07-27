@@ -282,7 +282,7 @@ export default function ExportGoogleFormModal({
       formMode,
       existingFormId: formMode === 'appendToExisting' ? existingFormId : undefined,
       enabledQuestionTypes,
-      pointValuesByType: createAsQuiz ? pointValuesByType : undefined,
+      pointValuesByType,
     };
 
     await exportToGoogleForm(selectedQuestionIds, selectedBankIds, config);
@@ -438,8 +438,8 @@ export default function ExportGoogleFormModal({
                       {mapping?.reason}
                     </p>
                   )}
-                  {/* Point value input (only visible when quiz mode + type is checked) */}
-                  {isChecked && createAsQuiz && (
+                  {/* Point value input (visible when type is checked) */}
+                  {isChecked && (
                     <div className="flex items-center gap-1.5 mt-2">
                       <Label htmlFor={`points-${type}`} className="text-xs text-muted-foreground whitespace-nowrap" dir={direction}>
                         {t('questionBank.googleFormsPointValue') || 'Points'}:
