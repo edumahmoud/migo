@@ -128,3 +128,55 @@ Stage Summary:
 - When auth completes, modal auto-transitions from auth-check stage to config stage with success toast
 - When Google OAuth env vars are not configured, shows proper warning instead of broken button
 - Changes pushed to GitHub (commit 2efbd34), will deploy on Vercel
+
+---
+Task ID: 3
+Agent: main
+Task: Fix matching question export issue, add question type filtering, bold question titles
+
+Work Log:
+- Updated `src/types/googleForms.ts`:
+  - Changed matching type mapping from unsupported → supported (choiceQuestion/DROP_DOWN)
+  - Added `enabledQuestionTypes` field to `ExportGoogleFormConfig` for type filtering
+  - Added `ALL_QUESTION_TYPES` constant array
+  - Added `ExportedQuestionDetail` interface for success view
+  - Added `exportedQuestions` field to `ExportGoogleFormResult`
+  - Updated matching reason: "Each matching pair is converted to a dropdown question..."
+- Rewrote `src/lib/google/forms.ts`:
+  - Added `buildBoldTitle()` function: prepends ★ to question titles for visual emphasis
+  - Added `buildMatchingPairItems()` function: expands each matching pair into a DROP_DOWN question
+    - Title: ★ [Parent Title] — [Left Side]
+    - Options: All right sides from all pairs (dropdown choices)
+    - Correct answer: The matching right side (for quiz grading)
+  - Added `buildAllQuestionItems()` function: handles both regular and matching questions with proper index tracking
+  - Updated `buildGradingUpdateRequests()`: now uses `matchingOffsetMap` to properly calculate item indices when matching questions are expanded into multiple items
+  - Updated `createNewGoogleForm()` and `appendToExistingGoogleForm()`: pass `enabledQuestionTypes` to `mapQuestionsToGoogleForm()`, use `buildAllQuestionItems()`, return `exportedQuestions` and accurate `questionsExported` count
+  - Updated `mapQuestionsToGoogleForm()`: accepts optional `enabledTypes` parameter for type filtering
+- Rewrote `src/components/question-bank/export-google-form-modal.tsx`:
+  - Added question type selection section with checkboxes for MCQ, Boolean, Completion, Matching
+  - Each type shows: label, count badge, Google Forms mapping (e.g., "→ RADIO", "→ DROP_DOWN (pairs expanded)")
+  - Matching type shows special note: "Each pair becomes a dropdown question"
+  - Added `enabledQuestionTypes` state (default: all types enabled)
+  - Added `filteredQuestionCount` calculation (shows N/M selected)
+  - Export button disabled when no types selected
+  - Success stage now shows exported questions list with bold titles (`font-bold`)
+  - Success stage shows question type → Google Forms type mapping
+  - Added `ListFilter` icon import
+  - Added `Badge` component import
+- Updated `src/components/teacher/question-bank-section.tsx`:
+  - Added `questionTypeCounts` prop to ExportGoogleFormModal
+  - Computed from `selectedBank?.questions` using reduce
+- Added i18n translations:
+  - ar.json: googleFormsQuestionTypeFilter, googleFormsNoTypesSelected, googleFormsQuestionCountUnit, googleFormsMatchingConverted, googleFormsExportedQuestionsList, googleFormsUnsupportedWarningNew
+  - en.json: Same 6 keys in English
+- Lint: ✅ Clean, no errors
+- Dev server: ✅ Running on port 3000 without errors
+
+Stage Summary:
+- Matching questions are now SUPPORTED for Google Forms export (expanded into dropdown questions)
+- Each matching pair → one DROP_DOWN question with ★ bold title prefix
+- Users can select/deselect question types before export (MCQ, Boolean, Completion, Matching)
+- Question titles are displayed in bold (font-bold) in the success view
+- Google Forms titles use ★ prefix for visual emphasis in the form
+- Exported questions list shown in success stage with type mapping info
+- All changes verified with lint ✅ and dev server ✅

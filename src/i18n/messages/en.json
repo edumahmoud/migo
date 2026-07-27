@@ -4009,7 +4009,13 @@
     "googleFormsProgressComplete": "Export complete!",
     "googleFormsProgressError": "Export failed",
     "googleFormsExportBtnShort": "Google Forms",
-    "googleFormsExportSuccessBtn": "Authorize Google Forms"
+    "googleFormsExportSuccessBtn": "Authorize Google Forms",
+    "googleFormsQuestionTypeFilter": "Select Question Types to Export",
+    "googleFormsNoTypesSelected": "Select at least one question type to export",
+    "googleFormsQuestionCountUnit": "questions",
+    "googleFormsMatchingConverted": "Each pair becomes a dropdown question",
+    "googleFormsExportedQuestionsList": "Exported Questions",
+    "googleFormsUnsupportedWarningNew": "Some Questions Were Skipped"
   },
   "studentsTab": {
     "acceptAllTitle": "Accept All Requests",

@@ -4010,7 +4010,13 @@
     "googleFormsProgressComplete": "تم التصدير!",
     "googleFormsProgressError": "فشل التصدير",
     "googleFormsExportBtnShort": "Google Forms",
-    "googleFormsExportSuccessBtn": "تفويض Google Forms"
+    "googleFormsExportSuccessBtn": "تفويض Google Forms",
+    "googleFormsQuestionTypeFilter": "اختيار أنواع الأسئلة للتصدير",
+    "googleFormsNoTypesSelected": "اختر نوع سؤال واحد على الأقل للتصدير",
+    "googleFormsQuestionCountUnit": "أسئلة",
+    "googleFormsMatchingConverted": "كل زوج يتحول إلى سؤال قائمة منسدلة",
+    "googleFormsExportedQuestionsList": "الأسئلة المُصدّرة",
+    "googleFormsUnsupportedWarningNew": "بعض الأسئلة لم يتم تصديرها"
   },
   "studentsTab": {
     "acceptAllTitle": "قبول جميع الطلبات",

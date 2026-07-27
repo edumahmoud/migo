@@ -14,11 +14,14 @@ import {
   Settings,
   Rocket,
   Link,
+  ListFilter,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import { useGoogleForms } from '@/hooks/useGoogleForms';
-import type { ExportGoogleFormConfig } from '@/types/googleForms';
+import { ALL_QUESTION_TYPES, QUESTION_TYPE_MAPPING } from '@/types/googleForms';
+import type { ExportGoogleFormConfig, BankQuestion } from '@/types/googleForms';
+import type { BankQuestion as BankQuestionType } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +38,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -51,11 +55,39 @@ interface ExportGoogleFormModalProps {
   selectedQuestionIds: string[];
   selectedBankIds: string[];
   totalQuestionCount: number;
+  /** Map of question type → count for the selected questions */
+  questionTypeCounts?: Record<string, number>;
 }
 
 // ─── Stage enum ───
 
 type ModalStage = 'auth-check' | 'config' | 'progress' | 'success' | 'error';
+
+// ─── Question type labels ───
+
+function getQuestionTypeLabel(type: BankQuestionType['type'], t: (key: string) => string): string {
+  switch (type) {
+    case 'mcq':
+      return t('questionBank.typeMcq') || 'Multiple Choice (MCQ)';
+    case 'boolean':
+      return t('questionBank.typeBoolean') || 'True/False';
+    case 'completion':
+      return t('questionBank.typeCompletion') || 'Completion (Short Answer)';
+    case 'matching':
+      return t('questionBank.typeMatching') || 'Matching';
+    default:
+      return type;
+  }
+}
+
+function getGoogleFormTypeLabel(type: BankQuestionType['type']): string {
+  const mapping = QUESTION_TYPE_MAPPING[type];
+  if (!mapping) return 'Unsupported';
+  if (type === 'matching') return 'DROP_DOWN (pairs expanded)';
+  if (mapping.kind === 'choiceQuestion') return mapping.choiceType || 'RADIO';
+  if (mapping.kind === 'textQuestion') return mapping.textType || 'SHORT_TEXT';
+  return mapping.kind;
+}
 
 // ─── Google icon SVG ───
 
@@ -102,6 +134,7 @@ export default function ExportGoogleFormModal({
   selectedQuestionIds,
   selectedBankIds,
   totalQuestionCount,
+  questionTypeCounts,
 }: ExportGoogleFormModalProps) {
   const { t, direction } = useTranslations();
   const {
@@ -132,6 +165,23 @@ export default function ExportGoogleFormModal({
   const [formMode, setFormMode] = useState<'createNew' | 'appendToExisting'>('createNew');
   const [existingFormId, setExistingFormId] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // ─── Question type selection state ───
+  // Default: all types enabled
+  const [enabledQuestionTypes, setEnabledQuestionTypes] = useState<BankQuestionType['type'][]>(
+    [...ALL_QUESTION_TYPES]
+  );
+
+  // ─── Count of questions that will be exported (based on type filter) ───
+
+  const filteredQuestionCount = useMemo(() => {
+    if (!questionTypeCounts) return totalQuestionCount;
+    let count = 0;
+    for (const type of enabledQuestionTypes) {
+      count += questionTypeCounts[type] || 0;
+    }
+    return count;
+  }, [questionTypeCounts, enabledQuestionTypes, totalQuestionCount]);
 
   // ─── Show success toast when auth just completed ───
 
@@ -164,8 +214,19 @@ export default function ExportGoogleFormModal({
     setFormMode('createNew');
     setExistingFormId('');
     setCopiedLink(false);
+    setEnabledQuestionTypes([...ALL_QUESTION_TYPES]);
     onClose();
   }, [reset, onClose]);
+
+  // ─── Handle question type toggle ───
+
+  const handleToggleQuestionType = useCallback((type: BankQuestionType['type'], checked: boolean) => {
+    if (checked) {
+      setEnabledQuestionTypes(prev => [...prev, type]);
+    } else {
+      setEnabledQuestionTypes(prev => prev.filter(t => t !== type));
+    }
+  }, []);
 
   // ─── Load user forms when append mode selected ───
 
@@ -188,6 +249,11 @@ export default function ExportGoogleFormModal({
       return;
     }
 
+    if (enabledQuestionTypes.length === 0) {
+      toast.error(t('questionBank.googleFormsNoTypesSelected') || 'Select at least one question type');
+      return;
+    }
+
     const config: ExportGoogleFormConfig = {
       formTitle: formTitle.trim(),
       formDescription: formDescription.trim() || undefined,
@@ -198,12 +264,13 @@ export default function ExportGoogleFormModal({
       limitToOrganization: false,
       formMode,
       existingFormId: formMode === 'appendToExisting' ? existingFormId : undefined,
+      enabledQuestionTypes,
     };
 
     await exportToGoogleForm(selectedQuestionIds, selectedBankIds, config);
   }, [
     formTitle, formDescription, createAsQuiz, shuffleQuestions, shuffleOptions,
-    collectEmailAddresses, formMode, existingFormId,
+    collectEmailAddresses, formMode, existingFormId, enabledQuestionTypes,
     selectedQuestionIds, selectedBankIds, exportToGoogleForm, t,
   ]);
 
@@ -266,7 +333,6 @@ export default function ExportGoogleFormModal({
           {t('questionBank.googleFormsCheckingAuth') || 'Checking authorization...'}
         </div>
       ) : authStatus?.configured === false ? (
-        // Google OAuth env vars are not set — show configuration message
         <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/15 p-4 text-sm text-amber-700 dark:text-amber-400 max-w-sm">
           {t('questionBank.googleFormsNotConfigured') || 'Google Forms integration is not configured. Please set up Google OAuth credentials in the admin settings.'}
         </div>
@@ -297,9 +363,72 @@ export default function ExportGoogleFormModal({
           <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
           <span className="text-sm font-medium text-sky-800 dark:text-sky-400">
             {t('questionBank.googleFormsQuestionCount') || 'Questions to export'}
-            : {totalQuestionCount}
+            : {filteredQuestionCount} / {totalQuestionCount}
           </span>
         </div>
+      </div>
+
+      {/* Question Type Selection */}
+      <div className="space-y-3">
+        <Label className="text-sm font-semibold text-foreground flex items-center gap-2" dir={direction}>
+          <ListFilter className="h-4 w-4" />
+          {t('questionBank.googleFormsQuestionTypeFilter') || 'Select Question Types to Export'}
+        </Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {ALL_QUESTION_TYPES.map((type) => {
+            const count = questionTypeCounts?.[type] || 0;
+            const mapping = QUESTION_TYPE_MAPPING[type];
+            const isSupported = mapping?.supported;
+            const googleFormLabel = getGoogleFormTypeLabel(type);
+            const isChecked = enabledQuestionTypes.includes(type);
+
+            return (
+              <div
+                key={type}
+                className={`flex items-start gap-2.5 p-3 rounded-lg border transition-colors ${
+                  isChecked
+                    ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15'
+                    : 'border-border bg-background'
+                }`}
+              >
+                <Checkbox
+                  id={`type-${type}`}
+                  checked={isChecked}
+                  onCheckedChange={(checked) => handleToggleQuestionType(type, checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <Label htmlFor={`type-${type}`} className="text-sm font-semibold cursor-pointer" dir={direction}>
+                    {getQuestionTypeLabel(type, t)}
+                  </Label>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                      {count} {t('questionBank.googleFormsQuestionCountUnit') || 'questions'}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground truncate">
+                      → {googleFormLabel}
+                    </span>
+                  </div>
+                  {type === 'matching' && isSupported && (
+                    <p className="text-xs text-sky-700 dark:text-sky-400 mt-1">
+                      {t('questionBank.googleFormsMatchingConverted') || 'Each pair becomes a dropdown question'}
+                    </p>
+                  )}
+                  {!isSupported && (
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                      {mapping?.reason}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {enabledQuestionTypes.length === 0 && (
+          <p className="text-xs text-rose-600 dark:text-rose-500 mt-1">
+            {t('questionBank.googleFormsNoTypesSelected') || 'Select at least one question type to export'}
+          </p>
+        )}
       </div>
 
       {/* Form Title */}
@@ -505,6 +634,37 @@ export default function ExportGoogleFormModal({
         </div>
       </div>
 
+      {/* Exported questions list with bold titles */}
+      {exportResult?.exportedQuestions && exportResult.exportedQuestions.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-sm rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 p-3"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+            <span className="text-sm font-semibold text-sky-700 dark:text-sky-400">
+              {t('questionBank.googleFormsExportedQuestionsList') || 'Exported Questions'}
+            </span>
+          </div>
+          <div className="max-h-48 overflow-y-auto space-y-1.5 custom-scrollbar">
+            {exportResult.exportedQuestions.map((q, idx) => (
+              <div key={`${q.questionId}-${idx}`} className="text-xs flex items-start gap-1.5">
+                <span className="text-muted-foreground min-w-[16px]">{idx + 1}.</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-bold text-sky-800 dark:text-sky-300 truncate block">
+                    {q.questionTitle || 'Untitled'}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {getQuestionTypeLabel(q.questionType, t)} → {q.googleFormType}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Unsupported questions warning */}
       {exportResult?.unsupportedQuestions && exportResult.unsupportedQuestions.length > 0 && (
         <motion.div
@@ -515,13 +675,13 @@ export default function ExportGoogleFormModal({
           <div className="flex items-center gap-2 mb-2">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
             <span className="text-sm font-semibold text-amber-700 dark:text-amber-500">
-              {t('questionBank.googleFormsUnsupportedWarning') || 'Unsupported Questions Skipped'}
+              {t('questionBank.googleFormsUnsupportedWarning') || 'Some Questions Were Skipped'}
             </span>
           </div>
           <div className="max-h-32 overflow-y-auto space-y-1.5 custom-scrollbar">
             {exportResult.unsupportedQuestions.map((q) => (
               <div key={q.questionId} className="text-xs text-amber-800 dark:text-amber-400">
-                <span className="font-medium">{q.questionType}</span>
+                <span className="font-bold">{q.questionType}</span>
                 {': '}
                 <span className="truncate">{q.reason}</span>
               </div>
@@ -609,7 +769,6 @@ export default function ExportGoogleFormModal({
       case 'auth-check':
         if (isLoadingAuth) return renderAuthCheckStage();
         if (!authStatus?.isAuthorized || !authStatus?.hasFormsScope) return renderAuthCheckStage();
-        // If authorized, stage will be updated to 'config' by useEffect
         return renderConfigStage();
       case 'config':
         return renderConfigStage();
@@ -628,7 +787,7 @@ export default function ExportGoogleFormModal({
 
   const renderFooterButtons = () => {
     if (currentStage === 'progress') {
-      return null; // No footer buttons during progress
+      return null;
     }
 
     if (currentStage === 'success') {
@@ -655,7 +814,7 @@ export default function ExportGoogleFormModal({
           </Button>
           <Button
             onClick={handleExport}
-            disabled={!formTitle.trim() || isExporting || (formMode === 'appendToExisting' && !existingFormId)}
+            disabled={!formTitle.trim() || isExporting || enabledQuestionTypes.length === 0 || (formMode === 'appendToExisting' && !existingFormId)}
             className="gap-2 bg-sky-700 hover:bg-sky-800 text-white"
           >
             <GoogleIcon className="h-4 w-4" />
@@ -665,7 +824,6 @@ export default function ExportGoogleFormModal({
       );
     }
 
-    // auth-check stage
     return (
       <Button onClick={handleClose} variant="outline">
         {t('common.cancel') || 'Cancel'}

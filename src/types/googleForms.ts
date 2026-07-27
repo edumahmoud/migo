@@ -86,6 +86,7 @@ export interface ExportGoogleFormConfig {
   limitToOrganization: boolean;
   formMode: 'createNew' | 'appendToExisting';
   existingFormId?: string; // Required when formMode === 'appendToExisting'
+  enabledQuestionTypes?: BankQuestion['type'][]; // Which question types to include in export
 }
 
 /** The full export request payload sent to the API */
@@ -94,6 +95,9 @@ export interface ExportGoogleFormRequest {
   bankIds?: string[];
   config: ExportGoogleFormConfig;
 }
+
+/** All available question types for export filtering */
+export const ALL_QUESTION_TYPES: BankQuestion['type'][] = ['mcq', 'boolean', 'completion', 'matching'];
 
 // ─── Export Response Types ───
 
@@ -105,6 +109,7 @@ export interface ExportGoogleFormResult {
   questionsExported: number;
   questionsSkipped: number;
   unsupportedQuestions: UnsupportedQuestionInfo[];
+  exportedQuestions: ExportedQuestionDetail[];
 }
 
 /** Details about questions that couldn't be mapped */
@@ -113,6 +118,14 @@ export interface UnsupportedQuestionInfo {
   questionType: string;
   questionText: string;
   reason: string;
+}
+
+/** A single exported question detail for the success view */
+export interface ExportedQuestionDetail {
+  questionId: string;
+  questionType: BankQuestion['type'];
+  questionTitle: string;
+  googleFormType: string;
 }
 
 /** Full API response structure */
@@ -183,9 +196,10 @@ export const QUESTION_TYPE_MAPPING: Record<
     reason: 'Mapped as short answer question (no auto-grading for text answers)',
   },
   matching: {
-    kind: 'questionGroupItem',
-    supported: false,
-    reason: 'Google Forms has no matching/pairs question type. Exported as unsupported.',
+    kind: 'choiceQuestion',
+    choiceType: 'DROP_DOWN',
+    supported: true,
+    reason: 'Each matching pair is converted to a dropdown question. The left side becomes the question and all right sides become dropdown options.',
   },
 };
 

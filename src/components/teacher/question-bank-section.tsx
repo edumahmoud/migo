@@ -2049,6 +2049,10 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         selectedQuestionIds={selectedBank?.questions?.map(q => q.id) || []}
         selectedBankIds={selectedBank ? [selectedBank.id] : []}
         totalQuestionCount={selectedBank?.questions?.length || 0}
+        questionTypeCounts={selectedBank?.questions?.reduce((acc, q) => {
+          acc[q.type] = (acc[q.type] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>) || {}}
       />
     </div>
   );

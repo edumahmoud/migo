@@ -20,6 +20,14 @@
 // Step 2: batchUpdate — create ALL question items WITHOUT grading
 // Step 3: batchUpdate — update each item with grading via updateItem
 //
+// MATCHING QUESTION EXPANSION:
+// Matching questions are expanded into multiple dropdown questions.
+// Each pair (left → right) becomes one DROP_DOWN question:
+//   - Title: "[Original Question Title] — [Left Side]"
+//   - Options: All right sides from all pairs (dropdown choices)
+//   - Correct answer: The matching right side for that pair
+//   - Question title is bold-style: prefixed with ★ for visual emphasis
+//
 // ============================================================
 
 import { google } from 'googleapis';
@@ -32,6 +40,7 @@ import type {
   QuestionMappingResult,
   UnsupportedQuestionInfo,
   GoogleFormListItem,
+  ExportedQuestionDetail,
 } from '@/types/googleForms';
 import type { BankQuestion } from '@/lib/types';
 
@@ -70,11 +79,23 @@ export function mapQuestionToGoogleForm(question: BankQuestion): QuestionMapping
 }
 
 export function mapQuestionsToGoogleForm(
-  questions: BankQuestion[]
+  questions: BankQuestion[],
+  enabledTypes?: BankQuestion['type'][]
 ): { supported: QuestionMappingResult[]; unsupported: UnsupportedQuestionInfo[] } {
   const supported: QuestionMappingResult[] = [];
   const unsupported: UnsupportedQuestionInfo[] = [];
   for (const question of questions) {
+    // Filter by enabled types if specified
+    if (enabledTypes && !enabledTypes.includes(question.type)) {
+      unsupported.push({
+        questionId: question.id,
+        questionType: question.type,
+        questionText: question.question,
+        reason: `Question type '${question.type}' was excluded from export`,
+      });
+      continue;
+    }
+
     const mapping = mapQuestionToGoogleForm(question);
     if (mapping.mappingType === 'supported' || mapping.mappingType === 'partial') {
       supported.push(mapping);
@@ -114,13 +135,22 @@ interface BuildItemResult {
   location: { index: number };
 }
 
+// Build a bold-style title for Google Forms
+// Google Forms renders question titles in bold by default in the form UI.
+// We add a visual prefix ★ to make titles stand out more prominently.
+function buildBoldTitle(rawTitle: string): string {
+  const trimmed = rawTitle.trim() || 'Untitled Question';
+  // Add bold emphasis prefix for better visibility
+  return `★ ${trimmed}`;
+}
+
 function buildItem(
   mapping: QuestionMappingResult,
   index: number,
   shuffleOptions: boolean
 ): BuildItemResult | null {
   const question = mapping.originalQuestion;
-  const questionText = question.question || 'Untitled Question';
+  const questionText = buildBoldTitle(question.question);
   let questionDetails: Record<string, unknown>;
 
   switch (mapping.googleFormType) {
@@ -132,6 +162,9 @@ function buildItem(
         options = (question.options || []).map((opt) => ({ value: opt }));
       } else if (question.type === 'boolean') {
         options = [{ value: 'True' }, { value: 'False' }];
+      } else if (question.type === 'matching') {
+        // Matching questions are handled by buildMatchingPairItems
+        return null;
       }
 
       questionDetails = {
@@ -146,7 +179,6 @@ function buildItem(
     }
 
     case 'textQuestion': {
-      // TextQuestion: NO "type" field — send {} for SHORT_TEXT, { paragraph: true } for PARAGRAPH
       const isParagraph = mapping.googleFormTextType === 'PARAGRAPH';
       questionDetails = {
         required: true,
@@ -159,7 +191,6 @@ function buildItem(
       return null;
   }
 
-  // NO grading here — it must be set via updateItem AFTER creation
   const item: Record<string, unknown> = {
     title: questionText,
     questionItem: {
@@ -170,23 +201,112 @@ function buildItem(
   return { item, location: { index } };
 }
 
+// ─── Build Matching Pair Items ───
+// Each matching question is expanded into multiple DROP_DOWN questions.
+// Each pair (left → right) becomes one dropdown question.
+
+interface MatchingPairItem {
+  requests: Array<Record<string, unknown>>;  // createItem requests
+  gradingRequests: Array<Record<string, unknown>>;  // updateItem grading requests (for quiz mode)
+  pairCount: number;  // Number of pairs (items) created
+}
+
+function buildMatchingPairItems(
+  question: BankQuestion,
+  startIndex: number,
+  shuffleOptions: boolean,
+  isQuiz: boolean
+): MatchingPairItem {
+  const pairs = question.pairs || [];
+  const parentTitle = question.question || 'Matching Question';
+  const allRightSides = pairs.map((pair: { right: string }) => pair.right);
+
+  const requests: Array<Record<string, unknown>> = [];
+  const gradingRequests: Array<Record<string, unknown>> = [];
+
+  for (let i = 0; i < pairs.length; i++) {
+    const pair = pairs[i] as { left: string; right: string };
+    const leftSide = pair.left;
+    const rightSide = pair.right;
+
+    // Bold title: ★ [Parent Title] — [Left Side]
+    const pairTitle = buildBoldTitle(`${parentTitle} — ${leftSide}`);
+
+    // Create a DROP_DOWN question with all right sides as options
+    const item: Record<string, unknown> = {
+      title: pairTitle,
+      questionItem: {
+        question: {
+          required: true,
+          choiceQuestion: {
+            type: 'DROP_DOWN',
+            options: allRightSides.map((rs: string) => ({ value: rs })),
+            shuffle: shuffleOptions,
+          },
+        },
+      },
+    };
+
+    requests.push({
+      createItem: { item, location: { index: startIndex + i } },
+    });
+
+    // Build grading request (for quiz mode, applied AFTER creation via updateItem)
+    if (isQuiz && rightSide) {
+      gradingRequests.push({
+        updateItem: {
+          item: {
+            questionItem: {
+              question: {
+                grading: {
+                  pointValue: 1,
+                  correctAnswers: {
+                    answers: [{ value: rightSide }],
+                  },
+                },
+              },
+            },
+          },
+          updateMask: 'questionItem.question.grading',
+          location: { index: startIndex + i },
+        },
+      });
+    }
+  }
+
+  return { requests, gradingRequests, pairCount: pairs.length };
+}
+
 // ─── Build grading updateItem requests ───
 // Called AFTER items are created, to add grading to existing items
+// NOTE: Only for non-matching questions. Matching grading is handled separately.
 
 function buildGradingUpdateRequests(
   supported: QuestionMappingResult[],
-  startIndex: number, // 0 for new forms, existingItems.length for append
-  isQuiz: boolean
+  startIndex: number,
+  isQuiz: boolean,
+  matchingOffsetMap: Map<string, number> // questionId → number of extra items (matching pairs)
 ): Array<Record<string, unknown>> {
   if (!isQuiz) return [];
 
   const requests: Array<Record<string, unknown>> = [];
+  let currentIndex = startIndex;
 
   for (let i = 0; i < supported.length; i++) {
     const question = supported[i].originalQuestion;
-    const correctAnswers = getCorrectAnswers(question);
 
-    if (correctAnswers.length === 0) continue; // No correct answer — skip grading
+    // Skip matching questions — they have their own grading built in buildMatchingPairItems
+    if (question.type === 'matching') {
+      const pairCount = matchingOffsetMap.get(question.id) || 0;
+      currentIndex += pairCount; // Advance index by the number of pairs
+      continue;
+    }
+
+    const correctAnswers = getCorrectAnswers(question);
+    if (correctAnswers.length === 0) {
+      currentIndex += 1;
+      continue;
+    }
 
     requests.push({
       updateItem: {
@@ -203,12 +323,102 @@ function buildGradingUpdateRequests(
           },
         },
         updateMask: 'questionItem.question.grading',
-        location: { index: startIndex + i },
+        location: { index: currentIndex },
       },
     });
+    currentIndex += 1;
   }
 
   return requests;
+}
+
+// ─── Build all question items (including matching expansion) ───
+
+interface BuildAllItemsResult {
+  questionRequests: Array<Record<string, unknown>>;
+  allGradingRequests: Array<Record<string, unknown>>;
+  exportedQuestions: ExportedQuestionDetail[];
+  totalItemCount: number; // Total number of Google Form items created
+  matchingOffsetMap: Map<string, number>; // questionId → pair count
+}
+
+function buildAllQuestionItems(
+  supported: QuestionMappingResult[],
+  startIndex: number,
+  config: ExportGoogleFormConfig
+): BuildAllItemsResult {
+  const questionRequests: Array<Record<string, unknown>> = [];
+  const allGradingRequests: Array<Record<string, unknown>> = [];
+  const exportedQuestions: ExportedQuestionDetail[] = [];
+  const matchingOffsetMap = new Map<string, number>();
+
+  let currentIndex = startIndex;
+
+  for (const mapping of supported) {
+    const question = mapping.originalQuestion;
+
+    if (question.type === 'matching') {
+      // Expand matching question into multiple dropdown questions
+      const pairResult = buildMatchingPairItems(
+        question,
+        currentIndex,
+        config.shuffleOptions,
+        config.createAsQuiz
+      );
+
+      questionRequests.push(...pairResult.requests);
+      allGradingRequests.push(...pairResult.gradingRequests);
+      matchingOffsetMap.set(question.id, pairResult.pairCount);
+
+      // Record exported question detail
+      exportedQuestions.push({
+        questionId: question.id,
+        questionType: 'matching',
+        questionTitle: question.question,
+        googleFormType: `DROP_DOWN (${pairResult.pairCount} pairs)`,
+      });
+
+      currentIndex += pairResult.pairCount;
+    } else {
+      // Regular question
+      const result = buildItem(mapping, currentIndex, config.shuffleOptions);
+      if (result) {
+        questionRequests.push({
+          createItem: { item: result.item, location: result.location },
+        });
+
+        const googleFormType = mapping.googleFormType === 'choiceQuestion'
+          ? mapping.googleFormChoiceType || 'RADIO'
+          : mapping.googleFormTextType || 'SHORT_TEXT';
+
+        exportedQuestions.push({
+          questionId: question.id,
+          questionType: question.type,
+          questionTitle: question.question,
+          googleFormType,
+        });
+
+        currentIndex += 1;
+      }
+    }
+  }
+
+  // Add grading for non-matching questions
+  const regularGrading = buildGradingUpdateRequests(
+    supported,
+    startIndex,
+    config.createAsQuiz,
+    matchingOffsetMap
+  );
+  allGradingRequests.push(...regularGrading);
+
+  return {
+    questionRequests,
+    allGradingRequests,
+    exportedQuestions,
+    totalItemCount: currentIndex - startIndex,
+    matchingOffsetMap,
+  };
 }
 
 // ─── Create New Google Form ───
@@ -228,10 +438,10 @@ export async function createNewGoogleForm(
   const formId = createResponse.data.formId;
   if (!formId) throw new Error('Google Forms API did not return a formId');
 
-  // Map questions
-  const { supported, unsupported } = mapQuestionsToGoogleForm(questions);
+  // Map questions with type filtering
+  const { supported, unsupported } = mapQuestionsToGoogleForm(questions, config.enabledQuestionTypes);
   if (supported.length === 0) {
-    throw new Error('No supported questions to export. All questions are of unsupported types.');
+    throw new Error('No supported questions to export. All questions are of unsupported types or excluded by filter.');
   }
 
   // STEP 2: Setup — description + quiz mode (must happen BEFORE adding grading)
@@ -261,29 +471,20 @@ export async function createNewGoogleForm(
     });
   }
 
-  // STEP 3: Create question items WITHOUT grading
-  const questionRequests: Array<Record<string, unknown>> = [];
-  for (let i = 0; i < supported.length; i++) {
-    const result = buildItem(supported[i], i, config.shuffleOptions);
-    if (result) {
-      questionRequests.push({
-        createItem: { item: result.item, location: result.location },
-      });
-    }
+  // STEP 3: Create ALL question items (including matching expansion) WITHOUT grading
+  const buildResult = buildAllQuestionItems(supported, 0, config);
+
+  if (buildResult.questionRequests.length > 0) {
+    await executeWithRetry(async () => {
+      return formsClient.forms.batchUpdate({ formId, requestBody: { requests: buildResult.questionRequests } });
+    });
   }
 
-  await executeWithRetry(async () => {
-    return formsClient.forms.batchUpdate({ formId, requestBody: { requests: questionRequests } });
-  });
-
   // STEP 4: Add grading via updateItem (only in quiz mode, AFTER items exist)
-  if (config.createAsQuiz) {
-    const gradingRequests = buildGradingUpdateRequests(supported, 0, true);
-    if (gradingRequests.length > 0) {
-      await executeWithRetry(async () => {
-        return formsClient.forms.batchUpdate({ formId, requestBody: { requests: gradingRequests } });
-      });
-    }
+  if (config.createAsQuiz && buildResult.allGradingRequests.length > 0) {
+    await executeWithRetry(async () => {
+      return formsClient.forms.batchUpdate({ formId, requestBody: { requests: buildResult.allGradingRequests } });
+    });
   }
 
   // Build result
@@ -291,9 +492,10 @@ export async function createNewGoogleForm(
     formId,
     editUrl: `https://docs.google.com/forms/d/${formId}/edit`,
     responderUrl: `https://docs.google.com/forms/d/${formId}/viewform`,
-    questionsExported: supported.length,
+    questionsExported: buildResult.totalItemCount,
     questionsSkipped: unsupported.length,
     unsupportedQuestions: unsupported,
+    exportedQuestions: buildResult.exportedQuestions,
   };
 }
 
@@ -316,37 +518,27 @@ export async function appendToExistingGoogleForm(
     const existingItems = existingForm.data.items || [];
     const startIndex = existingItems.length;
 
-    // Map questions
-    const { supported, unsupported } = mapQuestionsToGoogleForm(questions);
+    // Map questions with type filtering
+    const { supported, unsupported } = mapQuestionsToGoogleForm(questions, config.enabledQuestionTypes);
     if (supported.length === 0) {
-      throw new Error('No supported questions to export. All questions are of unsupported types.');
+      throw new Error('No supported questions to export. All questions are of unsupported types or excluded by filter.');
     }
 
-    // Step 2: Create question items WITHOUT grading
-    const questionRequests: Array<Record<string, unknown>> = [];
-    for (let i = 0; i < supported.length; i++) {
-      const result = buildItem(supported[i], startIndex + i, config.shuffleOptions);
-      if (result) {
-        questionRequests.push({
-          createItem: { item: result.item, location: result.location },
-        });
-      }
-    }
+    // Step 2: Create ALL question items (including matching expansion) WITHOUT grading
+    const buildResult = buildAllQuestionItems(supported, startIndex, config);
 
-    await executeWithRetry(async () => {
-      return formsClient.forms.batchUpdate({ formId, requestBody: { requests: questionRequests } });
-    });
+    if (buildResult.questionRequests.length > 0) {
+      await executeWithRetry(async () => {
+        return formsClient.forms.batchUpdate({ formId, requestBody: { requests: buildResult.questionRequests } });
+      });
+    }
 
     // Step 3: Add grading via updateItem (if quiz mode and form is already a quiz)
-    // Check if the existing form has quiz settings
     const isFormQuiz = existingForm.data.settings?.quizSettings?.isQuiz || false;
-    if (config.createAsQuiz && isFormQuiz) {
-      const gradingRequests = buildGradingUpdateRequests(supported, startIndex, true);
-      if (gradingRequests.length > 0) {
-        await executeWithRetry(async () => {
-          return formsClient.forms.batchUpdate({ formId, requestBody: { requests: gradingRequests } });
-        });
-      }
+    if (config.createAsQuiz && isFormQuiz && buildResult.allGradingRequests.length > 0) {
+      await executeWithRetry(async () => {
+        return formsClient.forms.batchUpdate({ formId, requestBody: { requests: buildResult.allGradingRequests } });
+      });
     }
 
     // Build result
@@ -354,9 +546,10 @@ export async function appendToExistingGoogleForm(
       formId,
       editUrl: `https://docs.google.com/forms/d/${formId}/edit`,
       responderUrl: `https://docs.google.com/forms/d/${formId}/viewform`,
-      questionsExported: supported.length,
+      questionsExported: buildResult.totalItemCount,
       questionsSkipped: unsupported.length,
       unsupportedQuestions: unsupported,
+      exportedQuestions: buildResult.exportedQuestions,
     };
   } catch (err) {
     const error = err as { code?: number; message?: string };
