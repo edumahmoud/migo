@@ -3976,6 +3976,7 @@
     "googleFormsAuthorize": "Authorize Google Forms",
     "googleFormsAuthSuccess": "Google Forms authorization successful!",
     "googleFormsAuthError": "Google authorization failed",
+    "googleFormsDeletedError": "The selected Google Form no longer exists. It may have been deleted. Please refresh the list.",
     "googleFormsQuestionCount": "Questions to export",
     "googleFormsOptions": "Form Options",
     "googleFormsCreateAsQuiz": "Create as Quiz (graded)",

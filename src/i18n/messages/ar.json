@@ -3977,6 +3977,7 @@
     "googleFormsAuthorize": "تفويض Google Forms",
     "googleFormsAuthSuccess": "تم تفويض Google Forms بنجاح!",
     "googleFormsAuthError": "فشل تفويض Google",
+    "googleFormsDeletedError": "الاستمارة المحددة لم تعد موجودة. قد تم حذفها من حسابك. حدد استمارة أخرى.",
     "googleFormsQuestionCount": "الأسئلة للتصدير",
     "googleFormsOptions": "خيارات الاستمارة",
     "googleFormsCreateAsQuiz": "إنشاء كاختبار (مع التصحيح)",
