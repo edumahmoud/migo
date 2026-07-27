@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import { useGoogleForms } from '@/hooks/useGoogleForms';
 import { ALL_QUESTION_TYPES, QUESTION_TYPE_MAPPING } from '@/types/googleForms';
-import type { ExportGoogleFormConfig, BankQuestion } from '@/types/googleForms';
+import type { ExportGoogleFormConfig } from '@/types/googleForms';
 import type { BankQuestion as BankQuestionType } from '@/lib/types';
 import {
   Dialog,
