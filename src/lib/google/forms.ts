@@ -5,11 +5,22 @@
 // This module implements all Google Forms API operations:
 // - Create new Google Forms
 // - Append questions to existing Google Forms
-// - Configure quiz settings (shuffle, scoring, email collection)
+// - Configure quiz settings
 // - List user's Google Forms
 // - Map AttenDo question types → Google Forms question types
 //
-// Uses batchUpdate requests for efficient question insertion.
+// CRITICAL: Google Forms API v1 uses proto3 JSON format.
+// All property names must be in lowerCamelCase exactly as
+// specified in the API reference. The googleapis npm library
+// sends requestBody as raw JSON — property names are preserved.
+//
+// The batchUpdate createItem structure is:
+// { createItem: { item: { questionItem: { question: {...} } }, location: { index: N } } }
+//
+// NOT: { createItem: { questionItem: {...}, location: {...} } }
+// The questionItem must be INSIDE item, and location must be
+// at the SAME level as item (not inside item).
+//
 // Implements retry with exponential backoff for API limits.
 // NEVER exposes tokens to the client — all calls are server-side.
 // ============================================================
@@ -29,19 +40,11 @@ import type { BankQuestion } from '@/lib/types';
 
 // ─── Google Forms API Client ───
 
-/**
- * Returns an authenticated Google Forms API client.
- * Uses the user's stored OAuth tokens.
- */
 async function getFormsClient(userId: string) {
   const auth = await getAuthenticatedClient(userId);
   return google.forms({ version: 'v1', auth });
 }
 
-/**
- * Returns an authenticated Google Drive API client.
- * Used for listing user's Google Forms and getting metadata.
- */
 async function getDriveClient(userId: string) {
   const auth = await getAuthenticatedClient(userId);
   return google.drive({ version: 'v3', auth });
@@ -49,16 +52,6 @@ async function getDriveClient(userId: string) {
 
 // ─── Question Mapping ───
 
-/**
- * Maps an AttenDo BankQuestion to a Google Forms question.
- * Returns the mapping result including type, supported status, and reason.
- *
- * Question type mapping:
- * - mcq        → choiceQuestion (RADIO) — fully supported
- * - boolean    → choiceQuestion (RADIO) with True/False options — fully supported
- * - completion → textQuestion (SHORT_TEXT) — supported, but no auto-grading
- * - matching   → UNSUPPORTED — no Google Forms equivalent
- */
 export function mapQuestionToGoogleForm(question: BankQuestion): QuestionMappingResult {
   const mapping = QUESTION_TYPE_MAPPING[question.type];
 
@@ -81,10 +74,6 @@ export function mapQuestionToGoogleForm(question: BankQuestion): QuestionMapping
   };
 }
 
-/**
- * Maps multiple AttenDo questions to Google Forms format.
- * Returns supported mappings and unsupported question details.
- */
 export function mapQuestionsToGoogleForm(
   questions: BankQuestion[]
 ): { supported: QuestionMappingResult[]; unsupported: UnsupportedQuestionInfo[] } {
@@ -109,105 +98,108 @@ export function mapQuestionsToGoogleForm(
   return { supported, unsupported };
 }
 
-// ─── Question Item Builder ───
+// ─── Build a Google Forms Item (the "item" inside createItem) ───
+//
+// This builds the ITEM object that wraps questionItem.
+// The correct hierarchy for batchUpdate is:
+//
+//   createItem: {
+//     item: {             ← Item wrapper (contains title, description, questionItem)
+//       questionItem: {   ← Question type content
+//         question: {     ← Question details (choiceQuestion, textQuestion, etc.)
+//           ...
+//         }
+//       }
+//     },
+//     location: {         ← Where to insert (separate from item)
+//       index: N
+//     }
+//   }
 
-/**
- * Builds a Google Forms batchUpdate request item for a question.
- * Each item creates one question in the form.
- *
- * The item structure follows the Google Forms API specification:
- * https://developers.google.com/forms/api/reference/rest/v1/forms.batchUpdate
- */
-function buildQuestionItem(
+interface BuildItemResult {
+  /** The Google Forms Item object containing questionItem */
+  item: Record<string, unknown>;
+  /** The location where this item should be inserted */
+  location: { index: number };
+}
+
+function buildItem(
   mapping: QuestionMappingResult,
   index: number,
-  isQuiz: boolean
-): Record<string, unknown> | null {
+  isQuiz: boolean,
+  shuffleOptions: boolean
+): BuildItemResult | null {
   const question = mapping.originalQuestion;
-
-  // Base question item structure
-  const item: Record<string, unknown> = {
-    location: { index },
-    questionItem: {
-      question: {},
-    },
-  };
-
-  // Set the question text (required field)
   const questionText = question.question || 'Untitled Question';
+
+  // Build the question details (choiceQuestion or textQuestion)
+  let questionDetails: Record<string, unknown>;
 
   switch (mapping.googleFormType) {
     case 'choiceQuestion': {
-      // MCQ or True/False → choiceQuestion with RADIO type
       const choiceType = mapping.googleFormChoiceType || 'RADIO';
-
-      // Build options list
-      let options: Array<{ value: string; isCorrect?: boolean }> = [];
+      let options: Array<Record<string, unknown>> = [];
 
       if (question.type === 'mcq') {
-        // MCQ: options from the question's options array
         const questionOptions = question.options || [];
-        options = questionOptions.map((opt) => ({
-          value: opt,
-          isCorrect: isQuiz ? opt === question.correct_answer : undefined,
-        }));
+        options = questionOptions.map((opt) => {
+          const optionObj: Record<string, unknown> = { value: opt };
+          if (isQuiz && question.correct_answer) {
+            optionObj.isCorrect = opt === question.correct_answer;
+          }
+          return optionObj;
+        });
       } else if (question.type === 'boolean') {
-        // Boolean: True/False options
         const correctBool = question.correct_answer?.toLowerCase() === 'true';
         options = [
-          { value: 'True', isCorrect: isQuiz ? correctBool : undefined },
-          { value: 'False', isCorrect: isQuiz ? !correctBool : undefined },
+          { value: 'True', ...(isQuiz ? { isCorrect: correctBool } : {}) },
+          { value: 'False', ...(isQuiz ? { isCorrect: !correctBool } : {}) },
         ];
       }
 
-      // Set choice question details
-      (item.questionItem as Record<string, unknown>).question = {
+      questionDetails = {
         required: true,
         choiceQuestion: {
           type: choiceType,
           options,
+          shuffle: shuffleOptions,
         },
       };
-
       break;
     }
 
     case 'textQuestion': {
-      // Completion (short answer) → textQuestion with SHORT_TEXT type
       const textType = mapping.googleFormTextType || 'SHORT_TEXT';
-
-      (item.questionItem as Record<string, unknown>).question = {
+      questionDetails = {
         required: true,
         textQuestion: {
           type: textType,
         },
       };
-
-      // Note: For quiz mode, Google Forms doesn't support auto-grading for text answers.
-      // We can add a grading key for completion questions if the correct answer is known,
-      // but this requires manual review in the form.
-
       break;
     }
 
     default:
-      // Unsupported type — skip
       return null;
   }
 
-  return item;
+  // Build the full item structure:
+  // Item { questionItem: { question: { ... } } }
+  const item: Record<string, unknown> = {
+    title: questionText,
+    questionItem: {
+      question: questionDetails,
+    },
+  };
+
+  return {
+    item,
+    location: { index },
+  };
 }
 
 // ─── Create New Google Form ───
 
-/**
- * Creates a new Google Form with the specified configuration and questions.
- *
- * IMPORTANT: Google Forms API only allows `info.title` in the create request.
- * Description, questions, and settings must ALL be added via batchUpdate.
- *
- * Returns the form ID, edit URL, responder URL, and export statistics.
- */
 export async function createNewGoogleForm(
   userId: string,
   questions: BankQuestion[],
@@ -217,7 +209,6 @@ export async function createNewGoogleForm(
 
   // ── Step 1: Create the base form with ONLY the title ──
   // Google Forms API restriction: only info.title can be set during creation.
-  // Everything else (description, questions, settings) must use batchUpdate.
   const createResponse = await formsClient.forms.create({
     requestBody: {
       info: {
@@ -231,33 +222,17 @@ export async function createNewGoogleForm(
     throw new Error('Google Forms API did not return a formId');
   }
 
-  // ── Step 2: Map questions and build batchUpdate items ──
+  // ── Step 2: Map questions ──
   const { supported, unsupported } = mapQuestionsToGoogleForm(questions);
 
   if (supported.length === 0) {
     throw new Error('No supported questions to export. All questions are of unsupported types.');
   }
 
-  // Build question items for batchUpdate
-  const questionItems: Array<Record<string, unknown>> = [];
-  for (let i = 0; i < supported.length; i++) {
-    const item = buildQuestionItem(supported[i], i, config.createAsQuiz);
-    if (item) {
-      // If shuffleOptions is enabled, add shuffleOptions to choice questions
-      if (config.shuffleOptions && supported[i].googleFormChoiceType) {
-        const questionItem = (item.questionItem as Record<string, unknown>).question as Record<string, unknown>;
-        if (questionItem.choiceQuestion) {
-          (questionItem.choiceQuestion as Record<string, unknown>).shuffle = true;
-        }
-      }
-      questionItems.push(item);
-    }
-  }
-
-  // ── Step 3: Build ALL batchUpdate requests in one call ──
+  // ── Step 3: Build ALL batchUpdate requests ──
   const requests: Array<Record<string, unknown>> = [];
 
-  // 3a: Add description if provided (must be done via batchUpdate, not create)
+  // 3a: Add description via updateFormInfo (only if provided)
   if (config.formDescription && config.formDescription.trim()) {
     requests.push({
       updateFormInfo: {
@@ -284,9 +259,17 @@ export async function createNewGoogleForm(
     });
   }
 
-  // 3c: Add question items
-  for (const item of questionItems) {
-    requests.push({ createItem: item });
+  // 3c: Add question items using correct createItem structure
+  for (let i = 0; i < supported.length; i++) {
+    const result = buildItem(supported[i], i, config.createAsQuiz, config.shuffleOptions);
+    if (result) {
+      requests.push({
+        createItem: {
+          item: result.item,
+          location: result.location,
+        },
+      });
+    }
   }
 
   // ── Step 4: Execute batchUpdate with retry ──
@@ -313,12 +296,6 @@ export async function createNewGoogleForm(
 
 // ─── Append to Existing Google Form ───
 
-/**
- * Appends questions to an existing Google Form.
- * Questions are added after the last existing question.
- *
- * Returns the form ID, edit URL, responder URL, and export statistics.
- */
 export async function appendToExistingGoogleForm(
   userId: string,
   questions: BankQuestion[],
@@ -331,12 +308,11 @@ export async function appendToExistingGoogleForm(
     throw new Error('existingFormId is required when formMode is "appendToExisting"');
   }
 
-  // ── Step 1: Get the existing form to determine the current question count ──
+  // ── Step 1: Get the existing form to determine current item count ──
   const existingForm = await executeWithRetry(async () => {
     return formsClient.forms.get({ formId });
   });
 
-  // Find the index where new questions should be inserted (after existing items)
   const existingItems = existingForm.data.items || [];
   const startIndex = existingItems.length;
 
@@ -347,20 +323,18 @@ export async function appendToExistingGoogleForm(
     throw new Error('No supported questions to export. All questions are of unsupported types.');
   }
 
-  // ── Step 3: Build batchUpdate items ──
+  // ── Step 3: Build batchUpdate requests with correct structure ──
   const requests: Array<Record<string, unknown>> = [];
 
   for (let i = 0; i < supported.length; i++) {
-    const item = buildQuestionItem(supported[i], startIndex + i, config.createAsQuiz);
-    if (item) {
-      // If shuffleOptions is enabled, add shuffleOptions to choice questions
-      if (config.shuffleOptions && supported[i].googleFormChoiceType) {
-        const questionItem = (item.questionItem as Record<string, unknown>).question as Record<string, unknown>;
-        if (questionItem.choiceQuestion) {
-          (questionItem.choiceQuestion as Record<string, unknown>).shuffle = true;
-        }
-      }
-      requests.push({ createItem: item });
+    const result = buildItem(supported[i], startIndex + i, config.createAsQuiz, config.shuffleOptions);
+    if (result) {
+      requests.push({
+        createItem: {
+          item: result.item,
+          location: result.location,
+        },
+      });
     }
   }
 
@@ -388,11 +362,6 @@ export async function appendToExistingGoogleForm(
 
 // ─── List User's Google Forms ───
 
-/**
- * Lists the user's Google Forms from Drive.
- * Uses the Drive API to search for forms the user owns or can edit.
- * Returns up to 50 forms per call, with pagination support.
- */
 export async function listUserGoogleForms(
   userId: string,
   pageToken?: string
@@ -428,15 +397,6 @@ export async function listUserGoogleForms(
 
 // ─── Retry with Exponential Backoff ───
 
-/**
- * Executes a Google API call with retry and exponential backoff.
- * Handles transient errors (rate limits, network issues).
- *
- * Max retries: 3
- * Initial delay: 1000ms
- * Backoff multiplier: 2
- * Max delay per retry: 10000ms
- */
 async function executeWithRetry<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
@@ -451,35 +411,29 @@ async function executeWithRetry<T>(
     } catch (err) {
       const error = err as { code?: number; message?: string; response?: { status?: number } };
 
-      // Check if this is a rate limit error (429)
       const isRateLimit =
         error.code === 429 ||
         error.response?.status === 429 ||
         (error.message && error.message.includes('rate limit'));
 
-      // Check if this is a quota error (403 with quota message)
       const isQuota =
         error.code === 403 &&
         error.message &&
         (error.message.includes('quota') || error.message.includes('Quota'));
 
-      // Don't retry on auth errors (401, 403 non-quota)
       const isAuthError =
         error.code === 401 ||
         (error.code === 403 && !isQuota);
 
       if (isAuthError || attempt === maxRetries - 1) {
-        // Auth errors or final attempt — throw
         throw err;
       }
 
       if (isRateLimit || isQuota) {
-        // Rate limit or quota — wait longer
         console.warn(`[Google Forms API] Rate limited on attempt ${attempt + 1}. Waiting ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         delay = Math.min(delay * backoffMultiplier, 10000);
       } else {
-        // Other transient error — retry with backoff
         console.warn(`[Google Forms API] Transient error on attempt ${attempt + 1}: ${error.message}. Waiting ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         delay = Math.min(delay * backoffMultiplier, 10000);
@@ -487,17 +441,11 @@ async function executeWithRetry<T>(
     }
   }
 
-  // Should not reach here
   throw new Error('Google Forms API operation failed after maximum retries');
 }
 
-// ─── Fetch Questions from Database ───
+// ─── Fetch Questions from Database ──
 
-/**
- * Fetches BankQuestion records from the database by their IDs.
- * Validates that the questions belong to banks owned by the requesting user.
- * Returns the questions ready for export.
- */
 export async function fetchQuestionsForExport(
   userId: string,
   questionIds: string[],
@@ -511,11 +459,9 @@ export async function fetchQuestionsForExport(
     .from('bank_questions')
     .select('id, bank_id, type, question, options, correct_answer, pairs, difficulty, category, created_at');
 
-  // If specific question IDs are provided, use them
   if (questionIds.length > 0) {
     query = query.in('id', questionIds);
   } else if (bankIds && bankIds.length > 0) {
-    // Otherwise, get all questions from the specified banks
     query = query.in('bank_id', bankIds);
   }
 
@@ -529,7 +475,7 @@ export async function fetchQuestionsForExport(
     throw new Error('No questions found for the specified IDs or banks');
   }
 
-  // Validate ownership: verify that the banks belong to the user
+  // Validate ownership
   if (bankIds && bankIds.length > 0) {
     const { data: banks, error: banksError } = await supabaseServer
       .from('question_banks')
@@ -540,7 +486,6 @@ export async function fetchQuestionsForExport(
       throw new Error(`Failed to verify bank ownership: ${banksError.message}`);
     }
 
-    // Check that all banks belong to the user
     const ownedBankIds = (banks || []).filter(b => b.teacher_id === userId).map(b => b.id);
     const unauthorizedBankIds = bankIds.filter(id => !ownedBankIds.includes(id));
 
@@ -552,37 +497,23 @@ export async function fetchQuestionsForExport(
   return questions as BankQuestion[];
 }
 
-// ─── Main Export Function ───
+// ─── Main Export Function ──
 
-/**
- * Main export function — creates or appends questions to a Google Form.
- * Orchestrates the entire export process.
- *
- * Flow:
- * 1. Validate config
- * 2. Fetch questions
- * 3. Create new form OR append to existing
- * 4. Return result with URLs and statistics
- */
 export async function exportQuestionsToGoogleForm(
   userId: string,
   questionIds: string[],
   bankIds: string[],
   config: ExportGoogleFormConfig
 ): Promise<ExportGoogleFormResult> {
-  // Validate required fields
   if (!config.formTitle || config.formTitle.trim().length === 0) {
     throw new Error('Form title is required');
   }
 
-  // Fetch questions from database
   const questions = await fetchQuestionsForExport(userId, questionIds, bankIds);
 
-  // Execute the export based on form mode
   if (config.formMode === 'appendToExisting') {
     return appendToExistingGoogleForm(userId, questions, config);
   } else {
     return createNewGoogleForm(userId, questions, config);
   }
 }
-
