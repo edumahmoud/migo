@@ -2,17 +2,23 @@
 // Google Forms Service — Core Business Logic
 // ============================================================
 //
-// CRITICAL Google Forms API v1 rules (learned from failures):
+// CRITICAL Google Forms API v1 rules (all learned from failures):
 //
 // 1. forms.create: ONLY info.title — no description, no settings
-// 2. createItem structure: { createItem: { item: {...}, location: {...} }
-//    NOT: { createItem: { questionItem: {...}, location: {...} }
-// 3. Option.isCorrect is READ-ONLY — use grading.correctAnswers instead
-// 4. TextQuestion.type is NOT a valid JSON field — send textQuestion: {}
-//    (default is SHORT_TEXT; for PARAGRAPH use paragraph: true)
-// 5. ChoiceQuestion.type IS valid as string enum ("RADIO", "CHECKBOX", etc.)
-// 6. grading requires quiz mode FIRST — split batchUpdate into 2 calls
-// 7. Drive API list: must filter trashed=false to exclude deleted forms
+// 2. createItem: { createItem: { item: {...}, location: {...} }
+//    NOT: { createItem: { questionItem, location } } — item wrapper required
+// 3. Option.isCorrect: READ-ONLY — use grading.correctAnswers instead
+// 4. TextQuestion.type: NOT valid JSON — send {} or { paragraph: true }
+// 5. ChoiceQuestion.type: IS valid (string enum "RADIO" etc.)
+// 6. grading in createItem: NOT ALLOWED — even if quiz mode is set
+//    grading requires an EXISTING item — must use updateItem after creation
+// 7. Must enable quiz mode BEFORE setting grading (via updateItem)
+// 8. Drive API list: filter trashed=false for deleted forms
+//
+// THE 3-STEP APPROACH FOR QUIZ MODE:
+// Step 1: batchUpdate — enable quiz + add description
+// Step 2: batchUpdate — create ALL question items WITHOUT grading
+// Step 3: batchUpdate — update each item with grading via updateItem
 //
 // ============================================================
 
@@ -84,10 +90,24 @@ export function mapQuestionsToGoogleForm(
   return { supported, unsupported };
 }
 
-// ─── Build Item ───
-//
-// Returns { item, location } separately so the caller wraps them as:
-// { createItem: { item: result.item, location: result.location } }
+// ─── Get correct answers for a question (used for grading) ───
+
+function getCorrectAnswers(question: BankQuestion): string[] {
+  if (!question.correct_answer) return [];
+
+  switch (question.type) {
+    case 'mcq':
+      return [question.correct_answer];
+    case 'boolean':
+      return [question.correct_answer.toLowerCase() === 'true' ? 'True' : 'False'];
+    case 'completion':
+      return [question.correct_answer];
+    default:
+      return [];
+  }
+}
+
+// ─── Build Item (WITHOUT grading — grading must be added via updateItem) ───
 
 interface BuildItemResult {
   item: Record<string, unknown>;
@@ -97,13 +117,11 @@ interface BuildItemResult {
 function buildItem(
   mapping: QuestionMappingResult,
   index: number,
-  isQuiz: boolean,
   shuffleOptions: boolean
 ): BuildItemResult | null {
   const question = mapping.originalQuestion;
   const questionText = question.question || 'Untitled Question';
   let questionDetails: Record<string, unknown>;
-  let correctAnswers: string[] = [];
 
   switch (mapping.googleFormType) {
     case 'choiceQuestion': {
@@ -112,17 +130,10 @@ function buildItem(
 
       if (question.type === 'mcq') {
         options = (question.options || []).map((opt) => ({ value: opt }));
-        if (isQuiz && question.correct_answer) {
-          correctAnswers = [question.correct_answer];
-        }
       } else if (question.type === 'boolean') {
         options = [{ value: 'True' }, { value: 'False' }];
-        if (isQuiz && question.correct_answer) {
-          correctAnswers = [question.correct_answer.toLowerCase() === 'true' ? 'True' : 'False'];
-        }
       }
 
-      // ChoiceQuestion.type IS valid — it's a string enum field
       questionDetails = {
         required: true,
         choiceQuestion: {
@@ -135,20 +146,12 @@ function buildItem(
     }
 
     case 'textQuestion': {
-      // CRITICAL: TextQuestion does NOT accept a "type" field!
-      // Send empty object {} — default is SHORT_TEXT.
-      // For PARAGRAPH type, use "paragraph": true instead.
+      // TextQuestion: NO "type" field — send {} for SHORT_TEXT, { paragraph: true } for PARAGRAPH
       const isParagraph = mapping.googleFormTextType === 'PARAGRAPH';
-
       questionDetails = {
         required: true,
         textQuestion: isParagraph ? { paragraph: true } : {},
       };
-
-      // For completion questions in quiz mode with a known correct answer
-      if (isQuiz && question.correct_answer) {
-        correctAnswers = [question.correct_answer];
-      }
       break;
     }
 
@@ -156,30 +159,56 @@ function buildItem(
       return null;
   }
 
-  // Build grading for quiz mode (using correctAnswers, NOT isCorrect on options)
-  let grading: Record<string, unknown> | undefined;
-  if (isQuiz && correctAnswers.length > 0) {
-    grading = {
-      pointValue: 1,
-      correctAnswers: {
-        answers: correctAnswers.map((ans) => ({ value: ans })),
-      },
-    };
-  }
-
-  const questionObj: Record<string, unknown> = { ...questionDetails };
-  if (grading) {
-    questionObj.grading = grading;
-  }
-
+  // NO grading here — it must be set via updateItem AFTER creation
   const item: Record<string, unknown> = {
     title: questionText,
     questionItem: {
-      question: questionObj,
+      question: questionDetails,
     },
   };
 
   return { item, location: { index } };
+}
+
+// ─── Build grading updateItem requests ───
+// Called AFTER items are created, to add grading to existing items
+
+function buildGradingUpdateRequests(
+  supported: QuestionMappingResult[],
+  startIndex: number, // 0 for new forms, existingItems.length for append
+  isQuiz: boolean
+): Array<Record<string, unknown>> {
+  if (!isQuiz) return [];
+
+  const requests: Array<Record<string, unknown>> = [];
+
+  for (let i = 0; i < supported.length; i++) {
+    const question = supported[i].originalQuestion;
+    const correctAnswers = getCorrectAnswers(question);
+
+    if (correctAnswers.length === 0) continue; // No correct answer — skip grading
+
+    requests.push({
+      updateItem: {
+        item: {
+          questionItem: {
+            question: {
+              grading: {
+                pointValue: 1,
+                correctAnswers: {
+                  answers: correctAnswers.map((ans) => ({ value: ans })),
+                },
+              },
+            },
+          },
+        },
+        updateMask: 'questionItem.question.grading',
+        location: { index: startIndex + i },
+      },
+    });
+  }
+
+  return requests;
 }
 
 // ─── Create New Google Form ───
@@ -191,23 +220,21 @@ export async function createNewGoogleForm(
 ): Promise<ExportGoogleFormResult> {
   const formsClient = await getFormsClient(userId);
 
-  // Step 1: Create form with ONLY title (no description)
+  // STEP 1: Create form with ONLY title
   const createResponse = await formsClient.forms.create({
     requestBody: { info: { title: config.formTitle } },
   });
 
   const formId = createResponse.data.formId;
-  if (!formId) {
-    throw new Error('Google Forms API did not return a formId');
-  }
+  if (!formId) throw new Error('Google Forms API did not return a formId');
 
-  // Step 2: Map questions
+  // Map questions
   const { supported, unsupported } = mapQuestionsToGoogleForm(questions);
   if (supported.length === 0) {
     throw new Error('No supported questions to export. All questions are of unsupported types.');
   }
 
-  // Step 3: Setup call — description + quiz mode (must happen BEFORE questions with grading)
+  // STEP 2: Setup — description + quiz mode (must happen BEFORE adding grading)
   const setupRequests: Array<Record<string, unknown>> = [];
 
   if (config.formDescription && config.formDescription.trim()) {
@@ -234,10 +261,10 @@ export async function createNewGoogleForm(
     });
   }
 
-  // Step 4: Add question items (quiz mode is set, so grading is valid)
+  // STEP 3: Create question items WITHOUT grading
   const questionRequests: Array<Record<string, unknown>> = [];
   for (let i = 0; i < supported.length; i++) {
-    const result = buildItem(supported[i], i, config.createAsQuiz, config.shuffleOptions);
+    const result = buildItem(supported[i], i, config.shuffleOptions);
     if (result) {
       questionRequests.push({
         createItem: { item: result.item, location: result.location },
@@ -249,7 +276,17 @@ export async function createNewGoogleForm(
     return formsClient.forms.batchUpdate({ formId, requestBody: { requests: questionRequests } });
   });
 
-  // Step 5: Build result
+  // STEP 4: Add grading via updateItem (only in quiz mode, AFTER items exist)
+  if (config.createAsQuiz) {
+    const gradingRequests = buildGradingUpdateRequests(supported, 0, true);
+    if (gradingRequests.length > 0) {
+      await executeWithRetry(async () => {
+        return formsClient.forms.batchUpdate({ formId, requestBody: { requests: gradingRequests } });
+      });
+    }
+  }
+
+  // Build result
   return {
     formId,
     editUrl: `https://docs.google.com/forms/d/${formId}/edit`,
@@ -269,40 +306,50 @@ export async function appendToExistingGoogleForm(
 ): Promise<ExportGoogleFormResult> {
   const formsClient = await getFormsClient(userId);
   const formId = config.existingFormId;
+  if (!formId) throw new Error('existingFormId is required when formMode is "appendToExisting"');
 
-  if (!formId) {
-    throw new Error('existingFormId is required when formMode is "appendToExisting"');
-  }
-
-  // Step 1: Verify the form exists (catch deleted forms)
   try {
+    // Step 1: Get existing form (also validates it still exists)
     const existingForm = await executeWithRetry(async () => {
       return formsClient.forms.get({ formId });
     });
     const existingItems = existingForm.data.items || [];
     const startIndex = existingItems.length;
 
-    // Step 2: Map questions
+    // Map questions
     const { supported, unsupported } = mapQuestionsToGoogleForm(questions);
     if (supported.length === 0) {
       throw new Error('No supported questions to export. All questions are of unsupported types.');
     }
 
-    // Step 3: Build and execute batchUpdate
-    const requests: Array<Record<string, unknown>> = [];
+    // Step 2: Create question items WITHOUT grading
+    const questionRequests: Array<Record<string, unknown>> = [];
     for (let i = 0; i < supported.length; i++) {
-      const result = buildItem(supported[i], startIndex + i, config.createAsQuiz, config.shuffleOptions);
+      const result = buildItem(supported[i], startIndex + i, config.shuffleOptions);
       if (result) {
-        requests.push({
+        questionRequests.push({
           createItem: { item: result.item, location: result.location },
         });
       }
     }
 
     await executeWithRetry(async () => {
-      return formsClient.forms.batchUpdate({ formId, requestBody: { requests } });
+      return formsClient.forms.batchUpdate({ formId, requestBody: { requests: questionRequests } });
     });
 
+    // Step 3: Add grading via updateItem (if quiz mode and form is already a quiz)
+    // Check if the existing form has quiz settings
+    const isFormQuiz = existingForm.data.settings?.quizSettings?.isQuiz || false;
+    if (config.createAsQuiz && isFormQuiz) {
+      const gradingRequests = buildGradingUpdateRequests(supported, startIndex, true);
+      if (gradingRequests.length > 0) {
+        await executeWithRetry(async () => {
+          return formsClient.forms.batchUpdate({ formId, requestBody: { requests: gradingRequests } });
+        });
+      }
+    }
+
+    // Build result
     return {
       formId,
       editUrl: `https://docs.google.com/forms/d/${formId}/edit`,
@@ -313,18 +360,16 @@ export async function appendToExistingGoogleForm(
     };
   } catch (err) {
     const error = err as { code?: number; message?: string };
-    // If the form was deleted (404), give a clear error message
     if (error.code === 404 || (error.message && error.message.includes('not found'))) {
       throw new Error(
-        'The selected Google Form no longer exists. It may have been deleted from your Google account. ' +
-        'Please refresh the list and select a different form.'
+        'The selected Google Form no longer exists. It may have been deleted. Please refresh the list and select a different form.'
       );
     }
     throw err;
   }
 }
 
-// ─── List User's Google Forms (excluding trashed/deleted) ───
+// ─── List User's Google Forms (excluding deleted/trashed) ───
 
 export async function listUserGoogleForms(
   userId: string,
@@ -334,7 +379,6 @@ export async function listUserGoogleForms(
 
   const response = await executeWithRetry(async () => {
     return driveClient.files.list({
-      // Exclude trashed (deleted) forms — they should not appear in the selection list
       q: "mimeType='application/vnd.google-apps.form' and trashed=false",
       fields: 'files(id,name,description,createdTime,modifiedTime),nextPageToken',
       pageSize: 50,
@@ -371,7 +415,6 @@ async function executeWithRetry<T>(
       return await operation();
     } catch (err) {
       const error = err as { code?: number; message?: string; response?: { status?: number } };
-
       const isRateLimit = error.code === 429 || error.response?.status === 429 ||
         (error.message && error.message.includes('rate limit'));
       const isQuota = error.code === 403 && error.message &&
@@ -379,12 +422,9 @@ async function executeWithRetry<T>(
       const isAuthError = error.code === 401 || (error.code === 403 && !isQuota);
       const isNotFound = error.code === 404;
 
-      // Don't retry on auth errors, 404, or final attempt
-      if (isAuthError || isNotFound || attempt === maxRetries - 1) {
-        throw err;
-      }
+      if (isAuthError || isNotFound || attempt === maxRetries - 1) throw err;
 
-      console.warn(`[Google Forms API] Error on attempt ${attempt + 1}: ${error.message}. Waiting ${delay}ms...`);
+      console.warn(`[Google Forms API] Error attempt ${attempt + 1}: ${error.message}. Waiting ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       delay = Math.min(delay * backoffMultiplier, 10000);
     }
@@ -407,21 +447,16 @@ export async function fetchQuestionsForExport(
     .from('bank_questions')
     .select('id, bank_id, type, question, options, correct_answer, pairs, difficulty, category, created_at');
 
-  if (questionIds.length > 0) {
-    query = query.in('id', questionIds);
-  } else if (bankIds && bankIds.length > 0) {
-    query = query.in('bank_id', bankIds);
-  }
+  if (questionIds.length > 0) query = query.in('id', questionIds);
+  else if (bankIds && bankIds.length > 0) query = query.in('bank_id', bankIds);
 
   const { data: questions, error } = await query.order('created_at', { ascending: true });
   if (error) throw new Error(`Failed to fetch questions: ${error.message}`);
-  if (!questions || questions.length === 0) throw new Error('No questions found for the specified IDs or banks');
+  if (!questions || questions.length === 0) throw new Error('No questions found');
 
   if (bankIds && bankIds.length > 0) {
     const { data: banks, error: banksError } = await supabaseServer
-      .from('question_banks')
-      .select('id, teacher_id')
-      .in('id', bankIds);
+      .from('question_banks').select('id, teacher_id').in('id', bankIds);
     if (banksError) throw new Error(`Failed to verify bank ownership: ${banksError.message}`);
 
     const ownedBankIds = (banks || []).filter(b => b.teacher_id === userId).map(b => b.id);
@@ -445,9 +480,7 @@ export async function exportQuestionsToGoogleForm(
   if (!config.formTitle || config.formTitle.trim().length === 0) {
     throw new Error('Form title is required');
   }
-
   const questions = await fetchQuestionsForExport(userId, questionIds, bankIds);
-
   if (config.formMode === 'appendToExisting') {
     return appendToExistingGoogleForm(userId, questions, config);
   } else {
