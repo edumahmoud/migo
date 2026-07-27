@@ -215,7 +215,8 @@ function buildMatchingPairItems(
   question: BankQuestion,
   startIndex: number,
   shuffleOptions: boolean,
-  isQuiz: boolean
+  isQuiz: boolean,
+  pointValue: number = 1
 ): MatchingPairItem {
   const pairs = question.pairs || [];
   const parentTitle = question.question || 'Matching Question';
@@ -259,7 +260,7 @@ function buildMatchingPairItems(
             questionItem: {
               question: {
                 grading: {
-                  pointValue: 1,
+                  pointValue,
                   correctAnswers: {
                     answers: [{ value: rightSide }],
                   },
@@ -285,7 +286,8 @@ function buildGradingUpdateRequests(
   supported: QuestionMappingResult[],
   startIndex: number,
   isQuiz: boolean,
-  matchingOffsetMap: Map<string, number> // questionId → number of extra items (matching pairs)
+  matchingOffsetMap: Map<string, number>, // questionId → number of extra items (matching pairs)
+  pointValuesByType?: Partial<Record<BankQuestion['type'], number>>
 ): Array<Record<string, unknown>> {
   if (!isQuiz) return [];
 
@@ -308,13 +310,16 @@ function buildGradingUpdateRequests(
       continue;
     }
 
+    // Use custom point value for this question type, or default 1
+    const pointValue = pointValuesByType?.[question.type] ?? 1;
+
     requests.push({
       updateItem: {
         item: {
           questionItem: {
             question: {
               grading: {
-                pointValue: 1,
+                pointValue,
                 correctAnswers: {
                   answers: correctAnswers.map((ans) => ({ value: ans })),
                 },
@@ -359,11 +364,13 @@ function buildAllQuestionItems(
 
     if (question.type === 'matching') {
       // Expand matching question into multiple dropdown questions
+      const matchingPointValue = config.pointValuesByType?.matching ?? 1;
       const pairResult = buildMatchingPairItems(
         question,
         currentIndex,
         config.shuffleOptions,
-        config.createAsQuiz
+        config.createAsQuiz,
+        matchingPointValue
       );
 
       questionRequests.push(...pairResult.requests);
@@ -408,7 +415,8 @@ function buildAllQuestionItems(
     supported,
     startIndex,
     config.createAsQuiz,
-    matchingOffsetMap
+    matchingOffsetMap,
+    config.pointValuesByType
   );
   allGradingRequests.push(...regularGrading);
 

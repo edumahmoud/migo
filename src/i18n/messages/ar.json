@@ -4016,7 +4016,8 @@
     "googleFormsQuestionCountUnit": "أسئلة",
     "googleFormsMatchingConverted": "كل زوج يتحول إلى سؤال قائمة منسدلة",
     "googleFormsExportedQuestionsList": "الأسئلة المُصدّرة",
-    "googleFormsUnsupportedWarningNew": "بعض الأسئلة لم يتم تصديرها"
+    "googleFormsUnsupportedWarningNew": "بعض الأسئلة لم يتم تصديرها",
+    "googleFormsPointValue": "الدرجة"
   },
   "studentsTab": {
     "acceptAllTitle": "قبول جميع الطلبات",

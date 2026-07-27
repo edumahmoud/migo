@@ -87,6 +87,8 @@ export interface ExportGoogleFormConfig {
   formMode: 'createNew' | 'appendToExisting';
   existingFormId?: string; // Required when formMode === 'appendToExisting'
   enabledQuestionTypes?: BankQuestion['type'][]; // Which question types to include in export
+  /** Points per question type. Key = question type, Value = point value. Default = 1 */
+  pointValuesByType?: Partial<Record<BankQuestion['type'], number>>;
 }
 
 /** The full export request payload sent to the API */

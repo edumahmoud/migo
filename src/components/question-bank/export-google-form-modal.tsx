@@ -172,6 +172,22 @@ export default function ExportGoogleFormModal({
     [...ALL_QUESTION_TYPES]
   );
 
+  // ─── Point values per question type (default = 1 for each) ───
+
+  const [pointValuesByType, setPointValuesByType] = useState<Partial<Record<BankQuestionType['type'], number>>>({
+    mcq: 1,
+    boolean: 1,
+    completion: 1,
+    matching: 1,
+  });
+
+  const handlePointValueChange = useCallback((type: BankQuestionType['type'], value: string) => {
+    const num = parseInt(value, 10);
+    if (num > 0 && num <= 100) {
+      setPointValuesByType(prev => ({ ...prev, [type]: num }));
+    }
+  }, []);
+
   // ─── Count of questions that will be exported (based on type filter) ───
 
   const filteredQuestionCount = useMemo(() => {
@@ -215,6 +231,7 @@ export default function ExportGoogleFormModal({
     setExistingFormId('');
     setCopiedLink(false);
     setEnabledQuestionTypes([...ALL_QUESTION_TYPES]);
+    setPointValuesByType({ mcq: 1, boolean: 1, completion: 1, matching: 1 });
     onClose();
   }, [reset, onClose]);
 
@@ -265,13 +282,14 @@ export default function ExportGoogleFormModal({
       formMode,
       existingFormId: formMode === 'appendToExisting' ? existingFormId : undefined,
       enabledQuestionTypes,
+      pointValuesByType: createAsQuiz ? pointValuesByType : undefined,
     };
 
     await exportToGoogleForm(selectedQuestionIds, selectedBankIds, config);
   }, [
     formTitle, formDescription, createAsQuiz, shuffleQuestions, shuffleOptions,
     collectEmailAddresses, formMode, existingFormId, enabledQuestionTypes,
-    selectedQuestionIds, selectedBankIds, exportToGoogleForm, t,
+    pointValuesByType, selectedQuestionIds, selectedBankIds, exportToGoogleForm, t,
   ]);
 
   // ─── Handle retry ───
@@ -381,6 +399,7 @@ export default function ExportGoogleFormModal({
             const isSupported = mapping?.supported;
             const googleFormLabel = getGoogleFormTypeLabel(type);
             const isChecked = enabledQuestionTypes.includes(type);
+            const pointValue = pointValuesByType[type] ?? 1;
 
             return (
               <div
@@ -418,6 +437,24 @@ export default function ExportGoogleFormModal({
                     <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
                       {mapping?.reason}
                     </p>
+                  )}
+                  {/* Point value input (only visible when quiz mode + type is checked) */}
+                  {isChecked && createAsQuiz && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <Label htmlFor={`points-${type}`} className="text-xs text-muted-foreground whitespace-nowrap" dir={direction}>
+                        {t('questionBank.googleFormsPointValue') || 'Points'}:
+                      </Label>
+                      <Input
+                        id={`points-${type}`}
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={pointValue}
+                        onChange={(e) => handlePointValueChange(type, e.target.value)}
+                        className="h-6 w-16 text-xs px-1.5 py-0"
+                        dir="ltr"
+                      />
+                    </div>
                   )}
                 </div>
               </div>

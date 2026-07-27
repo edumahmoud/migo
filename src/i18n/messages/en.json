@@ -4015,7 +4015,8 @@
     "googleFormsQuestionCountUnit": "questions",
     "googleFormsMatchingConverted": "Each pair becomes a dropdown question",
     "googleFormsExportedQuestionsList": "Exported Questions",
-    "googleFormsUnsupportedWarningNew": "Some Questions Were Skipped"
+    "googleFormsUnsupportedWarningNew": "Some Questions Were Skipped",
+    "googleFormsPointValue": "Points"
   },
   "studentsTab": {
     "acceptAllTitle": "Accept All Requests",
