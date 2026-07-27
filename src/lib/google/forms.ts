@@ -119,8 +119,16 @@ function getCorrectAnswers(question: BankQuestion): string[] {
   switch (question.type) {
     case 'mcq':
       return [question.correct_answer];
-    case 'boolean':
-      return [question.correct_answer.toLowerCase() === 'true' ? 'True' : 'False'];
+    case 'boolean': {
+      // correct_answer is stored in Arabic: 'صح' (True) or 'خطأ' (False)
+      // Also handle English 'true'/'false' for compatibility
+      const ans = question.correct_answer.trim();
+      if (ans === 'صح' || ans === 'صواب' || ans.toLowerCase() === 'true') {
+        return ['صح'];
+      } else {
+        return ['خطأ'];
+      }
+    }
     case 'completion':
       return [question.correct_answer];
     default:
@@ -161,7 +169,8 @@ function buildItem(
       if (question.type === 'mcq') {
         options = (question.options || []).map((opt) => ({ value: opt }));
       } else if (question.type === 'boolean') {
-        options = [{ value: 'True' }, { value: 'False' }];
+        // Use Arabic labels matching the database storage format
+        options = [{ value: 'صح' }, { value: 'خطأ' }];
       } else if (question.type === 'matching') {
         // Matching questions are handled by buildMatchingPairItems
         return null;
