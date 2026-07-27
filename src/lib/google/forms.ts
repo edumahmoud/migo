@@ -100,21 +100,21 @@ export function mapQuestionsToGoogleForm(
 
 // ─── Build a Google Forms Item (the "item" inside createItem) ───
 //
-// This builds the ITEM object that wraps questionItem.
-// The correct hierarchy for batchUpdate is:
+// CRITICAL NOTES about the Google Forms API:
 //
-//   createItem: {
-//     item: {             ← Item wrapper (contains title, description, questionItem)
-//       questionItem: {   ← Question type content
-//         question: {     ← Question details (choiceQuestion, textQuestion, etc.)
-//           ...
-//         }
-//       }
-//     },
-//     location: {         ← Where to insert (separate from item)
-//       index: N
-//     }
-//   }
+// 1. The createItem structure is:
+//    { createItem: { item: { questionItem: {...} }, location: { index } } }
+//    NOT: { createItem: { questionItem: {...}, location: {...} } }
+//
+// 2. Option.isCorrect is READ-ONLY — it cannot be set in batchUpdate.
+//    To mark correct answers in quiz mode, use grading.correctAnswers
+//    on the Question object instead.
+//
+// 3. grading can only be set AFTER the form is in quiz mode.
+//    So we split batchUpdate into two calls:
+//    Call 1: Set quiz mode + add description
+//    Call 2: Add question items (grading is valid now)
+//
 
 interface BuildItemResult {
   /** The Google Forms Item object containing questionItem */
@@ -133,28 +133,32 @@ function buildItem(
   const questionText = question.question || 'Untitled Question';
 
   // Build the question details (choiceQuestion or textQuestion)
+  // NOTE: Option.isCorrect is read-only — do NOT include it.
+  // For quiz correct answers, we use grading.correctAnswers on the Question.
   let questionDetails: Record<string, unknown>;
+  let correctAnswers: string[] = []; // Values of correct options for grading
 
   switch (mapping.googleFormType) {
     case 'choiceQuestion': {
       const choiceType = mapping.googleFormChoiceType || 'RADIO';
-      let options: Array<Record<string, unknown>> = [];
+
+      // Build options — ONLY "value" field, NO "isCorrect" (read-only)
+      let options: Array<{ value: string }> = [];
 
       if (question.type === 'mcq') {
         const questionOptions = question.options || [];
-        options = questionOptions.map((opt) => {
-          const optionObj: Record<string, unknown> = { value: opt };
-          if (isQuiz && question.correct_answer) {
-            optionObj.isCorrect = opt === question.correct_answer;
-          }
-          return optionObj;
-        });
+        options = questionOptions.map((opt) => ({ value: opt }));
+        // Track the correct answer value for grading
+        if (isQuiz && question.correct_answer) {
+          correctAnswers = [question.correct_answer];
+        }
       } else if (question.type === 'boolean') {
-        const correctBool = question.correct_answer?.toLowerCase() === 'true';
-        options = [
-          { value: 'True', ...(isQuiz ? { isCorrect: correctBool } : {}) },
-          { value: 'False', ...(isQuiz ? { isCorrect: !correctBool } : {}) },
-        ];
+        options = [{ value: 'True' }, { value: 'False' }];
+        // Track correct boolean value for grading
+        if (isQuiz && question.correct_answer) {
+          const correctBool = question.correct_answer.toLowerCase() === 'true';
+          correctAnswers = [correctBool ? 'True' : 'False'];
+        }
       }
 
       questionDetails = {
@@ -170,12 +174,19 @@ function buildItem(
 
     case 'textQuestion': {
       const textType = mapping.googleFormTextType || 'SHORT_TEXT';
+
       questionDetails = {
         required: true,
         textQuestion: {
           type: textType,
         },
       };
+
+      // For text/completion questions in quiz mode, we can set a grading key
+      // if the correct answer is known
+      if (isQuiz && question.correct_answer) {
+        correctAnswers = [question.correct_answer];
+      }
       break;
     }
 
@@ -183,12 +194,29 @@ function buildItem(
       return null;
   }
 
+  // Build grading object for quiz mode
+  // grading.correctAnswers uses CorrectAnswer objects with "value" field
+  let grading: Record<string, unknown> | undefined;
+  if (isQuiz && correctAnswers.length > 0) {
+    grading = {
+      pointValue: 1,
+      correctAnswers: {
+        answers: correctAnswers.map((ans) => ({ value: ans })),
+      },
+    };
+  }
+
   // Build the full item structure:
-  // Item { questionItem: { question: { ... } } }
+  // Item { questionItem: { question: { ... (with grading if quiz) } } }
+  const questionObj: Record<string, unknown> = { ...questionDetails };
+  if (grading) {
+    questionObj.grading = grading;
+  }
+
   const item: Record<string, unknown> = {
     title: questionText,
     questionItem: {
-      question: questionDetails,
+      question: questionObj,
     },
   };
 
@@ -229,25 +257,27 @@ export async function createNewGoogleForm(
     throw new Error('No supported questions to export. All questions are of unsupported types.');
   }
 
-  // ── Step 3: Build ALL batchUpdate requests ──
-  const requests: Array<Record<string, unknown>> = [];
-
-  // 3a: Add description via updateFormInfo (only if provided)
-  if (config.formDescription && config.formDescription.trim()) {
-    requests.push({
-      updateFormInfo: {
-        info: {
-          title: config.formTitle,
-          description: config.formDescription,
-        },
-        updateMask: 'description',
-      },
-    });
-  }
-
-  // 3b: Set quiz mode if requested
+  // ── Step 3: If quiz mode, set it FIRST in a separate batchUpdate ──
+  // grading on questions requires the form to already be in quiz mode.
+  // We must enable quiz mode BEFORE adding questions with grading.
   if (config.createAsQuiz) {
-    requests.push({
+    const setupRequests: Array<Record<string, unknown>> = [];
+
+    // Add description if provided
+    if (config.formDescription && config.formDescription.trim()) {
+      setupRequests.push({
+        updateFormInfo: {
+          info: {
+            title: config.formTitle,
+            description: config.formDescription,
+          },
+          updateMask: 'description',
+        },
+      });
+    }
+
+    // Enable quiz mode
+    setupRequests.push({
       updateSettings: {
         settings: {
           quizSettings: {
@@ -257,13 +287,41 @@ export async function createNewGoogleForm(
         updateMask: 'quizSettings.isQuiz',
       },
     });
+
+    await executeWithRetry(async () => {
+      return formsClient.forms.batchUpdate({
+        formId,
+        requestBody: { requests: setupRequests },
+      });
+    });
+  } else if (config.formDescription && config.formDescription.trim()) {
+    // Non-quiz mode — just add description
+    await executeWithRetry(async () => {
+      return formsClient.forms.batchUpdate({
+        formId,
+        requestBody: {
+          requests: [{
+            updateFormInfo: {
+              info: {
+                title: config.formTitle,
+                description: config.formDescription,
+              },
+              updateMask: 'description',
+            },
+          }],
+        },
+      });
+    });
   }
 
-  // 3c: Add question items using correct createItem structure
+  // ── Step 4: Add question items ──
+  // Now the form is in quiz mode (if requested), so grading is valid.
+  const questionRequests: Array<Record<string, unknown>> = [];
+
   for (let i = 0; i < supported.length; i++) {
     const result = buildItem(supported[i], i, config.createAsQuiz, config.shuffleOptions);
     if (result) {
-      requests.push({
+      questionRequests.push({
         createItem: {
           item: result.item,
           location: result.location,
@@ -272,11 +330,10 @@ export async function createNewGoogleForm(
     }
   }
 
-  // ── Step 4: Execute batchUpdate with retry ──
   await executeWithRetry(async () => {
     return formsClient.forms.batchUpdate({
       formId,
-      requestBody: { requests },
+      requestBody: { requests: questionRequests },
     });
   });
 
