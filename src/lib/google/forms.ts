@@ -22,10 +22,10 @@
 //
 // MATCHING QUESTION EXPANSION:
 // Matching questions are expanded into multiple dropdown questions.
-// Each pair (left → right) becomes one DROP_DOWN question:
-//   - Title: "[Original Question Title] — [Left Side]"
-//   - Options: All right sides from all pairs (dropdown choices)
-//   - Correct answer: The matching right side for that pair
+// Each pair (key → value) becomes one DROP_DOWN question:
+//   - Title: "[Original Question Title] — [key]"
+//   - Options: All values from all pairs (dropdown choices)
+//   - Correct answer: The matching value for that key
 //   - Question title is bold-style: prefixed with ★ for visual emphasis
 //
 // ============================================================
@@ -203,7 +203,7 @@ function buildItem(
 
 // ─── Build Matching Pair Items ───
 // Each matching question is expanded into multiple DROP_DOWN questions.
-// Each pair (left → right) becomes one dropdown question.
+// Each pair (key → value) becomes one dropdown question.
 
 interface MatchingPairItem {
   requests: Array<Record<string, unknown>>;  // createItem requests
@@ -220,20 +220,20 @@ function buildMatchingPairItems(
 ): MatchingPairItem {
   const pairs = question.pairs || [];
   const parentTitle = question.question || 'Matching Question';
-  const allRightSides = pairs.map((pair: { right: string }) => pair.right);
+  const allRightSides = pairs.map((pair) => pair.value);
 
   const requests: Array<Record<string, unknown>> = [];
   const gradingRequests: Array<Record<string, unknown>> = [];
 
   for (let i = 0; i < pairs.length; i++) {
-    const pair = pairs[i] as { left: string; right: string };
-    const leftSide = pair.left;
-    const rightSide = pair.right;
+    const pair = pairs[i];
+    const leftSide = pair.key;
+    const rightSide = pair.value;
 
     // Bold title: ★ [Parent Title] — [Left Side]
     const pairTitle = buildBoldTitle(`${parentTitle} — ${leftSide}`);
 
-    // Create a DROP_DOWN question with all right sides as options
+    // Create a DROP_DOWN question with all values as options
     const item: Record<string, unknown> = {
       title: pairTitle,
       questionItem: {
@@ -241,7 +241,7 @@ function buildMatchingPairItems(
           required: true,
           choiceQuestion: {
             type: 'DROP_DOWN',
-            options: allRightSides.map((rs: string) => ({ value: rs })),
+            options: allRightSides.map((rs) => ({ value: rs })),
             shuffle: shuffleOptions,
           },
         },
