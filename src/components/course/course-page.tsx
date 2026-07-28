@@ -34,6 +34,7 @@ import {
   Tag,
   Plus,
   Package,
+  BookMarked,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -58,6 +59,7 @@ const TeamsTab = lazy(() => import('@/components/course/tabs/teams-tab'));
 const PollsTab = lazy(() => import('@/components/shared/polls-section'));
 const LessonsTab = lazy(() => import('@/components/course/tabs/lessons-tab'));
 const ScormTab = lazy(() => import('@/components/course/tabs/scorm-tab'));
+const QuestionBankTab = lazy(() => import('@/components/course/tabs/question-bank-tab'));
 
 // Tab loading fallback
 function TabLoader() {
@@ -93,6 +95,7 @@ const TABS: TabConfig[] = [
   { id: 'files', labelKey: 'course.tabFiles', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'videos', labelKey: 'course.tabVideos', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'exams', labelKey: 'course.tabExams', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'questionBank', labelKey: 'course.tabQuestionBank', icon: <BookMarked className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'assignments', labelKey: 'course.tabAssignments', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', labelKey: 'course.tabChat', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', labelKey: 'course.tabStudents', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
@@ -710,6 +713,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'exams' && (
           <SectionErrorBoundary name={t('course.exams')}>
             <ExamsTab {...commonProps} />
+          </SectionErrorBoundary>
+        )}
+        {courseTab === 'questionBank' && (
+          <SectionErrorBoundary name={t('course.tabQuestionBank') || 'Question Bank'}>
+            <QuestionBankTab {...commonProps} />
           </SectionErrorBoundary>
         )}
         {courseTab === 'assignments' && <AssignmentsTab {...commonProps} />}

@@ -642,7 +642,7 @@ export interface BankQuestion {
 // =====================================================
 
 // Course page tab types
-export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams' | 'polls' | 'lessons' | 'scorm';
+export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams' | 'polls' | 'lessons' | 'scorm' | 'questionBank';
 
 // Extended lecture type with attendance info
 export interface LectureWithAttendance extends Lecture {
