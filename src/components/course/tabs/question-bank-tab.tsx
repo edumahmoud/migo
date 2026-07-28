@@ -21,6 +21,11 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -54,6 +59,11 @@ const containerVariants = {
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
+};
+
+const collapseVariants = {
+  collapsed: { height: 0, opacity: 0, overflow: 'hidden' },
+  expanded: { height: 'auto', opacity: 1, overflow: 'hidden', transition: { duration: 0.3, ease: 'easeInOut' as const } },
 };
 
 // -------------------------------------------------------
@@ -124,6 +134,21 @@ function correctRateBg(rate: number): string {
   return 'bg-rose-100 dark:bg-rose-900/30';
 }
 
+function typeBadgeColor(type: string): string {
+  switch (type) {
+    case 'mcq':
+      return 'bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60';
+    case 'boolean':
+      return 'bg-violet-100 dark:bg-violet-900/15 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-900/60';
+    case 'completion':
+      return 'bg-teal-100 dark:bg-teal-900/15 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-900/60';
+    case 'matching':
+      return 'bg-orange-100 dark:bg-orange-900/15 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900/60';
+    default:
+      return 'bg-muted/50 text-muted-foreground border-border';
+  }
+}
+
 // -------------------------------------------------------
 // Practice state types
 // -------------------------------------------------------
@@ -143,6 +168,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
   const { t, direction, locale } = useTranslations();
   const isRTL = direction === 'rtl';
   const BackIcon = isRTL ? ChevronRight : ChevronLeft;
+  const { setSelectedSubjectId, setCourseTab } = useAppStore();
 
   // Arabic letters for option labels
   const arabicLetters = ['أ','ب','ج','د','هـ','و','ز','ح','ط','ي','ك','ل','م','ن','س','ع','ف','ص','ق','ر','ش','ت','ث','خ','ذ','ض','ظ','غ'];
@@ -167,6 +193,17 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // ─── Collapsible stats state ───
+  const [statsExpanded, setStatsExpanded] = useState(false);
+
+  // ─── Quick Create Quiz state ───
+  const [quizTypeCounts, setQuizTypeCounts] = useState<Record<string, number>>({
+    mcq: 0,
+    boolean: 0,
+    completion: 0,
+    matching: 0,
+  });
 
   // ─── Fetch data ───
   const fetchBanks = useCallback(async () => {
@@ -253,6 +290,16 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
     const hard = questions.filter(q => q.difficulty === 'hard').length;
     const unspecified = questions.length - easy - medium - hard;
     return { easy, medium, hard, unspecified, total: questions.length };
+  };
+
+  // Type breakdown for a bank
+  const getTypeBreakdown = (bankId: string) => {
+    const questions = bankQuestions[bankId] || [];
+    const mcq = questions.filter(q => q.type === 'mcq').length;
+    const boolean = questions.filter(q => q.type === 'boolean').length;
+    const completion = questions.filter(q => q.type === 'completion').length;
+    const matching = questions.filter(q => q.type === 'matching').length;
+    return { mcq, boolean, completion, matching, total: questions.length };
   };
 
   // Quiz stats helper
@@ -347,6 +394,39 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
     ? Math.round((practiceCorrectCount / practiceAnswers.length) * 100)
     : 0;
 
+  // ─── Quick Create Quiz helper ───
+  const handleQuickCreateQuiz = () => {
+    const questions = selectedBankQuestions;
+    const selectedQuestions: BankQuestion[] = [];
+
+    for (const type of ['mcq', 'boolean', 'completion', 'matching']) {
+      const count = quizTypeCounts[type] || 0;
+      if (count > 0) {
+        const typeQuestions = questions.filter(q => q.type === type).slice(0, count);
+        selectedQuestions.push(...typeQuestions);
+      }
+    }
+
+    if (selectedQuestions.length === 0) {
+      toast.error(t('noQuestionsSelected'));
+      return;
+    }
+
+    // Store selected questions in sessionStorage for the exams tab to pick up
+    sessionStorage.setItem('quickCreateQuizQuestions', JSON.stringify(selectedQuestions.map(q => ({
+      type: q.type,
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correct_answer,
+      pairs: q.pairs,
+    }))));
+    sessionStorage.setItem('quickCreateQuizBankName', selectedBank?.name || '');
+
+    // Navigate to exams tab
+    setSelectedSubjectId(subjectId);
+    setCourseTab('exams');
+  };
+
   // ─── Render: Loading ───
   if (loading) {
     return (
@@ -386,6 +466,9 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
         </div>
       );
     }
+
+    // Boolean options: use Arabic 'صح'/'خطأ' matching database storage
+    const booleanOptions = locale === 'ar' ? ['صح', 'خطأ'] : ['True', 'False'];
 
     return (
       <motion.div
@@ -428,7 +511,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
               <Badge variant="outline" className={difficultyColor(question.difficulty)}>
                 {difficultyLabel(question.difficulty, t)}
               </Badge>
-              <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
+              <Badge variant="outline" className={typeBadgeColor(question.type)}>
                 {questionTypeLabel(question.type, t)}
               </Badge>
               {question.category && (
@@ -439,7 +522,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
             </div>
           </CardHeader>
           <CardContent className="pt-2">
-            <p className="text-base font-medium leading-relaxed mb-4">{question.question}</p>
+            <p className="text-base font-bold leading-relaxed mb-4">{question.question}</p>
 
             {/* MCQ Options */}
             {question.type === 'mcq' && question.options && (
@@ -455,7 +538,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                       key={idx}
                       disabled={showFeedback}
                       onClick={() => !showFeedback && setSelectedOption(option)}
-                      className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all
+                      className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all duration-200
                         ${showFeedback
                           ? showCorrectHighlight
                             ? 'bg-emerald-100 dark:bg-emerald-900/15 border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-400'
@@ -467,7 +550,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                             : 'bg-muted/30 border-border hover:bg-muted/50'
                         }`}
                     >
-                      <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold
+                      <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200
                         ${showFeedback && showCorrectHighlight
                           ? 'bg-emerald-500 text-white'
                           : showFeedback && isSelected && !isCorrectOption
@@ -479,7 +562,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                       >
                         {showFeedback && showCorrectHighlight ? <CheckCircle2 className="h-4 w-4" /> : showFeedback && isSelected && !isCorrectOption ? <XCircle className="h-4 w-4" /> : label}
                       </span>
-                      <span className="flex-1">{option}</span>
+                      <span className="flex-1 font-medium">{option}</span>
                       {showFeedback && showCorrectHighlight && (
                         <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                       )}
@@ -492,21 +575,25 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
               </div>
             )}
 
-            {/* Boolean Options */}
+            {/* Boolean Options — Arabic 'صح'/'خطأ' */}
             {question.type === 'boolean' && (
               <div className="flex flex-col gap-2">
-                {['true', 'false'].map((option) => {
-                  const displayText = option === 'true' ? (locale === 'ar' ? 'صحيح' : 'True') : (locale === 'ar' ? 'خطأ' : 'False');
-                  const isSelected = selectedOption === option;
-                  const isCorrectOption = question.correct_answer === option;
+                {booleanOptions.map((option) => {
+                  // Map display option back to database value for comparison
+                  // Database stores: 'صح' (True) or 'خطأ' (False) in Arabic
+                  const dbValue = locale === 'ar'
+                    ? option // 'صح' or 'خطأ' — same as database
+                    : (option === 'True' ? 'صح' : 'خطأ'); // English display maps to Arabic storage
+                  const isSelected = selectedOption === dbValue;
+                  const isCorrectOption = question.correct_answer === dbValue;
                   const showCorrectHighlight = showFeedback && isCorrectOption;
 
                   return (
                     <button
                       key={option}
                       disabled={showFeedback}
-                      onClick={() => !showFeedback && setSelectedOption(option)}
-                      className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all
+                      onClick={() => !showFeedback && setSelectedOption(dbValue)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border text-sm transition-all duration-200
                         ${showFeedback
                           ? showCorrectHighlight
                             ? 'bg-emerald-100 dark:bg-emerald-900/15 border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-400'
@@ -518,9 +605,25 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                             : 'bg-muted/30 border-border hover:bg-muted/50'
                         }`}
                     >
-                      {showFeedback && showCorrectHighlight && <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
-                      {showFeedback && isSelected && !isCorrectOption && <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400" />}
-                      <span className="font-medium">{displayText}</span>
+                      <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200
+                        ${showFeedback && showCorrectHighlight
+                          ? 'bg-emerald-500 text-white'
+                          : showFeedback && isSelected && !isCorrectOption
+                            ? 'bg-rose-500 text-white'
+                            : isSelected
+                              ? 'bg-sky-700 text-white'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {showFeedback && showCorrectHighlight ? <CheckCircle2 className="h-4 w-4" /> : showFeedback && isSelected && !isCorrectOption ? <XCircle className="h-4 w-4" /> : option === 'صح' || option === 'True' ? '✓' : '✗'}
+                      </span>
+                      <span className="font-bold">{option}</span>
+                      {showFeedback && showCorrectHighlight && (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      )}
+                      {showFeedback && isSelected && !isCorrectOption && (
+                        <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                      )}
                     </button>
                   );
                 })}
@@ -536,23 +639,23 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                     value={selectedOption || ''}
                     onChange={(e) => setSelectedOption(e.target.value)}
                     placeholder={t('completionPlaceholder')}
-                    className="w-full p-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full p-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors duration-200"
                   />
                 ) : (
-                  <div className={`p-3 rounded-lg border text-sm
+                  <div className={`p-3 rounded-lg border text-sm transition-colors duration-200
                     ${practiceAnswers[currentQuestionIndex]?.isCorrect
                       ? 'bg-emerald-100 dark:bg-emerald-900/15 border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-400'
                       : 'bg-rose-100 dark:bg-rose-900/15 border-rose-400 dark:border-rose-600 text-rose-700 dark:text-rose-400'
                     }`}
                   >
-                    <p className="font-medium">
+                    <p className="font-bold">
                       {practiceAnswers[currentQuestionIndex]?.isCorrect
                         ? <span className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5" /> {t('practiceCorrect')}</span>
                         : <span className="flex items-center gap-2"><XCircle className="h-5 w-5" /> {t('practiceWrong')}</span>
                       }
                     </p>
                     {!practiceAnswers[currentQuestionIndex]?.isCorrect && (
-                      <p className="mt-1 text-emerald-700 dark:text-emerald-400">
+                      <p className="mt-1 text-emerald-700 dark:text-emerald-400 font-medium">
                         {t('correctAnswer')}: {question.correct_answer}
                       </p>
                     )}
@@ -574,7 +677,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
 
                     return (
                       <div key={idx} className="flex items-center gap-3">
-                        <span className="flex-shrink-0 font-medium text-sm bg-muted/50 px-3 py-2 rounded-lg border min-w-[120px]">
+                        <span className="flex-shrink-0 font-bold text-sm bg-muted/50 px-3 py-2 rounded-lg border min-w-[120px]">
                           {pair.key}
                         </span>
                         <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -587,7 +690,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                               const updated = { ...currentSelected, [pair.key]: e.target.value };
                               setSelectedOption(JSON.stringify(updated));
                             }}
-                            className="flex-1 p-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            className="flex-1 p-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 transition-colors duration-200"
                           />
                         ) : (
                           <span className={`flex-1 p-2 rounded-lg border text-sm
@@ -598,7 +701,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                           >
                             {userValue || '—'}
                             {userValue.trim().toLowerCase() !== pair.value.trim().toLowerCase() && (
-                              <span className="ml-2 text-emerald-700 dark:text-emerald-400 font-medium">({pair.value})</span>
+                              <span className="ml-2 text-emerald-700 dark:text-emerald-400 font-bold">({pair.value})</span>
                             )}
                           </span>
                         )}
@@ -615,7 +718,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                 <Button
                   onClick={handlePracticeAnswer}
                   disabled={!selectedOption}
-                  className="bg-sky-700 hover:bg-sky-800 text-white"
+                  className="bg-sky-700 hover:bg-sky-800 text-white transition-colors duration-200"
                 >
                   <Play className="h-4 w-4 mr-2" />
                   {t('startPractice')}
@@ -623,7 +726,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
               ) : (
                 <Button
                   onClick={handleNextQuestion}
-                  className="bg-sky-700 hover:bg-sky-800 text-white"
+                  className="bg-sky-700 hover:bg-sky-800 text-white transition-colors duration-200"
                 >
                   {currentQuestionIndex < questions.length - 1 ? (
                     <>
@@ -687,11 +790,11 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  <span className="text-sm font-medium">{t('practiceCorrect')}: {practiceCorrectCount}</span>
+                  <span className="text-sm font-bold">{t('practiceCorrect')}: {practiceCorrectCount}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <XCircle className="h-5 w-5 text-rose-600" />
-                  <span className="text-sm font-medium">{t('practiceWrong')}: {practiceWrongCount}</span>
+                  <span className="text-sm font-bold">{t('practiceWrong')}: {practiceWrongCount}</span>
                 </div>
               </div>
             </div>
@@ -703,14 +806,14 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
           <Button
             onClick={() => setPhase('practice-review')}
             variant="outline"
-            className="border-sky-200 dark:border-sky-900/60 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/15"
+            className="border-sky-200 dark:border-sky-900/60 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/15 transition-colors duration-200"
           >
             <Eye className="h-4 w-4 mr-2" />
             {t('practiceReview')}
           </Button>
           <Button
             onClick={() => startPractice(selectedBankId!)}
-            className="bg-sky-700 hover:bg-sky-800 text-white"
+            className="bg-sky-700 hover:bg-sky-800 text-white transition-colors duration-200"
           >
             <Play className="h-4 w-4 mr-2" />
             {t('practiceRetry')}
@@ -730,6 +833,13 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
   // ─── Render: Practice Review ───
   if (role === 'student' && phase === 'practice-review' && selectedBankId) {
     const questions = bankQuestions[selectedBankId] || [];
+    // Boolean display helper for review
+    const formatBooleanAnswer = (answer: string) => {
+      if (locale === 'ar') {
+        return answer === 'صح' ? 'صح' : 'خطأ';
+      }
+      return answer === 'صح' ? 'True' : 'False';
+    };
 
     return (
       <motion.div
@@ -757,13 +867,13 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
 
               return (
                 <motion.div key={question.id} variants={itemVariants}>
-                  <Card className={`border rounded-lg ${answer.isCorrect ? 'border-emerald-300 dark:border-emerald-700' : 'border-rose-300 dark:border-rose-700'}`}>
+                  <Card className={`border rounded-lg transition-colors duration-200 ${answer.isCorrect ? 'border-emerald-300 dark:border-emerald-700' : 'border-rose-300 dark:border-rose-700'}`}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className={difficultyColor(question.difficulty)}>
                           {difficultyLabel(question.difficulty, t)}
                         </Badge>
-                        <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
+                        <Badge variant="outline" className={typeBadgeColor(question.type)}>
                           {questionTypeLabel(question.type, t)}
                         </Badge>
                         {answer.isCorrect ? (
@@ -778,7 +888,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                       </div>
                     </CardHeader>
                     <CardContent className="pt-2">
-                      <p className="text-sm font-medium mb-2">{question.question}</p>
+                      <p className="text-sm font-bold mb-2">{question.question}</p>
                       {!answer.isCorrect && (
                         <div className="text-xs mt-2 space-y-1">
                           {question.type === 'mcq' && (
@@ -794,10 +904,10 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                           {question.type === 'boolean' && (
                             <>
                               <p className="text-rose-700 dark:text-rose-400">
-                                {locale === 'ar' ? 'إجابتك' : 'Your answer'}: {answer.selectedAnswer === 'true' ? (locale === 'ar' ? 'صحيح' : 'True') : (locale === 'ar' ? 'خطأ' : 'False')}
+                                {locale === 'ar' ? 'إجابتك' : 'Your answer'}: {formatBooleanAnswer(answer.selectedAnswer)}
                               </p>
                               <p className="text-emerald-700 dark:text-emerald-400">
-                                {t('correctAnswer')}: {answer.correctAnswer === 'true' ? (locale === 'ar' ? 'صحيح' : 'True') : (locale === 'ar' ? 'خطأ' : 'False')}
+                                {t('correctAnswer')}: {formatBooleanAnswer(answer.correctAnswer)}
                               </p>
                             </>
                           )}
@@ -817,7 +927,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
         </AnimatePresence>
 
         <div className="flex gap-3 mt-4">
-          <Button onClick={() => startPractice(selectedBankId!)} className="bg-sky-700 hover:bg-sky-800 text-white">
+          <Button onClick={() => startPractice(selectedBankId!)} className="bg-sky-700 hover:bg-sky-800 text-white transition-colors duration-200">
             <Play className="h-4 w-4 mr-2" />
             {t('practiceRetry')}
           </Button>
@@ -833,7 +943,14 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
   // ─── Render: Bank Detail View ───
   if (phase === 'bank-detail' && selectedBank) {
     const breakdown = getDifficultyBreakdown(selectedBank.id);
+    const typeBreakdown = getTypeBreakdown(selectedBank.id);
     const questions = selectedBankQuestions;
+
+    // Related quiz summary stats
+    const totalParticipants = relatedQuizzes.reduce((acc, quiz) => acc + getQuizStats(quiz.id).participantCount, 0);
+    const avgAllScores = relatedQuizzes.length > 0
+      ? Math.round(relatedQuizzes.reduce((acc, quiz) => acc + getQuizStats(quiz.id).avgScore, 0) / relatedQuizzes.length)
+      : 0;
 
     return (
       <motion.div
@@ -848,7 +965,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
             <BackIcon className="h-4 w-4" />
           </Button>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-sky-800 dark:text-sky-300">{selectedBank.name}</h3>
+            <h3 className="text-lg font-bold text-sky-800 dark:text-sky-300">{selectedBank.name}</h3>
             {selectedBank.description && (
               <p className="text-sm text-muted-foreground mt-1">{selectedBank.description}</p>
             )}
@@ -878,27 +995,253 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
           )}
         </div>
 
+        {/* Question Types Summary Row */}
+        {questions.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {typeBreakdown.mcq > 0 && (
+              <Badge variant="outline" className={`${typeBadgeColor('mcq')} text-[11px]`}>
+                {questionTypeLabel('mcq', t)}: {typeBreakdown.mcq}
+              </Badge>
+            )}
+            {typeBreakdown.boolean > 0 && (
+              <Badge variant="outline" className={`${typeBadgeColor('boolean')} text-[11px]`}>
+                {questionTypeLabel('boolean', t)}: {typeBreakdown.boolean}
+              </Badge>
+            )}
+            {typeBreakdown.completion > 0 && (
+              <Badge variant="outline" className={`${typeBadgeColor('completion')} text-[11px]`}>
+                {questionTypeLabel('completion', t)}: {typeBreakdown.completion}
+              </Badge>
+            )}
+            {typeBreakdown.matching > 0 && (
+              <Badge variant="outline" className={`${typeBadgeColor('matching')} text-[11px]`}>
+                {questionTypeLabel('matching', t)}: {typeBreakdown.matching}
+              </Badge>
+            )}
+          </div>
+        )}
+
         {/* Difficulty Progress Bar */}
         {questions.length > 0 && (
           <Card className="border rounded-lg">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                <span className="text-sm font-medium">{t('questionCountByType')}</span>
+                <span className="text-sm font-bold">{t('questionCountByType')}</span>
               </div>
               <div className="h-3 rounded-full overflow-hidden bg-muted flex">
                 {breakdown.easy > 0 && (
-                  <div className="bg-emerald-500 h-full" style={{ width: `${(breakdown.easy / breakdown.total) * 100}%` }} />
+                  <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${(breakdown.easy / breakdown.total) * 100}%` }} />
                 )}
                 {breakdown.medium > 0 && (
-                  <div className="bg-amber-500 h-full" style={{ width: `${(breakdown.medium / breakdown.total) * 100}%` }} />
+                  <div className="bg-amber-500 h-full transition-all duration-500" style={{ width: `${(breakdown.medium / breakdown.total) * 100}%` }} />
                 )}
                 {breakdown.hard > 0 && (
-                  <div className="bg-rose-500 h-full" style={{ width: `${(breakdown.hard / breakdown.total) * 100}%` }} />
+                  <div className="bg-rose-500 h-full transition-all duration-500" style={{ width: `${(breakdown.hard / breakdown.total) * 100}%` }} />
                 )}
                 {breakdown.unspecified > 0 && (
-                  <div className="bg-muted-foreground/30 h-full" style={{ width: `${(breakdown.unspecified / breakdown.total) * 100}%` }} />
+                  <div className="bg-muted-foreground/30 h-full transition-all duration-500" style={{ width: `${(breakdown.unspecified / breakdown.total) * 100}%` }} />
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Teacher: Collapsible Related Quizzes Stats */}
+        {role === 'teacher' && (
+          <Card className="border rounded-lg overflow-hidden">
+            <CardContent className="p-0">
+              {/* Collapsible Header */}
+              <button
+                onClick={() => setStatsExpanded(!statsExpanded)}
+                className="w-full flex items-center justify-between gap-3 p-4 hover:bg-muted/30 transition-colors duration-200"
+              >
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-5 w-5 text-sky-700 dark:text-sky-400" />
+                  <span className="text-sm font-bold text-sky-800 dark:text-sky-300">
+                    📊 {t('relatedQuizzes')}
+                  </span>
+                  <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 text-[11px]">
+                    {relatedQuizzes.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Summary line when collapsed */}
+                  {!statsExpanded && relatedQuizzes.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {relatedQuizzes.length} {t('relatedQuizzes').toLowerCase()} • {totalParticipants} {t('participants')} • {avgAllScores}% {t('averageScore')}
+                    </span>
+                  )}
+                  {!statsExpanded && relatedQuizzes.length === 0 && (
+                    <span className="text-xs text-muted-foreground">{t('noRelatedQuizzes')}</span>
+                  )}
+                  <motion.div
+                    animate={{ rotate: statsExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  </motion.div>
+                </div>
+              </button>
+
+              {/* Collapsible Content */}
+              <AnimatePresence initial={false}>
+                {statsExpanded && (
+                  <motion.div
+                    key="stats-content"
+                    variants={collapseVariants}
+                    initial="collapsed"
+                    animate="expanded"
+                    exit="collapsed"
+                    className="border-t border-border"
+                  >
+                    <div className="p-4">
+                      <p className="text-xs text-muted-foreground mb-3">{t('relatedQuizzesDesc')}</p>
+
+                      {relatedQuizzes.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center text-center py-4">
+                          <Users className="h-8 w-8 text-muted-foreground/40" />
+                          <p className="mt-2 text-sm font-bold text-muted-foreground">{t('noRelatedQuizzes')}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{t('noRelatedQuizzesDesc')}</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3 max-h-96 overflow-y-auto">
+                          {relatedQuizzes.map((quiz) => {
+                            const stats = getQuizStats(quiz.id);
+
+                            return (
+                              <motion.div key={quiz.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+                                <Card className="border rounded-lg">
+                                  <CardContent className="p-4">
+                                    <div className="flex items-center justify-between gap-3 mb-3">
+                                      <div className="flex-1 min-w-0">
+                                        <h5 className="text-sm font-bold truncate">{quiz.title}</h5>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Clock className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-xs text-muted-foreground">{formatDate(quiz.created_at, locale)}</span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-3 flex-shrink-0">
+                                        <div className="flex items-center gap-1">
+                                          <Users className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                                          <span className="text-xs font-bold">{stats.participantCount} {t('participants')}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                                          <span className="text-xs font-bold">{stats.avgScore}% {t('averageScore')}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Question Difficulty Analysis */}
+                                    {quiz.questions && quiz.questions.length > 0 && stats.participantCount > 0 && (
+                                      <div className="mt-3 pt-3 border-t border-border">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                                          <span className="text-xs font-bold text-sky-800 dark:text-sky-300">
+                                            {t('questionDifficultyAnalysis')}
+                                          </span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                          {quiz.questions.map((q, qi) => {
+                                            const rate = getQuestionCorrectRate(qi, quiz);
+                                            return (
+                                              <div key={qi} className={`flex items-center justify-between gap-2 p-2 rounded-md transition-colors duration-200 ${correctRateBg(rate)}`}>
+                                                <span className="text-xs font-bold truncate max-w-[60%]">{q.question}</span>
+                                                <span className={`text-xs font-bold ${correctRateColor(rate)}`}>
+                                                  {t('questionCorrectRate')}: {rate}%
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Teacher: Quick Create Quiz */}
+        {role === 'teacher' && questions.length > 0 && (
+          <Card className="border rounded-lg bg-sky-50 dark:bg-sky-900/5 border-sky-200 dark:border-sky-900/60">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="h-5 w-5 text-sky-700 dark:text-sky-400" />
+                <h4 className="text-sm font-bold text-sky-800 dark:text-sky-300">{t('quickCreateQuiz')}</h4>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">{t('selectQuestionCount')}</p>
+
+              <div className="flex flex-col gap-3">
+                {(['mcq', 'boolean', 'completion', 'matching'] as const).map((type) => {
+                  const availableCount = typeBreakdown[type];
+                  if (availableCount === 0) return null;
+                  const currentCount = quizTypeCounts[type] || 0;
+
+                  return (
+                    <div key={type} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Badge variant="outline" className={`${typeBadgeColor(type)} text-[11px]`}>
+                          {questionTypeLabel(type, t)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {availableCount} {t('availableQuestions')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0 border-sky-200 dark:border-sky-900/60 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/15"
+                          onClick={() => setQuizTypeCounts(prev => ({
+                            ...prev,
+                            [type]: Math.max(0, (prev[type] || 0) - 1),
+                          }))}
+                          disabled={currentCount <= 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="text-sm font-bold text-sky-800 dark:text-sky-300 w-6 text-center">{currentCount}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 w-7 p-0 border-sky-200 dark:border-sky-900/60 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/15"
+                          onClick={() => setQuizTypeCounts(prev => ({
+                            ...prev,
+                            [type]: Math.min(availableCount, (prev[type] || 0) + 1),
+                          }))}
+                          disabled={currentCount >= availableCount}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-sky-200 dark:border-sky-900/40">
+                <span className="text-xs text-muted-foreground">
+                  {Object.values(quizTypeCounts).reduce((a, b) => a + b, 0) === 0 ? t('noQuestionsSelected') : `${Object.values(quizTypeCounts).reduce((a, b) => a + b, 0)} ${locale === 'ar' ? 'سؤال' : 'questions'}`}
+                </span>
+                <Button
+                  onClick={handleQuickCreateQuiz}
+                  disabled={Object.values(quizTypeCounts).reduce((a, b) => a + b, 0) === 0}
+                  className="bg-sky-700 hover:bg-sky-800 text-white transition-colors duration-200"
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  {t('createQuizBtn')}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -912,10 +1255,10 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                 <Play className="h-5 w-5 text-sky-700 dark:text-sky-400" />
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-semibold text-sky-800 dark:text-sky-300">{t('practiceMode')}</h4>
+                <h4 className="text-sm font-bold text-sky-800 dark:text-sky-300">{t('practiceMode')}</h4>
                 <p className="text-xs text-muted-foreground">{t('practiceDesc')}</p>
               </div>
-              <Button onClick={() => startPractice(selectedBank.id)} className="bg-sky-700 hover:bg-sky-800 text-white">
+              <Button onClick={() => startPractice(selectedBank.id)} className="bg-sky-700 hover:bg-sky-800 text-white transition-colors duration-200">
                 <Play className="h-4 w-4 mr-2" />
                 {t('startPractice')}
               </Button>
@@ -934,14 +1277,14 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
             <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
               {questions.map((question, idx) => (
                 <motion.div key={question.id} variants={itemVariants}>
-                  <Card className="border rounded-lg hover:shadow-sm transition-shadow">
+                  <Card className="border rounded-lg hover:shadow-sm transition-all duration-200">
                     <CardHeader className="pb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-muted-foreground">#{idx + 1}</span>
                         <Badge variant="outline" className={difficultyColor(question.difficulty)}>
                           {difficultyLabel(question.difficulty, t)}
                         </Badge>
-                        <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
+                        <Badge variant="outline" className={typeBadgeColor(question.type)}>
                           {questionTypeLabel(question.type, t)}
                         </Badge>
                         {question.category && (
@@ -952,14 +1295,14 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                       </div>
                     </CardHeader>
                     <CardContent className="pt-2">
-                      <p className="text-sm font-medium leading-relaxed">{question.question}</p>
+                      <p className="text-sm font-bold leading-relaxed">{question.question}</p>
 
                       {/* MCQ preview */}
                       {question.type === 'mcq' && question.options && (
                         <div className="flex flex-col gap-1 mt-2">
                           {question.options.map((opt, oi) => (
                             <div key={oi} className={`flex items-center gap-2 text-xs
-                              ${question.correct_answer === opt ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'}
+                              ${question.correct_answer === opt ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-muted-foreground'}
                             `}>
                               <span className={`flex-shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[10px]
                                 ${question.correct_answer === opt ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground'}
@@ -972,14 +1315,14 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                         </div>
                       )}
 
-                      {/* Boolean preview */}
+                      {/* Boolean preview — use Arabic 'صح'/'خطأ' */}
                       {question.type === 'boolean' && (
                         <div className="flex items-center gap-2 mt-2 text-xs">
-                          <span className={question.correct_answer === 'true' ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'}>
-                            {locale === 'ar' ? 'صحيح' : 'True'}
+                          <span className={question.correct_answer === 'صح' ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-muted-foreground'}>
+                            {locale === 'ar' ? 'صح' : 'True'}
                           </span>
                           <span className="text-muted-foreground">/</span>
-                          <span className={question.correct_answer === 'false' ? 'text-emerald-700 dark:text-emerald-400 font-medium' : 'text-muted-foreground'}>
+                          <span className={question.correct_answer === 'خطأ' ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-muted-foreground'}>
                             {locale === 'ar' ? 'خطأ' : 'False'}
                           </span>
                         </div>
@@ -987,7 +1330,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
 
                       {/* Completion preview */}
                       {question.type === 'completion' && question.correct_answer && (
-                        <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-2">
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-2 font-bold">
                           {t('correctAnswer')}: {role === 'teacher' ? question.correct_answer : '•••'}
                         </p>
                       )}
@@ -997,9 +1340,9 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                         <div className="flex flex-col gap-1 mt-2">
                           {question.pairs.map((pair, pi) => (
                             <div key={pi} className="flex items-center gap-2 text-xs">
-                              <span className="font-medium">{pair.key}</span>
+                              <span className="font-bold">{pair.key}</span>
                               <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                              <span className={role === 'teacher' ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}>
+                              <span className={role === 'teacher' ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-muted-foreground'}>
                                 {role === 'teacher' ? pair.value : '•••'}
                               </span>
                             </div>
@@ -1012,88 +1355,6 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
               ))}
             </motion.div>
           </AnimatePresence>
-        )}
-
-        {/* Teacher: Related Quizzes Stats */}
-        {role === 'teacher' && (
-          <div className="mt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <GraduationCap className="h-5 w-5 text-sky-700 dark:text-sky-400" />
-              <h4 className="text-sm font-semibold text-sky-800 dark:text-sky-300">{t('relatedQuizzes')}</h4>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">{t('relatedQuizzesDesc')}</p>
-
-            {relatedQuizzes.length === 0 ? (
-              <Card className="border rounded-lg bg-muted/30">
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                  <Users className="h-8 w-8 text-muted-foreground/40" />
-                  <p className="mt-2 text-sm font-medium text-muted-foreground">{t('noRelatedQuizzes')}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{t('noRelatedQuizzesDesc')}</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <AnimatePresence>
-                <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-col gap-3 max-h-96 overflow-y-auto">
-                  {relatedQuizzes.map((quiz) => {
-                    const stats = getQuizStats(quiz.id);
-
-                    return (
-                      <motion.div key={quiz.id} variants={itemVariants}>
-                        <Card className="border rounded-lg">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between gap-3 mb-3">
-                              <div className="flex-1 min-w-0">
-                                <h5 className="text-sm font-semibold truncate">{quiz.title}</h5>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Clock className="h-3 w-3 text-muted-foreground" />
-                                  <span className="text-xs text-muted-foreground">{formatDate(quiz.created_at, locale)}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3 flex-shrink-0">
-                                <div className="flex items-center gap-1">
-                                  <Users className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                                  <span className="text-xs font-medium">{stats.participantCount} {t('participants')}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                                  <span className="text-xs font-medium">{stats.avgScore}% {t('averageScore')}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Question Difficulty Analysis */}
-                            {quiz.questions && quiz.questions.length > 0 && stats.participantCount > 0 && (
-                              <div className="mt-3 pt-3 border-t border-border">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                                  <span className="text-xs font-semibold text-sky-800 dark:text-sky-300">
-                                    {t('questionDifficultyAnalysis')}
-                                  </span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                  {quiz.questions.map((q, qi) => {
-                                    const rate = getQuestionCorrectRate(qi, quiz);
-                                    return (
-                                      <div key={qi} className={`flex items-center justify-between gap-2 p-2 rounded-md ${correctRateBg(rate)}`}>
-                                        <span className="text-xs truncate max-w-[60%]">{q.question}</span>
-                                        <span className={`text-xs font-bold ${correctRateColor(rate)}`}>
-                                          {t('questionCorrectRate')}: {rate}%
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              </AnimatePresence>
-            )}
-          </div>
         )}
       </motion.div>
     );
@@ -1111,7 +1372,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
         <Database className="h-5 w-5 text-sky-700 dark:text-sky-400" />
-        <h3 className="text-lg font-semibold text-sky-800 dark:text-sky-300">
+        <h3 className="text-lg font-bold text-sky-800 dark:text-sky-300">
           {t('questionBank')}
         </h3>
         <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
@@ -1124,12 +1385,13 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {banks.map((bank) => {
             const breakdown = getDifficultyBreakdown(bank.id);
+            const typeBreakdown = getTypeBreakdown(bank.id);
             const questionCount = bankQuestions[bank.id]?.length || bank.question_count || 0;
 
             return (
               <motion.div key={bank.id} variants={itemVariants}>
                 <Card
-                  className="border rounded-lg cursor-pointer hover:shadow-md transition-all hover:border-sky-300 dark:hover:border-sky-700"
+                  className="border rounded-lg cursor-pointer hover:shadow-md transition-all duration-200 hover:border-sky-300 dark:hover:border-sky-700"
                   onClick={() => { setSelectedBankId(bank.id); setPhase('bank-detail'); }}
                 >
                   <CardHeader className="pb-3">
@@ -1138,7 +1400,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                         <div className="h-9 w-9 rounded-lg bg-sky-100 dark:bg-sky-900/15 flex items-center justify-center flex-shrink-0">
                           <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                         </div>
-                        <h4 className="text-sm font-semibold text-sky-800 dark:text-sky-300 truncate">{bank.name}</h4>
+                        <h4 className="text-sm font-bold text-sky-800 dark:text-sky-300 truncate">{bank.name}</h4>
                       </div>
                       <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 flex-shrink-0">
                         <ListChecks className="h-3 w-3 mr-1" />
@@ -1149,6 +1411,32 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                   <CardContent className="pt-0">
                     {bank.description && (
                       <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{bank.description}</p>
+                    )}
+
+                    {/* Type breakdown badges */}
+                    {questionCount > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                        {typeBreakdown.mcq > 0 && (
+                          <Badge variant="outline" className={`${typeBadgeColor('mcq')} text-[10px]`}>
+                            {questionTypeLabel('mcq', t)}: {typeBreakdown.mcq}
+                          </Badge>
+                        )}
+                        {typeBreakdown.boolean > 0 && (
+                          <Badge variant="outline" className={`${typeBadgeColor('boolean')} text-[10px]`}>
+                            {questionTypeLabel('boolean', t)}: {typeBreakdown.boolean}
+                          </Badge>
+                        )}
+                        {typeBreakdown.completion > 0 && (
+                          <Badge variant="outline" className={`${typeBadgeColor('completion')} text-[10px]`}>
+                            {questionTypeLabel('completion', t)}: {typeBreakdown.completion}
+                          </Badge>
+                        )}
+                        {typeBreakdown.matching > 0 && (
+                          <Badge variant="outline" className={`${typeBadgeColor('matching')} text-[10px]`}>
+                            {questionTypeLabel('matching', t)}: {typeBreakdown.matching}
+                          </Badge>
+                        )}
+                      </div>
                     )}
 
                     {/* Difficulty breakdown */}
@@ -1176,7 +1464,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                     {role === 'student' && questionCount > 0 && (
                       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
                         <Play className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                        <span className="text-xs text-sky-700 dark:text-sky-400 font-medium">{t('practiceMode')}</span>
+                        <span className="text-xs text-sky-700 dark:text-sky-400 font-bold">{t('practiceMode')}</span>
                       </div>
                     )}
 
@@ -1186,7 +1474,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/15 text-xs"
+                        className="text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/15 text-xs transition-colors duration-200"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedBankId(bank.id);

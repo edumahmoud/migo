@@ -3691,6 +3691,11 @@
     "deleteQuizConfirm": "هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.",
     "deselectAll": "إلغاء تحديد الكل",
     "duration": "المدة",
+    "scheduleSection": "مواعيد الاختبار",
+    "minutes": "دقيقة",
+    "startDate": "تاريخ البدء",
+    "startTime": "وقت البدء",
+    "endTimeHint": "ينتهي في",
     "easy": "سهل",
     "edit": "تعديل",
     "editQuiz": "تعديل الاختبار",
@@ -4044,7 +4049,15 @@
     "practiceRetry": "تدريب مرة أخرى",
     "practiceBackToBank": "رجوع إلى البنك",
     "practiceCompleted": "تم إنهاء التدريب",
-    "practiceCompletedDesc": "أجلت على {correct} من {total} أسئلة بشكل صحيح"
+    "practiceCompletedDesc": "أجلت على {correct} من {total} أسئلة بشكل صحيح",
+    "typeBreakdown": "توزيع الأنواع",
+    "quickCreateQuiz": "إنشاء اختبار سريع",
+    "selectQuestionCount": "حدد عدد الأسئلة من كل نوع",
+    "availableQuestions": "متاح",
+    "createQuizBtn": "إنشاء اختبار",
+    "noQuestionsSelected": "لم يتم اختيار أسئلة",
+    "showStats": "عرض الإحصائيات",
+    "hideStats": "إخفاء الإحصائيات"
   },
   "studentsTab": {
     "acceptAllTitle": "قبول جميع الطلبات",

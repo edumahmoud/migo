@@ -225,6 +225,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // ─── Related quizzes statistics ───
   const [relatedQuizzes, setRelatedQuizzes] = useState<Array<{ id: string; title: string; subject_id: string; questions: QuizQuestion[]; created_at: string; is_finished: boolean }>>([]);
   const [relatedScores, setRelatedScores] = useState<Array<{ id: string; student_id: string; quiz_id: string; score: number; total: number; user_answers: Array<{ questionIndex: number; selectedAnswer: string; isCorrect: boolean }> }>>([]);
+  const [statsExpanded, setStatsExpanded] = useState(false);
 
   // ─── Detect OAuth callback URL params ───
   // When the user returns from Google OAuth (same-tab redirect fallback),
@@ -1522,6 +1523,109 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           </motion.div>
         )}
 
+        {/* Related Quizzes Statistics (Collapsible) */}
+        {selectedBank && (
+          <motion.div variants={itemVariants} className="rounded-lg border bg-card shadow-sm overflow-hidden">
+            <button
+              onClick={() => setStatsExpanded(!statsExpanded)}
+              className="flex items-center justify-between w-full p-3 hover:bg-muted/30 transition-colors"
+              dir={direction}
+            >
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                <span className="text-sm font-semibold text-foreground">{t('questionBank.relatedQuizzes')}</span>
+                {relatedQuizzes.length > 0 && (
+                  <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400">
+                    {relatedQuizzes.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {relatedQuizzes.length > 0 && !statsExpanded && (
+                  <span className="text-xs text-muted-foreground" dir="ltr">
+                    {relatedQuizzes.length} {t('questionBank.relatedQuizzes').split(' ')[0]} • {relatedScores.length} {t('questionBank.participants')} • {Math.round(relatedScores.length > 0 ? relatedScores.reduce((sum, s) => sum + (s.score / s.total * 100), 0) / relatedScores.length : 0)}%
+                  </span>
+                )}
+                <ChevronLeft className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${statsExpanded ? (direction === 'rtl' ? '-rotate-90' : 'rotate-90') : ''}`} />
+              </div>
+            </button>
+            <AnimatePresence>
+              {statsExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-3 pb-3 border-t border-border/50 pt-3">
+                    {relatedQuizzes.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-4 text-center">
+                        <Users className="h-6 w-6 text-muted-foreground/40 mb-2" />
+                        <p className="text-xs font-medium text-muted-foreground" dir={direction}>{t('questionBank.noRelatedQuizzes')}</p>
+                        <p className="text-xs text-muted-foreground" dir={direction}>{t('questionBank.noRelatedQuizzesDesc')}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-80 overflow-y-auto">
+                        {relatedQuizzes.map(quiz => {
+                          const qScores = relatedScores.filter(s => s.quiz_id === quiz.id);
+                          const avgScore = qScores.length > 0
+                            ? Math.round(qScores.reduce((sum, s) => sum + (s.score / s.total * 100), 0) / qScores.length)
+                            : 0;
+                          const quizQuestions = (quiz.questions || []) as QuizQuestion[];
+                          const questionAnalysis = quizQuestions.map((q, idx) => {
+                            const correctCount = qScores.filter(s => s.user_answers?.[idx]?.isCorrect).length;
+                            const correctRate = qScores.length > 0 ? Math.round(correctCount / qScores.length * 100) : 0;
+                            return { questionText: q.question || '', type: q.type, correctRate, totalAttempts: qScores.length };
+                          });
+
+                          return (
+                            <div key={quiz.id} className="rounded-lg border bg-muted/20 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs font-bold text-foreground truncate" dir={direction}>{quiz.title}</h4>
+                                  <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                                    <Users className="h-3 w-3" />
+                                    {qScores.length} {t('questionBank.participants')}
+                                  </span>
+                                  {quiz.is_finished && (
+                                    <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                                      {t('exams.finished') || 'Finished'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs font-bold text-foreground" dir="ltr">{avgScore}%</span>
+                              </div>
+                              {qScores.length > 0 && questionAnalysis.length > 0 && (
+                                <div className="space-y-1 mt-2 pt-2 border-t border-border/50">
+                                  <p className="text-[10px] font-semibold text-muted-foreground" dir={direction}>{t('questionBank.questionDifficultyAnalysis')}</p>
+                                  {questionAnalysis.map((qa, i) => (
+                                    <div key={i} className="flex items-center gap-2 text-[10px]" dir={direction}>
+                                      <span className="w-4 text-muted-foreground text-center">{i + 1}.</span>
+                                      <span className="flex-1 truncate text-foreground">{qa.questionText}</span>
+                                      <span className={`font-medium whitespace-nowrap ${
+                                        qa.correctRate >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
+                                        qa.correctRate >= 40 ? 'text-amber-600 dark:text-amber-400' :
+                                        'text-rose-600 dark:text-rose-400'
+                                      }`} dir="ltr">
+                                        {qa.correctRate}%
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
         {/* Questions list */}
         {questions.length === 0 ? (
           <motion.div variants={itemVariants} className="flex flex-col items-center justify-center py-16 text-center">
@@ -1556,7 +1660,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                     {idx + 1}
                   </span>
                   <div className="min-w-0 flex-1 space-y-2">
-                    <p className="text-sm font-medium text-foreground">{q.question}</p>
+                    <p className="text-sm font-bold text-foreground">{q.question}</p>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
                         {questionTypeLabel(q.type, t)}
@@ -1624,86 +1728,6 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 </div>
               </div>
             ))}
-          </motion.div>
-        )}
-
-        {/* Related Quizzes Statistics */}
-        {relatedQuizzes.length > 0 && (
-          <motion.div variants={itemVariants} className="space-y-3">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-400" />
-              <h3 className="text-sm font-semibold text-foreground" dir={direction}>{t('questionBank.relatedQuizzes')}</h3>
-              <span className="text-xs text-muted-foreground" dir={direction}>{t('questionBank.relatedQuizzesDesc')}</span>
-            </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {relatedQuizzes.map(quiz => {
-                const qScores = relatedScores.filter(s => s.quiz_id === quiz.id);
-                const avgScore = qScores.length > 0
-                  ? Math.round(qScores.reduce((sum, s) => sum + (s.score / s.total * 100), 0) / qScores.length)
-                  : 0;
-
-                // Per-question correct rate analysis
-                const quizQuestions = (quiz.questions || []) as QuizQuestion[];
-                const questionAnalysis = quizQuestions.map((q, idx) => {
-                  const correctCount = qScores.filter(s =>
-                    s.user_answers?.[idx]?.isCorrect
-                  ).length;
-                  const correctRate = qScores.length > 0 ? Math.round(correctCount / qScores.length * 100) : 0;
-                  return {
-                    questionText: q.question || '',
-                    type: q.type,
-                    correctRate,
-                    totalAttempts: qScores.length,
-                  };
-                });
-
-                return (
-                  <div key={quiz.id} className="rounded-lg border bg-card p-3 shadow-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-foreground truncate" dir={direction}>{quiz.title}</h4>
-                        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-                          <Users className="h-3 w-3" />
-                          {qScores.length} {t('questionBank.participants')}
-                        </span>
-                        {quiz.is_finished && (
-                          <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
-                            {t('exams.finished') || 'Finished'}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm font-semibold text-foreground" dir="ltr">{t('questionBank.averageScore')}: {avgScore}%</span>
-                    </div>
-                    {/* Question difficulty analysis */}
-                    {qScores.length > 0 && questionAnalysis.length > 0 && (
-                      <div className="space-y-1 mt-2 pt-2 border-t border-border/50">
-                        <p className="text-xs font-semibold text-muted-foreground" dir={direction}>{t('questionBank.questionDifficultyAnalysis')}</p>
-                        {questionAnalysis.map((qa, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs" dir={direction}>
-                            <span className="w-5 text-muted-foreground text-center">{i + 1}.</span>
-                            <span className="flex-1 truncate text-foreground">{qa.questionText}</span>
-                            <span className={`font-medium whitespace-nowrap ${
-                              qa.correctRate >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
-                              qa.correctRate >= 40 ? 'text-amber-600 dark:text-amber-400' :
-                              'text-rose-600 dark:text-rose-400'
-                            }`} dir="ltr">
-                              {qa.correctRate}% {t('questionBank.questionCorrectRate')}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-        {relatedQuizzes.length === 0 && selectedBank && (
-          <motion.div variants={itemVariants} className="rounded-lg border bg-muted/30 p-4 text-center">
-            <BarChart3 className="h-5 w-5 text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm font-medium text-muted-foreground" dir={direction}>{t('questionBank.noRelatedQuizzes')}</p>
-            <p className="text-xs text-muted-foreground" dir={direction}>{t('questionBank.noRelatedQuizzesDesc')}</p>
           </motion.div>
         )}
 

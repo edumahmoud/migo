@@ -3690,6 +3690,11 @@
     "deleteQuizConfirm": "Are you sure you want to delete this quiz? This action cannot be undone.",
     "deselectAll": "Deselect All",
     "duration": "Duration",
+    "scheduleSection": "Quiz Schedule",
+    "minutes": "minutes",
+    "startDate": "Start Date",
+    "startTime": "Start Time",
+    "endTimeHint": "Ends at",
     "easy": "Easy",
     "edit": "Edit",
     "editQuiz": "Edit Quiz",
@@ -4043,7 +4048,15 @@
     "practiceRetry": "Try Again",
     "practiceBackToBank": "Back to Bank",
     "practiceCompleted": "Practice Completed",
-    "practiceCompletedDesc": "You answered {correct} out of {total} questions correctly"
+    "practiceCompletedDesc": "You answered {correct} out of {total} questions correctly",
+    "typeBreakdown": "Type Breakdown",
+    "quickCreateQuiz": "Quick Create Quiz",
+    "selectQuestionCount": "Select question count per type",
+    "availableQuestions": "available",
+    "createQuizBtn": "Create Quiz",
+    "noQuestionsSelected": "No questions selected",
+    "showStats": "Show Statistics",
+    "hideStats": "Hide Statistics"
   },
   "studentsTab": {
     "acceptAllTitle": "Accept All Requests",
