@@ -17,18 +17,25 @@ export interface ScormPackage {
   version: ScormVersion;
   manifest_xml: string;
   uploaded_by: string;
-  subject_id: string;
+  /** v63: nullable to support platform-level library packages */
+  subject_id: string | null;
   status: ScormPackageStatus;
   entry_point: string;
   total_objects: number;
   package_size: number;
   storage_path: string;
+  /** v63: true = platform library package (subject_id NULL) */
+  is_platform_library?: boolean;
   created_at: string;
   updated_at: string;
   // Joined data (populated by API queries)
   uploader_name?: string;
   subject_name?: string;
   resources?: ScormResource[];
+  /** v63: subject IDs this platform package is linked to (many-to-many) */
+  linked_subject_ids?: string[];
+  /** v63: subject details for linked subjects (for UI display) */
+  linked_subjects?: { id: string; name: string; color?: string | null }[];
 }
 
 // =====================================================
@@ -150,11 +157,29 @@ export interface ScormTrackingUpsertRequest {
 }
 
 export interface ScormPackageUploadRequest {
-  subject_id: string;
+  /** v63: optional for platform library packages */
+  subject_id?: string | null;
   title?: string;
   description?: string;
   version?: ScormVersion;
   status?: ScormPackageStatus;
+  /** v63: if true, upload as platform library package (subject_id ignored) */
+  is_platform_library?: boolean;
+  /** v63: subject IDs to link this platform package to */
+  link_subject_ids?: string[];
+}
+
+// v63: Junction table type for SCORM package <-> subject links
+export interface ScormPackageLink {
+  id: string;
+  package_id: string;
+  subject_id: string;
+  linked_by?: string | null;
+  created_at: string;
+  // Joined data
+  package_title?: string;
+  subject_name?: string;
+  subject_color?: string | null;
 }
 
 export interface ScormTrackingSummary {

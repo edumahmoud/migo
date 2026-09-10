@@ -126,8 +126,17 @@ export async function DELETE(request: NextRequest) {
     // Verify teacher owns this package or is subject owner/co-teacher
     const role = await getUserRole(authResult.user.id);
     const isSuperAdmin = role === 'superadmin';
+    const isAdmin = role === 'admin' || role === 'superadmin';
 
-    if (!isSuperAdmin && packageData.uploaded_by !== authResult.user.id) {
+    // v63: platform-level packages (subject_id NULL) — admin only
+    if (packageData.subject_id === null) {
+      if (!isAdmin) {
+        return NextResponse.json(
+          { success: false, error: 'Only admins can delete platform-level SCORM packages' },
+          { status: 403 }
+        );
+      }
+    } else if (!isSuperAdmin && packageData.uploaded_by !== authResult.user.id) {
       // Check if the teacher is the subject owner
       const { data: subject } = await supabaseServer
         .from('subjects')
@@ -166,13 +175,25 @@ export async function DELETE(request: NextRequest) {
       .eq('package_id', packageId);
 
     // Delete storage files
-    const { data: storageFiles } = await supabaseServer.storage
-      .from('scorm-packages')
-      .list(packageData.storage_path);
+    // storage_path is the full file path; the directory listing is for backwards compat
+    try {
+      // Try removing the file directly first
+      await supabaseServer.storage.from('scorm-packages').remove([packageData.storage_path]);
+    } catch (e) {
+      console.error('[SCORM Package] Storage file removal error:', e);
+    }
 
-    if (storageFiles && storageFiles.length > 0) {
-      const filePaths = storageFiles.map(f => `${packageData.storage_path}/${f.name}`);
-      await supabaseServer.storage.from('scorm-packages').remove(filePaths);
+    // Also attempt to remove any directory contents (older behavior for nested unzipped packages)
+    try {
+      const { data: storageFiles } = await supabaseServer.storage
+        .from('scorm-packages')
+        .list(packageData.storage_path);
+      if (storageFiles && storageFiles.length > 0) {
+        const filePaths = storageFiles.map(f => `${packageData.storage_path}/${f.name}`);
+        await supabaseServer.storage.from('scorm-packages').remove(filePaths);
+      }
+    } catch (e) {
+      // Ignore — list() throws when the path is a file, not a folder
     }
 
     // Delete the package record

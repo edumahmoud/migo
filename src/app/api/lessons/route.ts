@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { subject_id, title } = body;
+    const { subject_id, title, unit_id, pass_threshold } = body;
 
     if (!subject_id) {
       return NextResponse.json(
@@ -152,6 +152,34 @@ export async function POST(request: NextRequest) {
         { error: 'title is required and must be a non-empty string' },
         { status: 400 },
       );
+    }
+
+    // v63: validate pass_threshold if provided
+    if (
+      pass_threshold !== undefined &&
+      pass_threshold !== null &&
+      (typeof pass_threshold !== 'number' || pass_threshold < 0 || pass_threshold > 100)
+    ) {
+      return NextResponse.json(
+        { error: 'pass_threshold must be a number between 0 and 100' },
+        { status: 400 },
+      );
+    }
+
+    // v63: validate unit_id exists in this subject if provided
+    if (unit_id) {
+      const { data: unit } = await supabaseServer
+        .from('lesson_units')
+        .select('id, subject_id')
+        .eq('id', unit_id)
+        .eq('subject_id', subject_id)
+        .maybeSingle();
+      if (!unit) {
+        return NextResponse.json(
+          { error: 'unit_id does not belong to this subject' },
+          { status: 400 },
+        );
+      }
     }
 
     // Verify user is teacher/admin
@@ -208,16 +236,39 @@ export async function POST(request: NextRequest) {
 
     const nextOrderIndex = (maxOrderResult?.order_index ?? -1) + 1;
 
-    // Create the lesson
+    // v63: compute order_within_unit when assigned to a unit
+    let orderWithinUnit = 0;
+    if (unit_id) {
+      const { data: maxUnitOrderResult } = await supabaseServer
+        .from('lessons')
+        .select('order_within_unit')
+        .eq('subject_id', subject_id)
+        .eq('unit_id', unit_id)
+        .order('order_within_unit', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      orderWithinUnit = (maxUnitOrderResult?.order_within_unit ?? -1) + 1;
+    }
+
+    // Create the lesson (v63: include unit_id, order_within_unit, pass_threshold)
+    const insertPayload: Record<string, unknown> = {
+      subject_id,
+      title: title.trim(),
+      status: 'draft',
+      order_index: nextOrderIndex,
+      created_by: userId,
+    };
+    if (unit_id) {
+      insertPayload.unit_id = unit_id;
+      insertPayload.order_within_unit = orderWithinUnit;
+    }
+    if (pass_threshold !== undefined) {
+      insertPayload.pass_threshold = pass_threshold;
+    }
+
     const { data: lesson, error: insertError } = await supabaseServer
       .from('lessons')
-      .insert({
-        subject_id,
-        title: title.trim(),
-        status: 'draft',
-        order_index: nextOrderIndex,
-        created_by: userId,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 

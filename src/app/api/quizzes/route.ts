@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { title, questions, summaryId, subject_id, show_results, show_review, allow_retake } = body;
+    const { title, questions, summaryId, subject_id, show_results, show_review, allow_retake, pass_threshold, lesson_id, unit_id, is_gate } = body;
 
     if (!title || !questions || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -52,6 +52,29 @@ export async function POST(request: NextRequest) {
 
     if (allow_retake !== undefined) {
       insertData.allow_retake = allow_retake;
+    }
+
+    // v63: LMS enhancements — quiz gating fields
+    if (pass_threshold !== undefined) {
+      if (
+        pass_threshold !== null &&
+        (typeof pass_threshold !== 'number' || pass_threshold < 0 || pass_threshold > 100)
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'pass_threshold must be a number between 0 and 100' },
+          { status: 400 }
+        );
+      }
+      insertData.pass_threshold = pass_threshold;
+    }
+    if (lesson_id !== undefined) {
+      insertData.lesson_id = lesson_id || null;
+    }
+    if (unit_id !== undefined) {
+      insertData.unit_id = unit_id || null;
+    }
+    if (is_gate !== undefined) {
+      insertData.is_gate = !!is_gate;
     }
 
     // NOTE: shuffle_questions is a client-side-only feature.
@@ -170,11 +193,20 @@ export async function PUT(request: NextRequest) {
       }
 
       // Build the update payload from allowed fields
-      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title'];
+      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title', 'pass_threshold', 'lesson_id', 'unit_id', 'is_gate'];
       // NOTE: shuffle_questions is NOT in the DB schema — it's a client-side-only feature
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (field in updates) {
+          // v63: validate pass_threshold
+          if (field === 'pass_threshold' && updates[field] !== null) {
+            if (typeof updates[field] !== 'number' || updates[field] < 0 || updates[field] > 100) {
+              return NextResponse.json(
+                { success: false, error: 'pass_threshold must be a number between 0 and 100 (or null)' },
+                { status: 400 }
+              );
+            }
+          }
           updateData[field] = updates[field];
         }
       }
@@ -240,7 +272,7 @@ export async function PUT(request: NextRequest) {
       // Preserve the quiz settings for the re-generated quiz
       const { data: fullQuiz } = await supabaseServer
         .from('quizzes')
-        .select('allow_retake, show_results, show_review, duration, subject_id, is_finished')
+        .select('allow_retake, show_results, show_review, duration, subject_id, is_finished, pass_threshold, lesson_id, unit_id, is_gate')
         .eq('id', quizId)
         .single();
 
@@ -321,11 +353,22 @@ export async function PUT(request: NextRequest) {
       allow_retake: preservedSettings.allow_retake ?? false,
       show_results: preservedSettings.show_results ?? true,
       show_review: preservedSettings.show_review ?? true,
+      // v63: preserve LMS gating fields
+      pass_threshold: preservedSettings.pass_threshold ?? null,
+      is_gate: preservedSettings.is_gate ?? false,
       // NOTE: shuffle_questions is NOT a DB column — it's client-side only
     };
 
     if (preservedSettings.duration !== undefined && preservedSettings.duration !== null) {
       newQuizData.duration = preservedSettings.duration;
+    }
+
+    // v63: preserve lesson_id and unit_id if set
+    if (preservedSettings.lesson_id) {
+      newQuizData.lesson_id = preservedSettings.lesson_id;
+    }
+    if (preservedSettings.unit_id) {
+      newQuizData.unit_id = preservedSettings.unit_id;
     }
 
     // Summary quizzes are independent from courses — do NOT preserve subject_id

@@ -23,6 +23,10 @@ import {
   Globe,
   Lock,
   BookMarked,
+  Layers,
+  FolderTree,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { supabase } from '@/lib/supabase';
@@ -36,6 +40,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -47,8 +54,19 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import RichTextEditor from '@/components/editor/rich-text-editor';
-import type { UserProfile, Subject } from '@/lib/types';
+import type { UserProfile, Subject, LessonUnit } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -68,6 +86,9 @@ interface Lesson {
   created_by: string;
   created_at: string;
   updated_at: string;
+  unit_id?: string | null;
+  order_within_unit?: number;
+  pass_threshold?: number | null;
 }
 
 // -------------------------------------------------------
@@ -122,6 +143,13 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   const [creatingLesson, setCreatingLesson] = useState(false);
   const [viewingLesson, setViewingLesson] = useState<Lesson | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+
+  // v63: Units state
+  const [units, setUnits] = useState<LessonUnit[]>([]);
+  const [showUnitsManager, setShowUnitsManager] = useState(false);
+  const [showUnitsView, setShowUnitsView] = useState(false);
+  const [collapsedUnits, setCollapsedUnits] = useState<Record<string, boolean>>({});
+  const [movingLessonId, setMovingLessonId] = useState<string | null>(null);
 
   // Autosave timer ref
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -258,6 +286,61 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   useEffect(() => {
     fetchLessons();
   }, [fetchLessons]);
+
+  // -------------------------------------------------------
+  // v63: Fetch units
+  // -------------------------------------------------------
+  const fetchUnits = useCallback(async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lesson-units?subject_id=${subject.id}`, { headers });
+      if (!res.ok) {
+        console.error('Failed to fetch units:', res.status);
+        setUnits([]);
+        return;
+      }
+      const data = await res.json();
+      setUnits(data.units || []);
+    } catch (err) {
+      console.error('Error fetching units:', err);
+      setUnits([]);
+    }
+  }, [subject.id]);
+
+  useEffect(() => {
+    fetchUnits();
+  }, [fetchUnits]);
+
+  // -------------------------------------------------------
+  // v63: Move lesson to a different unit (or unassign)
+  // -------------------------------------------------------
+  const handleMoveToUnit = useCallback(
+    async (lesson: Lesson, newUnitId: string | null) => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/lessons/${lesson.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ unit_id: newUnitId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error || t('moveFailed') || 'Failed to move lesson');
+          return;
+        }
+        const data = await res.json();
+        if (data.lesson) {
+          setLessons((prev) => prev.map((l) => (l.id === lesson.id ? { ...l, ...data.lesson } : l)));
+        }
+        toast.success(newUnitId ? t('lessonMoved') || 'Lesson moved' : t('lessonUnassigned') || 'Lesson moved to standalone');
+        setMovingLessonId(null);
+      } catch (err) {
+        console.error('Error moving lesson:', err);
+        toast.error(t('moveFailed') || 'Failed to move lesson');
+      }
+    },
+    [t]
+  );
 
   // -------------------------------------------------------
   // Real-time subscription for lessons
@@ -863,18 +946,37 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </p>
         </div>
         {role === 'teacher' && (
-          <button
-            onClick={handleCreateLesson}
-            disabled={creatingLesson}
-            className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
-          >
-            {creatingLesson ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            {t('createLesson') || 'Create Lesson'}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUnitsView((v) => !v)}
+              className={showUnitsView ? 'bg-primary/10' : ''}
+            >
+              <FolderTree className="h-4 w-4 me-1" />
+              {t('toggleUnitsView') || 'Unit View'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUnitsManager(true)}
+            >
+              <Layers className="h-4 w-4 me-1" />
+              {t('manageUnits') || 'Manage Units'}
+            </Button>
+            <button
+              onClick={handleCreateLesson}
+              disabled={creatingLesson}
+              className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
+            >
+              {creatingLesson ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              {t('createLesson') || 'Create Lesson'}
+            </button>
+          </div>
         )}
       </motion.div>
 
@@ -980,6 +1082,46 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                             <Copy className="h-4 w-4 me-2" />
                             {t('duplicate') || 'Duplicate'}
                           </DropdownMenuItem>
+                          {/* v63: Move to unit submenu */}
+                          {units.length > 0 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="gap-2"
+                                >
+                                  <FolderTree className="h-4 w-4 me-2" />
+                                  {t('moveToUnit') || 'Move to Unit'}
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveToUnit(lesson, null);
+                                    }}
+                                  >
+                                    <BookOpen className="h-4 w-4 me-2" />
+                                    {t('standalone') || 'Standalone (no unit)'}
+                                    {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
+                                  </DropdownMenuItem>
+                                  {units.map((u) => (
+                                    <DropdownMenuItem
+                                      key={u.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMoveToUnit(lesson, u.id);
+                                      }}
+                                    >
+                                      <Layers className="h-4 w-4 me-2" />
+                                      <span className="truncate">{u.title}</span>
+                                      {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            </>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={async (e) => {
@@ -1061,7 +1203,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                   </div>
 
                   {/* Status badge */}
-                  <div className="mb-2">
+                  <div className="mb-2 flex items-center gap-1.5 flex-wrap">
                     {lesson.status === 'draft' ? (
                       <Badge
                         variant="outline"
@@ -1077,6 +1219,23 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                       >
                         <Globe className="h-2.5 w-2.5 me-1" />
                         {t('published') || 'Published'}
+                      </Badge>
+                    )}
+                    {/* v63: Unit badge */}
+                    {lesson.unit_id && (() => {
+                      const u = units.find((un) => un.id === lesson.unit_id);
+                      if (!u) return null;
+                      return (
+                        <Badge variant="secondary" className="text-[10px]">
+                          <Layers className="h-2.5 w-2.5 me-1" />
+                          {u.title}
+                        </Badge>
+                      );
+                    })()}
+                    {/* v63: Pass threshold badge */}
+                    {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {t('passThreshold') || 'Pass'}: {lesson.pass_threshold}%
                       </Badge>
                     )}
                   </div>
@@ -1147,6 +1306,282 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* v63: Manage Units Dialog */}
+      <Dialog open={showUnitsManager} onOpenChange={setShowUnitsManager}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto" dir={direction}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5" />
+              {t('manageUnits') || 'Manage Units'}
+            </DialogTitle>
+            <DialogDescription>
+              {t('manageUnitsDesc') || 'Create, edit, and reorder units. Set pass thresholds to gate student progression between units.'}
+            </DialogDescription>
+          </DialogHeader>
+          <UnitsInlineManager subject={subject} onChanged={fetchUnits} />
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
+}
+
+// -------------------------------------------------------
+// v63: Inline Units Manager (used inside Dialog)
+// -------------------------------------------------------
+function UnitsInlineManager({ subject, onChanged }: { subject: Subject; onChanged?: () => void }) {
+  const { t } = useTranslations('lessons');
+  const [units, setUnits] = useState<LessonUnit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingUnit, setEditingUnit] = useState<LessonUnit | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [passThreshold, setPassThreshold] = useState<number>(60);
+  const [isPublished, setIsPublished] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleteUnit, setDeleteUnit] = useState<LessonUnit | null>(null);
+
+  const fetchUnits = useCallback(async () => {
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lesson-units?subject_id=${subject.id}`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch units');
+      const data = await res.json();
+      setUnits(data.units || []);
+    } catch (err) {
+      console.error('[UnitsInlineManager] Fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [subject.id]);
+
+  useEffect(() => {
+    fetchUnits();
+  }, [fetchUnits]);
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setPassThreshold(60);
+    setIsPublished(true);
+    setEditingUnit(null);
+  };
+
+  const openAdd = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const openEdit = (u: LessonUnit) => {
+    setEditingUnit(u);
+    setTitle(u.title);
+    setDescription(u.description || '');
+    setPassThreshold(u.pass_threshold ?? 60);
+    setIsPublished(u.is_published);
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      toast.error(t('unitTitleRequired') || 'Title is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        subject_id: subject.id,
+        title: title.trim(),
+        description: description.trim() || null,
+        pass_threshold: passThreshold,
+        is_published: isPublished,
+      };
+      const authHeaders = await getAuthHeaders();
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
+      const res = editingUnit
+        ? await fetch(`/api/lesson-units/${editingUnit.id}`, { method: 'PUT', headers, body: JSON.stringify(payload) })
+        : await fetch('/api/lesson-units', { method: 'POST', headers, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || 'Save failed');
+      }
+      toast.success(editingUnit ? t('unitUpdated') || 'Unit updated' : t('unitCreated') || 'Unit created');
+      setShowForm(false);
+      resetForm();
+      fetchUnits();
+      onChanged?.();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save unit');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteUnit) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/lesson-units/${deleteUnit.id}`, {
+        method: 'DELETE',
+        headers: await getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || 'Delete failed');
+      }
+      toast.success(t('unitDeleted') || 'Unit deleted');
+      setDeleteUnit(null);
+      fetchUnits();
+      onChanged?.();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete unit');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const moveUnit = async (index: number, dir: 'up' | 'down') => {
+    if (dir === 'up' && index === 0) return;
+    if (dir === 'down' && index === units.length - 1) return;
+    const newOrder = [...units];
+    const swap = dir === 'up' ? index - 1 : index + 1;
+    [newOrder[index], newOrder[swap]] = [newOrder[swap], newOrder[index]];
+    setUnits(newOrder);
+    const reorderHeaders = await getAuthHeaders();
+    try {
+      await fetch('/api/lesson-units/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...reorderHeaders },
+        body: JSON.stringify({
+          subject_id: subject.id,
+          ordered_unit_ids: newOrder.map((u) => u.id),
+        }),
+      });
+    } catch {
+      fetchUnits();
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {loading ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : units.length === 0 ? (
+        <div className="text-center py-6 border border-dashed rounded-lg">
+          <Layers className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground mb-3">
+            {t('noUnits') || 'No units yet. Create your first unit to organize lessons.'}
+          </p>
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="h-4 w-4 me-1" />
+            {t('addFirstUnit') || 'Add First Unit'}
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {units.map((u, idx) => (
+              <div key={u.id} className="flex items-start gap-2 p-3 rounded-lg border">
+                <div className="flex flex-col gap-0.5 pt-1">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveUnit(idx, 'up')} disabled={idx === 0}>
+                    <ChevronUp className="h-3 w-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => moveUnit(idx, 'down')} disabled={idx === units.length - 1}>
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{u.title}</span>
+                    {!u.is_published && <Badge variant="outline" className="text-xs">{t('unitDraft') || 'Draft'}</Badge>}
+                    {typeof u.lesson_count === 'number' && (
+                      <Badge variant="secondary" className="text-xs">
+                        <BookOpen className="h-3 w-3 me-1" />
+                        {u.lesson_count}
+                      </Badge>
+                    )}
+                    {u.pass_threshold != null && (
+                      <Badge variant="outline" className="text-xs">
+                        {t('passThreshold') || 'Pass'}: {u.pass_threshold}%
+                      </Badge>
+                    )}
+                  </div>
+                  {u.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{u.description}</p>}
+                </div>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(u)}>
+                    <Edit3 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteUnit(u)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={openAdd} className="w-full">
+            <Plus className="h-4 w-4 me-1" />
+            {t('addUnit') || 'Add Unit'}
+          </Button>
+        </>
+      )}
+
+      {showForm && (
+        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+          <div className="space-y-1.5">
+            <Label htmlFor="u-title">{t('unitTitle') || 'Unit Title'}</Label>
+            <Input id="u-title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={saving} placeholder={t('unitTitlePlaceholder') || 'e.g. Unit 1: Basics'} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="u-desc">{t('unitDescription') || 'Description'}</Label>
+            <Textarea id="u-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} disabled={saving} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="u-threshold">{t('passThreshold') || 'Pass Threshold'} (%)</Label>
+            <Input id="u-threshold" type="number" min={0} max={100} value={passThreshold} onChange={(e) => setPassThreshold(Number(e.target.value))} disabled={saving} />
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="u-pub">{t('published') || 'Published'}</Label>
+            <Switch id="u-pub" checked={isPublished} onCheckedChange={setIsPublished} disabled={saving} />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={() => { setShowForm(false); resetForm(); }} disabled={saving}>
+              {tc_cancel(t)}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving || !title.trim()}>
+              {saving && <Loader2 className="h-4 w-4 me-1 animate-spin" />}
+              {editingUnit ? t('save') || 'Save' : t('create') || 'Create'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog open={!!deleteUnit} onOpenChange={(o) => !o && setDeleteUnit(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteUnitTitle') || 'Delete Unit'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('deleteUnitConfirm') || 'Are you sure? Lessons inside will remain but become unassigned.'}
+              <br /><strong>{deleteUnit?.title}</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>{t('cancel') || 'Cancel'}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={saving} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {saving && <Loader2 className="h-4 w-4 me-1 animate-spin" />}
+              {t('delete') || 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// Helper: get a localized "Cancel" string
+function tc_cancel(t: (k: string) => string) {
+  return t('cancel') || 'Cancel';
 }

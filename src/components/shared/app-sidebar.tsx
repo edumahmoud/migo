@@ -26,6 +26,7 @@ import {
   Building2,
   StickyNote,
   GraduationCap,
+  Package,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -82,6 +83,7 @@ const teacherNavItems: NavItem[] = [
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'summaries', labelKey: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
   { id: 'questionBank', labelKey: 'nav.questionBank', icon: <Database className="h-5 w-5" /> },
+  { id: 'scormLibrary', labelKey: 'nav.scormLibrary', icon: <Package className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
   { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
