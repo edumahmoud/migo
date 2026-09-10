@@ -64,6 +64,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
+import LessonFailureAnalytics from '@/components/teacher/lesson-failure-analytics';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useTranslations } from '@/i18n/use-translations';
@@ -320,7 +321,7 @@ export default function TeacherStudentTrackingSection({
   const [showInstructions, setShowInstructions] = useState(false);
   const [activeCourseTab, setActiveCourseTab] = useState<string | 'overview'>('overview');
   const [trendPeriod, setTrendPeriod] = useState<'monthly' | 'quarterly' | 'semester'>('monthly');
-  const [activeTrackingTab, setActiveTrackingTab] = useState<'overview' | 'courses' | 'students' | 'attendance' | 'risk'>('overview');
+  const [activeTrackingTab, setActiveTrackingTab] = useState<'overview' | 'courses' | 'students' | 'attendance' | 'risk' | 'lessons'>('overview');
   const [courseDrillDown, setCourseDrillDown] = useState<string | null>(null);
 
   // ─── Subject name lookup ───
@@ -1272,6 +1273,7 @@ export default function TeacherStudentTrackingSection({
             { key: 'overview' as const, icon: LayoutDashboard, labelAr: 'نظرة عامة', labelEn: 'Overview' },
             { key: 'courses' as const, icon: BookOpen, labelAr: 'المقررات', labelEn: 'Courses' },
             { key: 'students' as const, icon: Users, labelAr: 'الطلاب', labelEn: 'Students' },
+            { key: 'lessons' as const, icon: AlertTriangle, labelAr: 'الدروس والوحدات', labelEn: 'Lessons & Units' },
             { key: 'attendance' as const, icon: Clock, labelAr: 'الحضور', labelEn: 'Attendance' },
             { key: 'risk' as const, icon: AlertOctagon, labelAr: 'المخاطر', labelEn: 'Risk' },
           ] as const).map(tab => (
@@ -2556,6 +2558,15 @@ export default function TeacherStudentTrackingSection({
         </Card>
       </motion.div>
         </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* TAB: LESSONS & UNITS FAILURE ANALYTICS (v63)                      */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {activeTrackingTab === 'lessons' && (
+        <motion.div variants={itemVariants}>
+          <LessonFailureAnalytics subjects={subjects || []} />
+        </motion.div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}

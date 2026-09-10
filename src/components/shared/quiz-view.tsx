@@ -1255,6 +1255,39 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
             .eq('student_id', profile.id);
         }
       }
+
+      // v63: If this quiz is linked to a lesson (lesson_id) or unit (unit_id),
+      // upsert lesson_progress so teacher analytics reflect pass/fail status.
+      if (quiz.lesson_id || quiz.unit_id) {
+        const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
+        const passThreshold = quiz.pass_threshold;
+        const hasThreshold = passThreshold != null && passThreshold > 0;
+        const lessonStatus: 'completed' | 'failed' =
+          hasThreshold ? (percentage >= (passThreshold as number) ? 'completed' : 'failed') : 'completed';
+
+        try {
+          const progressHeaders = await getCachedAuthHeaders();
+          await fetch('/api/lessons/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...progressHeaders },
+            body: JSON.stringify({
+              lesson_id: quiz.lesson_id,
+              subject_id: quiz.subject_id,
+              unit_id: quiz.unit_id || null,
+              status: lessonStatus,
+              score: finalScore,
+              max_score: totalQuestions,
+              score_percentage: percentage,
+              attempts: 1,
+              failed_attempts: lessonStatus === 'failed' ? 1 : 0,
+              completed_at: new Date().toISOString(),
+            }),
+          });
+        } catch (progressErr) {
+          console.error('[Quiz View] Failed to update lesson progress:', progressErr);
+          // Non-critical — quiz score itself was already saved
+        }
+      }
     } catch (err) {
       console.error('Error saving score:', err);
     } finally {
@@ -1450,20 +1483,30 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   if (showResults) {
     const finalScore = userAnswers.filter((a) => a.isCorrect).length;
     const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
+    // v63: pass_threshold — if set, compute pass/fail status
+    const passThreshold = quiz?.pass_threshold;
+    const hasPassThreshold = passThreshold != null && passThreshold > 0;
+    const hasPassed = hasPassThreshold ? percentage >= (passThreshold as number) : null;
     const scoreColor =
-      percentage >= 80
+      hasPassed === false
+        ? 'text-rose-600 dark:text-rose-500'
+        : percentage >= 80
         ? 'text-sky-800 dark:text-sky-400'
         : percentage >= 60
           ? 'text-amber-600 dark:text-amber-500'
           : 'text-rose-600 dark:text-rose-500';
     const scoreBg =
-      percentage >= 80
+      hasPassed === false
+        ? 'bg-rose-100 dark:bg-rose-800/40'
+        : percentage >= 80
         ? 'bg-sky-100 dark:bg-sky-800/40'
         : percentage >= 60
           ? 'bg-amber-100 dark:bg-amber-800/40'
           : 'bg-rose-100 dark:bg-rose-800/40';
     const scoreRing =
-      percentage >= 80
+      hasPassed === false
+        ? 'ring-rose-200 dark:ring-rose-800'
+        : percentage >= 80
         ? 'ring-sky-200 dark:ring-sky-800'
         : percentage >= 60
           ? 'ring-amber-200 dark:ring-amber-800'

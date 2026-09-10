@@ -12,6 +12,7 @@ import {
   Eye,
   EyeOff,
   BookOpen,
+  Target,
 } from 'lucide-react';
 import {
   Dialog,
@@ -113,6 +114,11 @@ export default function QuizSettingsModal({
   const [showReview, setShowReview] = useState(quiz.show_review ?? true);
   const [shuffleQuestions, setShuffleQuestions] = useState(quiz.shuffle_questions ?? true);
   const [duration, setDuration] = useState(quiz.duration?.toString() ?? '');
+  // v63: pass_threshold + is_gate
+  const [passThreshold, setPassThreshold] = useState<string>(
+    quiz.pass_threshold != null ? String(quiz.pass_threshold) : ''
+  );
+  const [isGate, setIsGate] = useState<boolean>(quiz.is_gate ?? false);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -122,6 +128,7 @@ export default function QuizSettingsModal({
         allow_retake: allowRetake,
         show_results: showResults,
         show_review: showReview,
+        is_gate: isGate,
         // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
         // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
       };
@@ -131,6 +138,16 @@ export default function QuizSettingsModal({
         updates.duration = dur;
       } else if (duration === '') {
         updates.duration = null;
+      }
+
+      // v63: pass_threshold (allow empty = null = no gate)
+      if (passThreshold === '') {
+        updates.pass_threshold = null;
+      } else {
+        const pt = parseInt(passThreshold, 10);
+        if (!isNaN(pt) && pt >= 0 && pt <= 100) {
+          updates.pass_threshold = pt;
+        }
       }
 
       const res = await fetch('/api/quizzes', {
@@ -274,6 +291,57 @@ export default function QuizSettingsModal({
                 disabled={saving}
               />
             </div>
+          </motion.div>
+
+          {/* v63: Pass Threshold & Gate Section */}
+          <motion.div
+            className="space-y-3"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            custom={3}
+          >
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-teal-600" />
+              <h3 className="text-sm font-semibold text-foreground">
+                {t('quiz.passThresholdLabel') || 'Pass Threshold'}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-800/40">
+                <Target className="h-4 w-4 text-teal-600 dark:text-teal-500" />
+              </div>
+              <div className="flex-1">
+                <Label className="text-sm text-muted-foreground">
+                  {t('quiz.passThresholdLabel') || 'Pass Threshold'} (%)
+                </Label>
+                <p className="text-[10px] text-muted-foreground/70">
+                  {t('quiz.passThresholdHint') || 'Minimum passing score (0-100). Leave empty for no gate.'}
+                </p>
+              </div>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={passThreshold}
+                onChange={(e) => setPassThreshold(e.target.value)}
+                placeholder="—"
+                className="w-20 text-center"
+                dir="ltr"
+                disabled={saving}
+              />
+            </div>
+
+            <ToggleSwitch
+              label={t('quiz.isGate') || 'Progression Gate'}
+              description={t('quiz.isGateHint') || 'When enabled, students must pass this quiz to advance to the next lesson.'}
+              icon={<CheckCircle2 className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
+              checked={isGate}
+              onChange={setIsGate}
+              disabled={saving}
+              dir={direction}
+            />
           </motion.div>
         </div>
 

@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Fetch the existing lesson
     const { data: existingLesson, error: fetchError } = await supabaseServer
       .from('lessons')
-      .select('id, created_by, status')
+      .select('id, created_by, status, subject_id')
       .eq('id', lessonId)
       .single();
 
@@ -84,6 +84,47 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         );
       }
       updateData.content_html = body.content_html;
+    }
+
+    // v63: unit_id (allow null to unassign from unit)
+    if (body.unit_id !== undefined) {
+      if (body.unit_id === null) {
+        updateData.unit_id = null;
+        updateData.order_within_unit = 0;
+      } else if (typeof body.unit_id === 'string') {
+        // Verify the unit belongs to the same subject
+        const { data: unitCheck } = await supabaseServer
+          .from('lesson_units')
+          .select('id, subject_id')
+          .eq('id', body.unit_id)
+          .maybeSingle();
+        if (!unitCheck || unitCheck.subject_id !== existingLesson.subject_id) {
+          return NextResponse.json(
+            { error: 'unit_id does not belong to this subject' },
+            { status: 400 },
+          );
+        }
+        updateData.unit_id = body.unit_id;
+      }
+    }
+
+    // v63: order_within_unit
+    if (body.order_within_unit !== undefined && typeof body.order_within_unit === 'number') {
+      updateData.order_within_unit = body.order_within_unit;
+    }
+
+    // v63: pass_threshold (allow null to remove gate)
+    if (body.pass_threshold !== undefined) {
+      if (
+        body.pass_threshold !== null &&
+        (typeof body.pass_threshold !== 'number' || body.pass_threshold < 0 || body.pass_threshold > 100)
+      ) {
+        return NextResponse.json(
+          { error: 'pass_threshold must be a number between 0 and 100 (or null)' },
+          { status: 400 },
+        );
+      }
+      updateData.pass_threshold = body.pass_threshold;
     }
 
     // If the lesson is already published and content_json is being updated,

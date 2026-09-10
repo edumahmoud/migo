@@ -67,6 +67,11 @@ export interface Quiz {
   shuffle_questions?: boolean;
   is_finished?: boolean;
   subject_id?: string;
+  // v63: LMS enhancements — quiz gating
+  pass_threshold?: number | null; // 0-100 percentage required to pass; null = no gate
+  lesson_id?: string | null;      // Optional link to a specific lesson
+  unit_id?: string | null;        // Optional link to a specific unit
+  is_gate?: boolean;              // When true, this quiz gates progression
   created_at: string;
 }
 
@@ -183,6 +188,86 @@ export interface Lesson {
   created_by: string;
   created_at: string;
   updated_at: string;
+  // v63: LMS enhancements — units & gating
+  unit_id?: string | null;          // Optional link to a LessonUnit
+  order_within_unit?: number;       // Order within the unit (0 if no unit)
+  pass_threshold?: number | null;   // 0-100 percentage required to "pass" this lesson; null = no gate
+}
+
+// =====================================================
+// Lesson Units (Modules) — v63
+// =====================================================
+
+export interface LessonUnit {
+  id: string;
+  subject_id: string;
+  title: string;
+  description?: string | null;
+  order_index: number;
+  pass_threshold: number | null;  // 0-100; required to advance to next unit
+  is_published: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  lesson_count?: number;
+  lessons?: Lesson[];
+}
+
+// =====================================================
+// Lesson Progress — v63: student tracking per lesson
+// =====================================================
+
+export type LessonProgressStatus = 'not_started' | 'in_progress' | 'completed' | 'failed' | 'locked';
+
+export interface LessonFailurePoint {
+  question_id?: string;
+  attempt_at: string;
+  score: number;
+  message?: string;
+}
+
+export interface LessonProgress {
+  id: string;
+  student_id: string;
+  lesson_id: string;
+  subject_id: string;
+  unit_id?: string | null;
+  status: LessonProgressStatus;
+  score?: number | null;
+  max_score?: number | null;
+  score_percentage?: number | null;
+  attempts: number;
+  failed_attempts: number;
+  time_spent_sec: number;
+  last_position?: Record<string, unknown> | null;
+  failure_points?: LessonFailurePoint[] | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  last_accessed_at: string;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  lesson_title?: string;
+  unit_title?: string;
+  student_name?: string;
+  student_email?: string;
+  student_avatar?: string | null;
+}
+
+// Aggregated unit progress (read-only view)
+export interface UnitProgressSummary {
+  student_id: string;
+  unit_id: string;
+  subject_id: string;
+  unit_title: string;
+  unit_pass_threshold: number | null;
+  total_lessons_attempted: number;
+  lessons_completed: number;
+  lessons_failed: number;
+  avg_score: number | null;
+  total_failed_attempts: number;
+  last_accessed: string;
 }
 
 // =====================================================
@@ -470,7 +555,7 @@ export type AppPage =
   | 'profile';
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar';
-export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar';
+export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications' | 'performanceTracking';
 
 // -------------------------------------------------------

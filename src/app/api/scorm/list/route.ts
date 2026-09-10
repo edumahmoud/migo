@@ -20,7 +20,15 @@ export async function GET(request: NextRequest) {
     }
 
     // ── Fetch all SCORM packages for the subject ──
-    const { data: packages, error: packagesError } = await supabaseServer
+    // v63: include platform-level packages linked via scorm_package_subjects junction
+    const { data: linkedPackageIds } = await supabaseServer
+      .from('scorm_package_subjects')
+      .select('package_id')
+      .eq('subject_id', subjectId);
+    const linkedIds = (linkedPackageIds || []).map((r: { package_id: string }) => r.package_id);
+
+    // Build query: packages where subject_id = X OR id IN (linkedIds)
+    let pkgQuery = supabaseServer
       .from('scorm_packages')
       .select(`
         id,
@@ -34,11 +42,19 @@ export async function GET(request: NextRequest) {
         status,
         uploaded_by,
         subject_id,
+        is_platform_library,
         created_at,
         updated_at
-      `)
-      .eq('subject_id', subjectId)
-      .order('created_at', { ascending: false });
+      `);
+
+    if (linkedIds.length > 0) {
+      // Use OR filter: subject_id = X OR id IN linkedIds
+      pkgQuery = pkgQuery.or(`subject_id.eq.${subjectId},id.in.(${linkedIds.join(',')})`);
+    } else {
+      pkgQuery = pkgQuery.eq('subject_id', subjectId);
+    }
+
+    const { data: packages, error: packagesError } = await pkgQuery.order('created_at', { ascending: false });
 
     if (packagesError) {
       console.error('[SCORM List] Packages fetch error:', packagesError.message);

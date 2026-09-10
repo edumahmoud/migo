@@ -76,6 +76,7 @@ import CoursePage from '@/components/course/course-page';
 import TeacherSummariesSection from '@/components/teacher/teacher-summaries-section';
 import TeacherStudentTrackingSection from '@/components/teacher/teacher-student-tracking-section';
 import QuestionBankSection from '@/components/teacher/question-bank-section';
+import ScormLibrarySection from '@/components/teacher/scorm-library-section';
 import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -2498,6 +2499,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   : <SectionErrorBoundary name="Subjects"><SubjectsSection profile={profile} role="teacher" /></SectionErrorBoundary>)}
                 {activeSection === 'summaries' && <SectionErrorBoundary name="Summaries"><TeacherSummariesSection profile={profile} /></SectionErrorBoundary>}
                 {activeSection === 'questionBank' && <SectionErrorBoundary name="QuestionBank"><QuestionBankSection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} /></SectionErrorBoundary>}
+                {activeSection === 'scormLibrary' && <SectionErrorBoundary name="ScormLibrary"><ScormLibrarySection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} /></SectionErrorBoundary>}
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="teacher" /></SectionErrorBoundary>}
                 {activeSection === 'videos' && <SectionErrorBoundary name="Videos"><AllVideosSection profile={profile} role="teacher" /></SectionErrorBoundary>}
