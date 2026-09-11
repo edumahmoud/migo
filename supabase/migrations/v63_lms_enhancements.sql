@@ -397,7 +397,7 @@ CREATE POLICY "Teachers can view scorm resources" ON public.scorm_resources
 
 -- Students can view resources for packages they can access (direct OR linked)
 DROP POLICY IF EXISTS "Students can view scorm resources" ON public.scorm_resources;
-CREATE POLICY IF EXISTS "Students can view scorm resources" ON public.scorm_resources
+CREATE POLICY "Students can view scorm resources" ON public.scorm_resources
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.scorm_packages p
@@ -436,7 +436,7 @@ CREATE POLICY "Teachers can read scorm tracking for their subjects" ON public.sc
   );
 
 DROP POLICY IF EXISTS "Students can insert own scorm tracking" ON public.scorm_tracking;
-CREATE POLICY IF EXISTS "Students can insert own scorm tracking" ON public.scorm_tracking
+CREATE POLICY "Students can insert own scorm tracking" ON public.scorm_tracking
   FOR INSERT WITH CHECK (
     student_id = auth.uid()
     AND EXISTS (
