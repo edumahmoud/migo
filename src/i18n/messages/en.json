@@ -321,7 +321,8 @@
     "calendar": "Calendar",
     "stickyNotes": "Sticky Notes",
     "platformAnnouncements": "Celebrations & Alerts",
-    "scormLibrary": "SCORM Library"
+    "scormLibrary": "SCORM Library",
+    "registration": "Registration Agents"
   },
   "roles": {
     "student": "Student",

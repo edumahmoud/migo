@@ -22,6 +22,7 @@ import UpdatePasswordForm from '@/components/auth/update-password-form';
 import StudentDashboard from '@/components/student/student-dashboard';
 import TeacherDashboard from '@/components/teacher/teacher-dashboard';
 import AdminDashboard from '@/components/admin/admin-dashboard';
+import AgentPortal from '@/components/agent/agent-portal';
 import QuizView from '@/components/shared/quiz-view';
 import UserProfilePage from '@/components/shared/user-profile-page';
 import AppHeader from '@/components/shared/app-header';
@@ -396,7 +397,9 @@ function HomeContent() {
             ? 'admin-dashboard'
             : user.role === 'teacher'
               ? 'teacher-dashboard'
-              : 'student-dashboard'
+              : user.role === 'registration_agent'
+                ? 'agent-portal'
+                : 'student-dashboard'
         );
       }
     } else if (currentPage !== 'auth') {
@@ -810,6 +813,31 @@ function HomeContent() {
         </DashboardErrorBoundary>
       );
       return isBannedUser ? <BannedUserOverlay>{teacherContent}</BannedUserOverlay> : teacherContent;
+    }
+
+    // Registration agent — limited-scope portal only (no sidebar, no admin/teacher/student nav).
+    if (user.role === 'registration_agent') {
+      return (
+        <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+          <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30">
+            <AppHeader
+              userName={user.name}
+              userId={user.id}
+              userRole={user.role}
+              userGender={user.gender}
+              titleId={user.title_id}
+              avatarUrl={user.avatar_url ?? undefined}
+              onSignOut={handleSignOut}
+              onOpenSettings={() => {}}
+              onToggleSidebar={() => {}}
+              sidebarCollapsed={true}
+            />
+            <main className="pt-14 sm:pt-16 pb-20 md:pb-4">
+              <AgentPortal />
+            </main>
+          </div>
+        </DashboardErrorBoundary>
+      );
     }
 
     // Student dashboard (default)

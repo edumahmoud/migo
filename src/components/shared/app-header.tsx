@@ -28,7 +28,7 @@ import { supabase } from '@/lib/supabase';
 interface AppHeaderProps {
   userName: string;
   userId: string;
-  userRole: 'student' | 'teacher' | 'admin' | 'superadmin';
+  userRole: 'student' | 'teacher' | 'admin' | 'superadmin' | 'registration_agent';
   userGender?: string | null;
   titleId?: string | null;
   avatarUrl?: string;
@@ -131,7 +131,9 @@ export default function AppHeader({
       ? (isFemale ? t('roles.supervisor') : t('roles.superadmin'))
       : userRole === 'admin'
         ? (isFemale ? t('roles.supervisor') : t('roles.admin'))
-        : (() => {
+        : userRole === 'registration_agent'
+          ? (isFemale ? 'وكيلة تسجيل' : 'وكيل تسجيل')
+          : (() => {
             // For teachers, show academic title if available, otherwise default
             const effectiveTitleId = titleId || 'teacher';
             const title = ACADEMIC_TITLES.find(at => at.value === effectiveTitleId);
@@ -332,7 +334,7 @@ export default function AppHeader({
 // -------------------------------------------------------
 // Active section label (shows current section name on mobile)
 // -------------------------------------------------------
-function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' }) {
+function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' | 'registration_agent' }) {
   const { studentSection, teacherSection, adminSection } = useAppStore();
   const { t } = useTranslations();
 
@@ -357,10 +359,11 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
     tracking: t('nav.tracking'),
     questionBank: t('nav.questionBank'),
     videos: t('nav.videos'),
+    registration: t('nav.registration'),
   };
 
-  const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : 'dashboard';
-  const label = sectionLabels[activeSection] || '';
+  const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : role === 'registration_agent' ? 'registration' : 'dashboard';
+  const label = sectionLabels[activeSection] || (activeSection === 'registration' ? (t('nav.registration') || 'وكلاء التسجيل') : '');
 
   return (
     <>

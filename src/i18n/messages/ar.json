@@ -321,7 +321,8 @@
     "calendar": "التقويم",
     "stickyNotes": "ملاحظات عائمة",
     "platformAnnouncements": "المعايدات والإعلانات",
-    "scormLibrary": "مكتبة SCORM"
+    "scormLibrary": "مكتبة SCORM",
+    "registration": "وكلاء التسجيل"
   },
   "roles": {
     "student": "طالب",
