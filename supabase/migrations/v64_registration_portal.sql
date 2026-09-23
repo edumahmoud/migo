@@ -85,14 +85,8 @@ CREATE POLICY rs_sources_teacher_all
   USING (teacher_id = auth.uid())
   WITH CHECK (teacher_id = auth.uid());
 
--- Agents may read the source they belong to (for the portal header)
-DROP POLICY IF EXISTS rs_sources_agent_read ON public.registration_sources;
-CREATE POLICY rs_sources_agent_read
-  ON public.registration_sources FOR SELECT
-  USING (id IN (
-    SELECT source_id FROM public.registration_agents
-    WHERE user_id = auth.uid() AND is_active = TRUE
-  ));
+-- NOTE: rs_sources_agent_read is added AFTER registration_agents is created
+-- (PostgreSQL validates referenced relations at policy-creation time).
 
 -- Admins
 DROP POLICY IF EXISTS rs_sources_admin_all ON public.registration_sources;
@@ -143,6 +137,16 @@ CREATE POLICY rs_agents_admin_all
   ON public.registration_agents FOR ALL
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
+
+-- Agents may read the source they belong to (for the portal header)
+-- Defined here because it references public.registration_agents.
+DROP POLICY IF EXISTS rs_sources_agent_read ON public.registration_sources;
+CREATE POLICY rs_sources_agent_read
+  ON public.registration_sources FOR SELECT
+  USING (id IN (
+    SELECT source_id FROM public.registration_agents
+    WHERE user_id = auth.uid() AND is_active = TRUE
+  ));
 
 -- -------------------------------------------------------------
 -- 5. Extend subject_students with attribution columns
