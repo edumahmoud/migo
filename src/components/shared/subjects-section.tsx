@@ -201,6 +201,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
   // ─── Create subject modal ───
   const [createSubjectOpen, setCreateSubjectOpen] = useState(false);
+  // v73: available courses dialog for students (subscribe to teacher's other courses)
+  const [availableCoursesOpen, setAvailableCoursesOpen] = useState(false);
+  const [availableCoursesData, setAvailableCoursesData] = useState<{
+    available_courses: Array<{ id: string; name: string; price: number; currency: string; level: string | null; sub_level: string | null; teacher_name: string | null }>;
+    subscriptions: Array<{ subject_id: string; current_period_end: string | null }>;
+  } | null>(null);
+  const [subscribingCourseId, setSubscribingCourseId] = useState<string | null>(null);
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectDesc, setNewSubjectDesc] = useState('');
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
@@ -1251,12 +1258,24 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {role === 'student' && (
             <button
-              onClick={() => setJoinCodeOpen(true)}
+              onClick={async () => {
+                // Fetch available courses from the student's linked teachers.
+                try {
+                  const res = await fetch('/api/student/activation/me', { headers: await getCachedAuthHeaders() });
+                  const json = await res.json();
+                  if (json.success) {
+                    setAvailableCoursesData(json);
+                    setAvailableCoursesOpen(true);
+                  } else {
+                    toast.error(json.error || t('common.unexpectedError'));
+                  }
+                } catch { toast.error(t('common.unexpectedError')); }
+              }}
               className="flex items-center gap-2 rounded-xl bg-teal-600 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200 active:scale-[0.97]"
             >
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('dashboard.joinSubject')}</span>
-              <span className="sm:hidden">{t('dashboard.joinSubject')}</span>
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">اشترك في مقررات جديدة</span>
+              <span className="sm:hidden">مقررات جديدة</span>
             </button>
           )}
           {role === 'teacher' && (
@@ -2644,6 +2663,82 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     {t('common.cancel')}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── v73: Available Courses Dialog (subscribe to teacher's other courses) ─── */}
+      <AnimatePresence>
+        {availableCoursesOpen && availableCoursesData && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          >
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !subscribingCourseId && setAvailableCoursesOpen(false)} />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-lg rounded-2xl border bg-background shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
+              dir={direction}
+            >
+              <div className="px-6 pt-6 pb-4 border-b">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">مقررات متاحة للاشتراك</h3>
+                  <button onClick={() => !subscribingCourseId && setAvailableCoursesOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">اختر مقرراً للاشتراك — سيذهب الطلب للمشرف لتفعيله بعد الدفع.</p>
+              </div>
+              <div className="overflow-y-auto p-4 space-y-2 flex-1">
+                {availableCoursesData.available_courses.length === 0 ? (
+                  <div className="text-center text-sm text-muted-foreground py-8">لا توجد مقررات متاحة حالياً. تواصل مع معلمك.</div>
+                ) : (
+                  availableCoursesData.available_courses.map((c) => {
+                    const sub = availableCoursesData.subscriptions?.find((s) => s.subject_id === c.id);
+                    const isSubActive = sub?.current_period_end && new Date(sub.current_period_end) > new Date();
+                    const isPaying = subscribingCourseId === c.id;
+                    return (
+                      <div key={c.id} className="flex items-center justify-between gap-3 border rounded-lg p-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold truncate">{c.name}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                            {c.teacher_name && <span>· {c.teacher_name}</span>}
+                            {(c.level || c.sub_level) && <span>· {[c.level, c.sub_level].filter(Boolean).join(' / ')}</span>}
+                            {isSubActive && <span className="text-emerald-600 font-medium">· نشط</span>}
+                          </div>
+                        </div>
+                        <div className="text-end shrink-0">
+                          <div className="font-bold text-emerald-700 text-sm">
+                            {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}/شهر`}
+                          </div>
+                          {!isSubActive && (
+                            <button
+                              onClick={async () => {
+                                setSubscribingCourseId(c.id);
+                                try {
+                                  const res = await fetch('/api/student/orders', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+                                    body: JSON.stringify({ subjectIds: [c.id] }),
+                                  });
+                                  const json = await res.json();
+                                  if (json.success) {
+                                    toast.success('تم إنشاء طلب اشتراك — سيُفعّل المشرف بعد الدفع.');
+                                    setAvailableCoursesOpen(false);
+                                  } else { toast.error(json.error || t('common.unexpectedError')); }
+                                } catch { toast.error(t('common.unexpectedError')); }
+                                finally { setSubscribingCourseId(null); }
+                              }}
+                              disabled={isPaying}
+                              className="mt-1 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
+                            >
+                              {isPaying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'اشترك'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </motion.div>
           </motion.div>

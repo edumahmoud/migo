@@ -850,9 +850,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const filteredUsers = allUsers
     .filter((u) => {
       const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+      const q = userSearch.toLowerCase();
       const matchesSearch =
-        u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(userSearch.toLowerCase());
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        ((u as { student_code?: string | null }).student_code ?? '').toLowerCase().includes(q);
       return matchesRole && matchesSearch;
     })
     .sort((a, b) => {
@@ -1444,6 +1446,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           </td>
                           <td className="p-3 hidden sm:table-cell">
                             <span className="text-sm text-muted-foreground truncate max-w-[180px] block">{user.email}</span>
+                            {(user as { student_code?: string | null }).student_code && (
+                              <span className="text-[10px] font-mono text-sky-600">كود: {(user as { student_code?: string | null }).student_code}</span>
+                            )}
                           </td>
                           <td className="p-3">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
