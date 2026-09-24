@@ -13,6 +13,11 @@ import {
   KeyRound,
   UserPlus,
   History,
+  BarChart3,
+  TrendingUp,
+  Calendar,
+  Users,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,9 +28,6 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 
-// ------------------------------------
-// Types (local)
-// ------------------------------------
 interface CourseLite {
   id: string;
   name: string;
@@ -48,9 +50,10 @@ interface RegistrationResult {
     id: string;
     subjectId: string;
     subjectName: string;
-    sourceId: string;
+    sourceId: string | null;
     sourceName: string | null;
     agentId: string;
+    agentName?: string | null;
     enrolledAt: string;
   };
 }
@@ -66,11 +69,20 @@ interface PastRegistration {
   student?: { id: string; email: string; name: string | null; student_code: string | null } | null;
 }
 
+interface DashboardData {
+  success: boolean;
+  totals: { total_registrations: number; total_unique_students: number; total_courses: number };
+  per_course: Array<{ subject_id: string; subject_name: string; level: string | null; sub_level: string | null; students_count: number }>;
+  per_month: Array<{ month: string; count: number }>;
+  recent: Array<{ id: string; student_id: string; student_name: string | null; student_email: string | null; student_code: string | null; subject_id: string; subject_name: string | null; enrolled_at: string }>;
+}
+
 export default function AgentPortal() {
   const { t } = useTranslations();
 
   const [courses, setCourses] = useState<CourseLite[]>([]);
   const [past, setPast] = useState<PastRegistration[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
 
   const [form, setForm] = useState({
@@ -86,15 +98,18 @@ export default function AgentPortal() {
     setLoadingMeta(true);
     try {
       const authHeaders = await getCachedAuthHeaders();
-      const [coursesRes, pastRes] = await Promise.all([
+      const [coursesRes, pastRes, dashRes] = await Promise.all([
         fetch('/api/agent/courses', { headers: authHeaders }),
         fetch('/api/agent/registrations', { headers: authHeaders }),
+        fetch('/api/agent/dashboard', { headers: authHeaders }),
       ]);
       const coursesJson = await coursesRes.json();
       const pastJson = await pastRes.json();
+      const dashJson = await dashRes.json();
       if (coursesJson.success) setCourses(coursesJson.courses ?? []);
       else toast.error(coursesJson.error || t('common.unexpectedError'));
       if (pastJson.success) setPast(pastJson.registrations ?? []);
+      if (dashJson.success) setDashboard(dashJson as DashboardData);
     } catch {
       toast.error(t('common.unexpectedError'));
     } finally {
@@ -164,21 +179,146 @@ export default function AgentPortal() {
   };
 
   return (
-    <div className="space-y-6 p-3 sm:p-6 max-w-5xl mx-auto">
+    <div className="space-y-6 p-3 sm:p-6 max-w-6xl mx-auto">
       <header className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg">
           <UserPlus className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-xl font-bold">بوابة تسجيل الطلاب</h1>
+          <h1 className="text-xl font-bold">بوابة الوكيل</h1>
           <p className="text-sm text-muted-foreground">
-            يمكنك تسجيل طلاب في دورات معلمك فقط.
+            يمكنك تسجيل الطلاب في دورات المعلم ومتابعة نتائجك.
           </p>
         </div>
       </header>
 
+      {/* Agent financial dashboard */}
+      {loadingMeta ? (
+        <Card>
+          <CardContent className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>جاري تحميل اللوحة...</span>
+          </CardContent>
+        </Card>
+      ) : dashboard ? (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
+            <BarChart3 className="h-4 w-4" />
+            لوحة النتائج
+          </h2>
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="border-sky-200 bg-sky-50/40">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">إجمالي تسجيلاتي</span>
+                  <TrendingUp className="h-4 w-4 text-sky-600" />
+                </div>
+                <div className="text-2xl font-bold text-sky-700">
+                  {dashboard.totals.total_registrations}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-200 bg-emerald-50/40">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">طلاب فريدون</span>
+                  <Users className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="text-2xl font-bold text-emerald-700">
+                  {dashboard.totals.total_unique_students}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-purple-200 bg-purple-50/40">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">دورات نشِط فيها</span>
+                  <Building2 className="h-4 w-4 text-purple-600" />
+                </div>
+                <div className="text-2xl font-bold text-purple-700">
+                  {dashboard.totals.total_courses}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Per-course mini-table */}
+          {dashboard.per_course.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-1">
+                  <BookOpen className="h-4 w-4" />
+                  التسجيلات حسب الدورة
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto max-h-48 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 sticky top-0">
+                      <tr className="text-muted-foreground border-b">
+                        <th className="py-2 px-3 text-start">الدورة</th>
+                        <th className="py-2 px-3 text-start">المستوى</th>
+                        <th className="py-2 px-3 text-end">عدد الطلاب</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dashboard.per_course
+                        .sort((a, b) => b.students_count - a.students_count)
+                        .map((c) => (
+                          <tr key={c.subject_id} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="py-2 px-3">{c.subject_name}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">
+                              {[c.level, c.sub_level].filter(Boolean).join(' / ') || '—'}
+                            </td>
+                            <td className="py-2 px-3 text-end font-mono font-semibold">
+                              {c.students_count}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Monthly bar chart */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                التسجيلات الشهرية (12 شهر)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-1 h-24 border-b border-muted">
+                {dashboard.per_month.map((m) => {
+                  const maxCount = Math.max(1, ...dashboard.per_month.map((x) => x.count));
+                  const height = Math.max(2, (m.count / maxCount) * 90);
+                  return (
+                    <div
+                      key={m.month}
+                      className="flex-1 flex flex-col items-center justify-end gap-1"
+                      title={`${m.month}: ${m.count}`}
+                    >
+                      <div
+                        className="w-full bg-gradient-to-t from-sky-600 to-teal-400 rounded-t-sm"
+                        style={{ height: `${height}%` }}
+                      />
+                      <span className="text-[8px] text-muted-foreground truncate w-full text-center">
+                        {m.month.slice(5)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {/* Register form + result */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* The registration form */}
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -348,9 +488,7 @@ export default function AgentPortal() {
                   {result.temporaryPassword && (
                     <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 flex items-start gap-2">
                       <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                      <span>
-                        كلمة المرور المؤقتة تظهر مرة واحدة فقط. أعطها للطالب الآن.
-                      </span>
+                      <span>كلمة المرور المؤقتة تظهر مرة واحدة فقط. أعطها للطالب الآن.</span>
                     </div>
                   )}
                   {result.temporaryPassword && (
@@ -375,8 +513,8 @@ export default function AgentPortal() {
                     <div>{result.enrollment.subjectName}</div>
                   </div>
                   <div>
-                    <Label>مصدر التسجيل</Label>
-                    <div>{result.enrollment.sourceName ?? '—'}</div>
+                    <Label>الوكيل</Label>
+                    <div>{result.enrollment.agentName ?? result.enrollment.sourceName ?? '—'}</div>
                   </div>
                   <div>
                     <Label>تاريخ التسجيل</Label>
@@ -433,7 +571,9 @@ export default function AgentPortal() {
                       <td className="py-2 px-2" dir="ltr">{r.student?.email ?? '—'}</td>
                       <td className="py-2 px-2 font-mono">{r.student?.student_code ?? '—'}</td>
                       <td className="py-2 px-2">{r.subject?.name ?? '—'}</td>
-                      <td className="py-2 px-2">{r.enrolled_at ? new Date(r.enrolled_at).toLocaleString() : '—'}</td>
+                      <td className="py-2 px-2">
+                        {r.enrolled_at ? new Date(r.enrolled_at).toLocaleString() : '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

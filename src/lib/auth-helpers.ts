@@ -190,16 +190,17 @@ export async function requireTeacher(request: NextRequest): Promise<AuthResponse
 /**
  * Authenticate + verify the user is a registration_agent (and ONLY that).
  * Admins/teachers cannot use agent endpoints (their flows are separate).
- * Returns the agent's full chain (agent row + source + teacher_id) so
- * routes don't have to query it again.
+ *
+ * As of v65: the agent row carries its own `teacher_id` directly
+ * (no source indirection). `source_id` may be NULL for new agents.
  */
 export async function requireAgent(
   request: NextRequest
 ): Promise<
   | (AuthResult & {
       role: 'registration_agent';
-      agent: { id: string; source_id: string };
-      sourceTeacherId: string;
+      agent: { id: string; source_id: string | null; teacher_id: string };
+      sourceTeacherId: string; // kept for backward compat with existing routes
     })
   | AuthError
 > {
@@ -215,10 +216,15 @@ export async function requireAgent(
     };
   }
 
-  // Fetch the agent's row + source's teacher_id in one joined query.
+  // Fetch the agent's row + teacher_id directly (v65 path).
+  // Falls back to source.teacher_id for old agents that haven't been
+  // backfilled yet.
   const { data: agentRow, error } = await supabaseServer
     .from('registration_agents')
-    .select('id, source_id, source:registration_sources(teacher_id)')
+    .select(
+      'id, source_id, teacher_id, ' +
+        'source:registration_sources(teacher_id)'
+    )
     .eq('user_id', authResult.user.id)
     .eq('is_active', true)
     .single();
@@ -231,13 +237,21 @@ export async function requireAgent(
     };
   }
 
+  const row = agentRow as unknown as {
+    id: string;
+    source_id: string | null;
+    teacher_id: string | null;
+    source: { teacher_id: string } | null;
+  };
+
+  const directTeacherId = row.teacher_id;
   const sourceTeacherId =
-    (agentRow.source as unknown as { teacher_id: string } | null)?.teacher_id ?? null;
+    directTeacherId ?? row.source?.teacher_id ?? null;
 
   if (!sourceTeacherId) {
     return {
       success: false,
-      error: 'تعذر الوصول إلى بيانات مصدر التسجيل المرتبط بك',
+      error: 'تعذر الوصول إلى بيانات المعلم المرتبط بحسابك',
       status: 403,
     };
   }
@@ -245,7 +259,11 @@ export async function requireAgent(
   return {
     ...authResult,
     role: 'registration_agent',
-    agent: { id: agentRow.id, source_id: agentRow.source_id },
+    agent: {
+      id: row.id,
+      source_id: row.source_id,
+      teacher_id: sourceTeacherId,
+    },
     sourceTeacherId,
   };
 }

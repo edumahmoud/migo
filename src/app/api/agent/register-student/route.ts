@@ -320,12 +320,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 5. Resolve source name for the response.
-  const { data: sourceRow } = await supabaseServer
-    .from('registration_sources')
-    .select('id, name, kind')
-    .eq('id', agent.source_id)
-    .single();
+  // 5. Resolve agent display name for the response (v65: agent may not have a source).
+  let sourceName: string | null = null;
+  if (agent.source_id) {
+    const { data: sourceRow } = await supabaseServer
+      .from('registration_sources')
+      .select('id, name, kind')
+      .eq('id', agent.source_id)
+      .maybeSingle();
+    sourceName = (sourceRow as { name: string } | null)?.name ?? null;
+  }
+  // Fallback to the agent's own display_name if no source.
+  if (!sourceName) {
+    const { data: agentRow } = await supabaseServer
+      .from('registration_agents')
+      .select('display_name')
+      .eq('id', agent.id)
+      .maybeSingle();
+    sourceName = (agentRow as { display_name: string | null } | null)?.display_name ?? null;
+  }
 
   return NextResponse.json({
     success: true,
@@ -341,8 +354,9 @@ export async function POST(request: NextRequest) {
       subjectId: subject.id,
       subjectName: subject.name,
       sourceId: agent.source_id,
-      sourceName: sourceRow?.name ?? null,
+      sourceName,
       agentId: agent.id,
+      agentName: sourceName, // alias for clarity in the new model
       enrolledAt: new Date().toISOString(),
     },
   });

@@ -6,21 +6,27 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * Teacher Registration Agents
- *   GET    /api/teacher/registration-agents        → list agents in current teacher's sources
- *   POST   /api/teacher/registration-agents         → create a new agent (creates auth user
- *                                                     + users row + registration_agents row).
+ *   GET    /api/teacher/registration-agents        → list current teacher's agents
+ *   POST   /api/teacher/registration-agents        → create a new agent
  *
- * The temp password is returned ONCE in the response so the teacher can hand it
- * to the agent in person. It is NOT stored in plaintext anywhere.
+ * As of v65: an agent IS its own "source" (center/external office).
+ * The agent row carries display_name + kind + contact fields directly,
+ * and teacher_id is set on insert. No more separate source entity.
  */
+const KindEnum = z.enum(['center', 'external_office', 'other']);
+
 const CreateSchema = z.object({
-  source_id: z.string().uuid(),
-  name: z.string().trim().min(1).max(120),
-  email: z.string().trim().email().max(254),
+  display_name: z.string().trim().min(1).max(120),
+  kind: KindEnum.default('center'),
+  contact_email: z.string().trim().email().max(254),
+  contact_phone: z.string().trim().max(40).optional(),
+  address: z.string().trim().max(300).optional(),
+  // auth account:
+  account_email: z.string().trim().email().max(254),
+  account_name: z.string().trim().min(1).max(120).optional(),
 });
 
 function generateTempPassword(): string {
-  // 10-char base32-ish password (avoids ambiguous characters)
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const bytes = randomBytes(10);
   let out = '';
@@ -34,23 +40,16 @@ export async function GET(request: NextRequest) {
 
   const teacherId = auth.user.id;
 
-  // Use !inner join so we can filter by a column on the joined table.
-  // This is the canonical Supabase pattern for "agents in sources owned by this teacher"
-  // and gracefully handles the case where the teacher has zero sources (returns []).
-  //
-  // The `user:users!user_id(...)` hint is REQUIRED because registration_agents
-  // has TWO FKs to users (user_id for the agent + created_by for who created
-  // them); without the hint PostgREST raises:
-  //   "Could not embed because more than one relationship was found for
-  //    'registration_agents' and 'users'"
+  // Direct teacher_id match (v65 path). The `!inner` hint lets us
+  // filter on a column from the joined table.
   const { data, error } = await supabaseServer
     .from('registration_agents')
     .select(
-      'id, user_id, source_id, is_active, created_at, ' +
-        'source:registration_sources!inner(id, name, kind, is_active, teacher_id), ' +
+      'id, user_id, teacher_id, source_id, display_name, kind, ' +
+        'contact_email, contact_phone, address, is_active, created_at, ' +
         'user:users!user_id(id, email, name, username)'
     )
-    .eq('source.teacher_id', teacherId)
+    .eq('teacher_id', teacherId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -61,19 +60,20 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // For each agent, also fetch the count of students they registered.
+  // Fetch students count per agent in one shot.
   const agentIds = ((data ?? []) as unknown as Array<{ id: string }>).map((a) => a.id);
   let countsByAgent: Record<string, number> = {};
   if (agentIds.length > 0) {
-    const { data: countRows, error: countErr } = await supabaseServer
+    const { data: countRows } = await supabaseServer
       .from('subject_students')
       .select('enrollment_agent_id')
       .in('enrollment_agent_id', agentIds);
 
-    if (!countErr && Array.isArray(countRows)) {
+    if (Array.isArray(countRows)) {
       for (const row of countRows as Array<{ enrollment_agent_id: string | null }>) {
         if (row.enrollment_agent_id) {
-          countsByAgent[row.enrollment_agent_id] = (countsByAgent[row.enrollment_agent_id] || 0) + 1;
+          countsByAgent[row.enrollment_agent_id] =
+            (countsByAgent[row.enrollment_agent_id] || 0) + 1;
         }
       }
     }
@@ -116,47 +116,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the source belongs to the requesting teacher (defense-in-depth;
-  // RLS also blocks the INSERT below if not).
-  const { data: sourceRow, error: sourceErr } = await supabaseServer
-    .from('registration_sources')
-    .select('id, teacher_id')
-    .eq('id', parsed.data.source_id)
-    .eq('teacher_id', auth.user.id)
-    .single();
+  const { display_name, kind, contact_email, contact_phone, address, account_email, account_name } = parsed.data;
+  const finalAccountName = account_name || display_name;
 
-  if (sourceErr || !sourceRow) {
-    return NextResponse.json(
-      { success: false, error: 'مصدر التسجيل غير موجود أو لا تملكه' },
-      { status: 403 }
-    );
-  }
-
-  // 1) Check if email is already in use → reject, no duplicate accounts.
+  // 1) Reject duplicate account_email.
   const { data: existingUser } = await supabaseServer
     .from('users')
     .select('id, email, role')
-    .eq('email', parsed.data.email)
+    .eq('email', account_email)
     .maybeSingle();
 
   if (existingUser) {
     return NextResponse.json(
-      {
-        success: false,
-        error: 'البريد الإلكتروني مستخدم بالفعل. لا يمكن إنشاء وكيل بحساب موجود.',
-      },
+      { success: false, error: 'البريد الإلكتروني للحساب مستخدم بالفعل.' },
       { status: 409 }
     );
   }
 
-  // 2) Create the auth user with role 'registration_agent'.
+  // 2) Reject duplicate contact_email (must be unique per agent).
+  if (contact_email) {
+    const { data: dupContact } = await supabaseServer
+      .from('registration_agents')
+      .select('id')
+      .eq('contact_email', contact_email)
+      .maybeSingle();
+    if (dupContact) {
+      return NextResponse.json(
+        { success: false, error: 'بريد التواصل مستخدم لوكيل آخر.' },
+        { status: 409 }
+      );
+    }
+  }
+
+  // 3) Create the auth user.
   const tempPassword = generateTempPassword();
   const { data: created, error: createErr } = await supabaseServer.auth.admin.createUser({
-    email: parsed.data.email,
+    email: account_email,
     password: tempPassword,
     email_confirm: true,
     user_metadata: {
-      name: parsed.data.name,
+      name: finalAccountName,
       role: 'registration_agent',
     },
   });
@@ -170,9 +169,7 @@ export async function POST(request: NextRequest) {
 
   const newUserId = created.user.id;
 
-  // 3) The handle_new_user() trigger should have inserted the public.users row
-  //    with role='registration_agent' from raw_user_meta_data->>'role'.
-  //    Verify + patch defensively if the trigger set role='student'.
+  // 4) Ensure public.users row has the correct role (defensive patch).
   const { data: profileRow } = await supabaseServer
     .from('users')
     .select('id, role, name')
@@ -180,34 +177,38 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (!profileRow) {
-    // Race: trigger hasn't run yet. Insert manually.
     await supabaseServer
       .from('users')
       .insert({
         id: newUserId,
-        email: parsed.data.email,
-        name: parsed.data.name,
+        email: account_email,
+        name: finalAccountName,
         role: 'registration_agent',
       });
   } else if (profileRow.role !== 'registration_agent') {
     await supabaseServer
       .from('users')
-      .update({ role: 'registration_agent', name: parsed.data.name })
+      .update({ role: 'registration_agent', name: finalAccountName })
       .eq('id', newUserId);
   } else {
-    await supabaseServer.from('users').update({ name: parsed.data.name }).eq('id', newUserId);
+    await supabaseServer.from('users').update({ name: finalAccountName }).eq('id', newUserId);
   }
 
-  // 4) Insert the registration_agents row (RLS allows because source belongs to teacher).
+  // 5) Insert the registration_agents row with teacher_id + metadata directly.
   const { data: agent, error: agentErr } = await supabaseServer
     .from('registration_agents')
     .insert({
       user_id: newUserId,
-      source_id: parsed.data.source_id,
+      teacher_id: auth.user.id,
+      display_name,
+      kind,
+      contact_email,
+      contact_phone,
+      address,
       is_active: true,
       created_by: auth.user.id,
     })
-    .select('id, user_id, source_id, is_active, created_at')
+    .select('id, user_id, teacher_id, display_name, kind, contact_email, contact_phone, address, is_active, created_at')
     .single();
 
   if (agentErr) {
@@ -226,7 +227,7 @@ export async function POST(request: NextRequest) {
     success: true,
     agent,
     temporaryPassword: tempPassword,
-    user: { id: newUserId, email: parsed.data.email, name: parsed.data.name },
+    user: { id: newUserId, email: account_email, name: finalAccountName },
     note: 'احفظ كلمة المرور المؤقتة الآن — لن يتم عرضها مرة أخرى.',
   });
 }
