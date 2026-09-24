@@ -72,6 +72,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // v72 (W1 fix): SUSPENDED students must not be able to link teachers.
+    const accountStatus = (profile as { account_status?: string }).account_status ?? 'active';
+    if (accountStatus === 'suspended') {
+      return NextResponse.json(
+        { error: 'حسابك موقوف. تواصل مع الإدارة.' },
+        { status: 403 }
+      );
+    }
+
     // 2. Find teacher by code (using service role to bypass RLS)
     const { data: teacher, error: teacherError } = await supabaseServer
       .from('users')

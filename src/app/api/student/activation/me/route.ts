@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { requirePendingStudent, authErrorResponse } from '@/lib/auth-helpers';
+import { requireEligibleStudent, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/student/activation/me
@@ -15,7 +15,7 @@ import { requirePendingStudent, authErrorResponse } from '@/lib/auth-helpers';
  * Used by the activation page to render the whole flow.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requirePendingStudent(request);
+  const auth = await requireEligibleStudent(request);
   if (!auth.success) return authErrorResponse(auth);
 
   const studentId = auth.user.id;

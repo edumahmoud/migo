@@ -21,6 +21,7 @@ import {
   Search,
   Check,
   X,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import PendingOrdersSection from '@/components/teacher/pending-orders-section';
 
 declare global {
   // Browser navigator.clipboard is widely available; type augmentation for safety.
@@ -156,6 +158,7 @@ export default function AgentPortal() {
   const [coursesOpen, setCoursesOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<RegistrationResult | null>(null);
+  const [activeTab, setActiveTab] = useState<'register' | 'pending'>('register');
 
   const loadMeta = useCallback(async () => {
     setLoadingMeta(true);
@@ -337,6 +340,31 @@ export default function AgentPortal() {
         </div>
       </header>
 
+      {/* Tab switcher */}
+      <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted/40 text-sm sticky top-14 z-10 backdrop-blur-sm bg-background/80">
+        <button
+          type="button"
+          onClick={() => setActiveTab('register')}
+          className={`py-2 px-3 rounded-md flex items-center justify-center gap-1.5 transition-all ${activeTab === 'register' ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          <UserPlus className="h-4 w-4" />
+          تسجيل الطلاب
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('pending')}
+          className={`py-2 px-3 rounded-md flex items-center justify-center gap-1.5 transition-all ${activeTab === 'pending' ? 'bg-white dark:bg-background shadow-sm font-semibold text-emerald-700' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          <Clock className="h-4 w-4" />
+          تفعيل الاشتراكات
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'pending' ? (
+        <PendingOrdersSection />
+      ) : (
+        <>
       {/* Agent financial dashboard */}
       {loadingMeta ? (
         <Card>
@@ -958,6 +986,8 @@ export default function AgentPortal() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }

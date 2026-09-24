@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
-import { requirePendingStudent, authErrorResponse } from '@/lib/auth-helpers';
+import { requireEligibleStudent, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/student/orders
@@ -31,7 +31,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const auth = await requirePendingStudent(request);
+  const auth = await requireEligibleStudent(request);
   if (!auth.success) return authErrorResponse(auth);
 
   let body: unknown;

@@ -370,6 +370,30 @@ export async function requirePendingStudent(
 }
 
 /**
+ * Authenticate + verify the user is a student with account_status
+ * 'pending' OR 'active' (i.e. NOT suspended). Used by endpoints that
+ * both PENDING and ACTIVE students need (e.g., create-order, view
+ * available courses). SUSPENDED students get 403.
+ */
+export async function requireEligibleStudent(
+  request: NextRequest
+): Promise<AuthResponse & { role: 'student' }> {
+  const auth = await requireStudent(request);
+  if (!auth.success) return auth as AuthResponse & { role: 'student' };
+
+  const accountStatus = await fetchAccountStatus(auth.user.id);
+  if (accountStatus === 'suspended') {
+    return {
+      success: false,
+      error: 'حسابك موقوف. تواصل مع الإدارة.',
+      status: 403,
+    } as unknown as AuthResponse & { role: 'student' };
+  }
+  // 'pending' and 'active' are both allowed.
+  return auth as AuthResponse & { role: 'student' };
+}
+
+/**
  * Create a standardized auth error response.
  */
 export function authErrorResponse(authResult: AuthError): NextResponse {

@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     // 2. Find subject by join_code (using service role to bypass RLS)
     const { data: subject, error: subjectError } = await supabaseServer
       .from('subjects')
-      .select('id, name, description, color, teacher_id, join_code')
+      .select('id, name, description, color, teacher_id, join_code, price, currency')
       .eq('join_code', code)
       .single();
 
@@ -115,6 +115,18 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'لم يتم العثور على مقرر بهذا الكود' },
         { status: 404 }
+      );
+    }
+
+    // v72: Block free bypass — paid courses (price > 0) cannot be joined
+    // via join_code. The student must go through the payment/subscription flow.
+    const subjectPrice = (subject as { price?: number }).price ?? 0;
+    if (subjectPrice > 0) {
+      return NextResponse.json(
+        {
+          error: `هذا المقرر يتطلب اشتراكاً مدفوعاً (${Number(subjectPrice).toFixed(2)} ج.م/شهر). استخدم قسم "الاشتراكات" في لوحتك للدفع والاشتراك.`,
+        },
+        { status: 403 }
       );
     }
 
