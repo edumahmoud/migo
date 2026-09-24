@@ -55,11 +55,23 @@ interface OrderRow {
   paid_at: string | null;
 }
 
+interface Subscription {
+  subject_id: string;
+  status: string;
+  enrollment_method: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  next_billing_at: string | null;
+  monthly_price: number | null;
+  enrolled_at: string;
+}
+
 interface ActivationData {
   student: { id: string; email: string; name: string | null; student_code: string | null; account_status: string };
   linked_teachers: LinkedTeacher[];
   available_courses: AvailableCourse[];
   recent_orders: OrderRow[];
+  subscriptions: Subscription[];
 }
 
 export default function StudentActivationPage() {
@@ -310,7 +322,7 @@ export default function StudentActivationPage() {
                 المقررات المتاحة
               </CardTitle>
               <CardDescription className="text-xs">
-                اختر مقرراً وابدأ الدفع لتفعيل اشتراكك.
+                الاشتراك شهري — ادفع رسوم شهر واحد للحصول على وصول كامل حتى نهاية الفترة. يمكنك التجديد في أي وقت.
               </CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={load} title="تحديث">
@@ -329,6 +341,10 @@ export default function StudentActivationPage() {
             ) : (
               data.available_courses.map((c) => {
                 const isPaying = payingCourseId === c.id;
+                // Find existing subscription for this course.
+                const sub = data.subscriptions?.find((s) => s.subject_id === c.id);
+                const isSubActive = sub?.current_period_end && new Date(sub.current_period_end) > new Date();
+                const isSubExpired = sub?.current_period_end && new Date(sub.current_period_end) <= new Date();
                 return (
                   <div
                     key={c.id}
@@ -336,16 +352,26 @@ export default function StudentActivationPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold truncate">{c.name}</div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
                         {c.teacher_name && <span>· {c.teacher_name}</span>}
                         {(c.level || c.sub_level) && (
                           <span>· {[c.level, c.sub_level].filter(Boolean).join(' / ')}</span>
+                        )}
+                        {isSubActive && sub?.current_period_end && (
+                          <Badge variant="default" className="text-[10px] bg-emerald-600">
+                            نشط حتى {new Date(sub.current_period_end).toLocaleDateString('ar-EG')}
+                          </Badge>
+                        )}
+                        {isSubExpired && sub?.current_period_end && (
+                          <Badge variant="destructive" className="text-[10px]">
+                            منتهي في {new Date(sub.current_period_end).toLocaleDateString('ar-EG')}
+                          </Badge>
                         )}
                       </div>
                     </div>
                     <div className="text-end shrink-0">
                       <div className="font-bold text-emerald-700">
-                        {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}`}
+                        {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}/شهر`}
                       </div>
                       <Button
                         size="sm"
@@ -358,7 +384,7 @@ export default function StudentActivationPage() {
                         ) : (
                           <CreditCard className="h-4 w-4 me-1" />
                         )}
-                        {c.price === 0 ? 'اشترك مجاناً' : 'اشترك وادفع'}
+                        {isSubActive ? 'تجديد' : isSubExpired ? 'اشترك من جديد' : c.price === 0 ? 'اشترك مجاناً' : 'اشترك وادفع'}
                       </Button>
                     </div>
                   </div>

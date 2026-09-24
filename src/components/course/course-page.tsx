@@ -1202,11 +1202,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   </div>
                 </div>
 
-                {/* v69: course price (only teachers can edit) */}
+                {/* v69/v70: course monthly subscription price (only teachers can edit) */}
                 {role === 'teacher' && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      سعر الاشتراك (ج.م)
+                      رسوم الاشتراك الشهري (ج.م/شهر)
                     </label>
                     <input
                       type="number"
@@ -1220,7 +1220,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       disabled={savingSubject}
                     />
                     <p className="text-xs text-muted-foreground">
-                      0 = مجاناً. لا يمكن للطالب تعديل السعر — يُقرأ من قاعدة البيانات.
+                      الاشتراك شهري — يدفع الطالب كل شهر. 0 = مجاناً. لا يمكن للطالب تعديل السعر — يُقرأ من قاعدة البيانات.
                     </p>
                   </div>
                 )}

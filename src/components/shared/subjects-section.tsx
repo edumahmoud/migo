@@ -2280,10 +2280,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   </div>
                 </div>
 
-                {/* v69: Course price (EGP). Server-side validated; default 0 = free. */}
+                {/* v69/v70: Course monthly subscription price (EGP/month). Server-side validated; default 0 = free. */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
-                    سعر الاشتراك (ج.م)
+                    رسوم الاشتراك الشهري (ج.م/شهر)
                   </label>
                   <input
                     type="number"
@@ -2297,7 +2297,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     disabled={creatingSubject}
                   />
                   <p className="text-xs text-muted-foreground">
-                    اتركه 0 إذا كانت الدورة مجانية. لا يمكن للطالب تعديل هذا السعر — يُقرأ من قاعدة البيانات عند إنشاء طلب الدفع.
+                    الاشتراك شهري — يدفع الطالب هذا المبلغ كل شهر. اتركه 0 إذا كانت الدورة مجانية. لا يمكن للطالب تعديل هذا السعر.
                   </p>
                 </div>
 

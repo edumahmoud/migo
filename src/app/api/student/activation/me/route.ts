@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     }));
   }
 
-  // 4. Active orders + payment status (so the activation page can show "Pending payment").
+  // 4. Active orders + payment status.
   const { data: orders } = await supabaseServer
     .from('orders')
     .select('id, subject_id, amount, currency, provider, status, confirmation_mode, created_at, paid_at')
@@ -112,11 +112,20 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(10);
 
+  // 5. Existing subscriptions (for showing period/expiry on the activation page).
+  const { data: subscriptions } = await supabaseServer
+    .from('subject_students')
+    .select('subject_id, status, enrollment_method, current_period_start, current_period_end, next_billing_at, monthly_price, enrolled_at')
+    .eq('student_id', studentId)
+    .eq('enrollment_method', 'self_paid')
+    .order('current_period_end', { ascending: false, nullsFirst: false });
+
   return NextResponse.json({
     success: true,
     student: profile,
     linked_teachers: (links ?? []) as Array<unknown>,
     available_courses: courses,
     recent_orders: orders ?? [],
+    subscriptions: subscriptions ?? [],
   });
 }
