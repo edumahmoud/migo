@@ -8,7 +8,10 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
  *   GET    /api/teacher/payment-methods       → list current teacher's methods
  *   POST   /api/teacher/payment-methods        → create a new method
  */
-const ICON_ENUM = z.enum([
+// As of v67, `icon` accepts any string — either a preset lucide icon
+// name (wallet, credit_card, banknote, smartphone, building, landmark,
+// repeat) OR a custom emoji / short text (e.g., '💰', '🏦', '⚡', 'paypal').
+const PRESET_ICONS = [
   'wallet',
   'credit_card',
   'banknote',
@@ -16,16 +19,18 @@ const ICON_ENUM = z.enum([
   'building',
   'landmark',
   'repeat',
-]);
+] as const;
 
 const CreateSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  icon: ICON_ENUM.default('wallet'),
+  icon: z.string().trim().min(1).max(20).default('wallet'),
   account_identifier: z.string().trim().min(1).max(200),
   contact_for_confirmation: z.string().trim().max(120).optional(),
   is_active: z.boolean().default(true),
   sort_order: z.number().int().default(0),
 });
+
+export { PRESET_ICONS };
 
 export async function GET(request: NextRequest) {
   const auth = await requireTeacher(request);

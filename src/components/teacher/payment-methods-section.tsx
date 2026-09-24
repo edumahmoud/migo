@@ -46,13 +46,13 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 
-type Icon = 'wallet' | 'credit_card' | 'banknote' | 'smartphone' | 'building' | 'landmark' | 'repeat';
+type IconPreset = 'wallet' | 'credit_card' | 'banknote' | 'smartphone' | 'building' | 'landmark' | 'repeat';
 
 interface PaymentMethod {
   id: string;
   teacher_id: string;
   name: string;
-  icon: Icon;
+  icon: string;  // v67: any string (preset name OR custom emoji)
   account_identifier: string;
   contact_for_confirmation: string | null;
   is_active: boolean;
@@ -61,7 +61,7 @@ interface PaymentMethod {
   updated_at: string;
 }
 
-const ICON_LABEL: Record<Icon, string> = {
+const ICON_LABEL: Record<IconPreset, string> = {
   wallet: 'محفظة',
   credit_card: 'بطاقة',
   banknote: 'نقد',
@@ -71,7 +71,9 @@ const ICON_LABEL: Record<Icon, string> = {
   repeat: 'اشتراك متكرر',
 };
 
-const ICON_COMPONENT: Record<Icon, React.ComponentType<{ className?: string }>> = {
+const PRESET_KEYS = Object.keys(ICON_LABEL) as IconPreset[];
+
+const ICON_COMPONENT: Record<IconPreset, React.ComponentType<{ className?: string }>> = {
   wallet: Wallet,
   credit_card: CreditCard,
   banknote: Banknote,
@@ -80,6 +82,24 @@ const ICON_COMPONENT: Record<Icon, React.ComponentType<{ className?: string }>> 
   landmark: Landmark,
   repeat: Repeat,
 };
+
+// Render an icon: if the string is one of the preset keys, use the lucide
+// component; otherwise render it as a text/emoji span (fallback to Wallet
+// icon if the value is empty/null).
+function renderPaymentIcon(icon: string | null | undefined, className?: string) {
+  if (!icon) return <Wallet className={className ?? 'h-5 w-5'} />;
+  if (icon in ICON_COMPONENT) {
+    const Ico = ICON_COMPONENT[icon as IconPreset];
+    return <Ico className={className ?? 'h-5 w-5'} />;
+  }
+  // Custom emoji / short text
+  return <span className={className ? `${className} inline-flex items-center justify-center` : 'text-xl leading-none'}>{icon}</span>;
+}
+
+// Detect the icon-picker mode (preset vs custom) for a given value.
+function isPresetIcon(icon: string | null | undefined): icon is IconPreset {
+  return !!icon && icon in ICON_COMPONENT;
+}
 
 export default function PaymentMethodsSection() {
   const { t } = useTranslations();
@@ -90,7 +110,7 @@ export default function PaymentMethodsSection() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
-    icon: 'wallet' as Icon,
+    icon: 'wallet',
     account_identifier: '',
     contact_for_confirmation: '',
   });
@@ -99,7 +119,7 @@ export default function PaymentMethodsSection() {
   const [editTarget, setEditTarget] = useState<PaymentMethod | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
-    icon: 'wallet' as Icon,
+    icon: 'wallet',
     account_identifier: '',
     contact_for_confirmation: '',
   });
@@ -280,7 +300,7 @@ export default function PaymentMethodsSection() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {methods.map((m) => {
-            const IconComp = ICON_COMPONENT[m.icon] ?? Wallet;
+            const presetLabel = isPresetIcon(m.icon) ? ICON_LABEL[m.icon] : null;
             return (
               <Card
                 key={m.id}
@@ -290,11 +310,13 @@ export default function PaymentMethodsSection() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="h-9 w-9 rounded-lg bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center shrink-0">
-                        <IconComp className="h-5 w-5 text-sky-600" />
+                        {renderPaymentIcon(m.icon, 'h-5 w-5 text-sky-600')}
                       </div>
                       <div className="min-w-0">
                         <CardTitle className="text-base truncate">{m.name}</CardTitle>
-                        <CardDescription className="text-xs">{ICON_LABEL[m.icon]}</CardDescription>
+                        <CardDescription className="text-xs">
+                          {presetLabel ?? 'أيقونة مخصصة'}
+                        </CardDescription>
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
@@ -375,27 +397,74 @@ export default function PaymentMethodsSection() {
             </div>
             <div className="space-y-1">
               <Label>الأيقونة</Label>
-              <Select
-                value={form.icon}
-                onValueChange={(v) => setForm({ ...form, icon: v as Icon })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ICON_LABEL).map(([key, label]) => {
-                    const Ico = ICON_COMPONENT[key as Icon];
-                    return (
-                      <SelectItem key={key} value={key}>
-                        <span className="flex items-center gap-2">
-                          <Ico className="h-4 w-4" />
-                          {label}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              {/* 2-tab picker: presets vs custom emoji */}
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted/40 text-xs mb-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, icon: 'wallet' })}
+                  className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                    isPresetIcon(form.icon)
+                      ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  أيقونات جاهزة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, icon: '💰' })}
+                  className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                    !isPresetIcon(form.icon)
+                      ? 'bg-white dark:bg-background shadow-sm font-semibold text-emerald-700'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  إيموجي مخصص
+                </button>
+              </div>
+
+              {isPresetIcon(form.icon) ? (
+                <Select
+                  value={form.icon}
+                  onValueChange={(v) => setForm({ ...form, icon: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRESET_KEYS.map((key) => {
+                      const Ico = ICON_COMPONENT[key];
+                      return (
+                        <SelectItem key={key} value={key}>
+                          <span className="flex items-center gap-2">
+                            <Ico className="h-4 w-4" />
+                            {ICON_LABEL[key]}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={form.icon}
+                    onChange={(e) => setForm({ ...form, icon: e.target.value.slice(0, 20) })}
+                    placeholder="💰 🏦 ⚡ 📲"
+                    className="text-2xl text-center"
+                    maxLength={20}
+                  />
+                  <div className="text-xs text-muted-foreground min-w-[80px]">
+                    معاينة:
+                    <div className="mt-1 h-10 w-10 rounded-lg bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center">
+                      {renderPaymentIcon(form.icon, 'text-xl')}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground">
+                يمكنك لصق أي إيموجي هنا (مثل 💰 🏦 ⚡ 📲) — سيظهر للطلاب بدل الأيقونة الجاهزة.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>رقم الحساب / المحفظة</Label>
@@ -448,27 +517,71 @@ export default function PaymentMethodsSection() {
             </div>
             <div className="space-y-1">
               <Label>الأيقونة</Label>
-              <Select
-                value={editForm.icon}
-                onValueChange={(v) => setEditForm({ ...editForm, icon: v as Icon })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ICON_LABEL).map(([key, label]) => {
-                    const Ico = ICON_COMPONENT[key as Icon];
-                    return (
-                      <SelectItem key={key} value={key}>
-                        <span className="flex items-center gap-2">
-                          <Ico className="h-4 w-4" />
-                          {label}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              {/* 2-tab picker: presets vs custom emoji */}
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted/40 text-xs mb-2">
+                <button
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, icon: 'wallet' })}
+                  className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                    isPresetIcon(editForm.icon)
+                      ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  أيقونات جاهزة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditForm({ ...editForm, icon: '💰' })}
+                  className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                    !isPresetIcon(editForm.icon)
+                      ? 'bg-white dark:bg-background shadow-sm font-semibold text-emerald-700'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  إيموجي مخصص
+                </button>
+              </div>
+
+              {isPresetIcon(editForm.icon) ? (
+                <Select
+                  value={editForm.icon}
+                  onValueChange={(v) => setEditForm({ ...editForm, icon: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRESET_KEYS.map((key) => {
+                      const Ico = ICON_COMPONENT[key];
+                      return (
+                        <SelectItem key={key} value={key}>
+                          <span className="flex items-center gap-2">
+                            <Ico className="h-4 w-4" />
+                            {ICON_LABEL[key]}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editForm.icon}
+                    onChange={(e) => setEditForm({ ...editForm, icon: e.target.value.slice(0, 20) })}
+                    placeholder="💰 🏦 ⚡ 📲"
+                    className="text-2xl text-center"
+                    maxLength={20}
+                  />
+                  <div className="text-xs text-muted-foreground min-w-[80px]">
+                    معاينة:
+                    <div className="mt-1 h-10 w-10 rounded-lg bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center">
+                      {renderPaymentIcon(editForm.icon, 'text-xl')}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>رقم الحساب / المحفظة</Label>

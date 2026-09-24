@@ -68,8 +68,16 @@ interface RegistrationAgent {
   address: string | null;
   is_active: boolean;
   created_at: string;
-  students_count?: number;
+  students_count?: number;              // legacy alias of registrations_count
+  registrations_count?: number;        // rows in subject_students (one per course enrollment)
+  unique_students_count?: number;       // distinct student_id values
   user?: { id: string; email: string; name: string | null; username: string | null } | null;
+}
+
+interface AgentsAggregate {
+  total_agents: number;
+  total_registrations: number;
+  total_unique_students: number;
 }
 
 interface AgentStudent {
@@ -102,6 +110,7 @@ export default function RegistrationAgentsSection() {
   const { t } = useTranslations();
 
   const [agents, setAgents] = useState<RegistrationAgent[]>([]);
+  const [aggregate, setAggregate] = useState<AgentsAggregate | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<string>('all');
@@ -155,8 +164,10 @@ export default function RegistrationAgentsSection() {
       if (!json.success) {
         toast.error(json.error || t('common.unexpectedError'));
         setAgents([]);
+        setAggregate(null);
       } else {
         setAgents(json.agents as RegistrationAgent[]);
+        setAggregate((json.aggregate as AgentsAggregate) ?? null);
       }
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -185,10 +196,8 @@ export default function RegistrationAgentsSection() {
     return list;
   }, [agents, kindFilter, search]);
 
-  const totalStudentsAcrossAgents = useMemo(
-    () => agents.reduce((sum, a) => sum + (a.students_count ?? 0), 0),
-    [agents]
-  );
+  const totalAgents = agents.length;
+  const activeAgents = agents.filter((a) => a.is_active).length;
 
   const openCreate = () => {
     setForm({
@@ -372,9 +381,7 @@ export default function RegistrationAgentsSection() {
     }
   };
 
-  // Summary cards (aggregate dashboard at the top of the section)
-  const totalAgents = agents.length;
-  const activeAgents = agents.filter((a) => a.is_active).length;
+  // (totalAgents/activeAgents already computed above alongside the filter)
 
   return (
     <div className="space-y-6">
@@ -397,7 +404,7 @@ export default function RegistrationAgentsSection() {
 
       {/* Aggregate dashboard cards */}
       {!loading && agents.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Card className="border-sky-200 bg-sky-50/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -414,7 +421,17 @@ export default function RegistrationAgentsSection() {
                 <span className="text-xs text-muted-foreground">إجمالي التسجيلات</span>
                 <TrendingUp className="h-4 w-4 text-emerald-600" />
               </div>
-              <div className="text-2xl font-bold mt-1">{totalStudentsAcrossAgents}</div>
+              <div className="text-2xl font-bold mt-1">{aggregate?.total_registrations ?? 0}</div>
+              <div className="text-xs text-muted-foreground">تسجيل في مقررات</div>
+            </CardContent>
+          </Card>
+          <Card className="border-teal-200 bg-teal-50/40">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">طلاب فريدون</span>
+                <Users className="h-4 w-4 text-teal-600" />
+              </div>
+              <div className="text-2xl font-bold mt-1">{aggregate?.total_unique_students ?? 0}</div>
               <div className="text-xs text-muted-foreground">طالب عبر كل الوكلاء</div>
             </CardContent>
           </Card>
@@ -560,11 +577,26 @@ export default function RegistrationAgentsSection() {
                     )}
                   </div>
 
-                  {/* Stats */}
-                  <div className="text-sm flex items-center gap-2">
-                    <Users className="h-4 w-4 text-sky-600" />
-                    <span className="font-semibold">{a.students_count ?? 0}</span>
-                    <span className="text-muted-foreground">طالب مسجّل</span>
+                  {/* Stats: registrations (rows in subject_students) + unique students */}
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-md bg-emerald-50/60 dark:bg-emerald-900/15 border border-emerald-200/50 px-2 py-1.5">
+                      <div className="text-[10px] text-muted-foreground">تسجيلات</div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                          {a.registrations_count ?? a.students_count ?? 0}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">في مقررات</span>
+                      </div>
+                    </div>
+                    <div className="rounded-md bg-teal-50/60 dark:bg-teal-900/15 border border-teal-200/50 px-2 py-1.5">
+                      <div className="text-[10px] text-muted-foreground">طلاب فريدون</div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-bold text-teal-700 dark:text-teal-300">
+                          {a.unique_students_count ?? 0}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">طالب</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Action buttons */}

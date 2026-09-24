@@ -60,31 +60,66 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Fetch students count per agent in one shot.
+  // Fetch BOTH registrations count (rows in subject_students) AND unique
+  // students count (distinct student_id) per agent — in one query.
+  // We pull student_id rows and aggregate in JS because Supabase JS client
+  // doesn't expose COUNT(DISTINCT) directly.
   const agentIds = ((data ?? []) as unknown as Array<{ id: string }>).map((a) => a.id);
-  let countsByAgent: Record<string, number> = {};
+  let registrationsByAgent: Record<string, number> = {};
+  let uniqueStudentsByAgent: Record<string, Set<string>> = {};
   if (agentIds.length > 0) {
     const { data: countRows } = await supabaseServer
       .from('subject_students')
-      .select('enrollment_agent_id')
+      .select('enrollment_agent_id, student_id')
       .in('enrollment_agent_id', agentIds);
 
     if (Array.isArray(countRows)) {
-      for (const row of countRows as Array<{ enrollment_agent_id: string | null }>) {
+      for (const row of countRows as Array<{ enrollment_agent_id: string | null; student_id: string | null }>) {
         if (row.enrollment_agent_id) {
-          countsByAgent[row.enrollment_agent_id] =
-            (countsByAgent[row.enrollment_agent_id] || 0) + 1;
+          registrationsByAgent[row.enrollment_agent_id] =
+            (registrationsByAgent[row.enrollment_agent_id] || 0) + 1;
+          if (row.student_id) {
+            if (!uniqueStudentsByAgent[row.enrollment_agent_id]) {
+              uniqueStudentsByAgent[row.enrollment_agent_id] = new Set();
+            }
+            uniqueStudentsByAgent[row.enrollment_agent_id].add(row.student_id);
+          }
         }
       }
     }
   }
 
-  const enriched = ((data ?? []) as unknown as Array<Record<string, unknown>>).map((a) => ({
-    ...a,
-    students_count: countsByAgent[(a as { id: string }).id] ?? 0,
-  }));
+  const enriched = ((data ?? []) as unknown as Array<Record<string, unknown>>).map((a) => {
+    const id = (a as { id: string }).id;
+    return {
+      ...a,
+      // NOTE: 'students_count' kept for backward compat with old UIs;
+      // it equals registrations_count (rows in subject_students), NOT
+      // unique students.
+      students_count: registrationsByAgent[id] ?? 0,
+      registrations_count: registrationsByAgent[id] ?? 0,
+      unique_students_count: uniqueStudentsByAgent[id]?.size ?? 0,
+    };
+  });
 
-  return NextResponse.json({ success: true, agents: enriched });
+  // Aggregate unique students across ALL the teacher's agents (one student
+  // registered by 2 agents should count once at the teacher level).
+  const allStudentIds = new Set<string>();
+  for (const set of Object.values(uniqueStudentsByAgent)) {
+    for (const id of set) allStudentIds.add(id);
+  }
+  const total_unique_students = allStudentIds.size;
+  const total_registrations = Object.values(registrationsByAgent).reduce((s, n) => s + n, 0);
+
+  return NextResponse.json({
+    success: true,
+    agents: enriched,
+    aggregate: {
+      total_agents: enriched.length,
+      total_registrations,
+      total_unique_students,
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {

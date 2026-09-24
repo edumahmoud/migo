@@ -12,7 +12,7 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
  */
 const PatchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
-  icon: z.enum(['wallet', 'credit_card', 'banknote', 'smartphone', 'building', 'landmark', 'repeat']).optional(),
+  icon: z.string().trim().min(1).max(20).optional(),
   account_identifier: z.string().trim().min(1).max(200).optional(),
   contact_for_confirmation: z.string().trim().max(120).optional(),
   is_active: z.boolean().optional(),
