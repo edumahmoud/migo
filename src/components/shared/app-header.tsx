@@ -132,7 +132,7 @@ export default function AppHeader({
       : userRole === 'admin'
         ? (isFemale ? t('roles.supervisor') : t('roles.admin'))
         : userRole === 'registration_agent'
-          ? (isFemale ? 'وكيلة تسجيل' : 'وكيل تسجيل')
+          ? (isFemale ? 'مشرفة' : 'مشرف')
           : (() => {
             // For teachers, show academic title if available, otherwise default
             const effectiveTitleId = titleId || 'teacher';

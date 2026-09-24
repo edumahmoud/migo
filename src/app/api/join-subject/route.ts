@@ -190,6 +190,8 @@ export async function POST(request: Request) {
           description: subject.description,
           color: subject.color || '#0D9488',
           teacher_name: teacherName,
+          price: (subject as { price?: number }).price ?? 0,
+          currency: (subject as { currency?: string }).currency ?? 'EGP',
         },
       });
     }

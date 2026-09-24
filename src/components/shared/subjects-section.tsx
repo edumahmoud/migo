@@ -215,7 +215,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [joinCodeOpen, setJoinCodeOpen] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [joiningSubject, setJoiningSubject] = useState(false);
-  const [subjectPreview, setSubjectPreview] = useState<{ id: string; name: string; description?: string; color: string; teacher_name?: string } | null>(null);
+  const [subjectPreview, setSubjectPreview] = useState<{ id: string; name: string; description?: string; color: string; teacher_name?: string; price?: number; currency?: string } | null>(null);
   const [searchingSubject, setSearchingSubject] = useState(false);
 
   // ─── Cancel / Leave loading state ───
@@ -2808,6 +2808,20 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           <span>{t('subjects.teacher')}: {subjectPreview.teacher_name}</span>
                         </div>
                       )}
+                      {/* Price display */}
+                      {subjectPreview.price !== undefined && subjectPreview.price > 0 && (
+                        <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                          <span className="text-xs text-emerald-700 font-medium">رسوم الاشتراك الشهري</span>
+                          <span className="font-bold text-emerald-700">
+                            {Number(subjectPreview.price).toFixed(2)} {subjectPreview.currency ?? 'EGP'}/شهر
+                          </span>
+                        </div>
+                      )}
+                      {subjectPreview.price === 0 && (
+                        <div className="flex items-center gap-2 rounded-lg bg-sky-50 border border-sky-200 px-3 py-2">
+                          <span className="text-xs text-sky-700 font-medium">هذا المقرر مجاني — يمكنك الانضمام مباشرة</span>
+                        </div>
+                      )}
                       <div
                         className="flex items-center gap-2 rounded-lg px-3 py-2"
                         style={{
@@ -2829,9 +2843,39 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       </button>
                     </div>
 
-                    {/* Confirm button */}
+                    {/* Confirm button — paid courses create an order, free courses join directly */}
                     <button
-                      onClick={handleConfirmJoinSubject}
+                      onClick={async () => {
+                        if (subjectPreview.price && subjectPreview.price > 0) {
+                          // Paid course — create a subscription order
+                          setJoiningSubject(true);
+                          try {
+                            const res = await fetch('/api/student/orders', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+                              body: JSON.stringify({ subjectIds: [subjectPreview.id] }),
+                            });
+                            const json = await res.json();
+                            if (json.success) {
+                              toast.success('تم إنشاء طلب اشتراك. سيقوم المشرف بتفعيله بعد إثبات الدفع.');
+                              setJoinCodeOpen(false);
+                              setSubjectPreview(null);
+                              setJoinCodeInput('');
+                              // Refresh subjects list
+                              fetchSubjects();
+                            } else {
+                              toast.error(json.error || t('common.unexpectedError'));
+                            }
+                          } catch {
+                            toast.error(t('common.unexpectedError'));
+                          } finally {
+                            setJoiningSubject(false);
+                          }
+                        } else {
+                          // Free course — join directly via existing flow
+                          handleConfirmJoinSubject();
+                        }
+                      }}
                       disabled={joiningSubject || searchingSubject}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-teal-700 active:scale-[0.98]"
                       style={{
@@ -2841,12 +2885,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       {joiningSubject ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          {t('subjects.sendingRequest')}
+                          {subjectPreview.price && subjectPreview.price > 0 ? 'جارٍ إنشاء الطلب...' : t('subjects.sendingRequest')}
                         </>
                       ) : (
                         <>
                           <UserPlus className="h-4 w-4" />
-                          {t('subjects.confirmJoin')}
+                          {subjectPreview.price && subjectPreview.price > 0 ? 'اشترك وادفع' : t('subjects.confirmJoin')}
                         </>
                       )}
                     </button>
