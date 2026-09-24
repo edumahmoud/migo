@@ -144,16 +144,32 @@ export async function POST(request: NextRequest) {
         //   3. UPDATE order status='paid'.
         //   4. UPSERT enrollment (with 1-month period).
         //   5. Activate student if pending.
-        await supabaseServer.rpc('activate_subscription_after_payment', {
-          p_order_id: (freeOrder as { id: string }).id,
-          p_provider_payment_id: `free_${randomUUID()}`,
-          p_amount: 0,
-          p_currency: subject.currency,
-          p_status: 'paid',
-          p_raw_payload: { free_course: true, auto_activated: true },
-          p_confirmed_by: null,
-        });
-        createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'paid', free: true });
+        const { data: rpcData, error: rpcErr } = await supabaseServer.rpc(
+          'activate_subscription_after_payment',
+          {
+            p_order_id: (freeOrder as { id: string }).id,
+            p_provider_payment_id: `free_${randomUUID()}`,
+            p_amount: 0,
+            p_currency: subject.currency,
+            p_status: 'paid',
+            p_raw_payload: { free_course: true, auto_activated: true },
+            p_confirmed_by: null,
+          }
+        );
+
+        if (rpcErr) {
+          console.error('[student/orders] FREE RPC error:', rpcErr);
+          // Still push the order but mark it as failed
+          createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'error', free: true, error: rpcErr.message });
+        } else {
+          const rpcResult = (rpcData as { success?: boolean; error?: string }) ?? {};
+          if (rpcResult.success === false) {
+            console.error('[student/orders] FREE RPC returned failure:', rpcResult);
+            createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'error', free: true, error: rpcResult.error || 'RPC failed' });
+          } else {
+            createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'paid', free: true });
+          }
+        }
       }
     } else {
       // PAID course — create a pending manual-confirmation order.

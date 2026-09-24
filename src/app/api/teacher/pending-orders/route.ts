@@ -9,14 +9,15 @@ import { authenticateRequest, getUserRole, authErrorResponse } from '@/lib/auth-
  * teacher's courses. Also accessible by registration_agent (derives
  * teacher_id from the agent's row) and admin/superadmin (see all).
  *
- * Uses a two-step query (fetch subject IDs first, then filter orders)
- * to avoid nested-join filtering issues with Supabase JS client.
+ * Two-step query: fetch subject IDs first, then filter orders.
  */
 export async function GET(request: NextRequest) {
   const auth = await authenticateRequest(request);
   if (!auth.success) return authErrorResponse(auth);
 
   const role = await getUserRole(auth.user.id);
+  console.log('[pending-orders] caller role:', role, 'userId:', auth.user.id);
+
   if (!role || !['teacher', 'admin', 'superadmin', 'registration_agent'].includes(role)) {
     return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
   }
@@ -26,16 +27,34 @@ export async function GET(request: NextRequest) {
   if (role === 'teacher') {
     teacherIdFilter = auth.user.id;
   } else if (role === 'registration_agent') {
-    const { data: agent } = await supabaseServer
+    const { data: agent, error: agentErr } = await supabaseServer
       .from('registration_agents')
-      .select('teacher_id')
+      .select('teacher_id, is_active, source_id')
       .eq('user_id', auth.user.id)
-      .eq('is_active', true)
       .maybeSingle();
-    teacherIdFilter = (agent as { teacher_id: string } | null)?.teacher_id ?? null;
-    if (!teacherIdFilter) {
-      return NextResponse.json({ success: false, error: 'تعذر تحديد المعلم المرتبط بك' }, { status: 403 });
+
+    console.log('[pending-orders] agent lookup:', { agent, error: agentErr?.message });
+
+    // Try without is_active filter if the first query returns nothing.
+    if (!agent) {
+      const { data: agentAny } = await supabaseServer
+        .from('registration_agents')
+        .select('teacher_id, is_active, source_id')
+        .eq('user_id', auth.user.id)
+        .maybeSingle();
+      console.log('[pending-orders] agent (no is_active filter):', agentAny);
+      if (agentAny) {
+        teacherIdFilter = (agentAny as { teacher_id: string | null }).teacher_id ?? null;
+      }
+    } else {
+      teacherIdFilter = (agent as { teacher_id: string | null }).teacher_id ?? null;
     }
+
+    if (!teacherIdFilter) {
+      console.error('[pending-orders] CRITICAL: agent has no teacher_id! userId:', auth.user.id);
+      return NextResponse.json({ success: false, error: 'تعذر تحديد المعلم المرتبط بك — يرجى التواصل مع الإدارة' }, { status: 403 });
+    }
+    console.log('[pending-orders] agent teacher_id:', teacherIdFilter);
   }
   // admin/superadmin: teacherIdFilter stays null → sees all.
 
@@ -44,18 +63,22 @@ export async function GET(request: NextRequest) {
   if (teacherIdFilter) {
     const { data: subjects, error: subErr } = await supabaseServer
       .from('subjects')
-      .select('id')
+      .select('id, name')
       .eq('teacher_id', teacherIdFilter);
+    console.log('[pending-orders] subjects for teacher:', { count: subjects?.length, error: subErr?.message, teacherIdFilter });
+
     if (subErr) {
+      console.error('[pending-orders] subjects query error:', subErr);
       return NextResponse.json({ success: false, error: 'فشل تحميل مقررات المعلم' }, { status: 500 });
     }
     subjectIds = ((subjects ?? []) as Array<{ id: string }>).map((s) => s.id);
     if (subjectIds.length === 0) {
+      console.log('[pending-orders] no subjects found for teacher:', teacherIdFilter);
       return NextResponse.json({ success: true, orders: [] });
     }
   }
 
-  // 3. Query orders (without nested join filter — use .in() instead).
+  // 3. Query orders.
   let query = supabaseServer
     .from('orders')
     .select(
@@ -75,9 +98,11 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
 
   if (error) {
-    console.error('[teacher/pending-orders] query error:', error);
-    return NextResponse.json({ success: false, error: 'فشل تحميل الطلبات المعلقة' }, { status: 500 });
+    console.error('[pending-orders] orders query error:', error);
+    return NextResponse.json({ success: false, error: 'فشل تحميل الطلبات المعلقة: ' + error.message }, { status: 500 });
   }
+
+  console.log('[pending-orders] found orders:', data?.length ?? 0);
 
   return NextResponse.json({ success: true, orders: data ?? [] });
 }

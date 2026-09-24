@@ -2737,11 +2737,19 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   });
                                   const json = await res.json();
                                   if (json.success) {
+                                    // Check if the free course order had an RPC error.
+                                    const freeOrder = (json.created_orders ?? []).find(
+                                      (o: { subject_id?: string; error?: string; free?: boolean }) => o.subject_id === c.id
+                                    );
                                     if (c.price === 0) {
-                                      // Free course — auto-enrolled by the API, no payment dialog.
-                                      toast.success('تم الاشتراك في المقرر المجاني بنجاح.');
-                                      setAvailableCoursesOpen(false);
-                                      fetchSubjects();
+                                      // Free course — check if enrollment was actually created.
+                                      if (freeOrder && freeOrder.error) {
+                                        toast.error('فشل تفعيل المقرر المجاني: ' + freeOrder.error);
+                                      } else {
+                                        toast.success('تم الاشتراك في المقرر المجاني بنجاح.');
+                                        setAvailableCoursesOpen(false);
+                                        fetchSubjects();
+                                      }
                                     } else {
                                       // Paid course — show payment methods dialog.
                                       toast.success('تم إنشاء طلب اشتراك. اختر وسيلة الدفع.');
