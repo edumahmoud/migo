@@ -87,6 +87,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // v68: PENDING students (self-registered, not yet activated via payment)
+    // must NOT be able to join subjects via the legacy join-code flow.
+    // They must go through the activation page (link teacher → pay → activate).
+    // Existing ACTIVE students (incl. agent-created) keep working.
+    const accountStatus = (profile as { account_status?: string }).account_status ?? 'active';
+    if (accountStatus !== 'active') {
+      return NextResponse.json(
+        {
+          error:
+            accountStatus === 'pending'
+              ? 'يجب تفعيل حسابك أولاً عبر إكمال دورة الدفع قبل الانضمام للمقررات.'
+              : 'حسابك موقوف. تواصل مع الإدارة.',
+        },
+        { status: 403 }
+      );
+    }
+
     // 2. Find subject by join_code (using service role to bypass RLS)
     const { data: subject, error: subjectError } = await supabaseServer
       .from('subjects')

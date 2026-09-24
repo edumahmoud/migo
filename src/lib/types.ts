@@ -6,13 +6,17 @@ export type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin' | 'registr
 
 export type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible';
 
+export type AccountStatus = 'pending' | 'active' | 'suspended';
+
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
   username?: string;
   role: UserRole;
+  account_status?: AccountStatus;  // v68: PENDING students see the activation page
   teacher_code?: string;
+  student_code?: string | null;
   avatar_url?: string | null;
   title_id?: string | null;
   is_admin?: boolean;

@@ -752,7 +752,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email: sanitizedEmail, 
         password,
         options: {
-          data: { name: sanitizedName, role: defaultRole }
+          // self_registered=true tells handle_new_user() trigger to set
+          // account_status='pending' (v68). The student must complete
+          // the activation flow (link teacher + pay for a course) before
+          // gaining platform access. Agent-created students do NOT pass
+          // this flag and remain 'active' — their flow is unchanged.
+          data: { name: sanitizedName, role: defaultRole, self_registered: true }
         }
       });
       

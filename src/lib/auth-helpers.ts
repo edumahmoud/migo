@@ -269,6 +269,107 @@ export async function requireAgent(
 }
 
 /**
+ * Authenticate + verify the user is a student (role='student').
+ * Does NOT enforce account_status — that's left to the caller.
+ */
+export async function requireStudent(
+  request: NextRequest
+): Promise<AuthResponse & { role?: 'student' }> {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authResult;
+
+  const role = await getUserRole(authResult.user.id);
+  if (role !== 'student') {
+    return {
+      success: false,
+      error: 'هذا الإجراء متاح للطلاب فقط',
+      status: 403,
+    };
+  }
+  // Cast to satisfy TS — at this point we know authResult is AuthResult and role is 'student'.
+  return { ...authResult, role: 'student' } as AuthResponse & { role: 'student' };
+}
+
+/**
+ * Helper used by both requireActiveStudent and requirePendingStudent.
+ * Fetches the student's account_status from the DB (server-side source of truth).
+ */
+async function fetchAccountStatus(userId: string): Promise<'pending' | 'active' | 'suspended' | null> {
+  try {
+    const { data, error } = await supabaseServer
+      .from('users')
+      .select('account_status')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      console.error('[Auth] fetchAccountStatus DB error:', error.message);
+      return null;
+    }
+    return (data as { account_status?: string } | null)?.account_status as
+      | 'pending'
+      | 'active'
+      | 'suspended'
+      | null;
+  } catch (err) {
+    console.error('[Auth] fetchAccountStatus exception:', err);
+    return null;
+  }
+}
+
+/**
+ * Authenticate + verify the user is a student with account_status='active'.
+ * Use this guard on any student API route that gives access to course
+ * content, quizzes, files, etc.
+ *
+ * PENDING students get a 403 (they must complete the activation flow first).
+ * SUSPENDED students also get a 403 (admin must manually re-activate).
+ */
+export async function requireActiveStudent(
+  request: NextRequest
+): Promise<AuthResponse & { role: 'student' }> {
+  const auth = await requireStudent(request);
+  if (!auth.success) return auth as AuthResponse & { role: 'student' };
+
+  const accountStatus = await fetchAccountStatus(auth.user.id);
+  if (accountStatus !== 'active') {
+    return {
+      success: false,
+      error:
+        accountStatus === 'pending'
+          ? 'يجب تفعيل حسابك أولاً عبر إكمال دورة الدفع قبل الوصول إلى المحتوى'
+          : 'حسابك موقوف. تواصل مع الإدارة.',
+      status: 403,
+    } as unknown as AuthResponse & { role: 'student' };
+  }
+  return auth as AuthResponse & { role: 'student' };
+}
+
+/**
+ * Authenticate + verify the user is a student with account_status='pending'.
+ * Use this guard on activation-flow endpoints (link-teacher, create-order,
+ * list-available-courses) so ACTIVE students can't re-enter the activation flow.
+ */
+export async function requirePendingStudent(
+  request: NextRequest
+): Promise<AuthResponse & { role: 'student' }> {
+  const auth = await requireStudent(request);
+  if (!auth.success) return auth as AuthResponse & { role: 'student' };
+
+  const accountStatus = await fetchAccountStatus(auth.user.id);
+  if (accountStatus !== 'pending') {
+    return {
+      success: false,
+      error:
+        accountStatus === 'active'
+          ? 'حسابك مفعّل بالفعل. انتقل إلى لوحتك الرئيسية.'
+          : 'حسابك موقوف. تواصل مع الإدارة.',
+      status: 403,
+    } as unknown as AuthResponse & { role: 'student' };
+  }
+  return auth as AuthResponse & { role: 'student' };
+}
+
+/**
  * Create a standardized auth error response.
  */
 export function authErrorResponse(authResult: AuthError): NextResponse {

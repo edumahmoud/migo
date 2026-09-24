@@ -274,6 +274,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // v68: sync account_status to app_metadata so middleware/auth guards
+    // can read it without a DB query. Only sync if it has changed.
+    const accountStatusFromDb = (updatedProfile as { account_status?: string }).account_status;
+    const currentAppAccountStatus = authUser.app_metadata?.account_status as string | undefined;
+    if (accountStatusFromDb && accountStatusFromDb !== currentAppAccountStatus) {
+      // Don't overwrite superadmin role override that may be present.
+      try {
+        const existingAppMeta = authUser.app_metadata ?? {};
+        await supabaseServer.auth.admin.updateUserById(authUser.id, {
+          app_metadata: { ...existingAppMeta, account_status: accountStatusFromDb },
+        });
+      } catch {
+        // non-critical
+      }
+    }
+
     return NextResponse.json({ profile: updatedProfile, banInfo });
   } catch (err) {
     console.error('[auth/me] Error:', err);

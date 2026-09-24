@@ -23,6 +23,7 @@ import StudentDashboard from '@/components/student/student-dashboard';
 import TeacherDashboard from '@/components/teacher/teacher-dashboard';
 import AdminDashboard from '@/components/admin/admin-dashboard';
 import AgentPortal from '@/components/agent/agent-portal';
+import StudentActivationPage from '@/components/auth/student-activation-page';
 import QuizView from '@/components/shared/quiz-view';
 import UserProfilePage from '@/components/shared/user-profile-page';
 import AppHeader from '@/components/shared/app-header';
@@ -392,15 +393,21 @@ function HomeContent() {
 
     if (user) {
       if (currentPage === 'auth') {
-        setCurrentPage(
-          user.role === 'superadmin' || user.role === 'admin'
-            ? 'admin-dashboard'
-            : user.role === 'teacher'
-              ? 'teacher-dashboard'
-              : user.role === 'registration_agent'
-                ? 'agent-portal'
-                : 'student-dashboard'
-        );
+        const accountStatus = (user as { account_status?: string }).account_status;
+        // PENDING students (self-registered, not yet activated) see the activation page.
+        if (user.role === 'student' && accountStatus === 'pending') {
+          setCurrentPage('student-dashboard');  // the dashboard switch will render ActivationPage
+        } else {
+          setCurrentPage(
+            user.role === 'superadmin' || user.role === 'admin'
+              ? 'admin-dashboard'
+              : user.role === 'teacher'
+                ? 'teacher-dashboard'
+                : user.role === 'registration_agent'
+                  ? 'agent-portal'
+                  : 'student-dashboard'
+          );
+        }
       }
     } else if (currentPage !== 'auth') {
       // FIX: Don't immediately redirect to auth on refresh if we have a persisted session.
@@ -840,7 +847,19 @@ function HomeContent() {
       );
     }
 
-    // Student dashboard (default)
+    // Student dashboard (default) — but PENDING students see the activation page.
+    // v68: a self-registered student starts as 'pending' and must complete the
+    // activation flow (link teacher → pay → first subscription) before gaining
+    // platform access. The server enforces this on protected APIs; here we
+    // just route them to the activation page.
+    if (user.role === 'student' && (user as { account_status?: string }).account_status === 'pending') {
+      return (
+        <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+          <StudentActivationPage />
+        </DashboardErrorBoundary>
+      );
+    }
+
     const studentContent = (
       <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
         <StudentDashboard
