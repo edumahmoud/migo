@@ -15,12 +15,14 @@ export async function GET(request: NextRequest) {
 
   const { agent } = auth;
 
+  // `student:users!student_id(...)` hint is REQUIRED because subject_students
+  // has multiple FKs to users (student_id, enrolled_by).
   const { data, error } = await supabaseServer
     .from('subject_students')
     .select(
       'id, subject_id, student_id, status, enrollment_method, enrolled_at, ' +
         'subject:subjects(id, name, join_code), ' +
-        'student:users(id, email, name, student_code)'
+        'student:users!student_id(id, email, name, student_code)'
     )
     .eq('enrollment_agent_id', agent.id)
     .order('enrolled_at', { ascending: false })

@@ -23,6 +23,8 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   const teacherId = auth.user.id;
 
   // Verify ownership: agent.source → source.teacher_id === requester.
+  // Note: the `source:registration_sources!inner(...)` hint is fine because
+  // registration_agents has only ONE FK to registration_sources (source_id).
   const { data: agentRow, error: agentErr } = await supabaseServer
     .from('registration_agents')
     .select('id, source_id, source:registration_sources!inner(id, teacher_id)')
@@ -47,12 +49,14 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   }
 
   // Fetch all enrollments this agent created, joined with subject + student user.
+  // `student:users!student_id(...)` hint is REQUIRED because subject_students
+  // has multiple FKs to users (student_id, enrolled_by).
   const { data, error } = await supabaseServer
     .from('subject_students')
     .select(
       'id, subject_id, student_id, status, enrollment_method, enrolled_at, ' +
         'subject:subjects(id, name, join_code, level, sub_level, is_paused), ' +
-        'student:users(id, email, name, student_code, username)'
+        'student:users!student_id(id, email, name, student_code, username)'
     )
     .eq('enrollment_agent_id', id)
     .order('enrolled_at', { ascending: false })

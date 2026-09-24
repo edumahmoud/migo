@@ -37,12 +37,18 @@ export async function GET(request: NextRequest) {
   // Use !inner join so we can filter by a column on the joined table.
   // This is the canonical Supabase pattern for "agents in sources owned by this teacher"
   // and gracefully handles the case where the teacher has zero sources (returns []).
+  //
+  // The `user:users!user_id(...)` hint is REQUIRED because registration_agents
+  // has TWO FKs to users (user_id for the agent + created_by for who created
+  // them); without the hint PostgREST raises:
+  //   "Could not embed because more than one relationship was found for
+  //    'registration_agents' and 'users'"
   const { data, error } = await supabaseServer
     .from('registration_agents')
     .select(
       'id, user_id, source_id, is_active, created_at, ' +
         'source:registration_sources!inner(id, name, kind, teacher_id), ' +
-        'user:users(id, email, name, username)'
+        'user:users!user_id(id, email, name, username)'
     )
     .eq('source.teacher_id', teacherId)
     .order('created_at', { ascending: false });
