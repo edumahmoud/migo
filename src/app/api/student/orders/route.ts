@@ -107,31 +107,69 @@ export async function POST(request: NextRequest) {
     ((existingOrders ?? []) as Array<{ subject_id: string }>).map((o) => o.subject_id)
   );
 
-  // 5. Create new orders.
+  // 5. Create new orders. For FREE courses (price=0), auto-activate
+  //    immediately via the RPC — no order, no supervisor, no payment dialog.
+  //    For PAID courses, create a manual-confirmation order that goes to the supervisor.
   const createdOrders: Array<Record<string, unknown>> = [];
   for (const subjectId of requestedSubjectIds) {
     if (existingBySubject.has(subjectId)) continue;
     const subject = subjectsMap.get(subjectId);
     if (!subject) continue;
 
-    const { data: order } = await supabaseServer
-      .from('orders')
-      .insert({
-        student_id: studentId,
-        subject_id: subjectId,
-        amount: subject.price,
-        currency: subject.currency,
-        provider: confirmationMode === 'automatic' ? 'mock' : 'manual',
-        provider_order_ref: `${confirmationMode === 'automatic' ? 'mock' : 'manual'}_${randomUUID()}`,
-        status: 'pending',
-        payment_method_id: parsed.data.paymentMethodId ?? null,
-        confirmation_mode: confirmationMode,
-      })
-      .select('id, subject_id, amount, currency, provider, status, confirmation_mode, created_at')
-      .single();
+    if (subject.price === 0) {
+      // FREE course — directly activate the subscription via the RPC.
+      // Create a 'paid' order record (for audit trail) + call the RPC.
+      const orderRef = `free_${randomUUID()}`;
+      const { data: freeOrder } = await supabaseServer
+        .from('orders')
+        .insert({
+          student_id: studentId,
+          subject_id: subjectId,
+          amount: 0,
+          currency: subject.currency,
+          provider: 'free',
+          provider_order_ref: orderRef,
+          status: 'paid',
+          confirmation_mode: 'manual',
+          paid_at: new Date().toISOString(),
+          activated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
 
-    if (order) {
-      createdOrders.push({ ...(order as Record<string, unknown>), subject_name: subject.name });
+      if (freeOrder) {
+        // Call the RPC to create/extend the subscription + activate student.
+        await supabaseServer.rpc('activate_subscription_after_payment', {
+          p_order_id: (freeOrder as { id: string }).id,
+          p_provider_payment_id: `free_${randomUUID()}`,
+          p_amount: 0,
+          p_currency: subject.currency,
+          p_status: 'paid',
+          p_raw_payload: { free_course: true, auto_activated: true },
+          p_confirmed_by: null,
+        });
+        createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'paid', free: true });
+      }
+    } else {
+      // PAID course — create a pending manual-confirmation order.
+      const { data: order } = await supabaseServer
+        .from('orders')
+        .insert({
+          student_id: studentId,
+          subject_id: subjectId,
+          amount: subject.price,
+          currency: subject.currency,
+          provider: 'manual',
+          provider_order_ref: `manual_${randomUUID()}`,
+          status: 'pending',
+          confirmation_mode: 'manual',
+        })
+        .select('id, subject_id, amount, currency, provider, status, confirmation_mode, created_at')
+        .single();
+
+      if (order) {
+        createdOrders.push({ ...(order as Record<string, unknown>), subject_name: subject.name });
+      }
     }
   }
 
