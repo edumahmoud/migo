@@ -19,6 +19,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import { supabase } from '@/lib/supabase';
 
 interface AvailableCourse {
   id: string; name: string; description: string | null;
@@ -53,7 +54,7 @@ const ICON_MAP: Record<string, string> = { wallet: '👛', credit_card: '💳', 
 export default function StudentActivationPage() {
   const { t } = useTranslations();
   const router = useRouter();
-  const { signOut } = useAuthStore();
+  const { signOut, user } = useAuthStore();
   const { reset: resetAppStore } = useAppStore();
 
   const [data, setData] = useState<ActivationData | null>(null);
@@ -63,6 +64,8 @@ export default function StudentActivationPage() {
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<{ methods: PaymentMethod[]; orders: OrderRow[]; mode: string; checkoutUrl: string | null } | null>(null);
+
+  const studentId = user?.id;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,14 +83,43 @@ export default function StudentActivationPage() {
     finally { setLoading(false); }
   }, [t, router]);
 
+  // Initial load only — no polling.
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 10s to catch approvals.
+  // ─── Realtime subscriptions (replaces polling) ───
+  // Fires ONLY when actual DB changes happen — no interval, no page refresh.
   useEffect(() => {
-    if (!data || data.student.account_status !== 'pending') return;
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
-  }, [data, load]);
+    if (!studentId) return;
+
+    const channel = supabase
+      .channel('activation-realtime')
+      // Watch orders table: when an order status changes (e.g., supervisor
+      // approves → status='paid'), reload to show updated pending list.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `student_id=eq.${studentId}` },
+        () => { load(); }
+      )
+      // Watch subject_students: when a new enrollment is created or updated
+      // (e.g., supervisor activates → new row with status='approved'), reload.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'subject_students', filter: `student_id=eq.${studentId}` },
+        () => { load(); }
+      )
+      // Watch users: when account_status changes from 'pending' to 'active',
+      // reload → the load() function will detect 'active' and redirect.
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${studentId}` },
+        () => { load(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [studentId, load]);
 
   const handleLinkTeacher = async () => {
     if (!teacherCode.trim()) { toast.error('أدخل كود المعلم'); return; }
