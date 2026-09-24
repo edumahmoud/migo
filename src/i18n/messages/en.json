@@ -323,7 +323,8 @@
     "platformAnnouncements": "Celebrations & Alerts",
     "scormLibrary": "SCORM Library",
     "registration": "Registration Agents",
-    "paymentMethods": "Payment Methods"
+    "paymentMethods": "Payment Methods",
+    "pendingOrders": "Pending Orders"
   },
   "roles": {
     "student": "Student",

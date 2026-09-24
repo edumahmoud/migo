@@ -8,28 +8,26 @@ import { requirePendingStudent, authErrorResponse } from '@/lib/auth-helpers';
  * POST /api/student/orders
  *
  * Body: {
- *   subjectId: string (UUID),
- *   paymentMethodId?: string (UUID, optional — for manual-payment methods like Fawry),
- *   provider?: string (default 'mock' — used for the gateway_order_ref namespace)
+ *   subjectIds: string[] (UUID array — multi-course),
+ *   paymentMethodId?: string (UUID — selects a specific payment method)
  * }
  *
- * Server-side source of truth (client NEVER sends price/amount):
- *   1. Auth → student_id (from session, not body).
- *   2. Fetch subject → verify exists, subscription_open=true, is_paused=false.
- *   3. Verify the student is linked to the subject's teacher (teacher_student_links.status='approved').
- *   4. Fetch REAL price + currency from subjects table.
- *   5. Determine confirmation_mode:
- *      - 'automatic' if no paymentMethodId OR paymentMethod.requires_manual_approval=false
- *      - 'manual' if paymentMethodId points to a manual-approval method (Fawry/InstaPay/cash)
- *   6. Create order with status='pending', provider_order_ref='mock_' + uuid.
+ * Creates one order per selected course. Confirmation mode depends
+ * on the payment method's requires_manual_approval flag:
+ *   - No paymentMethodId → manual (student pays externally, teacher approves)
+ *   - paymentMethodId with requires_manual_approval=false → automatic (redirect to gateway)
+ *   - paymentMethodId with requires_manual_approval=true → manual
  *
- * Returns the order + a checkout URL for the mock gateway (automatic mode)
- * OR a payment method snapshot for manual-approval flow.
+ * Response includes:
+ *   - created_orders: array of order objects
+ *   - payment_methods: the teacher's active payment methods (for display)
+ *   - checkout_url: if any order is automatic mode (for the mock gateway)
+ *
+ * Server-side source of truth: student_id from session, price from DB.
  */
 const BodySchema = z.object({
-  subjectId: z.string().uuid(),
+  subjectIds: z.array(z.string().uuid()).min(1),
   paymentMethodId: z.string().uuid().optional(),
-  provider: z.string().trim().min(1).max(40).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -37,161 +35,136 @@ export async function POST(request: NextRequest) {
   if (!auth.success) return authErrorResponse(auth);
 
   let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
+  try { body = await request.json(); } catch {
     return NextResponse.json({ success: false, error: 'صيغة JSON غير صالحة' }, { status: 400 });
   }
 
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { success: false, error: 'البيانات غير صالحة', details: parsed.error.flatten() },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, error: 'البيانات غير صالحة' }, { status: 400 });
   }
 
   const studentId = auth.user.id;
-  const { subjectId, paymentMethodId, provider } = parsed.data;
-  const providerName = provider ?? 'mock';
+  const requestedSubjectIds = Array.from(new Set(parsed.data.subjectIds));
 
-  // 1. Fetch subject (server-side source of truth for price).
-  const { data: subject, error: subjectErr } = await supabaseServer
+  // 1. Fetch subjects (server-side price source of truth).
+  const { data: subjectsData } = await supabaseServer
     .from('subjects')
     .select('id, name, teacher_id, price, currency, is_paused, subscription_open')
-    .eq('id', subjectId)
-    .maybeSingle();
+    .in('id', requestedSubjectIds);
 
-  if (subjectErr || !subject) {
-    return NextResponse.json({ success: false, error: 'المقرر غير موجود' }, { status: 404 });
+  const subjectsMap = new Map<string, { id: string; name: string; teacher_id: string; price: number; currency: string }>(
+    ((subjectsData ?? []) as Array<{ id: string; name: string; teacher_id: string; price: number; currency: string; is_paused: boolean; subscription_open: boolean }>)
+      .filter((s) => !s.is_paused && s.subscription_open)
+      .map((s) => [s.id, { id: s.id, name: s.name, teacher_id: s.teacher_id, price: Number(s.price), currency: s.currency }])
+  );
+
+  if (subjectsMap.size === 0) {
+    return NextResponse.json({ success: false, error: 'لا توجد مقررات متاحة للاشتراك' }, { status: 400 });
   }
 
-  const subjectRow = subject as {
-    id: string;
-    name: string;
-    teacher_id: string;
-    price: number;
-    currency: string;
-    is_paused: boolean;
-    subscription_open: boolean;
-  };
+  // 2. Verify teacher links.
+  const teacherIds = new Set<string>();
+  for (const s of subjectsMap.values()) teacherIds.add(s.teacher_id);
 
-  if (subjectRow.is_paused || !subjectRow.subscription_open) {
-    return NextResponse.json(
-      { success: false, error: 'التسجيل في هذا المقرر متوقف حالياً' },
-      { status: 400 }
-    );
+  for (const teacherId of teacherIds) {
+    const { data: link } = await supabaseServer
+      .from('teacher_student_links')
+      .select('id')
+      .eq('teacher_id', teacherId)
+      .eq('student_id', studentId)
+      .eq('status', 'approved')
+      .maybeSingle();
+    if (!link) {
+      return NextResponse.json({ success: false, error: 'يجب ربط حسابك بمعلم هذا المقرر أولاً' }, { status: 403 });
+    }
   }
 
-  // 2. Verify student is linked to the subject's teacher (approved link).
-  const { data: link } = await supabaseServer
-    .from('teacher_student_links')
-    .select('id, status')
-    .eq('teacher_id', subjectRow.teacher_id)
-    .eq('student_id', studentId)
-    .eq('status', 'approved')
-    .maybeSingle();
-
-  if (!link) {
-    return NextResponse.json(
-      { success: false, error: 'يجب ربط حسابك بمعلم هذا المقرر أولاً' },
-      { status: 403 }
-    );
-  }
-
-  // 3. Optional: fetch the payment method to determine confirmation_mode.
-  let confirmationMode: 'automatic' | 'manual' = 'automatic';
-  let paymentMethodSnapshot: { id: string; name: string; account_identifier: string; contact_for_confirmation: string | null } | null = null;
-
-  if (paymentMethodId) {
-    // payment_methods RLS allows students to read methods of teachers they're linked to.
-    // The service role bypasses RLS; we re-check the link here for safety.
+  // 3. Determine confirmation mode from the payment method (if provided).
+  let confirmationMode: 'automatic' | 'manual' = 'manual';
+  if (parsed.data.paymentMethodId) {
     const { data: pm } = await supabaseServer
       .from('payment_methods')
-      .select('id, teacher_id, name, account_identifier, contact_for_confirmation, is_active, requires_manual_approval')
-      .eq('id', paymentMethodId)
-      .eq('teacher_id', subjectRow.teacher_id)
+      .select('id, teacher_id, requires_manual_approval')
+      .in('teacher_id', Array.from(teacherIds))
+      .eq('id', parsed.data.paymentMethodId)
       .eq('is_active', true)
       .maybeSingle();
-
-    if (!pm) {
-      return NextResponse.json(
-        { success: false, error: 'وسيلة الدفع غير متاحة لهذا المعلم' },
-        { status: 400 }
-      );
+    if (pm) {
+      confirmationMode = (pm as { requires_manual_approval: boolean }).requires_manual_approval ? 'manual' : 'automatic';
     }
-
-    const pmRow = pm as {
-      id: string;
-      name: string;
-      account_identifier: string;
-      contact_for_confirmation: string | null;
-      requires_manual_approval: boolean;
-    };
-
-    confirmationMode = pmRow.requires_manual_approval ? 'manual' : 'automatic';
-    paymentMethodSnapshot = {
-      id: pmRow.id,
-      name: pmRow.name,
-      account_identifier: pmRow.account_identifier,
-      contact_for_confirmation: pmRow.contact_for_confirmation,
-    };
   }
 
-  // 4. Idempotency: if there's already a PENDING order for this student+subject,
-  //    return it (don't create a new one).
-  const { data: existingOrder } = await supabaseServer
+  // 4. Check for existing pending orders (idempotency).
+  const { data: existingOrders } = await supabaseServer
     .from('orders')
-    .select('id, status, amount, currency, provider, confirmation_mode, payment_method_id, created_at')
+    .select('id, subject_id')
     .eq('student_id', studentId)
-    .eq('subject_id', subjectId)
-    .in('status', ['pending'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in('subject_id', requestedSubjectIds)
+    .eq('status', 'pending');
 
-  if (existingOrder) {
-    return NextResponse.json({
-      success: true,
-      order: existingOrder,
-      payment_method: paymentMethodSnapshot,
-      checkout_url: `/api/payment/mock-checkout?order_id=${(existingOrder as { id: string }).id}`,
-      message: 'يوجد طلب دفع مفتوح لهذا المقرر بالفعل — يمكنك استكمال الدفع.',
-    });
+  const existingBySubject = new Set<string>(
+    ((existingOrders ?? []) as Array<{ subject_id: string }>).map((o) => o.subject_id)
+  );
+
+  // 5. Create new orders.
+  const createdOrders: Array<Record<string, unknown>> = [];
+  for (const subjectId of requestedSubjectIds) {
+    if (existingBySubject.has(subjectId)) continue;
+    const subject = subjectsMap.get(subjectId);
+    if (!subject) continue;
+
+    const { data: order } = await supabaseServer
+      .from('orders')
+      .insert({
+        student_id: studentId,
+        subject_id: subjectId,
+        amount: subject.price,
+        currency: subject.currency,
+        provider: confirmationMode === 'automatic' ? 'mock' : 'manual',
+        provider_order_ref: `${confirmationMode === 'automatic' ? 'mock' : 'manual'}_${randomUUID()}`,
+        status: 'pending',
+        payment_method_id: parsed.data.paymentMethodId ?? null,
+        confirmation_mode: confirmationMode,
+      })
+      .select('id, subject_id, amount, currency, provider, status, confirmation_mode, created_at')
+      .single();
+
+    if (order) {
+      createdOrders.push({ ...(order as Record<string, unknown>), subject_name: subject.name });
+    }
   }
 
-  // 5. Create the order.
-  const providerOrderRef = `${providerName}_${randomUUID()}`;
-  const amount = Number(subjectRow.price);
-  const currency = subjectRow.currency;
+  // 6. Fetch teacher's active payment methods for display.
+  let paymentMethods: Array<Record<string, unknown>> = [];
+  if (teacherIds.size > 0) {
+    const { data: pms } = await supabaseServer
+      .from('payment_methods')
+      .select('id, name, icon, account_identifier, contact_for_confirmation, requires_manual_approval')
+      .in('teacher_id', Array.from(teacherIds))
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+    paymentMethods = (pms ?? []) as Array<Record<string, unknown>>;
+  }
 
-  const { data: order, error: orderErr } = await supabaseServer
-    .from('orders')
-    .insert({
-      student_id: studentId,
-      subject_id: subjectId,
-      amount,
-      currency,
-      provider: providerName,
-      provider_order_ref: providerOrderRef,
-      status: 'pending',
-      payment_method_id: paymentMethodId ?? null,
-      confirmation_mode: confirmationMode,
-    })
-    .select('id, student_id, subject_id, amount, currency, provider, provider_order_ref, status, confirmation_mode, payment_method_id, created_at')
-    .single();
-
-  if (orderErr) {
-    return NextResponse.json(
-      { success: false, error: 'فشل إنشاء الطلب: ' + orderErr.message },
-      { status: 500 }
-    );
+  // 7. If automatic mode, provide checkout URL for the first order.
+  let checkoutUrl: string | null = null;
+  if (confirmationMode === 'automatic' && createdOrders.length > 0) {
+    const firstOrder = createdOrders[0] as { id: string };
+    if (firstOrder?.id) {
+      checkoutUrl = `/api/payment/mock-checkout?order_id=${firstOrder.id}`;
+    }
   }
 
   return NextResponse.json({
     success: true,
-    order,
-    payment_method: paymentMethodSnapshot,
-    checkout_url: `/api/payment/mock-checkout?order_id=${(order as { id: string }).id}`,
+    created_orders: createdOrders,
+    skipped: Array.from(existingBySubject),
+    payment_methods: paymentMethods,
+    confirmation_mode: confirmationMode,
+    checkout_url: checkoutUrl,
+    message: confirmationMode === 'manual'
+      ? 'تم إنشاء طلبات الدفع. قم بالتحويل عبر إحدى وسائل الدفع، ثم سيقوم المركز بتفعيل اشتراكك.'
+      : 'تم إنشاء الطلبات. سيتم تحويلك لصفحة الدفع.',
   });
 }

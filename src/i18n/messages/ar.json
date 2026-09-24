@@ -323,7 +323,8 @@
     "platformAnnouncements": "المعايدات والإعلانات",
     "scormLibrary": "مكتبة SCORM",
     "registration": "وكلاء التسجيل",
-    "paymentMethods": "وسائل الدفع"
+    "paymentMethods": "وسائل الدفع",
+    "pendingOrders": "تفعيل الاشتراكات"
   },
   "roles": {
     "student": "طالب",
