@@ -149,6 +149,25 @@ export default function RegistrationSourcesSection() {
     }
   };
 
+  const toggleActive = async (s: RegistrationSource, next: boolean) => {
+    try {
+      const res = await fetch(`/api/teacher/registration-sources/${s.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ is_active: next }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || t('common.unexpectedError'));
+        return;
+      }
+      toast.success(next ? 'تم تنشيط المصدر' : 'تم إيقاف المصدر');
+      await load();
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    }
+  };
+
   const confirmDelete = async (s: RegistrationSource) => {
     if (!window.confirm(`حذف مصدر "${s.name}"؟ لا يمكن التراجع.`)) return;
     try {
@@ -201,22 +220,30 @@ export default function RegistrationSourcesSection() {
           {sources.map((s) => {
             const agentsCount = s.agents?.filter((a) => a.is_active).length ?? 0;
             return (
-              <Card key={s.id} className="overflow-hidden">
+              <Card key={s.id} className={`overflow-hidden ${s.is_active ? '' : 'opacity-70 border-amber-300'}`}>
                 <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        {s.name}
-                        {!s.is_active && (
-                          <Badge variant="secondary" className="text-xs">غير نشط</Badge>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                        <span className="truncate">{s.name}</span>
+                        {s.is_active ? (
+                          <Badge variant="default" className="text-xs">نشط</Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-xs">معطّل</Badge>
                         )}
                       </CardTitle>
                       <CardDescription className="text-xs mt-1">
                         {KIND_LABEL[s.kind]}
                       </CardDescription>
                     </div>
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(s)} aria-label="تعديل">
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEdit(s)}
+                        aria-label="تعديل"
+                        title="تعديل الاسم / النوع"
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
@@ -224,17 +251,42 @@ export default function RegistrationSourcesSection() {
                         variant="ghost"
                         onClick={() => confirmDelete(s)}
                         aria-label="حذف"
+                        title="حذف المصدر"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
+                <CardContent className="pt-0 space-y-3">
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     <span>{agentsCount} وكيل نشط</span>
                   </div>
+                  {s.is_active ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => toggleActive(s, false)}
+                      className="w-full text-xs"
+                      title="إيقاف المصدر — سيمنع الوكلاء من تسجيل طلاب جدد عبره"
+                    >
+                      <Power className="h-3.5 w-3.5 me-1" />
+                      إيقاف المصدر
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => toggleActive(s, true)}
+                      className="w-full text-xs bg-emerald-600 hover:bg-emerald-700"
+                      title="تنشيط المصدر"
+                    >
+                      <Power className="h-3.5 w-3.5 me-1" />
+                      تنشيط المصدر
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     .from('registration_agents')
     .select(
       'id, user_id, source_id, is_active, created_at, ' +
-        'source:registration_sources!inner(id, name, kind, teacher_id), ' +
+        'source:registration_sources!inner(id, name, kind, is_active, teacher_id), ' +
         'user:users!user_id(id, email, name, username)'
     )
     .eq('source.teacher_id', teacherId)

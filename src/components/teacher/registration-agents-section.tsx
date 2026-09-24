@@ -398,8 +398,8 @@ export default function RegistrationAgentsSection() {
                           {KIND_LABEL[source.kind] ?? source.kind}
                         </Badge>
                       )}
-                      {!source?.is_active && (
-                        <Badge variant="secondary" className="text-xs">المصدر معطّل</Badge>
+                      {source?.is_active === false && (
+                        <Badge variant="destructive" className="text-xs">المصدر معطّل</Badge>
                       )}
                     </CardTitle>
                     <Badge variant="outline" className="text-xs">
@@ -435,7 +435,7 @@ export default function RegistrationAgentsSection() {
                             </div>
                           </div>
                         </div>
-                        <div className="mt-3 flex gap-1 justify-end">
+                        <div className="mt-3 flex gap-1.5 justify-end flex-wrap">
                           <Button
                             size="sm"
                             variant="outline"
@@ -445,21 +445,37 @@ export default function RegistrationAgentsSection() {
                             <Users className="h-3.5 w-3.5 me-1" />
                             الطلاب
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => toggleActive(a, !a.is_active)}
-                            title={a.is_active ? 'تعطيل' : 'تفعيل'}
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
+                          {a.is_active ? (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => toggleActive(a, false)}
+                              className="text-xs"
+                              title="إيقاف حساب الوكيل"
+                            >
+                              <Power className="h-3.5 w-3.5 me-1" />
+                              إيقاف
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => toggleActive(a, true)}
+                              className="text-xs bg-emerald-600 hover:bg-emerald-700"
+                              title="تنشيط حساب الوكيل"
+                            >
+                              <Power className="h-3.5 w-3.5 me-1" />
+                              تنشيط
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => setDeleteTarget(a)}
                             title="حذف"
+                            className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
