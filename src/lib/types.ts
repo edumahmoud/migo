@@ -2,7 +2,7 @@
 // AttenDo - TypeScript Type Definitions
 // =====================================================
 
-export type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin';
+export type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin' | 'registration_agent';
 
 export type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible';
 
@@ -545,17 +545,18 @@ export interface PlatformAnnouncementView {
 }
 
 // App navigation state
-export type AppPage = 
-  | 'auth' 
-  | 'student-dashboard' 
+export type AppPage =
+  | 'auth'
+  | 'student-dashboard'
   | 'teacher-dashboard'
   | 'admin-dashboard'
+  | 'agent-portal'
   | 'quiz'
   | 'summary'
   | 'profile';
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar';
-export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary';
+export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary' | 'registration';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications' | 'performanceTracking';
 
 // -------------------------------------------------------

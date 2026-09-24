@@ -188,6 +188,69 @@ export async function requireTeacher(request: NextRequest): Promise<AuthResponse
 }
 
 /**
+ * Authenticate + verify the user is a registration_agent (and ONLY that).
+ * Admins/teachers cannot use agent endpoints (their flows are separate).
+ * Returns the agent's full chain (agent row + source + teacher_id) so
+ * routes don't have to query it again.
+ */
+export async function requireAgent(
+  request: NextRequest
+): Promise<
+  | (AuthResult & {
+      role: 'registration_agent';
+      agent: { id: string; source_id: string };
+      sourceTeacherId: string;
+    })
+  | AuthError
+> {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authResult;
+
+  const role = await getUserRole(authResult.user.id);
+  if (role !== 'registration_agent') {
+    return {
+      success: false,
+      error: 'هذا الإجراء متاح لوكلاء التسجيل فقط',
+      status: 403,
+    };
+  }
+
+  // Fetch the agent's row + source's teacher_id in one joined query.
+  const { data: agentRow, error } = await supabaseServer
+    .from('registration_agents')
+    .select('id, source_id, source:registration_sources(teacher_id)')
+    .eq('user_id', authResult.user.id)
+    .eq('is_active', true)
+    .single();
+
+  if (error || !agentRow) {
+    return {
+      success: false,
+      error: 'لم يتم العثور على وكيل تسجيل نشط مرتبط بحسابك',
+      status: 403,
+    };
+  }
+
+  const sourceTeacherId =
+    (agentRow.source as unknown as { teacher_id: string } | null)?.teacher_id ?? null;
+
+  if (!sourceTeacherId) {
+    return {
+      success: false,
+      error: 'تعذر الوصول إلى بيانات مصدر التسجيل المرتبط بك',
+      status: 403,
+    };
+  }
+
+  return {
+    ...authResult,
+    role: 'registration_agent',
+    agent: { id: agentRow.id, source_id: agentRow.source_id },
+    sourceTeacherId,
+  };
+}
+
+/**
  * Create a standardized auth error response.
  */
 export function authErrorResponse(authResult: AuthError): NextResponse {
