@@ -5,10 +5,10 @@ import { authenticateRequest, getUserRole, authErrorResponse } from '@/lib/auth-
 
 /**
  * POST /api/teacher/pending-orders/[id]/approve
- * Approves a pending manual order. Accessible by:
- *   - Teacher who owns the course
- *   - Registration_agent linked to the course's teacher
- *   - Admin/superadmin
+ * Accessible by: teacher (owns course), registration_agent (linked to teacher), admin/superadmin.
+ *
+ * Uses a two-step ownership check: fetch the order's subject_id, then
+ * verify the subject belongs to the authorized teacher.
  */
 interface RouteContext { params: Promise<{ id: string }> }
 
@@ -23,19 +23,48 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const { id: orderId } = await ctx.params;
 
+  // 1. Fetch the order (without nested join).
   const { data: order } = await supabaseServer
     .from('orders')
-    .select('id, student_id, amount, currency, status, subject:subjects!inner(teacher_id, name)')
+    .select('id, student_id, amount, currency, status')
     .eq('id', orderId)
     .maybeSingle();
 
   if (!order) return NextResponse.json({ success: false, error: 'الطلب غير موجود' }, { status: 404 });
 
-  const o = order as unknown as { id: string; student_id: string; amount: number; currency: string; status: string; subject: { teacher_id: string; name: string } };
+  const o = order as { id: string; student_id: string; amount: number; currency: string; status: string };
 
-  // Authorization: teacher owns the course OR agent linked to the teacher OR admin.
+  if (o.status !== 'pending') {
+    return NextResponse.json({ success: false, error: `حالة الطلب: ${o.status}` }, { status: 400 });
+  }
+
+  // 2. Fetch the subject's teacher_id for ownership check.
+  //    (Two-step: get the order's subject_id, then get the subject's teacher_id.)
+  const { data: subjectRow } = await supabaseServer
+    .from('orders')
+    .select('subject_id')
+    .eq('id', orderId)
+    .maybeSingle();
+
+  const subjectId = (subjectRow as { subject_id: string } | null)?.subject_id;
+  if (!subjectId) {
+    return NextResponse.json({ success: false, error: 'تعذر تحديد المقرر' }, { status: 500 });
+  }
+
+  const { data: subj } = await supabaseServer
+    .from('subjects')
+    .select('teacher_id, name')
+    .eq('id', subjectId)
+    .maybeSingle();
+
+  const subjectTeacherId = (subj as { teacher_id: string } | null)?.teacher_id;
+  if (!subjectTeacherId) {
+    return NextResponse.json({ success: false, error: 'تعذر تحديد معلم المقرر' }, { status: 500 });
+  }
+
+  // 3. Authorization check.
   if (role === 'teacher') {
-    if (o.subject.teacher_id !== auth.user.id) {
+    if (subjectTeacherId !== auth.user.id) {
       return NextResponse.json({ success: false, error: 'لا تملك صلاحية تفعيل هذا الطلب' }, { status: 403 });
     }
   } else if (role === 'registration_agent') {
@@ -46,16 +75,13 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       .eq('is_active', true)
       .maybeSingle();
     const agentTeacherId = (agent as { teacher_id: string } | null)?.teacher_id;
-    if (!agentTeacherId || agentTeacherId !== o.subject.teacher_id) {
+    if (!agentTeacherId || agentTeacherId !== subjectTeacherId) {
       return NextResponse.json({ success: false, error: 'لا تملك صلاحية تفعيل هذا الطلب' }, { status: 403 });
     }
   }
   // admin/superadmin: bypass.
 
-  if (o.status !== 'pending') {
-    return NextResponse.json({ success: false, error: `حالة الطلب: ${o.status}` }, { status: 400 });
-  }
-
+  // 4. Call the RPC.
   const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc('activate_subscription_after_payment', {
     p_order_id: o.id,
     p_provider_payment_id: `manual_${randomUUID()}`,

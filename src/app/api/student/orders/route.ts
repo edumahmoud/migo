@@ -117,8 +117,10 @@ export async function POST(request: NextRequest) {
     if (!subject) continue;
 
     if (subject.price === 0) {
-      // FREE course — directly activate the subscription via the RPC.
-      // Create a 'paid' order record (for audit trail) + call the RPC.
+      // FREE course — create order as 'pending', then immediately call
+      // the RPC which will mark it 'paid' + create the enrollment.
+      // (Creating with status='paid' directly would cause the RPC to
+      //  return 'already_paid' WITHOUT creating the enrollment.)
       const orderRef = `free_${randomUUID()}`;
       const { data: freeOrder } = await supabaseServer
         .from('orders')
@@ -129,16 +131,19 @@ export async function POST(request: NextRequest) {
           currency: subject.currency,
           provider: 'free',
           provider_order_ref: orderRef,
-          status: 'paid',
+          status: 'pending',
           confirmation_mode: 'manual',
-          paid_at: new Date().toISOString(),
-          activated_at: new Date().toISOString(),
         })
         .select('id')
         .single();
 
       if (freeOrder) {
-        // Call the RPC to create/extend the subscription + activate student.
+        // Call the RPC — it will:
+        //   1. SELECT FOR UPDATE (sees status='pending') → proceeds.
+        //   2. INSERT payment record.
+        //   3. UPDATE order status='paid'.
+        //   4. UPSERT enrollment (with 1-month period).
+        //   5. Activate student if pending.
         await supabaseServer.rpc('activate_subscription_after_payment', {
           p_order_id: (freeOrder as { id: string }).id,
           p_provider_payment_id: `free_${randomUUID()}`,

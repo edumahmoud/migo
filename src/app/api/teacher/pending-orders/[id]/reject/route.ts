@@ -19,18 +19,36 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const { id: orderId } = await ctx.params;
 
+  // 1. Fetch the order.
   const { data: order } = await supabaseServer
     .from('orders')
-    .select('id, status, subject:subjects!inner(teacher_id)')
+    .select('id, status, subject_id')
     .eq('id', orderId)
     .maybeSingle();
 
   if (!order) return NextResponse.json({ success: false, error: 'الطلب غير موجود' }, { status: 404 });
 
-  const o = order as unknown as { id: string; status: string; subject: { teacher_id: string } };
+  const o = order as { id: string; status: string; subject_id: string };
 
+  if (o.status !== 'pending') {
+    return NextResponse.json({ success: false, error: `حالة الطلب: ${o.status}` }, { status: 400 });
+  }
+
+  // 2. Fetch the subject's teacher_id for ownership check.
+  const { data: subj } = await supabaseServer
+    .from('subjects')
+    .select('teacher_id')
+    .eq('id', o.subject_id)
+    .maybeSingle();
+
+  const subjectTeacherId = (subj as { teacher_id: string } | null)?.teacher_id;
+  if (!subjectTeacherId) {
+    return NextResponse.json({ success: false, error: 'تعذر تحديد معلم المقرر' }, { status: 500 });
+  }
+
+  // 3. Authorization check.
   if (role === 'teacher') {
-    if (o.subject.teacher_id !== auth.user.id)
+    if (subjectTeacherId !== auth.user.id)
       return NextResponse.json({ success: false, error: 'لا تملك صلاحية' }, { status: 403 });
   } else if (role === 'registration_agent') {
     const { data: agent } = await supabaseServer
@@ -40,13 +58,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       .eq('is_active', true)
       .maybeSingle();
     const agentTeacherId = (agent as { teacher_id: string } | null)?.teacher_id;
-    if (!agentTeacherId || agentTeacherId !== o.subject.teacher_id)
+    if (!agentTeacherId || agentTeacherId !== subjectTeacherId)
       return NextResponse.json({ success: false, error: 'لا تملك صلاحية' }, { status: 403 });
   }
 
-  if (o.status !== 'pending')
-    return NextResponse.json({ success: false, error: `حالة الطلب: ${o.status}` }, { status: 400 });
-
+  // 4. Reject the order.
   const { error } = await supabaseServer
     .from('orders')
     .update({ status: 'failed', updated_at: new Date().toISOString() })
