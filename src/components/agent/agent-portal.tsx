@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Loader2,
@@ -18,15 +18,27 @@ import {
   Calendar,
   Users,
   Building2,
+  Search,
+  Check,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+
+declare global {
+  // Browser navigator.clipboard is widely available; type augmentation for safety.
+  interface Clipboard {
+    writeText: (data: string) => Promise<void>;
+  }
+}
 
 interface CourseLite {
   id: string;
@@ -37,6 +49,14 @@ interface CourseLite {
   sub_level: string | null;
 }
 
+interface EnrollmentResultItem {
+  subjectId: string;
+  subjectName: string;
+  enrollmentId: string | null;
+  alreadyEnrolled: boolean;
+  error: string | null;
+}
+
 interface RegistrationResult {
   success: true;
   studentId: string;
@@ -45,9 +65,18 @@ interface RegistrationResult {
   studentCode: string;
   temporaryPassword: string | null;
   newlyCreated: boolean;
-  alreadyEnrolled: boolean;
-  enrollment: {
-    id: string;
+  enrollments: EnrollmentResultItem[];
+  summary: {
+    totalRequested: number;
+    totalSucceeded: number;
+    totalAlreadyEnrolled: number;
+    totalFailed: number;
+  };
+  agent?: { id: string; agentName: string | null; sourceId: string | null; sourceName: string | null } | null;
+  enrolledAt: string;
+  // legacy single-enrollment field (kept for backward compat):
+  enrollment?: EnrollmentResultItem extends never ? never : {
+    id: string | null;
     subjectId: string;
     subjectName: string;
     sourceId: string | null;
@@ -55,7 +84,8 @@ interface RegistrationResult {
     agentId: string;
     agentName?: string | null;
     enrolledAt: string;
-  };
+  } | null;
+  alreadyEnrolled: boolean;
 }
 
 interface PastRegistration {
@@ -89,8 +119,10 @@ export default function AgentPortal() {
     studentEmail: '',
     studentName: '',
     studentPhone: '',
-    subjectId: '',
+    subjectIds: [] as string[],
   });
+  const [courseSearch, setCourseSearch] = useState('');
+  const [coursesOpen, setCoursesOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<RegistrationResult | null>(null);
 
@@ -121,9 +153,34 @@ export default function AgentPortal() {
     loadMeta();
   }, [loadMeta]);
 
+  const filteredCourses = useMemo(() => {
+    const q = courseSearch.trim().toLowerCase();
+    if (!q) return courses;
+    return courses.filter((c) => {
+      const inName = c.name.toLowerCase().includes(q);
+      const inLevel = (c.level ?? '').toLowerCase().includes(q);
+      const inSubLevel = (c.sub_level ?? '').toLowerCase().includes(q);
+      const inCode = (c.join_code ?? '').toLowerCase().includes(q);
+      return inName || inLevel || inSubLevel || inCode;
+    });
+  }, [courses, courseSearch]);
+
+  const selectedCourses = useMemo(
+    () => courses.filter((c) => form.subjectIds.includes(c.id)),
+    [courses, form.subjectIds]
+  );
+
+  const toggleCourse = (id: string) => {
+    setForm((prev) =>
+      prev.subjectIds.includes(id)
+        ? { ...prev, subjectIds: prev.subjectIds.filter((x) => x !== id) }
+        : { ...prev, subjectIds: [...prev.subjectIds, id] }
+    );
+  };
+
   const submit = async () => {
-    if (!form.subjectId) {
-      toast.error('اختر الدورة');
+    if (form.subjectIds.length === 0) {
+      toast.error('اختر مقرراً واحداً على الأقل');
       return;
     }
     if (!form.studentEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.studentEmail)) {
@@ -144,7 +201,7 @@ export default function AgentPortal() {
           studentEmail: form.studentEmail.trim(),
           studentName: form.studentName.trim(),
           studentPhone: form.studentPhone.trim() || undefined,
-          subjectId: form.subjectId,
+          subjectIds: form.subjectIds,
         }),
       });
       const json = await res.json();
@@ -153,14 +210,14 @@ export default function AgentPortal() {
         return;
       }
       setResult(json as RegistrationResult);
+      const s = (json as RegistrationResult).summary;
       toast.success(
-        json.alreadyEnrolled
-          ? 'الطالب مسجّل بالفعل في الدورة'
-          : json.newlyCreated
-          ? 'تم إنشاء حساب الطالب وتسجيله في الدورة'
-          : 'تم تسجيل الطالب في الدورة'
+        json.newlyCreated
+          ? `تم إنشاء حساب الطالب وتسجيله في ${s.totalSucceeded} مقرر`
+          : `تم تسجيل الطالب في ${s.totalSucceeded} مقرر${s.totalAlreadyEnrolled ? ` (${s.totalAlreadyEnrolled} كان مسجلاً بهما)` : ''}`
       );
-      setForm({ studentEmail: '', studentName: '', studentPhone: '', subjectId: '' });
+      setForm({ studentEmail: '', studentName: '', studentPhone: '', subjectIds: [] });
+      setCourseSearch('');
       await loadMeta();
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -331,7 +388,12 @@ export default function AgentPortal() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1">
-              <Label>الدورة</Label>
+              <div className="flex items-center justify-between">
+                <Label>المقررات</Label>
+                <span className="text-xs text-muted-foreground">
+                  {form.subjectIds.length} مُحدّد
+                </span>
+              </div>
               {loadingMeta ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -342,34 +404,131 @@ export default function AgentPortal() {
                   لا توجد دورات متاحة لك. تواصل مع المعلم.
                 </div>
               ) : (
-                <Select
-                  value={form.subjectId}
-                  onValueChange={(v) => setForm({ ...form, subjectId: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="اختر الدورة" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((c) => {
-                      const meta: string[] = [];
-                      if (c.level) meta.push(c.level);
-                      if (c.sub_level) meta.push(c.sub_level);
-                      const metaLabel = meta.length > 0 ? ` · ${meta.join(' / ')}` : '';
-                      const statusLabel = c.is_paused ? ' · ⏸ متوقفة' : '';
-                      return (
-                        <SelectItem key={c.id} value={c.id} disabled={c.is_paused}>
-                          <span className="font-medium">{c.name}</span>
-                          {metaLabel && (
-                            <span className="text-muted-foreground">{metaLabel}</span>
-                          )}
-                          {statusLabel && (
-                            <span className="text-amber-600">{statusLabel}</span>
-                          )}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  {/* Selected courses as removable badges */}
+                  {selectedCourses.length > 0 && (
+                    <div className="flex flex-wrap gap-1 p-2 bg-muted/40 rounded-md border border-input">
+                      {selectedCourses.map((c) => (
+                        <Badge
+                          key={c.id}
+                          variant="default"
+                          className="text-xs gap-1 pr-1"
+                        >
+                          <span className="truncate max-w-[180px]">{c.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleCourse(c.id)}
+                            className="ms-1 rounded-full hover:bg-foreground/20 p-0.5"
+                            aria-label="إزالة"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Searchable multi-select popover */}
+                  <Popover open={coursesOpen} onOpenChange={setCoursesOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between font-normal"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Search className="h-4 w-4 text-muted-foreground" />
+                          {form.subjectIds.length === 0
+                            ? 'ابحث واختر المقررات...'
+                            : `${form.subjectIds.length} مقرر مُحدّد`}
+                        </span>
+                        <BookOpen className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="ابحث باسم المقرر أو الفرقة..."
+                          value={courseSearch}
+                          onValueChange={setCourseSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            {courses.length === 0
+                              ? 'لا توجد مقررات.'
+                              : 'لا توجد نتائج مطابقة.'}
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {filteredCourses.map((c) => {
+                              const meta: string[] = [];
+                              if (c.level) meta.push(c.level);
+                              if (c.sub_level) meta.push(c.sub_level);
+                              const isSelected = form.subjectIds.includes(c.id);
+                              return (
+                                <CommandItem
+                                  key={c.id}
+                                  value={c.id}
+                                  onSelect={() => toggleCourse(c.id)}
+                                  disabled={c.is_paused}
+                                  className="gap-2"
+                                >
+                                  <div
+                                    className={`flex h-4 w-4 items-center justify-center rounded border ${
+                                      isSelected
+                                        ? 'bg-primary border-primary text-primary-foreground'
+                                        : 'border-muted-foreground/40'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="h-3 w-3" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="font-medium truncate">{c.name}</span>
+                                      {meta.length > 0 && (
+                                        <span className="text-xs text-muted-foreground">
+                                          · {meta.join(' / ')}
+                                        </span>
+                                      )}
+                                      {c.is_paused && (
+                                        <span className="text-xs text-amber-600">· ⏸ متوقفة</span>
+                                      )}
+                                    </div>
+                                    {c.join_code && (
+                                      <div className="text-[10px] text-muted-foreground font-mono">
+                                        كود: {c.join_code}
+                                      </div>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  <div className="flex gap-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, subjectIds: filteredCourses.filter((c) => !c.is_paused).map((c) => c.id) })}
+                      className="text-sky-600 hover:underline"
+                      disabled={filteredCourses.length === 0}
+                    >
+                      تحديد الكل
+                    </button>
+                    <span className="text-muted-foreground">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, subjectIds: [] })}
+                      className="text-red-600 hover:underline"
+                      disabled={form.subjectIds.length === 0}
+                    >
+                      مسح التحديد
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -418,7 +577,7 @@ export default function AgentPortal() {
 
             <Button
               onClick={submit}
-              disabled={saving || loadingMeta || courses.length === 0}
+              disabled={saving || loadingMeta || courses.length === 0 || form.subjectIds.length === 0}
               className="w-full h-11 bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
             >
               {saving ? (
@@ -451,11 +610,9 @@ export default function AgentPortal() {
                     تم التسجيل بنجاح
                   </CardTitle>
                   <CardDescription>
-                    {result.alreadyEnrolled
-                      ? 'الطالب كان مسجلاً بالفعل — تم إعادة عرض البيانات.'
-                      : result.newlyCreated
-                      ? 'تم إنشاء حساب الطالب وتسجيله في الدورة.'
-                      : 'تم إعادة استخدام حساب الطالب وتسجيله في الدورة.'}
+                    {result.newlyCreated
+                      ? 'تم إنشاء حساب الطالب وتسجيله في المقررات المحدّدة.'
+                      : 'تم إعادة استخدام حساب الطالب وتسجيله في المقررات المحدّدة.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
@@ -508,17 +665,53 @@ export default function AgentPortal() {
                       </div>
                     </div>
                   )}
-                  <div>
-                    <Label>الدورة</Label>
-                    <div>{result.enrollment.subjectName}</div>
+                  {/* Summary line */}
+                  <div className="flex items-center gap-3 text-xs rounded-md bg-sky-50 border border-sky-200 p-2">
+                    <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0" />
+                    <span className="text-sky-900">
+                      طُلِبَ {result.summary.totalRequested} مقرر · نجح {result.summary.totalSucceeded}
+                      {result.summary.totalAlreadyEnrolled > 0 && ` · ${result.summary.totalAlreadyEnrolled} كان مسجّلاً مسبقاً`}
+                      {result.summary.totalFailed > 0 && ` · فشل ${result.summary.totalFailed}`}
+                    </span>
                   </div>
+
+                  {/* Enrollments list (one row per course) */}
+                  <div>
+                    <Label>المقررات المسجّلة</Label>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {result.enrollments.map((e) => (
+                        <div
+                          key={e.subjectId}
+                          className={`flex items-center justify-between text-sm rounded-md px-2 py-1.5 border ${
+                            e.error
+                              ? 'bg-red-50 border-red-200'
+                              : e.alreadyEnrolled
+                              ? 'bg-amber-50 border-amber-200'
+                              : 'bg-emerald-50 border-emerald-200'
+                          }`}
+                        >
+                          <span className="truncate font-medium">{e.subjectName}</span>
+                          <span className="text-xs shrink-0 ms-2">
+                            {e.error ? (
+                              <span className="text-red-700">⚠ فشل</span>
+                            ) : e.alreadyEnrolled ? (
+                              <span className="text-amber-700">كان مسجّلاً</span>
+                            ) : (
+                              <span className="text-emerald-700">✓ تم</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <Label>الوكيل</Label>
-                    <div>{result.enrollment.agentName ?? result.enrollment.sourceName ?? '—'}</div>
+                    <div>{result.agent?.agentName ?? result.agent?.sourceName ?? '—'}</div>
                   </div>
                   <div>
                     <Label>تاريخ التسجيل</Label>
-                    <div>{new Date(result.enrollment.enrolledAt).toLocaleString()}</div>
+                    <div>{new Date(result.enrolledAt).toLocaleString()}</div>
                   </div>
                   <Button variant="outline" className="w-full" onClick={() => setResult(null)}>
                     <UserPlus className="h-4 w-4 me-2" />

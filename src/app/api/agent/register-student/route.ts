@@ -43,16 +43,23 @@ import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
  *     studentCode,
  *     temporaryPassword | null,   // only for newly-created accounts
  *     newlyCreated: true | false,
- *     alreadyEnrolled: true | false,
- *     enrollment: { id, subjectId, subjectName, sourceId, sourceName, agentId, enrolledAt }
- *   }
+ *     enrollments: [{ subjectId, subjectName, enrollmentId, alreadyEnrolled, error }]
+ *     summary: { totalRequested, totalSucceeded, totalAlreadyEnrolled, totalFailed }
+ *
+ * v2 (multi-course): accepts `subjectIds: string[]` (array) and registers
+ * the student in EACH course in one request. For backward compat, still
+ * accepts `subjectId: string` (single) and treats it as a 1-element array.
  */
 const BodySchema = z.object({
   studentEmail: z.string().trim().email().max(254),
   studentName: z.string().trim().min(1).max(120),
   studentPhone: z.string().trim().max(40).optional(),
-  subjectId: z.string().uuid(),
-});
+  subjectId: z.string().uuid().optional(),     // backward compat (single)
+  subjectIds: z.array(z.string().uuid()).optional(),  // v2 (multi)
+}).refine(
+  (d) => (d.subjectId && d.subjectId.length > 0) || (d.subjectIds && d.subjectIds.length > 0),
+  { message: 'يجب تحديد مقرر واحد على الأقل' }
+);
 
 function generateTempPassword(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -86,26 +93,59 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { studentEmail, studentName, studentPhone, subjectId } = parsed.data;
+  const { studentEmail, studentName, studentPhone, subjectId, subjectIds } = parsed.data;
   const { agent, sourceTeacherId } = auth;
   const agentUserId = auth.user.id;
 
-  // 1. Confirm subjectId is owned by the agent's teacher.
-  const { data: subject, error: subjectErr } = await supabaseServer
-    .from('subjects')
-    .select('id, name, teacher_id')
-    .eq('id', subjectId)
-    .single();
+  // Normalize to an array (backward compat: single subjectId → [subjectId]).
+  // Dedupe in case the frontend sent the same id twice.
+  const requestedSubjectIds = Array.from(
+    new Set([
+      ...(subjectIds ?? []),
+      ...(subjectId ? [subjectId] : []),
+    ])
+  );
 
-  if (subjectErr || !subject) {
-    return NextResponse.json({ success: false, error: 'الدورة غير موجودة' }, { status: 404 });
+  if (requestedSubjectIds.length === 0) {
+    return NextResponse.json(
+      { success: false, error: 'يجب تحديد مقرر واحد على الأقل' },
+      { status: 400 }
+    );
   }
 
-  if (subject.teacher_id !== sourceTeacherId) {
+  // 1. Fetch all requested subjects at once + verify ownership.
+  const { data: subjectsData, error: subjectsErr } = await supabaseServer
+    .from('subjects')
+    .select('id, name, teacher_id, is_paused')
+    .in('id', requestedSubjectIds);
+
+  if (subjectsErr) {
     return NextResponse.json(
-      { success: false, error: 'غير مصرح لك بتسجيل طلاب في هذه الدورة' },
-      { status: 403 }
+      { success: false, error: 'فشل تحميل بيانات المقررات' },
+      { status: 500 }
     );
+  }
+
+  const subjectsMap = new Map<string, { id: string; name: string; teacher_id: string; is_paused: boolean }>(
+    ((subjectsData ?? []) as Array<{ id: string; name: string; teacher_id: string; is_paused: boolean }>)
+      .map((s) => [s.id, s])
+  );
+
+  // Verify ALL requested subjects exist AND belong to the agent's teacher.
+  for (const id of requestedSubjectIds) {
+    const s = subjectsMap.get(id);
+    if (!s) {
+      return NextResponse.json(
+        { success: false, error: `المقرر ${id} غير موجود` },
+        { status: 404 }
+      );
+    }
+    if (s.teacher_id !== sourceTeacherId) {
+      return NextResponse.json(
+        { success: false, error: `غير مصرح لك بتسجيل طلاب في المقرر: ${s.name}` },
+        { status: 403 }
+      );
+    }
   }
 
   // 2. Look up the student by email in public.users (faster than listUsers).
@@ -226,101 +266,120 @@ export async function POST(request: NextRequest) {
     studentCode = updated?.student_code ?? code;
   }
 
-  // 4. Insert (or upsert-noop) the enrollment row.
-  const { data: existingEnrollment } = await supabaseServer
+  // 4. Insert (or upsert-noop) the enrollment rows — ONE PER requested subject.
+  // First, fetch all existing enrollments for this student in the requested
+  // subjects (in one query).
+  const { data: existingEnrollmentsRows } = await supabaseServer
     .from('subject_students')
-    .select('id, subject_id, student_id, status, enrollment_agent_id, enrolled_at')
-    .eq('subject_id', subjectId)
+    .select('id, subject_id, status, enrollment_agent_id, enrolled_at')
     .eq('student_id', studentId)
-    .maybeSingle();
+    .in('subject_id', requestedSubjectIds);
 
-  let enrollmentId: string | undefined = existingEnrollment?.id;
-  let alreadyEnrolled = !!existingEnrollment;
+  const existingBySubject = new Map<
+    string,
+    { id: string; status: string; enrollment_agent_id: string | null; enrolled_at: string | null }
+  >(
+    ((existingEnrollmentsRows ?? []) as Array<{
+      id: string; subject_id: string; status: string;
+      enrollment_agent_id: string | null; enrolled_at: string | null;
+    }>).map((r) => [r.subject_id, r])
+  );
 
-  if (!existingEnrollment) {
-    const { data: enrollment, error: enrollmentErr } = await supabaseServer
-      .from('subject_students')
-      .insert({
-        subject_id: subjectId,
-        student_id: studentId,
-        status: 'approved',
-        enrollment_source_id: agent.source_id,
-        enrollment_agent_id: agent.id,
-        enrolled_by: agentUserId,
-        enrollment_method: 'agent_register',
-        enrolled_at: new Date().toISOString(),
-      })
-      .select('id, enrolled_at')
-      .single();
+  interface EnrollmentResult {
+    subjectId: string;
+    subjectName: string;
+    enrollmentId: string | null;
+    alreadyEnrolled: boolean;
+    error: string | null;
+  }
+  const enrollments: EnrollmentResult[] = [];
 
-    if (enrollmentErr) {
-      console.error('[agent/register-student] INSERT subject_students error:', enrollmentErr);
-      return NextResponse.json(
-        { success: false, error: 'فشل تسجيل الطالب في الدورة: ' + enrollmentErr.message },
-        { status: 500 }
-      );
-    }
+  for (const subjectId of requestedSubjectIds) {
+    const subject = subjectsMap.get(subjectId)!;
+    const existing = existingBySubject.get(subjectId);
 
-    enrollmentId = enrollment?.id;
-
-    // Also upsert the global teacher↔student "follow" link so the student
-    // appears in the teacher's "Students" section AND can receive quizzes.
-    // (status='approved', initiated_by='teacher' — the agent acts on the
-    // teacher's behalf.)
-    const teacherId = subject.teacher_id;
-    try {
-      await supabaseServer
-        .from('teacher_student_links')
-        .upsert(
-          {
-            teacher_id: teacherId,
-            student_id: studentId,
-            status: 'approved',
-            initiated_by: 'teacher',
-          },
-          { onConflict: 'teacher_id,student_id' }
-        );
-    } catch (linkErr) {
-      // Non-fatal — enrollment itself succeeded.
-      console.warn('[agent/register-student] teacher_student_links upsert failed:', linkErr);
-    }
-  } else {
-    // Existing enrollment. If it was made by ANOTHER agent/teacher, leave attribution intact.
-    // If the existing row lacks attribution (self-join), backfill it for this agent.
-    if (!existingEnrollment.enrollment_agent_id) {
-      await supabaseServer
+    if (existing) {
+      // Existing enrollment. If it lacks attribution (self-join), backfill it.
+      if (!existing.enrollment_agent_id) {
+        await supabaseServer
+          .from('subject_students')
+          .update({
+            enrollment_source_id: agent.source_id,
+            enrollment_agent_id: agent.id,
+            enrolled_by: agentUserId,
+            enrollment_method: 'agent_register',
+            enrolled_at: existing.enrolled_at ?? new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+      }
+      enrollments.push({
+        subjectId,
+        subjectName: subject.name,
+        enrollmentId: existing.id,
+        alreadyEnrolled: true,
+        error: null,
+      });
+    } else {
+      // New enrollment row.
+      const { data: enrollment, error: enrollmentErr } = await supabaseServer
         .from('subject_students')
-        .update({
+        .insert({
+          subject_id: subjectId,
+          student_id: studentId,
+          status: 'approved',
           enrollment_source_id: agent.source_id,
           enrollment_agent_id: agent.id,
           enrolled_by: agentUserId,
           enrollment_method: 'agent_register',
-          enrolled_at: existingEnrollment.enrolled_at ?? new Date().toISOString(),
+          enrolled_at: new Date().toISOString(),
         })
-        .eq('id', existingEnrollment.id);
-    }
+        .select('id, enrolled_at')
+        .single();
 
-    // Also ensure the global teacher↔student link exists (in case the
-    // student was enrolled by self-join code only).
-    const teacherId = subject.teacher_id;
-    try {
-      await supabaseServer
-        .from('teacher_student_links')
-        .upsert(
-          {
-            teacher_id: teacherId,
-            student_id: studentId,
-            status: 'approved',
-            initiated_by: 'teacher',
-          },
-          { onConflict: 'teacher_id,student_id' }
+      if (enrollmentErr) {
+        console.error(
+          `[agent/register-student] INSERT subject_students error for subject ${subjectId}:`,
+          enrollmentErr
         );
-    } catch (linkErr) {
-      console.warn('[agent/register-student] teacher_student_links upsert (existing) failed:', linkErr);
+        enrollments.push({
+          subjectId,
+          subjectName: subject.name,
+          enrollmentId: null,
+          alreadyEnrolled: false,
+          error: enrollmentErr.message,
+        });
+        continue;
+      }
+
+      enrollments.push({
+        subjectId,
+        subjectName: subject.name,
+        enrollmentId: enrollment?.id ?? null,
+        alreadyEnrolled: false,
+        error: null,
+      });
     }
   }
 
-  // 5. Resolve agent display name for the response (v65: agent may not have a source).
+  // 5. Upsert the global teacher↔student link ONCE (the teacher is the same
+  //    for all subjects since they're all owned by sourceTeacherId).
+  try {
+    await supabaseServer
+      .from('teacher_student_links')
+      .upsert(
+        {
+          teacher_id: sourceTeacherId,
+          student_id: studentId,
+          status: 'approved',
+          initiated_by: 'teacher',
+        },
+        { onConflict: 'teacher_id,student_id' }
+      );
+  } catch (linkErr) {
+    console.warn('[agent/register-student] teacher_student_links upsert failed:', linkErr);
+  }
+
+  // 6. Resolve agent display name for the response.
   let sourceName: string | null = null;
   if (agent.source_id) {
     const { data: sourceRow } = await supabaseServer
@@ -330,7 +389,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     sourceName = (sourceRow as { name: string } | null)?.name ?? null;
   }
-  // Fallback to the agent's own display_name if no source.
   if (!sourceName) {
     const { data: agentRow } = await supabaseServer
       .from('registration_agents')
@@ -340,6 +398,12 @@ export async function POST(request: NextRequest) {
     sourceName = (agentRow as { display_name: string | null } | null)?.display_name ?? null;
   }
 
+  // 7. Summary.
+  const totalRequested = enrollments.length;
+  const totalSucceeded = enrollments.filter((e) => e.error === null).length;
+  const totalAlreadyEnrolled = enrollments.filter((e) => e.alreadyEnrolled).length;
+  const totalFailed = enrollments.filter((e) => e.error !== null).length;
+
   return NextResponse.json({
     success: true,
     studentId,
@@ -348,16 +412,35 @@ export async function POST(request: NextRequest) {
     studentCode,
     temporaryPassword,
     newlyCreated,
-    alreadyEnrolled,
-    enrollment: {
-      id: enrollmentId,
-      subjectId: subject.id,
-      subjectName: subject.name,
+    enrollments,
+    summary: {
+      totalRequested,
+      totalSucceeded,
+      totalAlreadyEnrolled,
+      totalFailed,
+    },
+    agent: {
+      id: agent.id,
+      agentName: sourceName,
       sourceId: agent.source_id,
       sourceName,
-      agentId: agent.id,
-      agentName: sourceName, // alias for clarity in the new model
-      enrolledAt: new Date().toISOString(),
     },
+    enrolledAt: new Date().toISOString(),
+    // Legacy single-enrollment field kept for backward compat with old
+    // clients — points to the FIRST successful enrollment.
+    enrollment: enrollments.length > 0
+      ? {
+        id: enrollments[0].enrollmentId,
+        subjectId: enrollments[0].subjectId,
+        subjectName: enrollments[0].subjectName,
+        sourceId: agent.source_id,
+        sourceName,
+        agentId: agent.id,
+        agentName: sourceName,
+        enrolledAt: new Date().toISOString(),
+      }
+      : null,
+    // For backward compat with old UIs:
+    alreadyEnrolled: totalAlreadyEnrolled > 0,
   });
 }
