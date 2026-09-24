@@ -240,6 +240,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [editCategory, setEditCategory] = useState('');
   const [editThumb, setEditThumb] = useState<File | null>(null);
   const editThumbRef = useRef<HTMLInputElement>(null);
+  const [editPrice, setEditPrice] = useState('0');
   const [savingSubject, setSavingSubject] = useState(false);
 
   // ─── Categories state ───
@@ -475,6 +476,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     setEditLevel(subject.level || '');
     setEditSubLevel(subject.sub_level || '');
     setEditCategory(subject.category_id || '');
+    setEditPrice(String(subject.price ?? 0));
     setEditThumb(null);
     if (editThumbRef.current) editThumbRef.current.value = '';
     setEditModalOpen(true);
@@ -516,6 +518,9 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         level: editLevel || null,
         sub_level: editSubLevel || null,
         category_id: editCategory || null,
+        // v69: server-side-validated price (Math.max(0, ...) is defense-in-depth
+        // on top of the DB CHECK constraint added by v69_subject_price_check.sql).
+        price: Math.max(0, Number(editPrice) || 0),
       };
       if (newThumbnailUrl !== undefined) {
         updateData.thumbnail_url = newThumbnailUrl;
@@ -539,6 +544,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           level: editLevel || undefined,
           sub_level: editSubLevel || undefined,
           category_id: editCategory || null,
+          price: Math.max(0, Number(editPrice) || 0),
           ...(newThumbnailUrl !== undefined ? { thumbnail_url: newThumbnailUrl } : {}),
         } : prev);
         setEditModalOpen(false);
@@ -1195,6 +1201,29 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     </select>
                   </div>
                 </div>
+
+                {/* v69: course price (only teachers can edit) */}
+                {role === 'teacher' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      سعر الاشتراك (ج.م)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      placeholder="0 = مجاناً"
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
+                      dir="ltr"
+                      disabled={savingSubject}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      0 = مجاناً. لا يمكن للطالب تعديل السعر — يُقرأ من قاعدة البيانات.
+                    </p>
+                  </div>
+                )}
 
                 {/* Category selector */}
                 {role === 'teacher' && (

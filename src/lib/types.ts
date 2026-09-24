@@ -123,6 +123,9 @@ export interface Subject {
   category_id?: string | null;
   thumbnail_url?: string | null;
   is_paused?: boolean;
+  price?: number;       // v69: course price in EGP (server-side source of truth)
+  currency?: string;    // v69: ISO 4217 currency code (default 'EGP')
+  subscription_open?: boolean;  // v66: whether new subscriptions are allowed
   created_at: string;
   updated_at: string;
   // Joined data

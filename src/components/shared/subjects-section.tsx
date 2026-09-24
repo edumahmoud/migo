@@ -206,6 +206,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
   const [newSubjectLevel, setNewSubjectLevel] = useState('');
   const [newSubjectSubLevel, setNewSubjectSubLevel] = useState('');
+  const [newSubjectPrice, setNewSubjectPrice] = useState('0');
   const [creatingSubject, setCreatingSubject] = useState(false);
   const [newSubjectThumb, setNewSubjectThumb] = useState<File | null>(null);
   const newSubjectThumbRef = useRef<HTMLInputElement>(null);
@@ -766,6 +767,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           sub_level: newSubjectSubLevel || null,
           category_id: newSubjectCategory || null,
           thumbnail_url: thumbnailUrl,
+          price: Math.max(0, Number(newSubjectPrice) || 0),
+          currency: 'EGP',
         })
         .select()
         .single();
@@ -787,6 +790,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               sub_level: newSubjectSubLevel || null,
               category_id: newSubjectCategory || null,
               thumbnail_url: thumbnailUrl,
+              price: Math.max(0, Number(newSubjectPrice) || 0),
+              currency: 'EGP',
             })
             .select()
             .single();
@@ -812,6 +817,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         setNewSubjectColor(SUBJECT_COLORS[0]);
         setNewSubjectLevel('');
         setNewSubjectSubLevel('');
+        setNewSubjectPrice('0');
         setNewSubjectCategory('');
         setNewSubjectThumb(null);
         if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = '';
@@ -2272,6 +2278,27 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       ))}
                     </select>
                   </div>
+                </div>
+
+                {/* v69: Course price (EGP). Server-side validated; default 0 = free. */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">
+                    سعر الاشتراك (ج.م)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newSubjectPrice}
+                    onChange={(e) => setNewSubjectPrice(e.target.value)}
+                    placeholder="0 = مجاناً"
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
+                    dir="ltr"
+                    disabled={creatingSubject}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    اتركه 0 إذا كانت الدورة مجانية. لا يمكن للطالب تعديل هذا السعر — يُقرأ من قاعدة البيانات عند إنشاء طلب الدفع.
+                  </p>
                 </div>
 
                 {/* Category selector + manage button */}

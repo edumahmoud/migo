@@ -1,49 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest } from '@/lib/auth-helpers';
 
 /**
  * GET /api/payment/mock-checkout?order_id=...
  *
- * Renders a simple HTML mock checkout page. Used in dev/testing to simulate
- * the payment gateway redirect. The student clicks "Pay" → form submits to
- * /api/payment/mock-pay which simulates the gateway processing and internally
- * calls /api/payment/webhook with an HMAC-signed payload.
+ * MOCK GATEWAY — DEV/TESTING ONLY.
  *
- * In production, this route is replaced by the real gateway's hosted checkout
- * (Paymob/Fawry/InstaPay). The webhook contract is identical.
+ * Guards (v69 security hardening):
+ *   1. PAYMENT_MOCK_ENABLED env var must be 'true' (default false in production).
+ *   2. Auth required (cookie or Bearer token).
+ *   3. Order must exist + be owned by the authenticated user (student_id = auth.uid).
+ *   4. Order must be in 'pending' status (no checkout for paid/failed orders).
+ *   5. Order must have confirmation_mode='automatic' (don't mock manual-mode orders).
+ *
+ * Opening this URL NEVER activates a subscription — it only renders a static
+ * HTML page. Activation happens only when the student clicks the "Pay" button
+ * which posts to /api/payment/mock-pay (which then calls the trusted webhook
+ * with HMAC-signed payload).
+ *
+ * In production, this route returns 404 — replace with the real gateway's
+ * hosted checkout URL (Paymob/Fawry). The webhook contract stays the same.
  */
+const MOCK_ENABLED = process.env.PAYMENT_MOCK_ENABLED === 'true' ||
+  process.env.NODE_ENV === 'development';
+
 export async function GET(request: NextRequest) {
+  // 1. Env guard — block in production unless explicitly enabled.
+  if (!MOCK_ENABLED) {
+    return new NextResponse('Not Found', { status: 404 });
+  }
+
+  // 2. Auth required.
+  const auth = await authenticateRequest(request);
+  if (!auth.success) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
   const orderId = request.nextUrl.searchParams.get('order_id');
   if (!orderId) {
     return new NextResponse('Missing order_id', { status: 400 });
   }
 
-  // Fetch the order (no auth — the order_id itself is the unguessable secret).
-  const { data: order } = await supabaseServer
+  // 3. Fetch the order.
+  const { data: order, error } = await supabaseServer
     .from('orders')
-    .select('id, amount, currency, provider, status, subject_id, subject:subjects!inner(name)')
+    .select('id, student_id, subject_id, amount, currency, provider, status, confirmation_mode, subject:subjects!inner(name)')
     .eq('id', orderId)
     .maybeSingle();
 
-  if (!order) {
+  if (error || !order) {
     return new NextResponse('Order not found', { status: 404 });
   }
 
   const o = order as unknown as {
     id: string;
+    student_id: string;
+    subject_id: string;
     amount: number;
     currency: string;
     provider: string;
     status: string;
-    subject_id: string;
+    confirmation_mode: string;
     subject: { name: string } | null;
   };
 
+  // 4. Ownership check — student can only view their own orders.
+  if (o.student_id !== auth.user.id) {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
+
+  // 5. Status check — paid/failed/cancelled orders can't be re-checked-out.
+  if (o.status !== 'pending') {
+    return new NextResponse(
+      `Order is ${o.status}. Cannot open checkout for non-pending orders.`,
+      { status: 400 }
+    );
+  }
+
+  // 6. Confirmation mode check — don't allow mock to process manual-mode orders.
+  if (o.confirmation_mode !== 'automatic') {
+    return new NextResponse(
+      'This order requires manual payment confirmation (Fawry/InstaPay/cash). Mock gateway cannot process it.',
+      { status: 400 }
+    );
+  }
+
+  // Render the mock checkout HTML.
   const html = `<!doctype html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="utf-8"/>
-<title>صفحة دفع تجريبية</title>
+<title>صفحة دفع تجريبية (Mock)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
   body { font-family: system-ui, sans-serif; background: #f8fafc; padding: 24px; color: #0f172a; }
@@ -70,7 +118,7 @@ export async function GET(request: NextRequest) {
       <input type="hidden" name="order_id" value="${o.id}"/>
       <button type="submit">دفع الآن (محاكاة نجاح الدفع)</button>
     </form>
-    <p class="note">هذه صفحة دفع وهمية لأغراض التطوير. عند الضغط على الزر، سيتم استدعاء الـ webhook لتأكيد الدفع وتفعيل الاشتراك. في الإنتاج، تستبدل بصفحة بوابة الدفع الحقيقية.</p>
+    <p class="note">⚠️ بوابة تجريبية للتطوير فقط. عند الضغط على الزر، يتم استدعاء الـ webhook الموقّع بتوقيع HMAC لتأكيد الدفع وتفعيل الاشتراك. في الإنتاج، تستبدل ببوابة الدفع الحقيقية.</p>
   </div>
 </body>
 </html>`;
