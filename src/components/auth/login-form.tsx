@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2, GraduationCap } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,11 +18,15 @@ interface LoginFormProps {
   onForgotPassword?: () => void;
 }
 
+type LoginMode = 'email' | 'code';
+
 export default function LoginForm({ onSwitchToRegister, onForgotPassword }: LoginFormProps) {
   const [email, setEmail] = useState('');
+  const [studentCode, setStudentCode] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [mode, setMode] = useState<LoginMode>('email');
 
   const { signInWithEmail } = useAuthStore();
   const { setCurrentPage } = useAppStore();
@@ -37,9 +41,24 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const displayName = loaded ? (institution?.name || t('common.appName')) : '';
   const displayLogo = institution?.logo_url;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const routeAfterLogin = () => {
+    const user = useAuthStore.getState().user;
+    if (user) {
+      toast.success(t('auth.loginSuccess'));
+      if (user.role === 'superadmin' || user.role === 'admin') {
+        setCurrentPage('admin-dashboard');
+      } else if (user.role === 'teacher') {
+        setCurrentPage('teacher-dashboard');
+      } else if (user.role === 'registration_agent') {
+        setCurrentPage('agent-portal');
+      } else {
+        setCurrentPage('student-dashboard');
+      }
+    }
+  };
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!email.trim()) {
       toast.error(t('auth.pleaseEnterEmail'));
       return;
@@ -48,7 +67,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
       toast.error(t('auth.pleaseEnterPassword'));
       return;
     }
-
     setIsLoading(true);
     try {
       const { error } = await signInWithEmail(email, password);
@@ -56,20 +74,45 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         toast.error(error);
         return;
       }
+      routeAfterLogin();
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      const user = useAuthStore.getState().user;
-      if (user) {
-        toast.success(t('auth.loginSuccess'));
-        if (user.role === 'superadmin' || user.role === 'admin') {
-          setCurrentPage('admin-dashboard');
-        } else if (user.role === 'teacher') {
-          setCurrentPage('teacher-dashboard');
-        } else if (user.role === 'registration_agent') {
-          setCurrentPage('agent-portal');
-        } else {
-          setCurrentPage('student-dashboard');
-        }
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentCode.trim()) {
+      toast.error('الرجاء إدخال كود الطالب');
+      return;
+    }
+    if (!password.trim()) {
+      toast.error(t('auth.pleaseEnterPassword'));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      // 1. Resolve the student code → email (server-side).
+      const resolveRes = await fetch('/api/auth/resolve-student-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentCode: studentCode.trim() }),
+      });
+      const resolveJson = await resolveRes.json();
+      if (!resolveJson.success) {
+        toast.error(resolveJson.error || 'كود الطالب غير صحيح');
+        return;
       }
+
+      // 2. Sign in with the resolved email + password.
+      const { error } = await signInWithEmail(resolveJson.email, password);
+      if (error) {
+        toast.error(error);
+        return;
+      }
+      routeAfterLogin();
     } catch {
       toast.error(t('common.unexpectedError'));
     } finally {
@@ -82,6 +125,9 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
       onSwitchToRegister();
     }
   };
+
+  // The submit handler depends on the active mode.
+  const handleSubmit = mode === 'email' ? handleEmailSubmit : handleCodeSubmit;
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
@@ -111,32 +157,94 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
           </CardHeader>
 
           <CardContent className="pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
-              {/* Email Field */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="space-y-2"
+            {/* Mode switcher — by email / by student code */}
+            <div className="grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
+              <button
+                type="button"
+                onClick={() => setMode('email')}
+                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                  mode === 'email'
+                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  {t('auth.email')}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder={t('auth.enterEmail')}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
-                    disabled={isLoading}
-                    dir="ltr"
-                    maxLength={254}
-                  />
-                  <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
-                </div>
-              </motion.div>
+                <Mail className="h-4 w-4" />
+                بالبريد الإلكتروني
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('code')}
+                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                  mode === 'code'
+                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <KeyRound className="h-4 w-4" />
+                بكود الطالب
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
+              {mode === 'email' ? (
+                /* Email Field */
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
+                >
+                  <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
+                    {t('auth.email')}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder={t('auth.enterEmail')}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
+                      disabled={isLoading}
+                      dir="ltr"
+                      maxLength={254}
+                    />
+                    <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
+                  </div>
+                </motion.div>
+              ) : (
+                /* Student Code Field */
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
+                >
+                  <Label htmlFor="student-code" className="text-gray-700 font-medium text-xs sm:text-sm">
+                    كود الطالب
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="student-code"
+                      type="text"
+                      placeholder="مثال: A1B2C3D4"
+                      value={studentCode}
+                      onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
+                      className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20 font-mono tracking-widest"
+                      disabled={isLoading}
+                      dir="ltr"
+                      maxLength={40}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                    <KeyRound className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    ستجد الكود وكلمة المرور المؤقتة عند من قام بتسجيلك (المعلم أو الوكيل).
+                  </p>
+                </motion.div>
+              )}
 
               {/* Password Field */}
               <motion.div
@@ -177,7 +285,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               </motion.div>
 
               {/* Forgot Password Link */}
-              {onForgotPassword && (
+              {onForgotPassword && mode === 'email' && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}

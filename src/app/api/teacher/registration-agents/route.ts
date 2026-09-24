@@ -34,32 +34,51 @@ export async function GET(request: NextRequest) {
 
   const teacherId = auth.user.id;
 
+  // Use !inner join so we can filter by a column on the joined table.
+  // This is the canonical Supabase pattern for "agents in sources owned by this teacher"
+  // and gracefully handles the case where the teacher has zero sources (returns []).
   const { data, error } = await supabaseServer
     .from('registration_agents')
     .select(
       'id, user_id, source_id, is_active, created_at, ' +
-        'source:registration_sources(id, name, kind), ' +
+        'source:registration_sources!inner(id, name, kind, teacher_id), ' +
         'user:users(id, email, name, username)'
     )
-    .in(
-      'source_id',
-      (
-        await supabaseServer
-          .from('registration_sources')
-          .select('id')
-          .eq('teacher_id', teacherId)
-        ).data?.map((s: { id: string }) => s.id) ?? []
-    )
+    .eq('source.teacher_id', teacherId)
     .order('created_at', { ascending: false });
 
   if (error) {
+    console.error('[GET /api/teacher/registration-agents] query error:', error);
     return NextResponse.json(
-      { success: false, error: 'فشل تحميل وكلاء التسجيل' },
+      { success: false, error: 'فشل تحميل وكلاء التسجيل: ' + (error.message || 'unknown') },
       { status: 500 }
     );
   }
 
-  return NextResponse.json({ success: true, agents: data ?? [] });
+  // For each agent, also fetch the count of students they registered.
+  const agentIds = ((data ?? []) as unknown as Array<{ id: string }>).map((a) => a.id);
+  let countsByAgent: Record<string, number> = {};
+  if (agentIds.length > 0) {
+    const { data: countRows, error: countErr } = await supabaseServer
+      .from('subject_students')
+      .select('enrollment_agent_id')
+      .in('enrollment_agent_id', agentIds);
+
+    if (!countErr && Array.isArray(countRows)) {
+      for (const row of countRows as Array<{ enrollment_agent_id: string | null }>) {
+        if (row.enrollment_agent_id) {
+          countsByAgent[row.enrollment_agent_id] = (countsByAgent[row.enrollment_agent_id] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const enriched = ((data ?? []) as unknown as Array<Record<string, unknown>>).map((a) => ({
+    ...a,
+    students_count: countsByAgent[(a as { id: string }).id] ?? 0,
+  }));
+
+  return NextResponse.json({ success: true, agents: enriched });
 }
 
 export async function POST(request: NextRequest) {

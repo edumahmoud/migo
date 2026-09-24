@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Trash2,
@@ -12,6 +12,12 @@ import {
   Copy,
   AlertCircle,
   KeyRound,
+  Users,
+  Search,
+  ChevronDown,
+  ChevronLeft,
+  Building2,
+  Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +43,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
@@ -49,6 +56,7 @@ interface SourceLite {
   id: string;
   name: string;
   kind: string;
+  is_active: boolean;
 }
 
 interface AgentUser {
@@ -64,9 +72,27 @@ interface RegistrationAgent {
   source_id: string;
   is_active: boolean;
   created_at: string;
+  students_count?: number;
   source?: SourceLite | null;
   user?: AgentUser | null;
 }
+
+interface AgentStudent {
+  id: string;
+  subject_id: string;
+  student_id: string;
+  status: string;
+  enrollment_method: string;
+  enrolled_at: string;
+  subject?: { id: string; name: string; join_code: string | null; level: string | null; sub_level: string | null; is_paused: boolean } | null;
+  student?: { id: string; email: string; name: string | null; student_code: string | null; username: string | null } | null;
+}
+
+const KIND_LABEL: Record<string, string> = {
+  center: 'المركز الرئيسي',
+  external_office: 'مكتب خارجي',
+  other: 'أخرى',
+};
 
 export default function RegistrationAgentsSection() {
   const { t } = useTranslations();
@@ -74,6 +100,8 @@ export default function RegistrationAgentsSection() {
   const [agents, setAgents] = useState<RegistrationAgent[]>([]);
   const [sources, setSources] = useState<SourceLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<{ source_id: string; name: string; email: string }>({
@@ -90,6 +118,11 @@ export default function RegistrationAgentsSection() {
 
   const [deleteTarget, setDeleteTarget] = useState<RegistrationAgent | null>(null);
 
+  // Students dialog state
+  const [studentsTarget, setStudentsTarget] = useState<RegistrationAgent | null>(null);
+  const [studentsList, setStudentsList] = useState<AgentStudent[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+
   const loadSources = useCallback(async () => {
     try {
       const res = await fetch('/api/teacher/registration-sources', {
@@ -97,10 +130,11 @@ export default function RegistrationAgentsSection() {
       });
       const json = await res.json();
       if (json.success) {
-        const list = (json.sources as Array<{ id: string; name: string; kind: string }>).map((s) => ({
+        const list = (json.sources as Array<{ id: string; name: string; kind: string; is_active: boolean }>).map((s) => ({
           id: s.id,
           name: s.name,
           kind: s.kind,
+          is_active: s.is_active,
         }));
         setSources(list);
         if (list.length > 0 && !form.source_id) {
@@ -137,9 +171,38 @@ export default function RegistrationAgentsSection() {
     load();
   }, [loadSources, load]);
 
+  // Filter + group agents by source for display
+  const filteredAgents = useMemo(() => {
+    let list = agents;
+    if (sourceFilter !== 'all') {
+      list = list.filter((a) => a.source_id === sourceFilter);
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((a) => {
+        const name = a.user?.name || '';
+        const email = a.user?.email || '';
+        return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+      });
+    }
+    return list;
+  }, [agents, sourceFilter, search]);
+
+  const groupedBySource = useMemo(() => {
+    const map = new Map<string, { source: SourceLite | null; agents: RegistrationAgent[] }>();
+    for (const a of filteredAgents) {
+      const key = a.source_id;
+      if (!map.has(key)) {
+        map.set(key, { source: a.source ?? null, agents: [] });
+      }
+      map.get(key)!.agents.push(a);
+    }
+    return Array.from(map.values());
+  }, [filteredAgents]);
+
   const openCreate = () => {
     if (sources.length === 0) {
-      toast.error('يرجى إنشاء مصدر تسجيل أولاً من قسم &quot;مصادر التسجيل&quot;');
+      toast.error('يرجى إنشاء مصدر تسجيل أولاً من قسم "مصادر التسجيل" بالأعلى.');
       return;
     }
     setForm({ source_id: sources[0]?.id ?? '', name: '', email: '' });
@@ -225,6 +288,27 @@ export default function RegistrationAgentsSection() {
     }
   };
 
+  const openStudents = async (a: RegistrationAgent) => {
+    setStudentsTarget(a);
+    setStudentsList([]);
+    setStudentsLoading(true);
+    try {
+      const res = await fetch(`/api/teacher/registration-agents/${a.id}/students`, {
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || t('common.unexpectedError'));
+      } else {
+        setStudentsList(json.students as AgentStudent[]);
+      }
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
   const copyCreds = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -238,7 +322,7 @@ export default function RegistrationAgentsSection() {
     <div className="space-y-6">
       <RegistrationSourcesSection />
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2">
@@ -255,6 +339,34 @@ export default function RegistrationAgentsSection() {
           </Button>
         </div>
 
+        {/* Search + filter bar */}
+        {!loading && agents.length > 0 && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ابحث بالاسم أو البريد..."
+                className="ps-10"
+              />
+            </div>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="sm:w-64">
+                <SelectValue placeholder="كل المصادر" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل المصادر</SelectItem>
+                {sources.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
@@ -262,51 +374,96 @@ export default function RegistrationAgentsSection() {
         ) : agents.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
-              لا يوجد وكلاء تسجيل بعد.
+              <UserCog className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              لا يوجد وكلاء تسجيل بعد. اضغط &quot;وكيل جديد&quot; للبدء.
+            </CardContent>
+          </Card>
+        ) : filteredAgents.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-muted-foreground">
+              لا توجد نتائج مطابقة للبحث.
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {agents.map((a) => (
-              <Card key={a.id} className="overflow-hidden">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        {a.user?.name ?? a.user?.email ?? 'وكيل'}
-                        {a.is_active ? (
-                          <Badge variant="default" className="text-xs">نشط</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">معطّل</Badge>
-                        )}
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {a.user?.email}
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => toggleActive(a, !a.is_active)}
-                        aria-label="تبديل الحالة"
-                      >
-                        <Power className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteTarget(a)}
-                        aria-label="حذف"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
+          <div className="space-y-4">
+            {groupedBySource.map(({ source, agents: sourceAgents }) => (
+              <Card key={source?.id ?? 'unknown'} className="overflow-hidden">
+                <CardHeader className="pb-2 bg-sky-50/40 dark:bg-sky-900/10 border-b">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-sky-600" />
+                      {source?.name ?? 'مصدر محذوف'}
+                      {source && (
+                        <Badge variant="outline" className="text-xs">
+                          {KIND_LABEL[source.kind] ?? source.kind}
+                        </Badge>
+                      )}
+                      {!source?.is_active && (
+                        <Badge variant="secondary" className="text-xs">المصدر معطّل</Badge>
+                      )}
+                    </CardTitle>
+                    <Badge variant="outline" className="text-xs">
+                      {sourceAgents.length} وكيل
+                    </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-0 text-sm text-muted-foreground">
-                  <div>
-                    المصدر: <span className="font-medium text-foreground">{a.source?.name ?? '—'}</span>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {sourceAgents.map((a) => (
+                      <div
+                        key={a.id}
+                        className="rounded-lg border bg-card p-3 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold truncate">
+                                {a.user?.name ?? '—'}
+                              </span>
+                              {a.is_active ? (
+                                <Badge variant="default" className="text-xs shrink-0">نشط</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs shrink-0">معطّل</Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate" dir="ltr">
+                              {a.user?.email ?? '—'}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              <span>{a.students_count ?? 0} طالب مسجّل</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openStudents(a)}
+                            className="text-xs"
+                          >
+                            <Users className="h-3.5 w-3.5 me-1" />
+                            الطلاب
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => toggleActive(a, !a.is_active)}
+                            title={a.is_active ? 'تعطيل' : 'تفعيل'}
+                          >
+                            <Power className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeleteTarget(a)}
+                            title="حذف"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -420,12 +577,72 @@ export default function RegistrationAgentsSection() {
                   </Button>
                 </div>
               </div>
+              <div className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 text-xs p-3">
+                يدخل الوكيل من نفس صفحة تسجيل الدخول بالبريد الإلكتروني وكلمة المرور هذه. سيُطلب منه
+                تغيير كلمة المرور بعد أول دخول.
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button onClick={() => setCreatedCreds(null)}>
               <Check className="h-4 w-4 me-1" />
               تم — حفظت البيانات
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Agent students dialog */}
+      <Dialog open={!!studentsTarget} onOpenChange={(o) => !o && setStudentsTarget(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-sky-600" />
+              طلاب الوكيل: {studentsTarget?.user?.name ?? '—'}
+            </DialogTitle>
+            <DialogDescription>
+              قائمة بآخر 500 طالب سجّلهم هذا الوكيل.
+            </DialogDescription>
+          </DialogHeader>
+          {studentsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
+            </div>
+          ) : studentsList.length === 0 ? (
+            <div className="text-center text-muted-foreground py-6">
+              لم يُسجّل هذا الوكيل أي طالب بعد.
+            </div>
+          ) : (
+            <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-background">
+                  <tr className="text-start text-muted-foreground border-b">
+                    <th className="py-2 px-2 text-start">الطالب</th>
+                    <th className="py-2 px-2 text-start">البريد</th>
+                    <th className="py-2 px-2 text-start">كود الطالب</th>
+                    <th className="py-2 px-2 text-start">الدورة</th>
+                    <th className="py-2 px-2 text-start">التاريخ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentsList.map((s) => (
+                    <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="py-2 px-2">{s.student?.name ?? '—'}</td>
+                      <td className="py-2 px-2" dir="ltr">{s.student?.email ?? '—'}</td>
+                      <td className="py-2 px-2 font-mono text-xs">{s.student?.student_code ?? '—'}</td>
+                      <td className="py-2 px-2">{s.subject?.name ?? '—'}</td>
+                      <td className="py-2 px-2 text-xs">
+                        {s.enrolled_at ? new Date(s.enrolled_at).toLocaleDateString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStudentsTarget(null)}>
+              إغلاق
             </Button>
           </DialogFooter>
         </DialogContent>

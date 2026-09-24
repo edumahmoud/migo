@@ -210,12 +210,24 @@ export default function AgentPortal() {
                     <SelectValue placeholder="اختر الدورة" />
                   </SelectTrigger>
                   <SelectContent>
-                    {courses.map((c) => (
-                      <SelectItem key={c.id} value={c.id} disabled={c.is_paused}>
-                        {c.name}
-                        {c.is_paused ? ' (متوقفة)' : ''}
-                      </SelectItem>
-                    ))}
+                    {courses.map((c) => {
+                      const meta: string[] = [];
+                      if (c.level) meta.push(c.level);
+                      if (c.sub_level) meta.push(c.sub_level);
+                      const metaLabel = meta.length > 0 ? ` · ${meta.join(' / ')}` : '';
+                      const statusLabel = c.is_paused ? ' · ⏸ متوقفة' : '';
+                      return (
+                        <SelectItem key={c.id} value={c.id} disabled={c.is_paused}>
+                          <span className="font-medium">{c.name}</span>
+                          {metaLabel && (
+                            <span className="text-muted-foreground">{metaLabel}</span>
+                          )}
+                          {statusLabel && (
+                            <span className="text-amber-600">{statusLabel}</span>
+                          )}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               )}

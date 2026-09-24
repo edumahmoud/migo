@@ -254,13 +254,36 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (enrollmentErr) {
+      console.error('[agent/register-student] INSERT subject_students error:', enrollmentErr);
       return NextResponse.json(
-        { success: false, error: 'فشل تسجيل الطالب: ' + enrollmentErr.message },
+        { success: false, error: 'فشل تسجيل الطالب في الدورة: ' + enrollmentErr.message },
         { status: 500 }
       );
     }
 
     enrollmentId = enrollment?.id;
+
+    // Also upsert the global teacher↔student "follow" link so the student
+    // appears in the teacher's "Students" section AND can receive quizzes.
+    // (status='approved', initiated_by='teacher' — the agent acts on the
+    // teacher's behalf.)
+    const teacherId = subject.teacher_id;
+    try {
+      await supabaseServer
+        .from('teacher_student_links')
+        .upsert(
+          {
+            teacher_id: teacherId,
+            student_id: studentId,
+            status: 'approved',
+            initiated_by: 'teacher',
+          },
+          { onConflict: 'teacher_id,student_id' }
+        );
+    } catch (linkErr) {
+      // Non-fatal — enrollment itself succeeded.
+      console.warn('[agent/register-student] teacher_student_links upsert failed:', linkErr);
+    }
   } else {
     // Existing enrollment. If it was made by ANOTHER agent/teacher, leave attribution intact.
     // If the existing row lacks attribution (self-join), backfill it for this agent.
@@ -275,6 +298,25 @@ export async function POST(request: NextRequest) {
           enrolled_at: existingEnrollment.enrolled_at ?? new Date().toISOString(),
         })
         .eq('id', existingEnrollment.id);
+    }
+
+    // Also ensure the global teacher↔student link exists (in case the
+    // student was enrolled by self-join code only).
+    const teacherId = subject.teacher_id;
+    try {
+      await supabaseServer
+        .from('teacher_student_links')
+        .upsert(
+          {
+            teacher_id: teacherId,
+            student_id: studentId,
+            status: 'approved',
+            initiated_by: 'teacher',
+          },
+          { onConflict: 'teacher_id,student_id' }
+        );
+    } catch (linkErr) {
+      console.warn('[agent/register-student] teacher_student_links upsert (existing) failed:', linkErr);
     }
   }
 
