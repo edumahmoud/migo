@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
   // 1. Fetch all requested subjects at once + verify ownership + subscription_open.
   const { data: subjectsData, error: subjectsErr } = await supabaseServer
     .from('subjects')
-    .select('id, name, teacher_id, is_paused, subscription_open')
+    .select('id, name, teacher_id, is_paused, subscription_open, price')
     .in('id', requestedSubjectIds);
 
   if (subjectsErr) {
@@ -129,8 +129,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const subjectsMap = new Map<string, { id: string; name: string; teacher_id: string; is_paused: boolean; subscription_open: boolean }>(
-    ((subjectsData ?? []) as Array<{ id: string; name: string; teacher_id: string; is_paused: boolean; subscription_open: boolean }>)
+  const subjectsMap = new Map<string, { id: string; name: string; teacher_id: string; is_paused: boolean; subscription_open: boolean; price: number }>(
+    ((subjectsData ?? []) as Array<{ id: string; name: string; teacher_id: string; is_paused: boolean; subscription_open: boolean; price: number }>)
       .map((s) => [s.id, s])
   );
 
@@ -343,17 +343,18 @@ export async function POST(request: NextRequest) {
   // subjects (in one query).
   const { data: existingEnrollmentsRows } = await supabaseServer
     .from('subject_students')
-    .select('id, subject_id, status, enrollment_agent_id, enrolled_at')
+    .select('id, subject_id, status, enrollment_agent_id, enrolled_at, current_period_start, current_period_end')
     .eq('student_id', studentId)
     .in('subject_id', requestedSubjectIds);
 
   const existingBySubject = new Map<
     string,
-    { id: string; status: string; enrollment_agent_id: string | null; enrolled_at: string | null }
+    { id: string; status: string; enrollment_agent_id: string | null; enrolled_at: string | null; current_period_start: string | null; current_period_end: string | null }
   >(
     ((existingEnrollmentsRows ?? []) as Array<{
       id: string; subject_id: string; status: string;
       enrollment_agent_id: string | null; enrolled_at: string | null;
+      current_period_start: string | null; current_period_end: string | null;
     }>).map((r) => [r.subject_id, r])
   );
 
@@ -371,19 +372,35 @@ export async function POST(request: NextRequest) {
     const existing = existingBySubject.get(subjectId);
 
     if (existing) {
-      // Existing enrollment. If it lacks attribution (self-join), backfill it.
-      if (!existing.enrollment_agent_id) {
-        await supabaseServer
-          .from('subject_students')
-          .update({
-            enrollment_source_id: agent.source_id,
-            enrollment_agent_id: agent.id,
-            enrolled_by: agentUserId,
-            enrollment_method: 'agent_register',
-            enrolled_at: existing.enrolled_at ?? new Date().toISOString(),
-          })
-          .eq('id', existing.id);
-      }
+      // Existing enrollment — re-registration = renewal. Extend the
+      // monthly billing period (same logic as the payment RPC).
+      // If current_period_end > now → extend from current end.
+      // If expired or NULL → start fresh (now → now + 1 month).
+      const existingEnd = existing.current_period_end ? new Date(existing.current_period_end) : null;
+      const isStillActive = existingEnd && existingEnd > new Date();
+      const newEnd = isStillActive
+        ? new Date(existingEnd!.getTime() + 30 * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const newStart = isStillActive
+        ? existing.current_period_start ?? new Date().toISOString()
+        : new Date().toISOString();
+
+      await supabaseServer
+        .from('subject_students')
+        .update({
+          enrollment_source_id: agent.source_id,
+          enrollment_agent_id: agent.id,
+          enrolled_by: agentUserId,
+          enrollment_method: 'agent_register',
+          enrolled_at: existing.enrolled_at ?? new Date().toISOString(),
+          status: 'approved',
+          current_period_start: newStart,
+          current_period_end: newEnd.toISOString(),
+          next_billing_at: newEnd.toISOString(),
+          monthly_price: subject.price,
+        })
+        .eq('id', existing.id);
+
       enrollments.push({
         subjectId,
         subjectName: subject.name,
@@ -404,6 +421,10 @@ export async function POST(request: NextRequest) {
           enrolled_by: agentUserId,
           enrollment_method: 'agent_register',
           enrolled_at: new Date().toISOString(),
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          monthly_price: subject.price,
         })
         .select('id, enrolled_at')
         .single();

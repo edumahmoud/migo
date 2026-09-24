@@ -66,10 +66,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'هذه الميزة متاحة للمعلمين فقط' }, { status: 403 });
     }
 
-    // Verify the teacher owns this subject and get subject name
+    // Verify the teacher owns this subject and get subject name + price
     const { data: subject, error: subjectError } = await supabaseServer
       .from('subjects')
-      .select('id, teacher_id, name')
+      .select('id, teacher_id, name, price')
       .eq('id', subjectId)
       .single();
 
@@ -102,7 +102,13 @@ export async function POST(request: Request) {
 
       const { error } = await supabaseServer
         .from('subject_students')
-        .update({ status: 'approved' })
+        .update({
+          status: 'approved',
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          monthly_price: subject.price ?? 0,
+        })
         .eq('subject_id', subjectId)
         .eq('student_id', studentId)
         .eq('status', 'pending');
@@ -167,7 +173,13 @@ export async function POST(request: Request) {
 
       const { error } = await supabaseServer
         .from('subject_students')
-        .update({ status: 'approved' })
+        .update({
+          status: 'approved',
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          monthly_price: subject.price ?? 0,
+        })
         .eq('subject_id', subjectId)
         .eq('status', 'pending');
 
@@ -245,6 +257,10 @@ export async function POST(request: Request) {
           subject_id: subjectId,
           student_id: studentId,
           status: 'approved',
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          monthly_price: subject.price ?? 0,
         }, { onConflict: 'subject_id,student_id' });
 
       if (error) {
