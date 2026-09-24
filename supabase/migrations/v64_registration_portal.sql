@@ -230,6 +230,29 @@ SET enrolled_at = created_at
 WHERE enrolled_at IS NULL OR enrolled_at = created_at;
 
 -- -------------------------------------------------------------
+-- 7b. Ensure teacher_student_links.initiated_by exists
+-- (originally added by /api/migrate/initiated-by route; the new
+--  agent portal flow needs it on first run too).
+-- -------------------------------------------------------------
+ALTER TABLE public.teacher_student_links
+  ADD COLUMN IF NOT EXISTS initiated_by TEXT
+  CHECK (initiated_by IS NULL OR initiated_by IN ('student','teacher'));
+
+-- -------------------------------------------------------------
+-- 7c. Backfill teacher↔student links for every agent-registered
+-- student (so they appear in the teacher's "Students" section
+-- AND in each course's students tab even if they were enrolled
+-- before this fix shipped).
+-- -------------------------------------------------------------
+INSERT INTO public.teacher_student_links (teacher_id, student_id, status, initiated_by)
+SELECT DISTINCT s.teacher_id, ss.student_id, 'approved', 'teacher'
+FROM public.subject_students ss
+JOIN public.subjects s ON s.id = ss.subject_id
+WHERE ss.enrollment_method = 'agent_register'
+  AND ss.enrollment_agent_id IS NOT NULL
+ON CONFLICT (teacher_id, student_id) DO NOTHING;
+
+-- -------------------------------------------------------------
 -- 8. Realtime (optional but consistent with other tables)
 -- -------------------------------------------------------------
 ALTER PUBLICATION supabase_realtime SET TABLE public.registration_sources;
