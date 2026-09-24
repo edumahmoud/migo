@@ -51,14 +51,17 @@ import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
  * accepts `subjectId: string` (single) and treats it as a 1-element array.
  */
 const BodySchema = z.object({
-  studentEmail: z.string().trim().email().max(254),
-  studentName: z.string().trim().min(1).max(120),
+  studentEmail: z.string().trim().email().max(254).optional(),
+  studentName: z.string().trim().min(1).max(120).optional(),
   studentPhone: z.string().trim().max(40).optional(),
+  studentCode: z.string().trim().min(1).max(40).optional(),  // v3 (existing-student mode)
   subjectId: z.string().uuid().optional(),     // backward compat (single)
   subjectIds: z.array(z.string().uuid()).optional(),  // v2 (multi)
 }).refine(
-  (d) => (d.subjectId && d.subjectId.length > 0) || (d.subjectIds && d.subjectIds.length > 0),
-  { message: 'يجب تحديد مقرر واحد على الأقل' }
+  (d) =>
+    ((d.studentEmail && d.studentEmail.length > 0) || (d.studentCode && d.studentCode.length > 0)) &&
+    ((d.subjectId && d.subjectId.length > 0) || (d.subjectIds && d.subjectIds.length > 0)),
+  { message: 'يجب تحديد طالب ومقرر واحد على الأقل' }
 );
 
 function generateTempPassword(): string {
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { studentEmail, studentName, studentPhone, subjectId, subjectIds } = parsed.data;
+  const { studentEmail, studentName, studentPhone, studentCode: inputStudentCode, subjectId, subjectIds } = parsed.data;
   const { agent, sourceTeacherId } = auth;
   const agentUserId = auth.user.id;
 
@@ -113,10 +116,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 1. Fetch all requested subjects at once + verify ownership.
+  // 1. Fetch all requested subjects at once + verify ownership + subscription_open.
   const { data: subjectsData, error: subjectsErr } = await supabaseServer
     .from('subjects')
-    .select('id, name, teacher_id, is_paused')
+    .select('id, name, teacher_id, is_paused, subscription_open')
     .in('id', requestedSubjectIds);
 
   if (subjectsErr) {
@@ -126,8 +129,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const subjectsMap = new Map<string, { id: string; name: string; teacher_id: string; is_paused: boolean }>(
-    ((subjectsData ?? []) as Array<{ id: string; name: string; teacher_id: string; is_paused: boolean }>)
+  const subjectsMap = new Map<string, { id: string; name: string; teacher_id: string; is_paused: boolean; subscription_open: boolean }>(
+    ((subjectsData ?? []) as Array<{ id: string; name: string; teacher_id: string; is_paused: boolean; subscription_open: boolean }>)
       .map((s) => [s.id, s])
   );
 
@@ -146,19 +149,79 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+    if (s.is_paused) {
+      return NextResponse.json(
+        { success: false, error: `المقرر "${s.name}" متوقف بالكامل (paused)` },
+        { status: 400 }
+      );
+    }
+    if (s.subscription_open === false) {
+      return NextResponse.json(
+        { success: false, error: `التسجيل مُوقَف للمقرر: ${s.name}` },
+        { status: 400 }
+      );
+    }
   }
 
-  // 2. Look up the student by email in public.users (faster than listUsers).
+  // 2. Determine the student. Two paths:
+  //    (a) inputStudentCode → look up by code (must already be linked to the teacher)
+  //    (b) studentEmail → find by email or create new account
+  let studentId: string | undefined;
+  let temporaryPassword: string | null = null;
+  let resolvedStudentEmail: string | undefined;
+  let resolvedStudentName: string | undefined;
+  let studentCode: string | null | undefined;
+  let newlyCreated = false;
+
+  if (inputStudentCode) {
+    // Existing-student mode — look up by code.
+    const { data: studentByCode, error: codeErr } = await supabaseServer
+      .from('users')
+      .select('id, email, name, role, student_code')
+      .eq('student_code', inputStudentCode.toUpperCase())
+      .maybeSingle();
+
+    if (codeErr || !studentByCode) {
+      return NextResponse.json(
+        { success: false, error: 'لا يوجد طالب بهذا الكود' },
+        { status: 404 }
+      );
+    }
+
+    // Verify the student is linked to this agent's teacher.
+    const { data: link } = await supabaseServer
+      .from('teacher_student_links')
+      .select('teacher_id, student_id, status')
+      .eq('teacher_id', sourceTeacherId)
+      .eq('student_id', (studentByCode as { id: string }).id)
+      .eq('status', 'approved')
+      .maybeSingle();
+
+    if (!link) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'هذا الطالب غير مرتبط بمعلمك. لا يمكنك تسجيله في دورات جديدة.',
+        },
+        { status: 403 }
+      );
+    }
+
+    studentId = (studentByCode as { id: string }).id;
+    resolvedStudentEmail = (studentByCode as { email: string }).email;
+    resolvedStudentName = (studentByCode as { name: string | null }).name ?? undefined;
+    studentCode = (studentByCode as { student_code: string | null }).student_code;
+    temporaryPassword = null;  // existing student — no temp password
+  } else if (studentEmail) {
+    resolvedStudentEmail = studentEmail;
+    resolvedStudentName = studentName;
+
+  // 2b. Look up the student by email in public.users (faster than listUsers).
   const { data: existingProfile } = await supabaseServer
     .from('users')
     .select('id, email, name, role, student_code')
     .eq('email', studentEmail)
     .maybeSingle();
-
-  let studentId: string;
-  let temporaryPassword: string | null = null;
-  let studentCode: string | null | undefined = existingProfile?.student_code;
-  let newlyCreated = false;
 
   if (existingProfile) {
     // Reuse existing account.
@@ -241,6 +304,15 @@ export async function POST(request: NextRequest) {
       }
       studentCode = justCreated.student_code;
     }
+  }  // closes inner if (existingProfile) {} else {}
+
+  }  // closes else if (studentEmail) {}
+
+  if (!studentId) {
+    return NextResponse.json(
+      { success: false, error: 'تعذّر تحديد هوية الطالب' },
+      { status: 400 }
+    );
   }
 
   // 3. Ensure student_code is set (for pre-existing rows that predate v64 trigger).
@@ -407,8 +479,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     studentId,
-    studentEmail,
-    studentName,
+    studentEmail: resolvedStudentEmail ?? null,
+    studentName: resolvedStudentName ?? null,
     studentCode,
     temporaryPassword,
     newlyCreated,

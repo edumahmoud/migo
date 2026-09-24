@@ -6,10 +6,7 @@ import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
  * GET /api/agent/courses
  *
  * Lists all subjects (courses) owned by the agent's teacher.
- * Used to populate the course dropdown in the agent portal.
- *
- * The agent's teacher_id is resolved via requireAgent → source.teacher_id,
- * so the agent CANNOT see courses owned by other teachers.
+ * Returns `subscription_open` so the portal can disable closed courses.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAgent(request);
@@ -19,7 +16,9 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseServer
     .from('subjects')
-    .select('id, name, description, color, join_code, level, sub_level, is_paused, created_at')
+    .select(
+      'id, name, description, color, join_code, level, sub_level, is_paused, subscription_open, created_at'
+    )
     .eq('teacher_id', sourceTeacherId)
     .order('created_at', { ascending: false });
 

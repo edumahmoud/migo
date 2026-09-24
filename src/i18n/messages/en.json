@@ -322,7 +322,8 @@
     "stickyNotes": "Sticky Notes",
     "platformAnnouncements": "Celebrations & Alerts",
     "scormLibrary": "SCORM Library",
-    "registration": "Registration Agents"
+    "registration": "Registration Agents",
+    "paymentMethods": "Payment Methods"
   },
   "roles": {
     "student": "Student",

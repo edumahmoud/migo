@@ -322,7 +322,8 @@
     "stickyNotes": "ملاحظات عائمة",
     "platformAnnouncements": "المعايدات والإعلانات",
     "scormLibrary": "مكتبة SCORM",
-    "registration": "وكلاء التسجيل"
+    "registration": "وكلاء التسجيل",
+    "paymentMethods": "وسائل الدفع"
   },
   "roles": {
     "student": "طالب",

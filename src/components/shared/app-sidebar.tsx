@@ -28,6 +28,7 @@ import {
   GraduationCap,
   Package,
   UserCog,
+  Wallet,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -75,6 +76,7 @@ const studentNavItems: NavItem[] = [
   { id: 'todos', labelKey: 'nav.todos', icon: <ListTodo className="h-5 w-5" /> },
   { id: 'calendar', labelKey: 'nav.calendar', icon: <CalendarIcon className="h-5 w-5" /> },
   { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'paymentMethods', labelKey: 'nav.paymentMethods', icon: <Wallet className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
@@ -86,6 +88,7 @@ const teacherNavItems: NavItem[] = [
   { id: 'questionBank', labelKey: 'nav.questionBank', icon: <Database className="h-5 w-5" /> },
   { id: 'scormLibrary', labelKey: 'nav.scormLibrary', icon: <Package className="h-5 w-5" /> },
   { id: 'registration', labelKey: 'nav.registration', icon: <UserCog className="h-5 w-5" /> },
+  { id: 'paymentMethods', labelKey: 'nav.paymentMethods', icon: <Wallet className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
   { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },

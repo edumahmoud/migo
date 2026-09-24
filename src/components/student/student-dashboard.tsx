@@ -82,6 +82,7 @@ import ReportsSection from '@/components/reports/reports-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import TodoSection from '@/components/shared/todo-section';
 import CalendarSection from '@/components/shared/calendar-section';
+import StudentPaymentMethodsSection from '@/components/student/student-payment-methods-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
@@ -4917,6 +4918,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return <SectionErrorBoundary name="Todos"><TodoSection profile={profile} /></SectionErrorBoundary>;
       case 'calendar':
         return <SectionErrorBoundary name="Calendar"><CalendarSection profile={profile} /></SectionErrorBoundary>;
+      case 'paymentMethods':
+        return <SectionErrorBoundary name="PaymentMethods"><StudentPaymentMethodsSection /></SectionErrorBoundary>;
       case 'tracking':
         return (
           <SectionErrorBoundary name="Tracking">

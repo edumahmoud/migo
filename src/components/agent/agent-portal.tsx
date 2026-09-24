@@ -45,6 +45,7 @@ interface CourseLite {
   name: string;
   join_code: string | null;
   is_paused: boolean;
+  subscription_open: boolean;
   level: string | null;
   sub_level: string | null;
 }
@@ -99,6 +100,31 @@ interface PastRegistration {
   student?: { id: string; email: string; name: string | null; student_code: string | null } | null;
 }
 
+interface AgentInfo {
+  success: boolean;
+  agent: {
+    id: string;
+    display_name: string | null;
+    kind: string | null;
+    contact_email: string | null;
+    contact_phone: string | null;
+    source_id: string | null;
+  };
+  teacher: { id: string; name: string | null; email: string | null } | null;
+}
+
+interface ExistingStudentLookup {
+  success: boolean;
+  student: { id: string; email: string; name: string | null; student_code: string | null };
+  currently_enrolled_courses: Array<{
+    subject_id: string;
+    subject_name: string;
+    level: string | null;
+    sub_level: string | null;
+    status: string;
+  }>;
+}
+
 interface DashboardData {
   success: boolean;
   totals: { total_registrations: number; total_unique_students: number; total_courses: number };
@@ -114,6 +140,11 @@ export default function AgentPortal() {
   const [past, setPast] = useState<PastRegistration[]>([]);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const [studentMode, setStudentMode] = useState<'new' | 'existing'>('new');
+  const [studentCodeInput, setStudentCodeInput] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState<ExistingStudentLookup | null>(null);
 
   const [form, setForm] = useState({
     studentEmail: '',
@@ -130,18 +161,21 @@ export default function AgentPortal() {
     setLoadingMeta(true);
     try {
       const authHeaders = await getCachedAuthHeaders();
-      const [coursesRes, pastRes, dashRes] = await Promise.all([
+      const [coursesRes, pastRes, dashRes, meRes] = await Promise.all([
         fetch('/api/agent/courses', { headers: authHeaders }),
         fetch('/api/agent/registrations', { headers: authHeaders }),
         fetch('/api/agent/dashboard', { headers: authHeaders }),
+        fetch('/api/agent/me', { headers: authHeaders }),
       ]);
       const coursesJson = await coursesRes.json();
       const pastJson = await pastRes.json();
       const dashJson = await dashRes.json();
+      const meJson = await meRes.json();
       if (coursesJson.success) setCourses(coursesJson.courses ?? []);
       else toast.error(coursesJson.error || t('common.unexpectedError'));
       if (pastJson.success) setPast(pastJson.registrations ?? []);
       if (dashJson.success) setDashboard(dashJson as DashboardData);
+      if (meJson.success) setAgentInfo(meJson as AgentInfo);
     } catch {
       toast.error(t('common.unexpectedError'));
     } finally {
@@ -178,31 +212,71 @@ export default function AgentPortal() {
     );
   };
 
+  const lookupStudentByCode = async () => {
+    if (!studentCodeInput.trim()) {
+      toast.error('أدخل كود الطالب');
+      return;
+    }
+    setLookupLoading(true);
+    setLookupResult(null);
+    try {
+      const res = await fetch('/api/agent/lookup-student-by-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ studentCode: studentCodeInput.trim() }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || t('common.unexpectedError'));
+        return;
+      }
+      setLookupResult(json as ExistingStudentLookup);
+      toast.success(`تم العثور على الطالب: ${json.student.name ?? json.student.email}`);
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   const submit = async () => {
     if (form.subjectIds.length === 0) {
       toast.error('اختر مقرراً واحداً على الأقل');
       return;
     }
-    if (!form.studentEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.studentEmail)) {
-      toast.error('أدخل بريداً إلكترونياً صحيحاً');
-      return;
-    }
-    if (!form.studentName.trim()) {
-      toast.error('أدخل اسم الطالب');
-      return;
+    // Validation per mode.
+    if (studentMode === 'existing') {
+      if (!lookupResult) {
+        toast.error('ابحث عن الطالب بالكود أولاً');
+        return;
+      }
+    } else {
+      if (!form.studentEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.studentEmail)) {
+        toast.error('أدخل بريداً إلكترونياً صحيحاً');
+        return;
+      }
+      if (!form.studentName.trim()) {
+        toast.error('أدخل اسم الطالب');
+        return;
+      }
     }
     setSaving(true);
     setResult(null);
     try {
+      const payload: Record<string, unknown> = {
+        subjectIds: form.subjectIds,
+      };
+      if (studentMode === 'existing' && lookupResult) {
+        payload.studentCode = lookupResult.student.student_code;
+      } else {
+        payload.studentEmail = form.studentEmail.trim();
+        payload.studentName = form.studentName.trim();
+        payload.studentPhone = form.studentPhone.trim() || undefined;
+      }
       const res = await fetch('/api/agent/register-student', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({
-          studentEmail: form.studentEmail.trim(),
-          studentName: form.studentName.trim(),
-          studentPhone: form.studentPhone.trim() || undefined,
-          subjectIds: form.subjectIds,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!json.success) {
@@ -218,6 +292,8 @@ export default function AgentPortal() {
       );
       setForm({ studentEmail: '', studentName: '', studentPhone: '', subjectIds: [] });
       setCourseSearch('');
+      setStudentCodeInput('');
+      setLookupResult(null);
       await loadMeta();
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -237,15 +313,27 @@ export default function AgentPortal() {
 
   return (
     <div className="space-y-6 p-3 sm:p-6 max-w-6xl mx-auto">
-      <header className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg">
+      <header className="flex items-start gap-3 flex-wrap">
+        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shrink-0">
           <UserPlus className="h-5 w-5 text-white" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold">بوابة الوكيل</h1>
           <p className="text-sm text-muted-foreground">
             يمكنك تسجيل الطلاب في دورات المعلم ومتابعة نتائجك.
           </p>
+          {agentInfo && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">
+              <Badge variant="outline" className="bg-sky-50 dark:bg-sky-900/20 border-sky-200 text-sky-800 dark:text-sky-200">
+                وكيل: {agentInfo.agent.display_name ?? '—'}
+              </Badge>
+              {agentInfo.teacher && (
+                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 text-emerald-800 dark:text-emerald-200">
+                  المعلم: {agentInfo.teacher.name ?? agentInfo.teacher.email ?? '—'}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -380,13 +468,100 @@ export default function AgentPortal() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-sky-600" />
-              تسجيل طالب جديد
+              تسجيل طالب
             </CardTitle>
             <CardDescription>
-              أدخل بيانات الطالب والدورة. إذا كان لديه حساب بالفعل سيتم إعادة استخدامه.
+              اختر النوع (طالب جديد / طالب مسجّل مسبقاً) ثم اختر المقررات.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Student mode toggle */}
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted/40 text-sm">
+              <button
+                type="button"
+                onClick={() => { setStudentMode('new'); setLookupResult(null); setStudentCodeInput(''); }}
+                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                  studentMode === 'new'
+                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <UserPlus className="h-4 w-4" />
+                طالب جديد
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStudentMode('existing'); }}
+                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
+                  studentMode === 'existing'
+                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-emerald-700'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <History className="h-4 w-4" />
+                طالب مسجّل مسبقاً
+              </button>
+            </div>
+
+            {/* Existing-student lookup (code search) */}
+            {studentMode === 'existing' && (
+              <div className="space-y-2 border rounded-md p-3 bg-emerald-50/30 dark:bg-emerald-900/10">
+                <Label htmlFor="ag-student-code">كود الطالب</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="ag-student-code"
+                    value={studentCodeInput}
+                    onChange={(e) => setStudentCodeInput(e.target.value.toUpperCase())}
+                    placeholder="مثال: A1B2C3D4"
+                    dir="ltr"
+                    maxLength={40}
+                    className="font-mono tracking-widest"
+                    disabled={lookupLoading}
+                  />
+                  <Button
+                    type="button"
+                    onClick={lookupStudentByCode}
+                    disabled={lookupLoading || !studentCodeInput.trim()}
+                  >
+                    {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    بحث
+                  </Button>
+                </div>
+                {lookupResult && (
+                  <div className="mt-2 rounded-md bg-white dark:bg-background border border-emerald-200 p-2 text-sm space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{lookupResult.student.name ?? '—'}</span>
+                      <Badge variant="outline" className="text-xs">كود: {lookupResult.student.student_code}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground" dir="ltr">{lookupResult.student.email}</div>
+                    {lookupResult.currently_enrolled_courses.length > 0 && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        مسجّل حالياً في {lookupResult.currently_enrolled_courses.length} مقرر لدى معلمك:
+                        <ul className="mt-1 space-y-0.5">
+                          {lookupResult.currently_enrolled_courses.slice(0, 5).map((c) => (
+                            <li key={c.subject_id} className="flex items-center gap-1">
+                              <span>·</span>
+                              <span className="truncate">{c.subject_name}</span>
+                              {[c.level, c.sub_level].filter(Boolean).length > 0 && (
+                                <span className="text-muted-foreground">— {[c.level, c.sub_level].filter(Boolean).join(' / ')}</span>
+                              )}
+                            </li>
+                          ))}
+                          {lookupResult.currently_enrolled_courses.length > 5 && (
+                            <li className="text-muted-foreground">+ {lookupResult.currently_enrolled_courses.length - 5} أخرى</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                    <div className="text-xs text-emerald-700 mt-1">
+                      ✓ اختر المقررات الجديدة في الأسفل لتسجيله فيها.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Course multi-select (visible in both modes) */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <Label>المقررات</Label>
@@ -465,12 +640,13 @@ export default function AgentPortal() {
                               if (c.level) meta.push(c.level);
                               if (c.sub_level) meta.push(c.sub_level);
                               const isSelected = form.subjectIds.includes(c.id);
+                              const isDisabled = c.is_paused || c.subscription_open === false;
                               return (
                                 <CommandItem
                                   key={c.id}
                                   value={c.id}
-                                  onSelect={() => toggleCourse(c.id)}
-                                  disabled={c.is_paused}
+                                  onSelect={() => !isDisabled && toggleCourse(c.id)}
+                                  disabled={isDisabled}
                                   className="gap-2"
                                 >
                                   <div
@@ -493,6 +669,9 @@ export default function AgentPortal() {
                                       {c.is_paused && (
                                         <span className="text-xs text-amber-600">· ⏸ متوقفة</span>
                                       )}
+                                      {c.subscription_open === false && (
+                                        <span className="text-xs text-red-600">· 🔒 التسجيل موقوف</span>
+                                      )}
                                     </div>
                                     {c.join_code && (
                                       <div className="text-[10px] text-muted-foreground font-mono">
@@ -512,7 +691,7 @@ export default function AgentPortal() {
                   <div className="flex gap-1 text-xs">
                     <button
                       type="button"
-                      onClick={() => setForm({ ...form, subjectIds: filteredCourses.filter((c) => !c.is_paused).map((c) => c.id) })}
+                      onClick={() => setForm({ ...form, subjectIds: filteredCourses.filter((c) => !c.is_paused && c.subscription_open !== false).map((c) => c.id) })}
                       className="text-sky-600 hover:underline"
                       disabled={filteredCourses.length === 0}
                     >
@@ -532,6 +711,8 @@ export default function AgentPortal() {
               )}
             </div>
 
+            {studentMode === 'new' && (
+              <>
             <div className="space-y-1">
               <Label htmlFor="ag-student-name">اسم الطالب</Label>
               <div className="relative">
@@ -574,10 +755,12 @@ export default function AgentPortal() {
                 dir="ltr"
               />
             </div>
+              </>
+            )}
 
             <Button
               onClick={submit}
-              disabled={saving || loadingMeta || courses.length === 0 || form.subjectIds.length === 0}
+              disabled={saving || loadingMeta || courses.length === 0 || form.subjectIds.length === 0 || (studentMode === 'existing' && !lookupResult)}
               className="w-full h-11 bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
             >
               {saving ? (
