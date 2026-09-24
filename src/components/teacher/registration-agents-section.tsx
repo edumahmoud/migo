@@ -251,7 +251,7 @@ export default function RegistrationAgentsSection() {
 
   const toggleActive = async (a: RegistrationAgent, next: boolean) => {
     try {
-      const res = await fetch(`/api/teacher/registration-agents?id=${a.id}`, {
+      const res = await fetch(`/api/teacher/registration-agents/${a.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
         body: JSON.stringify({ is_active: next }),
@@ -271,7 +271,7 @@ export default function RegistrationAgentsSection() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const res = await fetch(`/api/teacher/registration-agents?id=${deleteTarget.id}`, {
+      const res = await fetch(`/api/teacher/registration-agents/${deleteTarget.id}`, {
         method: 'DELETE',
         headers: await getCachedAuthHeaders(),
       });

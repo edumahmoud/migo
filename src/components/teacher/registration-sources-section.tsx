@@ -129,7 +129,7 @@ export default function RegistrationSourcesSection() {
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/teacher/registration-sources?id=${editing.id}`, {
+      const res = await fetch(`/api/teacher/registration-sources/${editing.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
         body: JSON.stringify(editForm),
@@ -152,7 +152,7 @@ export default function RegistrationSourcesSection() {
   const confirmDelete = async (s: RegistrationSource) => {
     if (!window.confirm(`حذف مصدر "${s.name}"؟ لا يمكن التراجع.`)) return;
     try {
-      const res = await fetch(`/api/teacher/registration-sources?id=${s.id}`, {
+      const res = await fetch(`/api/teacher/registration-sources/${s.id}`, {
         method: 'DELETE',
         headers: await getCachedAuthHeaders(),
       });
