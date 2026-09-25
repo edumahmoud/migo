@@ -27,7 +27,7 @@ type SessionStatus =
 export default function OtpVerificationPage() {
   const { t } = useTranslations();
   const router = useRouter();
-  const { signOut, user } = useAuthStore();
+  const { signOut, user, setUser } = useAuthStore();
   const { reset: resetAppStore } = useAppStore();
 
   const [otpCode, setOtpCode] = useState('');
@@ -97,7 +97,23 @@ export default function OtpVerificationPage() {
         } else if (json.status === 'verified') {
           setStatus('verified');
           toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
-          setTimeout(() => router.push('/'), 1500);
+          // CRITICAL: refresh the auth-store user before redirecting,
+          // so page.tsx routing sees the updated account_status='pending'
+          // (was 'pending_verification' before OTP verification).
+          // Without this refresh, the cached user still has the old
+          // status and routing may render the wrong page.
+          try {
+            const meRes = await fetch('/api/auth/me', {
+              headers: await getCachedAuthHeaders(),
+            });
+            const meJson = await meRes.json();
+            if (meJson.profile) {
+              setUser(meJson.profile);
+            }
+          } catch {
+            // silent — the redirect will still trigger a page reload
+          }
+          setTimeout(() => router.push('/'), 1000);
         } else if (json.status === 'expired') {
           setStatus('expired');
         }
@@ -106,7 +122,7 @@ export default function OtpVerificationPage() {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [status, router]);
+  }, [status, router, setUser]);
 
   // 4. Verify OTP
   const handleVerify = async () => {
@@ -122,6 +138,20 @@ export default function OtpVerificationPage() {
       if (json.success) {
         setStatus('verified');
         toast.success('تم التحقق من رقم هاتفك بنجاح!');
+        // CRITICAL: refresh auth-store user before redirecting, so
+        // page.tsx routing sees account_status='pending' (was
+        // 'pending_verification' before OTP verification).
+        try {
+          const meRes = await fetch('/api/auth/me', {
+            headers: await getCachedAuthHeaders(),
+          });
+          const meJson = await meRes.json();
+          if (meJson.profile) {
+            setUser(meJson.profile);
+          }
+        } catch {
+          // silent — redirect still triggers page reload
+        }
         setTimeout(() => router.push('/'), 1000);
       } else {
         toast.error(json.error || 'الكود غير صحيح');

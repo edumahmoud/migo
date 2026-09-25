@@ -32,7 +32,7 @@ export async function GET(
     let profile = null;
     const { data: profileWithUsername, error: profileError } = await supabaseServer
       .from('users')
-      .select('id, name, username, role, avatar_url, title_id, gender, created_at')
+      .select('id, name, username, role, avatar_url, title_id, gender, created_at, student_code, teacher_code')
       .eq('id', userId)
       .single();
 
@@ -41,7 +41,7 @@ export async function GET(
       if (profileError.message?.includes('username') || profileError.code === 'PGRST204') {
         const { data: profileNoUsername, error: fallbackError } = await supabaseServer
           .from('users')
-          .select('id, name, role, avatar_url, title_id, gender, created_at')
+          .select('id, name, role, avatar_url, title_id, gender, created_at, student_code, teacher_code')
           .eq('id', userId)
           .single();
 
