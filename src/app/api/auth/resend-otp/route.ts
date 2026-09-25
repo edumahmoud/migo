@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { scryptSync, randomBytes } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { normalizePhoneToE164 } from '@/lib/phone-utils';
 
 /**
  * POST /api/auth/resend-otp
@@ -116,6 +117,29 @@ export async function POST(request: NextRequest) {
 
   if (!p.phone) {
     return NextResponse.json({ success: false, error: 'لا يوجد رقم هاتف مرتبط بحسابك' }, { status: 400 });
+  }
+
+  // 1b. NORMALIZE the phone to E.164 before doing anything else.
+  //     If the user signed up before the normalization fix, the DB
+  //     still has local format like '01555614624'. Telegram Gateway
+  //     rejects anything that doesn't start with +. We normalize here
+  //     AND persist the normalized value back to the DB so future
+  //     requests use it directly.
+  const normalizedPhone = normalizePhoneToE164(p.phone);
+  if (!normalizedPhone) {
+    return NextResponse.json(
+      { success: false, error: `رقم الهاتف المخزَّن (${p.phone}) غير صالح. حدّث رقمك من زر "تحديث الرقم".` },
+      { status: 400 }
+    );
+  }
+  if (normalizedPhone !== p.phone) {
+    // Persist the normalized phone back to the DB.
+    await supabaseServer
+      .from('users')
+      .update({ phone: normalizedPhone, updated_at: new Date().toISOString() })
+      .eq('id', p.id);
+    // Use the normalized value for the rest of this request.
+    p.phone = normalizedPhone;
   }
 
   // 2. Check resend cooldown.
