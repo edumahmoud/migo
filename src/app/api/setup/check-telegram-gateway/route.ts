@@ -167,7 +167,8 @@ export async function GET(request: NextRequest) {
       'MESSAGE_RATE_LIMIT_EXCEEDED': 'تم تجاوز حد الإرسال. حاول لاحقاً.',
       'USER_NOT_FOUND': 'لا يوجد حساب تليجرام بهذا الرقم.',
       'ACCOUNT_BLOCKED': 'تم حظر حسابك في Telegram Gateway.',
-      'INSUFFICIENT_FUNDS': 'رصيد غير كافٍ في حساب Telegram Gateway. أعد شحن المحفظة بـ TON.',
+      'BALANCE_NOT_ENOUGH': '⚠️ رصيد TON غير كافٍ في حسابك. سجّل دخول على https://gateway.telegram.org → شحن المحفظة بعملة TON.',
+      'INSUFFICIENT_FUNDS': '⚠️ رصيد غير كافٍ. أعد شحن المحفظة بـ TON من https://gateway.telegram.org.',
     };
     verdict = arabicErrorMap[code] || `Gateway returned error: ${code}`;
   } else if (gatewayProbe.attempted && gatewayProbe.error) {

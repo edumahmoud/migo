@@ -110,7 +110,8 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{
         'MESSAGE_RATE_LIMIT_EXCEEDED': 'تم تجاوز حد الإرسال. حاول لاحقاً.',
         'USER_NOT_FOUND': 'لا يوجد حساب تليجرام بهذا الرقم. يجب أن يكون لدى الطالب تليجرام مثبت ومسجل بنفس الرقم.',
         'ACCOUNT_BLOCKED': 'تم حظر حسابك في Telegram Gateway. تواصل مع الدعم.',
-        'INSUFFICIENT_FUNDS': 'رصيد غير كافٍ في حساب Telegram Gateway. أعد شحن المحفظة بـ TON.',
+        'BALANCE_NOT_ENOUGH': '⚠️ رصيد TON غير كافٍ في حسابك على Telegram Gateway. سجّل دخول على https://gateway.telegram.org → شحن المحفظة بعملة TON. كل رسالة تكلفتها تقريباً 0.001-0.01 TON.',
+        'INSUFFICIENT_FUNDS': '⚠️ رصيد غير كافٍ في حساب Telegram Gateway. أعد شحن المحفظة بـ TON من https://gateway.telegram.org.',
       };
       return {
         sent: false,
