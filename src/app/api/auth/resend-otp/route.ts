@@ -35,7 +35,13 @@ function generateOTP(): string {
  * If the token is not configured, the OTP is still stored locally
  * (for dev/testing — the code can be read from server logs).
  */
-async function sendOtpViaGateway(phone: string, code: string): Promise<{ sent: boolean; error?: string }> {
+async function sendOtpViaGateway(phone: string, code: string): Promise<{
+  sent: boolean;
+  error?: string;
+  http_status?: number;
+  response_preview?: string;
+  elapsed_ms?: number;
+}> {
   if (!GATEWAY_TOKEN) {
     // Dev mode — log the code so the developer can test.
     console.log(`[OTP DEV MODE] Code for ${phone}: ${code}`);
@@ -43,6 +49,7 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{ sent: b
   }
 
   try {
+    const startTime = Date.now();
     const res = await fetch(GATEWAY_SEND_URL, {
       method: 'POST',
       headers: {
@@ -55,18 +62,29 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{ sent: b
         // Optional: brand name shown in the Telegram message.
         sender: 'AttenDo',
       }),
+      signal: AbortSignal.timeout(15000),
     });
+    const elapsed = Date.now() - startTime;
+    const body = await res.text().catch(() => '');
 
     if (!res.ok) {
-      const errText = await res.text().catch(() => 'unknown');
-      console.error('[resend-otp] Gateway error:', res.status, errText);
-      return { sent: false, error: `Gateway error: ${res.status}` };
+      console.error('[resend-otp] Gateway error:', res.status, body);
+      return {
+        sent: false,
+        error: `Gateway HTTP ${res.status}`,
+        http_status: res.status,
+        response_preview: body.slice(0, 300),
+        elapsed_ms: elapsed,
+      };
     }
 
-    return { sent: true };
+    return { sent: true, http_status: res.status, response_preview: body.slice(0, 300), elapsed_ms: elapsed };
   } catch (err) {
     console.error('[resend-otp] Gateway fetch error:', err);
-    return { sent: false, error: 'Network error contacting Telegram Gateway' };
+    return {
+      sent: false,
+      error: err instanceof Error ? err.message : 'Network error contacting Telegram Gateway',
+    };
   }
 }
 
@@ -165,15 +183,23 @@ export async function POST(request: NextRequest) {
   // 6. Send OTP via Telegram Gateway API (directly to the phone number).
   const gatewayResult = await sendOtpViaGateway(p.phone, code);
 
-  // 7. Response.
+  // 7. Response — include diagnostic info so the frontend can show
+  //    the user (and the operator) the actual gateway error.
   return NextResponse.json({
     success: true,
     message: gatewayResult.sent
       ? 'تم إرسال كود التحقق إلى رقم هاتفك عبر تليجرام. تحقق من تطبيق تليجرام.'
       : GATEWAY_TOKEN
-        ? 'تعذّر إرسال الكود عبر تليجرام. حاول مرة أخرى.'
+        ? `تعذّر إرسال الكود عبر تليجرام: ${gatewayResult.error || 'خطأ غير معروف'}`
         : 'تم إنشاء كود التحقق. (وضع التطوير — راجع سجل الخادم للحصول على الكود.)',
     gateway_sent: gatewayResult.sent,
+    gateway_error: gatewayResult.error,
+    gateway_http_status: gatewayResult.http_status,
+    gateway_response_preview: gatewayResult.response_preview,
+    gateway_elapsed_ms: gatewayResult.elapsed_ms,
+    token_configured: !!GATEWAY_TOKEN,
+    phone: p.phone,
     otp_id: (newOtp as { id: string }).id,
+    diagnostic_url: '/api/setup/check-telegram-gateway',
   });
 }

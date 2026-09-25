@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, Phone } from 'lucide-react';
+import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, Phone, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,12 @@ export default function OtpVerificationPage() {
   const [cooldown, setCooldown] = useState(0);
   const [loading, setLoading] = useState(true);
   const [gatewaySent, setGatewaySent] = useState(false);
+  const [gatewayError, setGatewayError] = useState<string | null>(null);
+  const [gatewayHttpStatus, setGatewayHttpStatus] = useState<number | null>(null);
+  const [tokenConfigured, setTokenConfigured] = useState(true);
+  const [diagnostic, setDiagnostic] = useState<Record<string, unknown> | null>(null);
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
+  const [runningDiagnostic, setRunningDiagnostic] = useState(false);
 
   const phone = (user as { phone?: string } | null)?.phone ?? null;
 
@@ -40,9 +46,18 @@ export default function OtpVerificationPage() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم إرسال كود التحقق');
-        setCooldown(60);
         setGatewaySent(json.gateway_sent ?? false);
+        setGatewayError(json.gateway_error ?? null);
+        setGatewayHttpStatus(json.gateway_http_status ?? null);
+        setTokenConfigured(json.token_configured ?? true);
+        if (json.gateway_sent) {
+          toast.success(json.message || 'تم إرسال كود التحقق');
+        } else {
+          // Show a clear actionable error toast
+          const err = json.gateway_error || (json.token_configured ? 'تعذّر إرسال الكود' : 'التوكن غير مُعدّ');
+          toast.error(err, { duration: 8000 });
+        }
+        setCooldown(60);
       } else {
         toast.error(json.error || 'تعذّر إرسال الكود');
       }
@@ -111,14 +126,41 @@ export default function OtpVerificationPage() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم إعادة إرسال الكود');
-        setCooldown(60);
         setGatewaySent(json.gateway_sent ?? false);
+        setGatewayError(json.gateway_error ?? null);
+        setGatewayHttpStatus(json.gateway_http_status ?? null);
+        setTokenConfigured(json.token_configured ?? true);
+        if (json.gateway_sent) {
+          toast.success(json.message || 'تم إعادة إرسال الكود');
+        } else {
+          toast.error(json.gateway_error || 'تعذّر إعادة الإرسال', { duration: 8000 });
+        }
+        setCooldown(60);
       } else {
         toast.error(json.error || 'تعذّر إعادة الإرسال');
       }
     } catch { toast.error(t('common.unexpectedError')); }
     finally { setResending(false); }
+  };
+
+  const handleRunDiagnostic = async () => {
+    setRunningDiagnostic(true);
+    setShowDiagnostic(true);
+    try {
+      const res = await fetch('/api/setup/check-telegram-gateway', {
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      setDiagnostic(json);
+      if (json.verdict) {
+        toast.info(json.verdict, { duration: 10000 });
+      }
+    } catch (e) {
+      setDiagnostic({ error: e instanceof Error ? e.message : 'unknown' });
+      toast.error('تعذّر تشغيل التشخيص');
+    } finally {
+      setRunningDiagnostic(false);
+    }
   };
 
   const handleSignOut = () => {
@@ -168,9 +210,49 @@ export default function OtpVerificationPage() {
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Phone className="h-4 w-4" />
                 <span dir="ltr">{phone}</span>
-                {!gatewaySent && (
-                  <Badge variant="secondary" className="text-xs">وضع التطوير</Badge>
+                {!gatewaySent && tokenConfigured && (
+                  <Badge variant="destructive" className="text-xs">تعذّر الإرسال</Badge>
                 )}
+                {!tokenConfigured && (
+                  <Badge variant="secondary" className="text-xs">التوكن غير مُعدّ</Badge>
+                )}
+              </div>
+            )}
+
+            {/* Gateway error banner */}
+            {!gatewaySent && gatewayError && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/15 p-3 space-y-2">
+                <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 text-xs space-y-1">
+                    <div className="font-semibold">لم يتم إرسال الكود إلى تليجرام</div>
+                    <div className="opacity-80">
+                      {gatewayError}
+                      {gatewayHttpStatus && ` (HTTP ${gatewayHttpStatus})`}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRunDiagnostic}
+                      disabled={runningDiagnostic}
+                      className="mt-1 underline hover:no-underline disabled:opacity-50"
+                    >
+                      {runningDiagnostic ? 'جارٍ التشخيص...' : 'تشخيص المشكلة'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Diagnostic panel */}
+            {showDiagnostic && diagnostic && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 text-xs space-y-1">
+                <div className="font-semibold mb-1">نتائج التشخيص:</div>
+                {diagnostic.verdict && (
+                  <div className="text-sky-700 dark:text-sky-300">{diagnostic.verdict as string}</div>
+                )}
+                <div className="font-mono text-[10px] text-muted-foreground mt-2 max-h-32 overflow-auto">
+                  <pre dir="ltr">{JSON.stringify(diagnostic, null, 2)}</pre>
+                </div>
               </div>
             )}
 
