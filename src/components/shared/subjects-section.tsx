@@ -393,11 +393,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         const allSubjects = [...ownedSubjects, ...coTaughtSubjects];
         setSubjects(allSubjects);
 
-        // Save to cache
+        // Save to cache (teacher branch — no subscriptions field used,
+        // but the cache type requires it, so set an empty object)
         subjectsCache.set(cacheKey, {
           data: allSubjects,
           teacherNames: {},
           enrollmentStatuses: {},
+          subscriptions: {},
           timestamp: Date.now(),
         });
       } else {
@@ -510,6 +512,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             data: [],
             teacherNames: {},
             enrollmentStatuses: {},
+            subscriptions: {},
             timestamp: Date.now(),
           });
         }
