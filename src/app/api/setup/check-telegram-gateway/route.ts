@@ -56,13 +56,16 @@ export async function GET(request: NextRequest) {
   let gatewayProbe: Record<string, unknown> = { attempted: false };
   let botApiProbe: Record<string, unknown> = { attempted: false };
 
-  // 4a. Gateway API probe — DON'T follow redirects, because Telegram
-  //     returns 302 → / when auth fails (and 200 with HTML when
-  //     followed, which is misleading).
+  // 4a. Gateway API probe — uses the CORRECT endpoint per the official
+  //     docs at https://gateway.telegram.org/docs:
+  //       URL: https://gatewayapi.telegram.org/sendVerificationMessage
+  //     (NOT https://gateway.telegram.org/sendCode which is just the
+  //     dashboard web page and always returns HTML).
+  //     We use redirect: 'manual' to detect any 302 auth failures.
   if (tokenLooksValid && userPhone && phoneStartsWithPlus) {
     gatewayProbe.attempted = true;
     try {
-      const url = 'https://gateway.telegram.org/sendCode';
+      const url = 'https://gatewayapi.telegram.org/sendVerificationMessage';
       const startTime = Date.now();
       const res = await fetch(url, {
         method: 'POST',
@@ -72,27 +75,30 @@ export async function GET(request: NextRequest) {
         },
         body: JSON.stringify({
           phone_number: userPhone,
-          code: '000000', // sentinel
-          sender: 'AttenDo',
+          code: '000000', // sentinel — Telegram should accept the request
+                          // and the user will receive an OTP. They can
+                          // ignore it. (Real OTPs come from /api/auth/resend-otp.)
         }),
-        redirect: 'manual', // ← CRITICAL: don't follow the 302
+        redirect: 'manual',
         signal: AbortSignal.timeout(15000),
       });
       const elapsed = Date.now() - startTime;
       const body = await res.text();
-      const location = res.headers.get('location');
+      let parsed: { ok?: boolean; error?: string } | null = null;
+      try { parsed = JSON.parse(body); } catch { /* not JSON */ }
+
       gatewayProbe = {
         attempted: true,
         http_status: res.status,
         http_ok: res.ok,
         elapsed_ms: elapsed,
         response_preview: body.slice(0, 500),
-        response_headers: {
-          'content-type': res.headers.get('content-type'),
-          'location': location,
-        },
-        // 302 with location: '/' = AUTH FAILED (token rejected)
-        auth_failed: res.status === 302 && (location === '/' || location === ''),
+        response_content_type: res.headers.get('content-type'),
+        parsed,
+        // Telegram Gateway returns {ok: true} on success, {ok: false, error: ...} on failure
+        token_accepted: parsed?.ok === true,
+        // Specific error codes per the official docs
+        error_code: parsed?.error,
       };
     } catch (e) {
       gatewayProbe.error = e instanceof Error ? e.message : 'unknown error';
@@ -139,9 +145,7 @@ export async function GET(request: NextRequest) {
     verdict = 'Token has leading/trailing whitespace — re-copy the token without spaces.';
   } else if (tokenHasColon) {
     if (botApiProbe.attempted && botApiProbe.token_is_valid_bot_api) {
-      verdict = '⚠️ You provided a Telegram BOT API token (has colon). It is valid for the Bot API, but NOT for gateway.telegram.org/sendCode. Two options:\n' +
-        '   (1) Get a real Gateway API token from https://my.telegram.org → API Development Tools → Telegram Gateway.\n' +
-        '   (2) Switch the OTP code to use the Bot API (requires the student to send /start to your bot first — not viable for signups).';
+      verdict = '⚠️ You provided a Telegram BOT API token (has colon). Bot API tokens are for api.telegram.org/bot<token>/sendMessage, NOT for the Telegram Gateway. Get a real Gateway API token from https://gateway.telegram.org → log in → Account → API token.';
     } else if (botApiProbe.attempted) {
       verdict = `Token has a colon (Bot API format) but Bot API also rejected it (HTTP ${botApiProbe.http_status}). Token is invalid or revoked.`;
     } else {
@@ -151,16 +155,25 @@ export async function GET(request: NextRequest) {
     verdict = "User has no phone stored. The trigger or ensure-pending-verification didn't store the phone from auth metadata.";
   } else if (!phoneStartsWithPlus) {
     verdict = `Phone "${userPhone}" doesn't start with +. Telegram Gateway requires E.164 international format like +201012345678.`;
-  } else if (gatewayProbe.attempted && gatewayProbe.auth_failed) {
-    verdict = 'Gateway returned 302 → / (auth failed). The Gateway API token is REJECTED by Telegram. Token is wrong, revoked, or you\'re using a Bot API token (which has a colon) instead. Get a valid Gateway API token from https://my.telegram.org → API Development Tools.';
+  } else if (gatewayProbe.attempted && gatewayProbe.token_accepted === true) {
+    verdict = '✅ Telegram Gateway accepted the token and sent the probe OTP. The real OTP from /api/auth/resend-otp should also work. If you still don\'t receive the code, check: (a) the Telegram app on the phone is registered to the same number, (b) Telegram is installed and signed in, (c) the phone is not in DND mode.';
+  } else if (gatewayProbe.attempted && typeof gatewayProbe.error_code === 'string') {
+    const code = gatewayProbe.error_code;
+    const arabicErrorMap: Record<string, string> = {
+      'ACCESS_TOKEN_INVALID': 'توكن تليجرام غير صالح أو مُلغى. تحقق من قيمة TELEGRAM_GATEWAY_API_TOKEN في Vercel.',
+      'ACCESS_TOKEN_EXPIRED': 'انتهت صلاحية التوكن. أعد توليده من لوحة تحكم Telegram Gateway.',
+      'PHONE_NUMBER_INVALID': `رقم الهاتف (${userPhone}) غير صالح. يجب أن يكون بصيغة E.164 مثل +201555614624.`,
+      'PHONE_NUMBER_FLOOD': 'تم إرسال العديد من الأكواد لهذا الرقم مؤخراً. حاول لاحقاً.',
+      'MESSAGE_RATE_LIMIT_EXCEEDED': 'تم تجاوز حد الإرسال. حاول لاحقاً.',
+      'USER_NOT_FOUND': 'لا يوجد حساب تليجرام بهذا الرقم.',
+      'ACCOUNT_BLOCKED': 'تم حظر حسابك في Telegram Gateway.',
+      'INSUFFICIENT_FUNDS': 'رصيد غير كافٍ في حساب Telegram Gateway. أعد شحن المحفظة بـ TON.',
+    };
+    verdict = arabicErrorMap[code] || `Gateway returned error: ${code}`;
   } else if (gatewayProbe.attempted && gatewayProbe.error) {
     verdict = `Gateway probe failed with network error: ${gatewayProbe.error}. Likely a DNS/firewall issue from Vercel's region.`;
-  } else if (gatewayProbe.attempted && gatewayProbe.http_status === 200) {
-    verdict = 'Gateway returned 200 OK. If you still don\'t receive the code in Telegram, check: (a) the Telegram app on your phone is registered to the same phone number, (b) Telegram is installed and signed in.';
-  } else if (gatewayProbe.attempted && gatewayProbe.http_status === 302) {
-    verdict = 'Gateway returned 302 redirect → auth failed. Token is rejected.';
   } else if (gatewayProbe.attempted) {
-    verdict = `Gateway returned HTTP ${gatewayProbe.http_status}. See response_preview for details.`;
+    verdict = `Gateway returned HTTP ${gatewayProbe.http_status} with content-type ${gatewayProbe.response_content_type}. See response_preview for details.`;
   }
 
   return NextResponse.json({

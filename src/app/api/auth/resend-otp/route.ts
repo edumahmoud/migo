@@ -14,6 +14,13 @@ import { normalizePhoneToE164 } from '@/lib/phone-utils';
  * The Telegram Gateway sends the code to the Telegram app installed
  * on that phone number (with SMS fallback if Telegram is not installed).
  *
+ * API endpoint (per official docs at https://gateway.telegram.org/docs):
+ *   URL:    https://gatewayapi.telegram.org/sendVerificationMessage
+ *   Auth:   Authorization: Bearer <token>
+ *   Body:   { phone_number: "+...", code: "123456", sender_username?: "..." }
+ *   Response: { ok: true, result: {...} } on success,
+ *             { ok: false, error: "ACCESS_TOKEN_INVALID" } on failure.
+ *
  * Rate limiting:
  *   - Resend cooldown: 60 seconds.
  *   - Max 3 OTP requests per phone per hour.
@@ -21,7 +28,7 @@ import { normalizePhoneToE164 } from '@/lib/phone-utils';
  * Env: TELEGRAM_GATEWAY_API_TOKEN (from Telegram Gateway dashboard).
  */
 const GATEWAY_TOKEN = process.env.TELEGRAM_GATEWAY_API_TOKEN || '';
-const GATEWAY_SEND_URL = 'https://gateway.telegram.org/sendCode';
+const GATEWAY_SEND_URL = 'https://gatewayapi.telegram.org/sendVerificationMessage';
 const OTP_EXPIRY_MINUTES = 5;
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_OTP_PER_HOUR = 3;
@@ -42,6 +49,7 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{
   http_status?: number;
   response_preview?: string;
   elapsed_ms?: number;
+  error_code?: string;
 }> {
   if (!GATEWAY_TOKEN) {
     // Dev mode — log the code so the developer can test.
@@ -57,39 +65,64 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${GATEWAY_TOKEN}`,
       },
+      // Per the official Telegram Gateway API docs:
+      //   URL: https://gatewayapi.telegram.org/sendVerificationMessage
+      //   Body fields: phone_number, code, sender_username (optional)
+      // Response: JSON with `ok` field (true on success, false on error).
       body: JSON.stringify({
         phone_number: phone,
         code: code,
-        // Optional: brand name shown in the Telegram message.
-        sender: 'AttenDo',
+        // sender_username is OPTIONAL — only set if the user has a
+        // bot/channel registered with their gateway account. Leave it
+        // out by default; the gateway will use a generic sender.
       }),
-      // CRITICAL: don't follow redirects. Telegram Gateway returns
-      // 302 → / when auth fails (bad token, wrong token type). If we
-      // follow the redirect, we'd end up at the homepage with HTTP 200
-      // + HTML, which looks like success but isn't.
       redirect: 'manual',
       signal: AbortSignal.timeout(15000),
     });
     const elapsed = Date.now() - startTime;
     const body = await res.text().catch(() => '');
-    const location = res.headers.get('location');
 
-    // Detect the 302 auth-failure pattern.
-    if (res.status === 302 && (location === '/' || location === '')) {
-      console.error('[resend-otp] Gateway 302 → / (auth failed). Token rejected.');
-      // Check if token looks like a Bot API token (has colon)
-      const looksLikeBotToken = GATEWAY_TOKEN.includes(':');
+    // Try to parse the JSON response — Telegram Gateway always returns
+    // JSON with an `ok` field per the official docs.
+    let parsed: { ok?: boolean; error?: string; result?: unknown } | null = null;
+    try { parsed = JSON.parse(body); } catch { /* not JSON */ }
+
+    // Success path: HTTP 200 + JSON with ok:true
+    if (res.status === 200 && parsed?.ok === true) {
       return {
-        sent: false,
-        error: looksLikeBotToken
-          ? 'تم رفض التوكن من تليجرام — يبدو أنك استخدمت Bot API Token (يحتوي على نقطتين :) بدلاً من Gateway API Token. احصل على Gateway API Token من https://my.telegram.org'
-          : 'تم رفض التوكن من تليجرام — توكن خاطئ أو مُلغى. أعد توليده من https://my.telegram.org',
+        sent: true,
         http_status: res.status,
-        response_preview: `302 redirect to ${location}`,
+        response_preview: body.slice(0, 300),
         elapsed_ms: elapsed,
       };
     }
 
+    // Auth/token failure: JSON with ok:false + error:ACCESS_TOKEN_INVALID
+    if (parsed?.ok === false) {
+      const errorCode = parsed.error || 'UNKNOWN_ERROR';
+      console.error('[resend-otp] Gateway returned ok:false:', errorCode, body);
+      // Map common error codes to user-friendly Arabic messages
+      const arabicErrorMap: Record<string, string> = {
+        'ACCESS_TOKEN_INVALID': 'توكن تليجرام غير صالح أو مُلغى. تحقق من قيمة TELEGRAM_GATEWAY_API_TOKEN في Vercel.',
+        'ACCESS_TOKEN_EXPIRED': 'انتهت صلاحية التوكن. أعد توليده من لوحة تحكم Telegram Gateway.',
+        'PHONE_NUMBER_INVALID': `رقم الهاتف (${phone}) غير صالح. يجب أن يكون بصيغة E.164 مثل +201555614624.`,
+        'PHONE_NUMBER_FLOOD': 'تم إرسال العديد من الأكواد لهذا الرقم مؤخراً. حاول لاحقاً.',
+        'MESSAGE_RATE_LIMIT_EXCEEDED': 'تم تجاوز حد الإرسال. حاول لاحقاً.',
+        'USER_NOT_FOUND': 'لا يوجد حساب تليجرام بهذا الرقم. يجب أن يكون لدى الطالب تليجرام مثبت ومسجل بنفس الرقم.',
+        'ACCOUNT_BLOCKED': 'تم حظر حسابك في Telegram Gateway. تواصل مع الدعم.',
+        'INSUFFICIENT_FUNDS': 'رصيد غير كافٍ في حساب Telegram Gateway. أعد شحن المحفظة بـ TON.',
+      };
+      return {
+        sent: false,
+        error: arabicErrorMap[errorCode] || `خطأ من تليجرام: ${errorCode}`,
+        http_status: res.status,
+        response_preview: body.slice(0, 300),
+        elapsed_ms: elapsed,
+        error_code: errorCode,
+      };
+    }
+
+    // Fallback: not JSON, or unexpected status
     if (!res.ok) {
       console.error('[resend-otp] Gateway error:', res.status, body);
       return {
@@ -101,7 +134,14 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{
       };
     }
 
-    return { sent: true, http_status: res.status, response_preview: body.slice(0, 300), elapsed_ms: elapsed };
+    // 200 but unexpected body
+    return {
+      sent: false,
+      error: 'استجابة غير متوقعة من تليجرام',
+      http_status: res.status,
+      response_preview: body.slice(0, 300),
+      elapsed_ms: elapsed,
+    };
   } catch (err) {
     console.error('[resend-otp] Gateway fetch error:', err);
     return {
