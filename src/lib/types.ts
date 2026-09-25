@@ -6,7 +6,7 @@ export type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin' | 'registr
 
 export type UserStatus = 'online' | 'away' | 'busy' | 'offline' | 'invisible';
 
-export type AccountStatus = 'pending' | 'active' | 'suspended';
+export type AccountStatus = 'pending_verification' | 'pending' | 'active' | 'suspended';
 
 export interface UserProfile {
   id: string;
@@ -14,7 +14,9 @@ export interface UserProfile {
   name: string;
   username?: string;
   role: UserRole;
-  account_status?: AccountStatus;  // v68: PENDING students see the activation page
+  account_status?: AccountStatus;
+  phone?: string | null;          // v73: phone number for OTP verification
+  phone_verified?: boolean;       // v73: whether the phone was OTP-verified
   teacher_code?: string;
   student_code?: string | null;
   avatar_url?: string | null;

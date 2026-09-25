@@ -294,7 +294,7 @@ export async function requireStudent(
  * Helper used by both requireActiveStudent and requirePendingStudent.
  * Fetches the student's account_status from the DB (server-side source of truth).
  */
-async function fetchAccountStatus(userId: string): Promise<'pending' | 'active' | 'suspended' | null> {
+async function fetchAccountStatus(userId: string): Promise<'pending_verification' | 'pending' | 'active' | 'suspended' | null> {
   try {
     const { data, error } = await supabaseServer
       .from('users')
@@ -386,6 +386,14 @@ export async function requireEligibleStudent(
     return {
       success: false,
       error: 'حسابك موقوف. تواصل مع الإدارة.',
+      status: 403,
+    } as unknown as AuthResponse & { role: 'student' };
+  }
+  // v73: pending_verification students must verify their phone first.
+  if (accountStatus === 'pending_verification') {
+    return {
+      success: false,
+      error: 'يجب تأكيد رقم هاتفك أولاً عبر تليجرام.',
       status: 403,
     } as unknown as AuthResponse & { role: 'student' };
   }

@@ -10,6 +10,7 @@ import {
   Loader2,
   GraduationCap,
   User,
+  Phone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ function getPasswordStrength(password: string, t: (key: string) => string): {
 export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -85,6 +87,15 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       toast.error(t('auth.pleaseEnterEmail'));
       return;
     }
+    if (!phone.trim()) {
+      toast.error('الرجاء إدخال رقم الهاتف');
+      return;
+    }
+    // Basic phone validation: digits, +, spaces, min 8 chars
+    if (!/^\+?[\d\s-]{8,15}$/.test(phone.trim())) {
+      toast.error('رقم الهاتف غير صحيح');
+      return;
+    }
     if (!password.trim()) {
       toast.error(t('auth.pleaseEnterPassword'));
       return;
@@ -100,7 +111,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
     setIsLoading(true);
     try {
-      const { error, needsConfirmation } = await signUpWithEmail(email, password, name);
+      const { error, needsConfirmation } = await signUpWithEmail(email, password, name, phone.trim());
       if (error) {
         toast.error(error);
         return;
@@ -191,6 +202,35 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   />
                   <User className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                 </div>
+              </motion.div>
+
+              {/* Phone Field — mandatory for OTP verification */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.25 }}
+                className="space-y-2"
+              >
+                <Label htmlFor="reg-phone" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  رقم الهاتف <span className="text-rose-500">*</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="reg-phone"
+                    type="tel"
+                    placeholder="+20 010 1234 5678"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
+                    disabled={isLoading}
+                    dir="ltr"
+                    maxLength={20}
+                  />
+                  <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  سيتم إرسال كود التحقق عبر تليجرام لهذا الرقم.
+                </p>
               </motion.div>
 
               {/* Email Field */}

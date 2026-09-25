@@ -232,7 +232,7 @@ interface AuthState {
   setLoginInProgress: (inProgress: boolean) => void;
   initialize: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
+  signUpWithEmail: (email: string, password: string, name: string, phone?: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: string | null }>;
@@ -728,7 +728,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  signUpWithEmail: async (email, password, name) => {
+  signUpWithEmail: async (email, password, name, phone) => {
     _loginInProgress = true;
     try {
       // Input validation & sanitization
@@ -757,7 +757,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // the activation flow (link teacher + pay for a course) before
           // gaining platform access. Agent-created students do NOT pass
           // this flag and remain 'active' — their flow is unchanged.
-          data: { name: sanitizedName, role: defaultRole, self_registered: true }
+          data: { name: sanitizedName, role: defaultRole, self_registered: true, phone: phone || undefined }
         }
       });
       
