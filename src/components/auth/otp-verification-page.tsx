@@ -3,18 +3,26 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, Phone, AlertTriangle, Pencil } from 'lucide-react';
+import { Loader2, RefreshCw, LogOut, CheckCircle2, Phone, Send, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 import { normalizePhoneToE164 } from '@/lib/phone-utils';
+
+type SessionStatus =
+  | 'loading'           // initial load
+  | 'pending_start'     // waiting for user to click Start in Telegram
+  | 'otp_sent'          // OTP sent to Telegram, user should enter it
+  | 'verified'          // success — phone verified
+  | 'expired'           // session timed out
+  | 'init_error'        // failed to create session
+  | 'bot_not_configured'; // env vars missing
 
 export default function OtpVerificationPage() {
   const { t } = useTranslations();
@@ -24,88 +32,83 @@ export default function OtpVerificationPage() {
 
   const [otpCode, setOtpCode] = useState('');
   const [verifying, setVerifying] = useState(false);
-  const [resending, setResending] = useState(false);
+  const [initiating, setInitiating] = useState(true);
   const [cooldown, setCooldown] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [gatewaySent, setGatewaySent] = useState(false);
-  const [gatewayError, setGatewayError] = useState<string | null>(null);
-  const [gatewayHttpStatus, setGatewayHttpStatus] = useState<number | null>(null);
-  const [tokenConfigured, setTokenConfigured] = useState(true);
-  const [diagnostic, setDiagnostic] = useState<Record<string, unknown> | null>(null);
-  const [showDiagnostic, setShowDiagnostic] = useState(false);
-  const [runningDiagnostic, setRunningDiagnostic] = useState(false);
+  const [status, setStatus] = useState<SessionStatus>('loading');
+  const [deepLink, setDeepLink] = useState<string | null>(null);
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingPhone, setEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState('');
   const [savingPhone, setSavingPhone] = useState(false);
-  const [phoneNeedsFix, setPhoneNeedsFix] = useState(false);
 
   const phone = (user as { phone?: string } | null)?.phone ?? null;
 
-  // Request OTP on mount.
+  // 1. Initiate verification session on mount
   const init = useCallback(async () => {
-    setLoading(true);
+    setInitiating(true);
+    setStatus('loading');
+    setErrorMessage(null);
     try {
-      const res = await fetch('/api/auth/resend-otp', {
+      const res = await fetch('/api/auth/initiate-telegram-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
       });
       const json = await res.json();
       if (json.success) {
-        setGatewaySent(json.gateway_sent ?? false);
-        setGatewayError(json.gateway_error ?? null);
-        setGatewayHttpStatus(json.gateway_http_status ?? null);
-        setTokenConfigured(json.token_configured ?? true);
-        // Detect if the phone is not in E.164 format (the most common
-        // cause of Telegram Gateway failures).
-        const storedPhone = typeof json.phone === 'string' ? json.phone : null;
-        setPhoneNeedsFix(!!storedPhone && !storedPhone.startsWith('+'));
-        if (json.gateway_sent) {
-          toast.success(json.message || 'تم إرسال كود التحقق');
-        } else {
-          // Show a clear actionable error toast
-          const err = json.gateway_error || (json.token_configured ? 'تعذّر إرسال الكود' : 'التوكن غير مُعدّ');
-          toast.error(err, { duration: 8000 });
-        }
+        setDeepLink(json.deep_link);
+        setBotUsername(json.bot_username);
+        setStatus('pending_start');
         setCooldown(60);
       } else {
-        toast.error(json.error || 'تعذّر إرسال الكود');
+        setStatus('init_error');
+        setErrorMessage(json.error || 'تعذّر بدء جلسة التحقق');
       }
     } catch {
-      toast.error(t('common.unexpectedError'));
+      setStatus('init_error');
+      setErrorMessage(t('common.unexpectedError'));
     } finally {
-      setLoading(false);
+      setInitiating(false);
     }
   }, [t]);
 
   useEffect(() => { init(); }, [init]);
 
-  // Cooldown timer.
+  // 2. Cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => setCooldown(c => c - 1), 1000);
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // Poll for verification result.
-  // We use `phone_verified` (NOT `account_status`) as the signal —
-  // because in the degraded state (v73 migration partially applied),
-  // `account_status` stays 'pending' both before AND after the OTP
-  // step. `phone_verified` flips from false → true on success, which
-  // is unambiguous in both the v73 and degraded paths.
+  // 3. Poll /api/auth/verification-status while status === 'pending_start'
+  //    (no page reload — just internal state update)
   useEffect(() => {
+    if (status !== 'pending_start') return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('/api/auth/me', { headers: await getCachedAuthHeaders() });
+        const res = await fetch('/api/auth/verification-status', {
+          headers: await getCachedAuthHeaders(),
+        });
         const json = await res.json();
-        if (json.profile?.phone_verified === true) {
+        if (json.status === 'otp_sent') {
+          setStatus('otp_sent');
+          toast.success('تم إرسال الكود إلى Telegram!');
+        } else if (json.status === 'verified') {
+          setStatus('verified');
           toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
           setTimeout(() => router.push('/'), 1500);
+        } else if (json.status === 'expired') {
+          setStatus('expired');
         }
-      } catch { /* silent */ }
-    }, 5000);
+      } catch {
+        // silent — keep polling
+      }
+    }, 3000);
     return () => clearInterval(interval);
-  }, [router]);
+  }, [status, router]);
 
+  // 4. Verify OTP
   const handleVerify = async () => {
     if (otpCode.length !== 6) { toast.error('أدخل كود من 6 أرقام'); return; }
     setVerifying(true);
@@ -117,73 +120,26 @@ export default function OtpVerificationPage() {
       });
       const json = await res.json();
       if (json.success) {
+        setStatus('verified');
         toast.success('تم التحقق من رقم هاتفك بنجاح!');
         setTimeout(() => router.push('/'), 1000);
       } else {
         toast.error(json.error || 'الكود غير صحيح');
       }
-    } catch { toast.error(t('common.unexpectedError')); }
-    finally { setVerifying(false); }
-  };
-
-  const handleResend = async () => {
-    setResending(true);
-    try {
-      const res = await fetch('/api/auth/resend-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-      });
-      const json = await res.json();
-      if (json.success) {
-        setGatewaySent(json.gateway_sent ?? false);
-        setGatewayError(json.gateway_error ?? null);
-        setGatewayHttpStatus(json.gateway_http_status ?? null);
-        setTokenConfigured(json.token_configured ?? true);
-        const storedPhone = typeof json.phone === 'string' ? json.phone : null;
-        setPhoneNeedsFix(!!storedPhone && !storedPhone.startsWith('+'));
-        if (json.gateway_sent) {
-          toast.success(json.message || 'تم إعادة إرسال الكود');
-        } else {
-          toast.error(json.gateway_error || 'تعذّر إعادة الإرسال', { duration: 8000 });
-        }
-        setCooldown(60);
-      } else {
-        toast.error(json.error || 'تعذّر إعادة الإرسال');
-      }
-    } catch { toast.error(t('common.unexpectedError')); }
-    finally { setResending(false); }
-  };
-
-  const handleRunDiagnostic = async () => {
-    setRunningDiagnostic(true);
-    setShowDiagnostic(true);
-    try {
-      const res = await fetch('/api/setup/check-telegram-gateway', {
-        headers: await getCachedAuthHeaders(),
-      });
-      const json = await res.json();
-      setDiagnostic(json);
-      if (json.verdict) {
-        toast.info(json.verdict, { duration: 10000 });
-      }
-    } catch (e) {
-      setDiagnostic({ error: e instanceof Error ? e.message : 'unknown' });
-      toast.error('تعذّر تشغيل التشخيص');
+    } catch {
+      toast.error(t('common.unexpectedError'));
     } finally {
-      setRunningDiagnostic(false);
+      setVerifying(false);
     }
   };
 
-  const handleSignOut = () => {
-    resetAppStore();
-    try { signOut(); } catch {}
-    router.push('/');
+  // 5. Resend (restart the verification flow)
+  const handleResend = async () => {
+    setOtpCode('');
+    await init();
   };
 
-  // Update the stored phone (when the original was in local format).
-  // Calls /api/auth/update-phone which normalizes to E.164 + bumps
-  // account_status back to 'pending_verification' so resend-otp will
-  // accept the request.
+  // 6. Update phone (when stored phone is wrong/missing)
   const handleSavePhone = async () => {
     const normalized = normalizePhoneToE164(newPhone.trim());
     if (!normalized) {
@@ -192,20 +148,21 @@ export default function OtpVerificationPage() {
     }
     setSavingPhone(true);
     try {
-      const res = await fetch('/api/auth/update-phone', {
+      // Re-call initiate with the new phone — it will normalize + persist
+      // and create a new session in one step.
+      const res = await fetch('/api/auth/initiate-telegram-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
         body: JSON.stringify({ phone: newPhone.trim() }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || `تم تحديث الرقم إلى ${json.normalized_phone}`);
+        toast.success('تم تحديث رقمك وإنشاء جلسة جديدة.');
         setEditingPhone(false);
         setNewPhone('');
-        setPhoneNeedsFix(false);
-        // Reload the page so the auth-store picks up the new phone
-        // (and triggers a fresh OTP send).
-        setTimeout(() => router.refresh(), 1000);
+        setDeepLink(json.deep_link);
+        setBotUsername(json.bot_username);
+        setStatus('pending_start');
       } else {
         toast.error(json.error || 'تعذّر تحديث الرقم');
       }
@@ -216,12 +173,19 @@ export default function OtpVerificationPage() {
     }
   };
 
-  if (loading) {
+  const handleSignOut = () => {
+    resetAppStore();
+    try { signOut(); } catch {}
+    router.push('/');
+  };
+
+  // Loading screen
+  if (initiating) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50">
         <div className="flex items-center gap-2 text-sky-700">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span>جارٍ إرسال كود التحقق...</span>
+          <span>جارٍ تجهيز جلسة التحقق...</span>
         </div>
       </div>
     );
@@ -243,74 +207,30 @@ export default function OtpVerificationPage() {
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
               className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg"
             >
-              <KeyRound className="h-7 w-7 text-white" />
+              <Send className="h-7 w-7 text-white" />
             </motion.div>
             <CardTitle className="text-xl font-bold">تأكيد رقم الهاتف</CardTitle>
             <CardDescription className="text-sm mt-1">
-              تم إرسال كود التحقق إلى تطبيق تليجرام على رقمك.
+              {status === 'otp_sent'
+                ? 'تم إرسال كود التحقق إلى Telegram.'
+                : 'افتح Telegram واضغط Start لإرسال كود التحقق إليك.'}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="pt-2 px-6 pb-6 space-y-4">
             {/* Phone info */}
-            {phone && (
+            {phone && !editingPhone && (
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Phone className="h-4 w-4" />
                 <span dir="ltr">{phone}</span>
-                {!gatewaySent && tokenConfigured && (
-                  <Badge variant="destructive" className="text-xs">تعذّر الإرسال</Badge>
-                )}
-                {!tokenConfigured && (
-                  <Badge variant="secondary" className="text-xs">التوكن غير مُعدّ</Badge>
-                )}
-              </div>
-            )}
-
-            {/* Gateway error banner */}
-            {!gatewaySent && gatewayError && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/15 p-3 space-y-2">
-                <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <div className="flex-1 text-xs space-y-1">
-                    <div className="font-semibold">لم يتم إرسال الكود إلى تليجرام</div>
-                    <div className="opacity-80">
-                      {gatewayError}
-                      {gatewayHttpStatus && ` (HTTP ${gatewayHttpStatus})`}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRunDiagnostic}
-                      disabled={runningDiagnostic}
-                      className="mt-1 underline hover:no-underline disabled:opacity-50"
-                    >
-                      {runningDiagnostic ? 'جارٍ التشخيص...' : 'تشخيص المشكلة'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Phone format fix banner — most common cause of OTP delivery failure */}
-            {phoneNeedsFix && !editingPhone && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-900/15 p-3 space-y-2">
-                <div className="flex items-start gap-2 text-rose-700 dark:text-rose-400">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <div className="flex-1 text-xs space-y-1">
-                    <div className="font-semibold">رقم الهاتف ليس بصيغة دولية</div>
-                    <div className="opacity-80">
-                      الرقم المخزَّن: <span dir="ltr" className="font-mono">{phone}</span>
-                      <br />
-                      تليجرام يتطلب صيغة E.164 مثل <span dir="ltr" className="font-mono">+201555614624</span>.
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setEditingPhone(true); setNewPhone(phone || ''); }}
-                      className="mt-1 inline-flex items-center gap-1 underline hover:no-underline"
-                    >
-                      <Pencil className="h-3 w-3" /> تحديث الرقم
-                    </button>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEditingPhone(true); setNewPhone(phone || ''); }}
+                  className="text-xs text-sky-600 hover:underline inline-flex items-center gap-1"
+                  title="تعديل الرقم"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
               </div>
             )}
 
@@ -318,7 +238,7 @@ export default function OtpVerificationPage() {
             {editingPhone && (
               <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
                 <Label htmlFor="new-phone" className="text-xs font-medium">
-                  أدخل الرقم الصحيح (مثال: 01555614624)
+                  أدخل الرقم الصحيح
                 </Label>
                 <Input
                   id="new-phone"
@@ -332,7 +252,7 @@ export default function OtpVerificationPage() {
                   autoFocus
                 />
                 <div className="text-[10px] text-muted-foreground">
-                  سيتم تحويله تلقائياً إلى: <span dir="ltr" className="font-mono">{normalizePhoneToE164(newPhone) || '—'}</span>
+                  سيتم تحويله إلى: <span dir="ltr" className="font-mono">{normalizePhoneToE164(newPhone) || '—'}</span>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -345,7 +265,7 @@ export default function OtpVerificationPage() {
                     {savingPhone ? (
                       <><Loader2 className="h-3 w-3 animate-spin me-1" />جارٍ الحفظ...</>
                     ) : (
-                      'حفظ وإرسال الكود'
+                      'حفظ وإعادة الإرسال'
                     )}
                   </Button>
                   <Button
@@ -362,64 +282,102 @@ export default function OtpVerificationPage() {
               </div>
             )}
 
-            {/* Diagnostic panel */}
-            {showDiagnostic && diagnostic && (
-              <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 text-xs space-y-1">
-                <div className="font-semibold mb-1">نتائج التشخيص:</div>
-                {typeof diagnostic.verdict === 'string' && diagnostic.verdict && (
-                  <div className="text-sky-700 dark:text-sky-300">{diagnostic.verdict}</div>
-                )}
-                <div className="font-mono text-[10px] text-muted-foreground mt-2 max-h-32 overflow-auto">
-                  <pre dir="ltr">{JSON.stringify(diagnostic, null, 2)}</pre>
+            {/* STEP 1: Open Telegram */}
+            {status === 'pending_start' && deepLink && !editingPhone && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 p-3 text-sm text-sky-700 dark:text-sky-300 space-y-1">
+                  <div className="font-semibold">الخطوة 1: افتح Telegram</div>
+                  <div className="text-xs opacity-80">
+                    اضغط الزر بالأسفل ليفتح محادثة البوت في Telegram. سيظهر زر Start في الأسفل — اضغطه لإرسال الكود إليك.
+                  </div>
+                </div>
+                <a href={deepLink} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    type="button"
+                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
+                  >
+                    <Send className="h-5 w-5 me-2" /> فتح Telegram
+                  </Button>
+                </a>
+                <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>في انتظار ضغطك لـ Start في Telegram...</span>
                 </div>
               </div>
             )}
 
-            {/* OTP input */}
-            <div className="space-y-2">
-              <Label htmlFor="otp-input" className="text-sm font-medium text-center block">
-                أدخل كود التحقق (6 أرقام)
-              </Label>
-              <Input
-                id="otp-input"
-                type="text"
-                inputMode="numeric"
-                placeholder="••••••"
-                value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="text-center text-2xl font-mono tracking-[0.5em] h-14"
-                disabled={verifying}
-                onKeyDown={(e) => { if (e.key === 'Enter' && otpCode.length === 6) handleVerify(); }}
-                autoFocus
-              />
-            </div>
+            {/* STEP 2: Enter OTP */}
+            {status === 'otp_sent' && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 p-3 text-sm text-teal-700 dark:text-teal-300 space-y-1">
+                  <div className="font-semibold">✅ تم إرسال الكود إلى Telegram</div>
+                  <div className="text-xs opacity-80">أدخل الكود الذي وصلك في محادثة البوت.</div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="otp-input" className="text-sm font-medium text-center block">
+                    أدخل كود التحقق (6 أرقام)
+                  </Label>
+                  <Input
+                    id="otp-input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="••••••"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="text-center text-2xl font-mono tracking-[0.5em] h-14"
+                    disabled={verifying}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && otpCode.length === 6) handleVerify(); }}
+                    autoFocus
+                  />
+                </div>
+                <Button
+                  onClick={handleVerify}
+                  disabled={verifying || otpCode.length !== 6}
+                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
+                >
+                  {verifying ? (
+                    <><Loader2 className="h-5 w-5 animate-spin me-2" />جارٍ التحقق...</>
+                  ) : (
+                    <><CheckCircle2 className="h-5 w-5 me-2" />تأكيد الكود</>
+                  )}
+                </Button>
+              </div>
+            )}
 
-            {/* Verify button */}
-            <Button
-              onClick={handleVerify}
-              disabled={verifying || otpCode.length !== 6}
-              className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
-            >
-              {verifying ? (
-                <><Loader2 className="h-5 w-5 animate-spin me-2" />جارٍ التحقق...</>
-              ) : (
-                <><CheckCircle2 className="h-5 w-5 me-2" />تأكيد الكود</>
-              )}
-            </Button>
+            {/* Init error */}
+            {status === 'init_error' && errorMessage && (
+              <div className="rounded-lg bg-rose-50 dark:bg-rose-900/15 border border-rose-200 dark:border-rose-900/60 p-3 text-sm text-rose-700 dark:text-rose-400">
+                {errorMessage}
+              </div>
+            )}
 
-            {/* Resend + sign out */}
+            {/* Expired */}
+            {status === 'expired' && (
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-900/60 p-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
+                <div className="font-semibold">انتهت صلاحية جلسة التحقق</div>
+                <Button onClick={handleResend} size="sm" variant="outline">طلب كود جديد</Button>
+              </div>
+            )}
+
+            {/* Verified — redirecting */}
+            {status === 'verified' && (
+              <div className="rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 p-3 text-sm text-teal-700 dark:text-teal-400 space-y-2 text-center">
+                <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                <div>تم التحقق بنجاح! جارٍ التحويل لصفحة التفعيل...</div>
+              </div>
+            )}
+
+            {/* Footer: resend + logout */}
             <div className="flex items-center justify-between">
               <button
                 onClick={handleResend}
-                disabled={resending || cooldown > 0}
+                disabled={cooldown > 0 || initiating}
                 className="text-xs text-sky-600 hover:text-sky-700 font-medium disabled:opacity-50 flex items-center gap-1"
               >
-                {resending ? (
-                  <><Loader2 className="h-3 w-3 animate-spin" />جارٍ الإرسال...</>
-                ) : cooldown > 0 ? (
-                  <><RefreshCw className="h-3 w-3" />إعادة الإرسال ({cooldown}s)</>
+                {cooldown > 0 ? (
+                  <><RefreshCw className="h-3 w-3" />إعادة ({cooldown}s)</>
                 ) : (
-                  <><RefreshCw className="h-3 w-3" />إعادة إرسال الكود</>
+                  <><RefreshCw className="h-3 w-3" />طلب كود جديد</>
                 )}
               </button>
               <button
@@ -430,10 +388,12 @@ export default function OtpVerificationPage() {
               </button>
             </div>
 
-            {/* Help text */}
-            <p className="text-center text-xs text-muted-foreground">
-              إذا لم تصلك رسالة التحقق، تأكد من أن تليجرام مثبت على هاتفك ومسجّل بنفس الرقم.
-            </p>
+            {/* Bot username footer */}
+            {botUsername && (
+              <p className="text-center text-xs text-muted-foreground">
+                البوت: <span dir="ltr">@{botUsername}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
       </motion.div>

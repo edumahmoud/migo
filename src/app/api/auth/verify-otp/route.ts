@@ -8,16 +8,24 @@ import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
  * POST /api/auth/verify-otp
  * Body: { code: string }
  *
- * Verifies the OTP code entered by the student. The student must be
- * authenticated and have account_status='pending_verification'.
+ * Verifies the OTP code entered by the student.
+ *
+ * New flow (v74 — Bot API):
+ *   - The student has clicked Start in Telegram, which triggered the
+ *     webhook to generate + send the OTP via Bot API.
+ *   - The OTP hash + chat_id are stored in the otp_codes row with
+ *     status='otp_sent'.
+ *   - This endpoint looks up the latest status='otp_sent' session,
+ *     verifies the OTP, and on success transitions status='verified'
+ *     + phone_verified=true + account_status='pending'.
  *
  * Security:
  *   - OTP is hashed with scrypt (never stored in plaintext).
- *   - Max 5 attempts per OTP code — then the code is invalidated.
- *   - Expired codes are rejected.
- *   - Used codes are rejected (no reuse).
- *   - Brute force: after 5 failed attempts, the code is marked used.
- *   - Account enumeration: same response shape for all errors.
+ *   - Constant-time comparison (timingSafeEqual).
+ *   - Max 5 attempts per session — then status='expired'.
+ *   - Expired OTPs are rejected.
+ *   - Used sessions are rejected (status='verified' → can't verify again).
+ *   - Same response shape for all errors (no enumeration).
  */
 const BodySchema = z.object({ code: z.string().trim().length(6) });
 
@@ -35,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'الكود غير صالح' }, { status: 400 });
   }
 
-  // 1. Fetch the student's profile.
+  // 1. Fetch user profile
   const { data: profile } = await supabaseServer
     .from('users')
     .select('id, account_status, phone, phone_verified')
@@ -48,13 +56,7 @@ export async function POST(request: NextRequest) {
 
   const p = profile as { id: string; account_status: string; phone: string | null; phone_verified: boolean };
 
-  // 2. Resilient OTP gate.
-  //    - 'pending_verification' is the v73 status (preferred path).
-  //    - 'pending' + phone set + phone_verified=false is the degraded
-  //      state when v73 migration wasn't applied (v68 trigger set
-  //      'pending' instead). We still let the user verify their phone
-  //      so they can complete registration.
-  //    - 'active' / 'suspended' / phone already verified → reject.
+  // 2. Resilient OTP gate
   const needsOtp =
     p.account_status === 'pending_verification' ||
     (p.account_status === 'pending' && !!p.phone && p.phone_verified === false);
@@ -63,72 +65,110 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'حسابك لا يحتاج إلى التحقق من الهاتف' }, { status: 400 });
   }
 
-  // 3. Fetch the latest unused, non-expired OTP for this user.
-  const { data: otpRow } = await supabaseServer
+  // 3. Find the latest otp_sent session for this user
+  const { data: session } = await supabaseServer
     .from('otp_codes')
-    .select('id, code_hash, code_salt, expires_at, attempts, max_attempts, used')
+    .select('id, code_hash, code_salt, expires_at, attempts, max_attempts, status')
     .eq('user_id', p.id)
-    .eq('used', false)
+    .eq('status', 'otp_sent')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (!otpRow) {
-    return NextResponse.json({ success: false, error: 'لا يوجد كود تحقق نشط. اطلب إعادة الإرسال.' }, { status: 404 });
+  if (!session) {
+    return NextResponse.json(
+      { success: false, error: 'لا يوجد كود تحقق نشط. افتح Telegram واضغط Start أولاً.' },
+      { status: 404 }
+    );
   }
 
-  const otp = otpRow as { id: string; code_hash: string; code_salt: string; expires_at: string; attempts: number; max_attempts: number; used: boolean };
+  const s = session as {
+    id: string;
+    code_hash: string | null;
+    code_salt: string | null;
+    expires_at: string | null;
+    attempts: number;
+    max_attempts: number;
+    status: string;
+  };
 
-  // 4. Check expiry.
-  if (new Date(otp.expires_at) <= new Date()) {
-    await supabaseServer.from('otp_codes').update({ used: true }).eq('id', otp.id);
-    return NextResponse.json({ success: false, error: 'انتهت صلاحية الكود. اطلب كوداً جديداً.' }, { status: 410 });
+  // 4. Check expiry
+  if (!s.expires_at || new Date(s.expires_at) <= new Date()) {
+    await supabaseServer
+      .from('otp_codes')
+      .update({ status: 'expired', updated_at: new Date().toISOString() })
+      .eq('id', s.id);
+    return NextResponse.json(
+      { success: false, error: 'انتهت صلاحية الكود. اطلب كوداً جديداً.' },
+      { status: 410 }
+    );
   }
 
-  // 5. Check attempt limit.
-  if (otp.attempts >= otp.max_attempts) {
-    await supabaseServer.from('otp_codes').update({ used: true }).eq('id', otp.id);
-    return NextResponse.json({ success: false, error: 'تجاوزت الحد الأقصى من المحاولات. اطلب كوداً جديداً.' }, { status: 429 });
+  // 5. Check attempt limit
+  if (s.attempts >= s.max_attempts) {
+    await supabaseServer
+      .from('otp_codes')
+      .update({ status: 'expired', updated_at: new Date().toISOString() })
+      .eq('id', s.id);
+    return NextResponse.json(
+      { success: false, error: 'تجاوزت الحد الأقصى من المحاولات. اطلب كوداً جديداً.' },
+      { status: 429 }
+    );
   }
 
-  // 6. Increment attempts BEFORE verification (prevent race condition).
+  // 6. Increment attempts (race-condition prevention)
   await supabaseServer
     .from('otp_codes')
-    .update({ attempts: otp.attempts + 1 })
-    .eq('id', otp.id);
+    .update({ attempts: s.attempts + 1, updated_at: new Date().toISOString() })
+    .eq('id', s.id);
 
-  // 7. Verify the code (constant-time comparison).
-  const expectedHash = Buffer.from(otp.code_hash, 'hex');
-  const actualHash = scryptSync(parsed.data.code, otp.code_salt, 64);
+  // 7. Verify OTP hash (constant-time)
+  if (!s.code_hash || !s.code_salt) {
+    return NextResponse.json({ success: false, error: 'الكود غير متاح' }, { status: 400 });
+  }
+  const expectedHash = Buffer.from(s.code_hash, 'hex');
+  const actualHash = scryptSync(parsed.data.code, s.code_salt, 64);
   const isMatch = expectedHash.length === actualHash.length && timingSafeEqual(expectedHash, actualHash);
 
   if (!isMatch) {
-    // Don't reveal whether the code exists or is just wrong.
     return NextResponse.json({ success: false, error: 'الكود غير صحيح' }, { status: 400 });
   }
 
-  // 8. Success — mark OTP as used, verify phone, activate to 'pending'.
-  await supabaseServer
+  // 8. Success — atomic transition status='otp_sent' → 'verified'
+  //    (prevents double-verification)
+  const { data: claimed } = await supabaseServer
     .from('otp_codes')
-    .update({ used: true })
-    .eq('id', otp.id);
+    .update({
+      status: 'verified',
+      used: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', s.id)
+    .eq('status', 'otp_sent') // conditional — only if still otp_sent
+    .select('id')
+    .maybeSingle();
 
-  // Resilient transition:
-  //   - If user was 'pending_verification' (v73 path) → transition to 'pending'.
-  //   - If user was already 'pending' (degraded path) → keep 'pending'.
-  //   Either way, phone_verified=true is the authoritative signal that
-  //   the OTP step is complete; the activation page takes over from there.
+  if (!claimed) {
+    // Race condition — another verify call already processed this
+    return NextResponse.json(
+      { success: false, error: 'تم التحقق من هذا الكود بالفعل.' },
+      { status: 409 }
+    );
+  }
+
+  // 9. Mark phone as verified + transition account_status → 'pending'
+  //    (so the activation page can take over)
   await supabaseServer
     .from('users')
     .update({
       phone_verified: true,
-      account_status: 'pending', // Transition to payment-pending state.
+      account_status: 'pending',
       updated_at: new Date().toISOString(),
     })
     .eq('id', p.id);
 
   return NextResponse.json({
     success: true,
-    message: 'تم التحقق من رقم الهاتف بنجاح. يمكنك الآن تفعيل حسابك.',
+    message: 'تم التحقق من رقم هاتفك بنجاح. يمكنك الآن تفعيل حسابك.',
   });
 }
