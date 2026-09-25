@@ -409,11 +409,41 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           .select('id, subject_id, status, enrollment_method, current_period_start, current_period_end, next_billing_at, monthly_price, enrolled_at')
           .eq('student_id', profile.id);
 
+        // ALSO fetch pending orders (courses that the student has
+        // ordered but the supervisor hasn't approved yet). These
+        // should appear in the course list with a "pending approval"
+        // badge so the student knows their payment is being processed.
+        const { data: pendingOrdersData, error: pendingOrdersErr } = await supabase
+          .from('orders')
+          .select('id, subject_id, status, confirmation_mode, amount, currency, created_at')
+          .eq('student_id', profile.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
         if (enrollmentError) {
           console.error('Error fetching enrolled subjects:', enrollmentError.message, enrollmentError.code);
-        } else if (enrollmentData && enrollmentData.length > 0) {
+        }
+
+        // Merge enrollment data + pending orders into a unified list.
+        // Build a Set of subject_ids that already have enrollment rows
+        // (so we don't show the same subject twice — once as 'approved'
+        // and once as 'pending order').
+        const enrolledSubjectIds = new Set((enrollmentData ?? []).map((e: { subject_id: string }) => e.subject_id));
+        // Pending orders for subjects NOT already enrolled — these are
+        // the "pending approval" courses.
+        const pendingOrdersForNewSubjects = (pendingOrdersData ?? []).filter(
+          (o: { subject_id: string }) => !enrolledSubjectIds.has(o.subject_id)
+        ) as Array<{ id: string; subject_id: string; status: string; confirmation_mode: string; amount: number; currency: string; created_at: string }>;
+
+        // Combine: enrolled subjects + pending-order subjects (for fetching subject data)
+        const allEnrollmentData = [
+          ...(enrollmentData ?? []),
+          ...pendingOrdersForNewSubjects.map(o => ({ id: o.id, subject_id: o.subject_id, status: 'pending_order' as string, enrollment_method: 'self_paid' as string, current_period_start: null, current_period_end: null, next_billing_at: null, monthly_price: Number(o.amount), enrolled_at: o.created_at })),
+        ] as Array<{ id: string; subject_id: string; status?: string; enrollment_method?: string; current_period_start?: string | null; current_period_end?: string | null; next_billing_at?: string | null; monthly_price?: number | null; enrolled_at?: string | null }>;
+
+        if (allEnrollmentData.length > 0) {
           // Fetch subjects separately using the subject_ids from enrollments
-          const subjectIds = enrollmentData.map((e: { subject_id: string }) => e.subject_id);
+          const subjectIds = allEnrollmentData.map((e: { subject_id: string }) => e.subject_id);
           const { data: subjectData, error: subjectError } = await supabase
             .from('subjects')
             .select('*')
@@ -444,7 +474,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             const subjectsList: Subject[] = [];
             const enrollmentMap: Record<string, string> = {};
 
-            enrollmentData.forEach((e: {
+            allEnrollmentData.forEach((e: {
               id: string;
               subject_id: string;
               status?: string;
@@ -503,8 +533,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             return; // Early return — loadingSubjects already set to false above
           }
         } else {
+          // No enrollment data AND no pending orders → empty list
           setSubjects([]);
           setEnrollmentStatuses({});
+          setSubscriptions({});
           enrollmentIdMapRef.current = {};
 
           // Save empty result to cache
@@ -1759,14 +1791,20 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         }
 
         // For students: split into approved / pending / rejected
+        // Treat 'pending_order' (pending payment approval) as 'pending'
+        // so the student sees these courses in the "pending" tab.
+        const normalizedStatus = (s: { id: string }) => {
+          const st = enrollmentStatuses[s.id] || 'approved';
+          return st === 'pending_order' ? 'pending' : st;
+        };
         const approvedSubjects = role === 'student'
-          ? filteredSubjects.filter((s) => (enrollmentStatuses[s.id] || 'approved') === 'approved')
+          ? filteredSubjects.filter((s) => normalizedStatus(s) === 'approved')
           : filteredSubjects;
         const pendingSubjects = role === 'student'
-          ? filteredSubjects.filter((s) => enrollmentStatuses[s.id] === 'pending')
+          ? filteredSubjects.filter((s) => normalizedStatus(s) === 'pending')
           : [];
         const rejectedSubjects = role === 'student'
-          ? filteredSubjects.filter((s) => enrollmentStatuses[s.id] === 'rejected')
+          ? filteredSubjects.filter((s) => normalizedStatus(s) === 'rejected')
           : [];
 
         return (
@@ -1972,9 +2010,28 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             const isExpired = periodEnd && periodEnd <= now;
                             const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
                             const isPermanent = sub.enrollment_method === 'teacher_add' || sub.enrollment_method === 'agent_register';
+                            const isPendingApproval = sub.status === 'pending_order';
 
                             // Don't show if no period_end and not self_paid
-                            if (!periodEnd && sub.enrollment_method !== 'self_paid' && !isPermanent) return null;
+                            if (!periodEnd && sub.enrollment_method !== 'self_paid' && !isPermanent && !isPendingApproval) return null;
+
+                            // Pending approval badge — special amber color + clock icon
+                            if (isPendingApproval) {
+                              return (
+                                <div className="mt-2 rounded-lg border bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/15 dark:border-amber-900/60 dark:text-amber-300 px-3 py-2 text-xs space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="h-3 w-3 shrink-0 animate-pulse" />
+                                    <span className="font-medium">بانتظار اعتماد الدفع</span>
+                                  </div>
+                                  {sub.monthly_price !== null && sub.monthly_price > 0 && (
+                                    <div className="text-[10px] opacity-70">
+                                      تم إرسال طلب الاشتراك بـ {Number(sub.monthly_price)} {subject.currency || 'EGP'} —
+                                      سيتم تفعيله بعد مراجعة المشرف للدفع.
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
 
                             const badgeColor = isExpired
                               ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/15 dark:border-rose-900/60 dark:text-rose-400'

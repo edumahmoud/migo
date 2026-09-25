@@ -66,7 +66,7 @@ export default function StudentActivationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<{
     methods: PaymentMethod[];
-    orders: Array<{ subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
+    orders: Array<{ id?: string; subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
     mode: string;
     checkoutUrl: string | null;
   } | null>(null);
@@ -523,49 +523,10 @@ export default function StudentActivationPage() {
                 </div>
               )}
 
-              {/* ── Instant payment (auto-activation via mock gateway) ──
-                  Switches pending orders to confirmation_mode='automatic'
-                  then redirects to mock-checkout. The mock gateway simulates
-                  a card / online payment gateway. In production, replace
-                  with real Paymob / Fawry / Stripe gateway. */}
-              {!selectedProvider && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('/api/student/orders/switch-to-automatic', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-                      });
-                      const json = await res.json();
-                      if (json.success && json.checkout_url) {
-                        // Redirect to the mock gateway checkout
-                        window.location.href = json.checkout_url;
-                      } else {
-                        toast.error(json.error || 'تعذّر تحويل الطلبات');
-                      }
-                    } catch {
-                      toast.error('تعذّر الاتصال بالخادم');
-                    }
-                  }}
-                  className="w-full flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50/50 p-3 hover:bg-sky-100/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-sky-100 flex items-center justify-center shrink-0">
-                      <CreditCard className="h-5 w-5 text-sky-600" />
-                    </div>
-                    <div className="text-start">
-                      <div className="font-semibold text-sm">دفع فوري (محاكاة البطاقة)</div>
-                      <div className="text-xs text-muted-foreground">يُفعّل الاشتراك تلقائياً بعد الدفع — بدون انتظار المشرف</div>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
-                    تفعيل فوري
-                  </Badge>
-                </button>
-              )}
-
-              {/* ── Proof-of-payment form (manual mode only) ── */}
+              {/* ── Proof-of-payment form (manual mode only) ──
+                  One form for ALL pending orders. Student transfers money
+                  once externally, then submits ONE proof that covers all
+                  courses in this batch. */}
               {selectedProvider === 'manual' && (
                 <ProofForm
                   orders={paymentDialog.orders.filter(o => o.status === 'pending')}
@@ -588,100 +549,114 @@ export default function StudentActivationPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ProofForm — student fills this after transferring money externally
+// ProofForm — student fills this after transferring money externally.
+// ONE form covers ALL pending orders (the student transfers once,
+// then submits ONE proof that applies to every order in this batch).
 // ─────────────────────────────────────────────────────────────
 function ProofForm({
   orders,
   onSubmitted,
 }: {
-  orders: Array<{ subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
+  orders: Array<{ id?: string; subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
   onSubmitted: () => void;
 }) {
   const [senderName, setSenderName] = useState('');
   const [transactionRef, setTransactionRef] = useState('');
   const [proofNotes, setProofNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submittedOrders, setSubmittedOrders] = useState<Set<string>>(new Set());
+  const [submittedCount, setSubmittedCount] = useState(0);
 
-  // Find the first order that still needs proof submission
-  const pendingOrder = orders.find(o => !submittedOrders.has(o.subject_id));
+  // Filter to orders that have an ID (created by the orders API).
+  // Free courses (status='paid') are skipped — they don't need proof.
+  const ordersNeedingProof = orders.filter(o => o.id && o.status === 'pending');
+  const totalAmount = ordersNeedingProof.reduce((sum, o) => sum + Number(o.amount), 0);
+  const totalCurrency = ordersNeedingProof[0]?.currency ?? 'EGP';
 
   const handleSubmit = async () => {
-    if (!pendingOrder) return;
-    // Find the order ID via the parent state — but we only have subject_id here.
-    // We'll fetch the order_id by querying.
     if (!senderName.trim() || !transactionRef.trim()) {
       toast.error('الرجاء إدخال اسم المرسل ورقم العملية');
       return;
     }
+    if (ordersNeedingProof.length === 0) {
+      toast.error('لا توجد طلبات قابلة لإرسال الإثبات');
+      return;
+    }
     setSubmitting(true);
     try {
-      // First, find the order_id from the student's pending orders.
-      const lookupRes = await fetch('/api/student/orders', {
-        method: 'GET',
-        headers: await getCachedAuthHeaders(),
-      });
-      const lookupJson = await lookupRes.json();
-      // The student-orders API returns pending orders — we find by subject_id.
-      // Actually /api/student/orders is POST-only. Use /api/student/activation/me which returns recent_orders.
-      const meRes = await fetch('/api/student/activation/me', {
-        headers: await getCachedAuthHeaders(),
-      });
-      const meJson = await meRes.json();
-      const recentOrders: Array<{ id: string; subject_id: string; status: string; confirmation_mode: string }> = meJson.recent_orders || [];
-      const orderRow = recentOrders.find(o => o.subject_id === pendingOrder.subject_id && o.status === 'pending' && o.confirmation_mode === 'manual');
-      if (!orderRow) {
-        toast.error('تعذّر العثور على الطلب');
-        return;
-      }
+      // Submit proof for ALL orders in parallel. Each order gets the
+      // same sender_name + transaction_ref (one payment covers all).
+      const results = await Promise.allSettled(
+        ordersNeedingProof.map(async (o) => {
+          const res = await fetch(`/api/student/orders/${o.id}/submit-proof`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+            body: JSON.stringify({
+              sender_name: senderName.trim(),
+              transaction_ref: transactionRef.trim(),
+              proof_notes: proofNotes.trim() || undefined,
+            }),
+          });
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(`HTTP ${res.status}: ${text.slice(0, 100)}`);
+          }
+          return res.json();
+        })
+      );
 
-      const res = await fetch(`/api/student/orders/${orderRow.id}/submit-proof`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({
-          sender_name: senderName.trim(),
-          transaction_ref: transactionRef.trim(),
-          proof_notes: proofNotes.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        toast.success('تم إرسال إثبات الدفع. سيقوم المشرف بمراجعته.');
-        setSubmittedOrders(prev => new Set(prev).add(pendingOrder.subject_id));
-        // Clear fields for next order
-        setSenderName('');
-        setTransactionRef('');
-        setProofNotes('');
-        // If no more pending orders, close the dialog
-        if (orders.length === submittedOrders.size + 1) {
-          setTimeout(() => onSubmitted(), 1000);
+      const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as { success?: boolean })?.success).length;
+      const failCount = results.length - successCount;
+
+      if (successCount > 0) {
+        setSubmittedCount(successCount);
+        if (failCount === 0) {
+          toast.success(`تم إرسال إثبات الدفع لـ ${successCount} طلب. سيقوم المشرف بمراجعته وتفعيل الاشتراك.`);
+        } else {
+          toast.warning(`تم إرسال ${successCount} طلب، فشل ${failCount}. يمكنك المحاولة مرة أخرى للطلبات الفاشلة.`);
         }
+        setTimeout(() => onSubmitted(), 1500);
       } else {
-        toast.error(json.error || 'فشل إرسال الإثبات');
+        // All failed — show the first error
+        const firstError = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined;
+        const errorMsg = firstError?.reason?.message || 'فشل إرسال الإثبات';
+        toast.error(`فشل الإرسال: ${errorMsg}`);
       }
-    } catch {
-      toast.error('تعذّر الاتصال بالخادم');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'خطأ غير متوقع';
+      toast.error(`تعذّر إرسال الإثبات: ${msg}`);
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!pendingOrder) {
+  if (ordersNeedingProof.length === 0) {
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700 flex items-center gap-2">
         <CheckCircle2 className="h-4 w-4" />
-        تم إرسال إثبات الدفع لجميع الطلبات. سيقوم المشرف بالتفعيل.
+        لا توجد طلبات بحاجة لإثبات دفع — جميع المقررات المجانية مُفعّلة تلقائياً.
       </div>
     );
   }
 
   return (
     <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-sky-800">إرسال إثبات الدفع</div>
-        <Badge variant="outline" className="text-xs">
-          {pendingOrder.subject_name} — {Number(pendingOrder.amount).toFixed(2)} {pendingOrder.currency}
-        </Badge>
+      <div className="text-sm font-semibold text-sky-800">إرسال إثبات الدفع</div>
+
+      {/* All pending orders list */}
+      <div className="rounded-md bg-white border border-sky-100 p-2 space-y-1">
+        <div className="text-xs text-muted-foreground mb-1">الطلبات المشمولة بالإثبات ({ordersNeedingProof.length}):</div>
+        {ordersNeedingProof.map((o, i) => (
+          <div key={i} className="flex items-center justify-between text-xs py-0.5">
+            <span className="truncate">{o.subject_name}</span>
+            <span className="font-mono font-semibold">
+              {Number(o.amount).toFixed(2)} {o.currency}
+            </span>
+          </div>
+        ))}
+        <div className="border-t border-sky-100 pt-1 mt-1 flex items-center justify-between text-xs font-semibold">
+          <span>الإجمالي:</span>
+          <span className="font-mono">{totalAmount.toFixed(2)} {totalCurrency}</span>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -732,8 +707,10 @@ function ProofForm({
       >
         {submitting ? (
           <><Loader2 className="h-4 w-4 animate-spin me-2" />جارٍ الإرسال...</>
+        ) : submittedCount > 0 ? (
+          <><CheckCircle2 className="h-4 w-4 me-2" />تم إرسال {submittedCount} طلب</>
         ) : (
-          <><CheckCircle2 className="h-4 w-4 me-2" />إرسال الإثبات</>
+          <><CheckCircle2 className="h-4 w-4 me-2" />إرسال الإثبات لجميع الطلبات ({ordersNeedingProof.length})</>
         )}
       </Button>
 
