@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     .eq('student_id', auth.user.id)
     .eq('status', 'pending')
     .eq('confirmation_mode', 'manual')
-    .order('created_at', { ascending: 'asc' })
+    .order('created_at', { ascending: true })
     .limit(50);
 
   if (fetchErr) {
