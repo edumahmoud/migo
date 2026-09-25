@@ -64,7 +64,13 @@ export default function StudentActivationPage() {
   const [linking, setLinking] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState<{ methods: PaymentMethod[]; orders: OrderRow[]; mode: string; checkoutUrl: string | null } | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{
+    methods: PaymentMethod[];
+    orders: Array<{ subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
+    mode: string;
+    checkoutUrl: string | null;
+  } | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
 
   const studentId = user?.id;
 
@@ -175,6 +181,7 @@ export default function StudentActivationPage() {
         setSelectedCourses(new Set());
         await silentReload();
         if (json.payment_methods?.length > 0 || json.created_orders?.length > 0) {
+          setSelectedProvider(null);
           setPaymentDialog({
             methods: json.payment_methods ?? [],
             orders: json.created_orders ?? [],
@@ -364,49 +371,168 @@ export default function StudentActivationPage() {
         )}
       </div>
 
-      {/* Payment methods dialog */}
-      <Dialog open={!!paymentDialog} onOpenChange={o => !o && setPaymentDialog(null)}>
-        <DialogContent className="max-w-md">
+      {/* Payment dialog — order summary + provider selection + payment methods */}
+      <Dialog open={!!paymentDialog} onOpenChange={o => { if (!o) { setPaymentDialog(null); setSelectedProvider(null); } }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-sky-600" />وسائل الدفع</DialogTitle>
-            <DialogDescription>قم بالتحويل عبر إحدى الوسائل التالية، ثم أرسل إثبات الدفع للمركز لتفعيل اشتراكك.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-sky-600" />الدفع والاشتراك</DialogTitle>
           </DialogHeader>
           {paymentDialog && (
-            <div className="space-y-2">
-              {paymentDialog.methods.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-4">لا توجد وسائل دفع مُهيأة لهذا المعلم. تواصل معه مباشرة.</div>
-              ) : (
-                paymentDialog.methods.map((m, i) => (
-                  <div key={i} className="rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">{m.name}</span>
-                      <span className="text-xl">{ICON_MAP[m.icon] ?? m.icon ?? '👛'}</span>
+            <div className="space-y-3">
+              {/* Order summary — total + course list */}
+              {paymentDialog.orders.length > 0 && (
+                <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3 space-y-2">
+                  <div className="text-sm font-semibold text-sky-800">ملخص الطلب</div>
+                  {paymentDialog.orders.map((o, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="truncate">{o.subject_name}</span>
+                      <span className="font-mono font-semibold">
+                        {Number(o.amount).toFixed(2)} {o.currency}
+                        {o.status === 'paid' && <span className="text-emerald-600 ms-1">✓ مجاني</span>}
+                      </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <code className="font-mono text-sm bg-white/20 px-2 py-1 rounded" dir="ltr">{m.account_identifier}</code>
-                      <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => copy(m.account_identifier, 'رقم الحساب')}><Copy className="h-4 w-4" /></Button>
-                    </div>
-                    {m.contact_for_confirmation && (
-                      <div className="flex items-center gap-2 text-xs bg-white/20 rounded px-2 py-1">
-                        <Contact className="h-3 w-3" />
-                        <span>للتأكيد: {m.contact_for_confirmation}</span>
-                      </div>
-                    )}
+                  ))}
+                  <div className="flex items-center justify-between border-t border-sky-200 pt-2">
+                    <span className="text-sm font-bold text-sky-900">الإجمالي المطلوب دفعه</span>
+                    <span className="font-mono font-bold text-base text-emerald-700">
+                      {paymentDialog.orders
+                        .filter(o => o.status === 'pending')
+                        .reduce((sum, o) => sum + Number(o.amount), 0)
+                        .toFixed(2)} {paymentDialog.orders[0]?.currency ?? 'EGP'}
+                    </span>
                   </div>
-                ))
+                </div>
               )}
-              <div className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 text-xs p-3">
-                ✓ بعد إتمام التحويل وإرسال الإثبات، سيقوم المركز بتفعيل اشتراكك. ستختفي المقررات من قائمة "قيد الدفع" ويظهر اشتراكك نشطاً.
-              </div>
-              {paymentDialog.checkoutUrl && (
-                <Button className="w-full" onClick={() => { window.location.href = paymentDialog.checkoutUrl!; }}>
+
+              {/* Provider selection — choose how to pay */}
+              {!selectedProvider && (
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-foreground">اختر طريقة الدفع</div>
+                  {/* Manual transfer (teacher's configured payment methods) */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProvider('manual')}
+                    disabled={paymentDialog.methods.length === 0}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                        <Wallet className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div className="text-start">
+                        <div className="font-semibold text-sm">تحويل يدوي</div>
+                        <div className="text-xs text-muted-foreground">فودافون كاش / إنستا باي / تحويل بنكي</div>
+                      </div>
+                    </div>
+                    {paymentDialog.methods.length > 0 && (
+                      <span className="text-xs text-muted-foreground">{paymentDialog.methods.length} وسيلة</span>
+                    )}
+                  </button>
+                  {/* Fawry */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProvider('fawry')}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                        <span className="text-lg">🏪</span>
+                      </div>
+                      <div className="text-start">
+                        <div className="font-semibold text-sm">فوري</div>
+                        <div className="text-xs text-muted-foreground">ادفع من أقرب ماكينة فوري</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded">قريباً</span>
+                  </button>
+                  {/* Visa / Card */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProvider('card')}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-sky-100 flex items-center justify-center shrink-0">
+                        <span className="text-lg">💳</span>
+                      </div>
+                      <div className="text-start">
+                        <div className="font-semibold text-sm">بطاقة ائتمانية</div>
+                        <div className="text-xs text-muted-foreground">Visa / Mastercard</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-sky-600 bg-sky-50 px-2 py-0.5 rounded">قريباً</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Manual transfer — show teacher's payment methods */}
+              {selectedProvider === 'manual' && paymentDialog.methods.length > 0 && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProvider(null)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    ← رجوع لاختيار طريقة الدفع
+                  </button>
+                  <div className="text-sm font-semibold text-foreground">وسائل الدفع المتاحة</div>
+                  {paymentDialog.methods.map((m, i) => (
+                    <div key={i} className="rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{m.name}</span>
+                        <span className="text-xl">{ICON_MAP[m.icon] ?? m.icon ?? '👛'}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <code className="font-mono text-sm bg-white/20 px-2 py-1 rounded break-all" dir="ltr">{m.account_identifier}</code>
+                        <button onClick={() => copy(m.account_identifier, 'رقم الحساب')} className="text-white hover:bg-white/20 h-8 w-8 flex items-center justify-center rounded shrink-0">
+                          <Copy className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {m.contact_for_confirmation && (
+                        <div className="flex items-center gap-2 text-xs bg-white/20 rounded px-2 py-1">
+                          <Contact className="h-3 w-3" />
+                          <span>للتأكيد: {m.contact_for_confirmation}</span>
+                          <button onClick={() => { if (m.contact_for_confirmation) copy(m.contact_for_confirmation, 'رقم التواصل'); }} className="ms-auto text-white hover:bg-white/20 h-6 w-6 flex items-center justify-center rounded">
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 text-xs p-3">
+                    ✓ بعد التحويل وإرسال الإثبات، سيقوم المشرف بتفعيل اشتراكك فوراً.
+                  </div>
+                </div>
+              )}
+              {selectedProvider === 'manual' && paymentDialog.methods.length === 0 && (
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setSelectedProvider(null)} className="text-xs text-muted-foreground hover:text-foreground">← رجوع</button>
+                  <div className="text-center text-sm text-muted-foreground py-4">لا توجد وسائل دفع مُهيأة. تواصل مع معلمك.</div>
+                </div>
+              )}
+
+              {/* Fawry / Card — coming soon */}
+              {(selectedProvider === 'fawry' || selectedProvider === 'card') && (
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setSelectedProvider(null)} className="text-xs text-muted-foreground hover:text-foreground">← رجوع</button>
+                  <div className="text-center py-6 space-y-2">
+                    <span className="text-4xl">{selectedProvider === 'fawry' ? '🏪' : '💳'}</span>
+                    <p className="text-sm font-semibold">{selectedProvider === 'fawry' ? 'الدفع عبر فوري' : 'الدفع بالبطاقة'}</p>
+                    <p className="text-xs text-muted-foreground">هذه الخدمة قيد التطوير وستكون متاحة قريباً. يرجى استخدام التحويل اليدوي في الوقت الحالي.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Mock gateway (dev only) */}
+              {paymentDialog.checkoutUrl && selectedProvider === 'manual' && (
+                <Button className="w-full" variant="outline" onClick={() => { window.location.href = paymentDialog.checkoutUrl!; }}>
                   الدفع عبر البوابة (تجريبي)
                 </Button>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialog(null)}>تم</Button>
+            <Button variant="outline" onClick={() => { setPaymentDialog(null); setSelectedProvider(null); }}>تم</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
