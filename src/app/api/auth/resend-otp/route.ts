@@ -63,10 +63,32 @@ async function sendOtpViaGateway(phone: string, code: string): Promise<{
         // Optional: brand name shown in the Telegram message.
         sender: 'AttenDo',
       }),
+      // CRITICAL: don't follow redirects. Telegram Gateway returns
+      // 302 → / when auth fails (bad token, wrong token type). If we
+      // follow the redirect, we'd end up at the homepage with HTTP 200
+      // + HTML, which looks like success but isn't.
+      redirect: 'manual',
       signal: AbortSignal.timeout(15000),
     });
     const elapsed = Date.now() - startTime;
     const body = await res.text().catch(() => '');
+    const location = res.headers.get('location');
+
+    // Detect the 302 auth-failure pattern.
+    if (res.status === 302 && (location === '/' || location === '')) {
+      console.error('[resend-otp] Gateway 302 → / (auth failed). Token rejected.');
+      // Check if token looks like a Bot API token (has colon)
+      const looksLikeBotToken = GATEWAY_TOKEN.includes(':');
+      return {
+        sent: false,
+        error: looksLikeBotToken
+          ? 'تم رفض التوكن من تليجرام — يبدو أنك استخدمت Bot API Token (يحتوي على نقطتين :) بدلاً من Gateway API Token. احصل على Gateway API Token من https://my.telegram.org'
+          : 'تم رفض التوكن من تليجرام — توكن خاطئ أو مُلغى. أعد توليده من https://my.telegram.org',
+        http_status: res.status,
+        response_preview: `302 redirect to ${location}`,
+        elapsed_ms: elapsed,
+      };
+    }
 
     if (!res.ok) {
       console.error('[resend-otp] Gateway error:', res.status, body);
