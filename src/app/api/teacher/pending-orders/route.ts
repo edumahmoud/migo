@@ -78,28 +78,46 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // 3. Query orders (includes proof fields for supervisor review).
-  let query = supabaseServer
-    .from('orders')
-    .select(
-      'id, student_id, subject_id, amount, currency, status, confirmation_mode, created_at, ' +
-      'sender_name, transaction_ref, proof_notes, proof_submitted_at, proof_url, ' +
-      'payment_method_id, ' +
-      'subject:subjects(id, name, level, sub_level), ' +
-      'student:users!student_id(id, email, name, student_code), ' +
-      'payment_method:payment_methods(id, name, icon, account_identifier, contact_for_confirmation)'
-    )
-    .eq('status', 'pending')
-    .eq('confirmation_mode', 'manual')
-    .order('proof_submitted_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(200);
+  // 3. Query orders — try with proof fields first (v75 migration).
+  //    If v75 isn't applied yet (sender_name etc. don't exist), fall back
+  //    to the basic select without proof fields.
+  const buildQuery = (withProof: boolean) => {
+    const proofSelect = withProof
+      ? ', sender_name, transaction_ref, proof_notes, proof_submitted_at, proof_url, payment_method_id, '
+      : ', ';
+    return supabaseServer
+      .from('orders')
+      .select(
+        'id, student_id, subject_id, amount, currency, status, confirmation_mode, created_at' +
+        proofSelect +
+        'subject:subjects(id, name, level, sub_level), ' +
+        'student:users!student_id(id, email, name, student_code)' +
+        (withProof ? ', payment_method:payment_methods(id, name, icon, account_identifier, contact_for_confirmation)' : '')
+      )
+      .eq('status', 'pending')
+      .eq('confirmation_mode', 'manual')
+      .order('created_at', { ascending: false })
+      .limit(200);
+  };
 
+  let query = buildQuery(true);
   if (subjectIds) {
     query = query.in('subject_id', subjectIds);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  // Fallback: if v75 columns don't exist, retry without proof fields.
+  if (error && /column .* does not exist|Could not find/i.test(error.message)) {
+    console.warn('[pending-orders] v75 columns missing — falling back to basic select');
+    let fallbackQuery = buildQuery(false);
+    if (subjectIds) {
+      fallbackQuery = fallbackQuery.in('subject_id', subjectIds);
+    }
+    const fallback = await fallbackQuery;
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     console.error('[pending-orders] orders query error:', error);
