@@ -53,14 +53,21 @@ interface TelegramUpdate {
 }
 
 export async function POST(request: NextRequest) {
+  // Diagnostic logging (NO secrets, NO OTP, NO tokens — just status).
+  // Helps the operator debug webhook issues via Vercel logs.
+  console.log('[tg-webhook] received request');
+
   // 1. Verify secret token header (set via Telegram setWebhook)
   //    Telegram sends this in `X-Telegram-Bot-Api-Secret-Token`.
   if (WEBHOOK_SECRET) {
     const incoming = request.headers.get('x-telegram-bot-api-secret-token');
     if (incoming !== WEBHOOK_SECRET) {
+      console.warn('[tg-webhook] invalid secret token — ignoring');
       // Return 200 to avoid Telegram retries + don't reveal the reason
       return NextResponse.json({ ok: true, ignored: 'invalid_secret' });
     }
+  } else {
+    console.warn('[tg-webhook] TELEGRAM_WEBHOOK_SECRET not set — accepting all requests (insecure!)');
   }
 
   // 2. Parse the Update body
@@ -68,20 +75,24 @@ export async function POST(request: NextRequest) {
   try {
     update = (await request.json()) as TelegramUpdate;
   } catch {
+    console.warn('[tg-webhook] invalid JSON body');
     return NextResponse.json({ ok: true, ignored: 'invalid_json' });
   }
 
   // 3. Must have a message with text + chat.id
   const message = update.message;
   if (!message?.text || typeof message.chat?.id !== 'number') {
+    console.log('[tg-webhook] no message or chat.id — ignoring');
     return NextResponse.json({ ok: true, ignored: 'no_message' });
   }
 
   const chatId = message.chat.id;
   const text = message.text;
+  console.log(`[tg-webhook] chat_id=${chatId} text_len=${text.length} starts_with_start=${text.startsWith('/start')}`);
 
   // 4. Handle plain /start (no deep link) — friendly help message
   if (text === '/start' || text === '/help') {
+    console.log('[tg-webhook] plain /start — sending help message');
     await sendBotMessage(
       chatId,
       [
@@ -101,19 +112,19 @@ export async function POST(request: NextRequest) {
 
   // 5. Must start with "/start " (with space) for the verification flow
   if (!text.startsWith('/start ')) {
+    console.log('[tg-webhook] not a /start command — ignoring');
     return NextResponse.json({ ok: true, ignored: 'not_start_command' });
   }
 
   const verifyToken = text.slice('/start '.length).trim();
   if (!verifyToken || verifyToken.length < 16) {
+    console.warn('[tg-webhook] verify_token too short — sending invalid message');
     await sendInvalidTokenMessage(chatId);
     return NextResponse.json({ ok: true });
   }
+  console.log(`[tg-webhook] verify_token received (len=${verifyToken.length})`);
 
   // 6. Look up all active pending_start sessions.
-  //    We need to compare hashes with timingSafeEqual, so we fetch
-  //    the candidates first. (Number of active sessions is small —
-  //    bounded by the rate limit + 10min expiry.)
   const nowIso = new Date().toISOString();
   const { data: candidates, error: queryErr } = await supabaseServer
     .from('otp_codes')
@@ -122,13 +133,16 @@ export async function POST(request: NextRequest) {
     .gt('verify_expires_at', nowIso);
 
   if (queryErr) {
+    console.error('[tg-webhook] DB query error:', queryErr.message);
     return NextResponse.json({ ok: true, ignored: 'db_error' });
   }
 
   if (!candidates || candidates.length === 0) {
+    console.warn('[tg-webhook] no active pending_start sessions — sending invalid message');
     await sendInvalidTokenMessage(chatId);
     return NextResponse.json({ ok: true });
   }
+  console.log(`[tg-webhook] found ${candidates.length} candidate session(s)`);
 
   // 7. Find the session whose stored hash matches the incoming token
   //    using timingSafeEqual (constant-time comparison).
@@ -149,12 +163,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (!matched) {
+    console.warn('[tg-webhook] no matching session for the verify_token');
     await sendInvalidTokenMessage(chatId);
     return NextResponse.json({ ok: true });
   }
+  console.log(`[tg-webhook] matched session ${matched.id} for user ${matched.user_id}`);
 
-  // 8. Final expiry check (DB query already filtered, but double-check)
+  // 8. Final expiry check
   if (new Date(matched.verify_expires_at) <= new Date()) {
+    console.warn('[tg-webhook] session already expired');
     await supabaseServer
       .from('otp_codes')
       .update({ status: 'expired', updated_at: nowIso })
@@ -164,10 +181,6 @@ export async function POST(request: NextRequest) {
   }
 
   // 9. ATOMIC transition: pending_start → otp_sent
-  //    This conditional UPDATE prevents reuse of VERIFY_TOKEN — if two
-  //    webhooks arrive simultaneously for the same token, only one
-  //    succeeds (the other finds status != 'pending_start' and gets
-  //    null result).
   const { data: claimed, error: claimErr } = await supabaseServer
     .from('otp_codes')
     .update({
@@ -176,20 +189,21 @@ export async function POST(request: NextRequest) {
       updated_at: nowIso,
     })
     .eq('id', matched.id)
-    .eq('status', 'pending_start') // conditional — only if still pending
+    .eq('status', 'pending_start')
     .select('id, user_id, phone')
     .maybeSingle();
 
   if (claimErr || !claimed) {
-    // Race condition or already claimed — send "already in progress"
+    console.warn('[tg-webhook] atomic claim failed (race condition or already claimed)');
     await sendBotMessage(
       chatId,
       '⏳ تم إرسال الكود بالفعل. تحقق من رسائلي السابقة في هذه المحادثة.'
     );
     return NextResponse.json({ ok: true });
   }
+  console.log(`[tg-webhook] session claimed, generating OTP`);
 
-  // 10. Generate OTP + store hash in the same row
+  // 10. Generate OTP + store hash
   const otp = generateSecureOTP();
   const salt = randomBytes(16).toString('hex');
   const hash = scryptSync(otp, salt, 64).toString('hex');
@@ -206,12 +220,10 @@ export async function POST(request: NextRequest) {
     .eq('id', matched.id);
 
   // 11. Send the OTP via the Bot API
-  //     IMPORTANT: per the user's requirement, we only consider success
-  //     if Telegram returned {ok: true}. If not, revert the claim so
-  //     the user can retry.
   const result = await sendOtpViaBot(chatId, otp);
 
   if (!result.sent) {
+    console.error('[tg-webhook] OTP send failed:', result.error);
     // Revert status so user can retry the deep link
     await supabaseServer
       .from('otp_codes')
@@ -225,7 +237,6 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', matched.id);
 
-    // Send a friendly error to the user
     await sendBotMessage(
       chatId,
       '❌ تعذّر إرسال الكود الآن. حاول مرة أخرى بفتح الموقع والضغط على زر "فتح Telegram" من جديد.'
@@ -233,6 +244,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, send_failed: true });
   }
 
+  console.log(`[tg-webhook] OTP sent successfully to chat ${chatId}`);
   // Success — Telegram accepted the message. The frontend's polling
   // will detect status='otp_sent' and reveal the OTP input.
   return NextResponse.json({ ok: true });
