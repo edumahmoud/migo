@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, Phone, AlertTriangle } from 'lucide-react';
+import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, Phone, AlertTriangle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import { normalizePhoneToE164 } from '@/lib/phone-utils';
 
 export default function OtpVerificationPage() {
   const { t } = useTranslations();
@@ -33,6 +34,10 @@ export default function OtpVerificationPage() {
   const [diagnostic, setDiagnostic] = useState<Record<string, unknown> | null>(null);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
   const [runningDiagnostic, setRunningDiagnostic] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [phoneNeedsFix, setPhoneNeedsFix] = useState(false);
 
   const phone = (user as { phone?: string } | null)?.phone ?? null;
 
@@ -50,6 +55,10 @@ export default function OtpVerificationPage() {
         setGatewayError(json.gateway_error ?? null);
         setGatewayHttpStatus(json.gateway_http_status ?? null);
         setTokenConfigured(json.token_configured ?? true);
+        // Detect if the phone is not in E.164 format (the most common
+        // cause of Telegram Gateway failures).
+        const storedPhone = typeof json.phone === 'string' ? json.phone : null;
+        setPhoneNeedsFix(!!storedPhone && !storedPhone.startsWith('+'));
         if (json.gateway_sent) {
           toast.success(json.message || 'تم إرسال كود التحقق');
         } else {
@@ -130,6 +139,8 @@ export default function OtpVerificationPage() {
         setGatewayError(json.gateway_error ?? null);
         setGatewayHttpStatus(json.gateway_http_status ?? null);
         setTokenConfigured(json.token_configured ?? true);
+        const storedPhone = typeof json.phone === 'string' ? json.phone : null;
+        setPhoneNeedsFix(!!storedPhone && !storedPhone.startsWith('+'));
         if (json.gateway_sent) {
           toast.success(json.message || 'تم إعادة إرسال الكود');
         } else {
@@ -167,6 +178,42 @@ export default function OtpVerificationPage() {
     resetAppStore();
     try { signOut(); } catch {}
     router.push('/');
+  };
+
+  // Update the stored phone (when the original was in local format).
+  // Calls /api/auth/update-phone which normalizes to E.164 + bumps
+  // account_status back to 'pending_verification' so resend-otp will
+  // accept the request.
+  const handleSavePhone = async () => {
+    const normalized = normalizePhoneToE164(newPhone.trim());
+    if (!normalized) {
+      toast.error('رقم الهاتف غير صالح. مثال: 01555614624 أو +201555614624');
+      return;
+    }
+    setSavingPhone(true);
+    try {
+      const res = await fetch('/api/auth/update-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ phone: newPhone.trim() }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || `تم تحديث الرقم إلى ${json.normalized_phone}`);
+        setEditingPhone(false);
+        setNewPhone('');
+        setPhoneNeedsFix(false);
+        // Reload the page so the auth-store picks up the new phone
+        // (and triggers a fresh OTP send).
+        setTimeout(() => router.refresh(), 1000);
+      } else {
+        toast.error(json.error || 'تعذّر تحديث الرقم');
+      }
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setSavingPhone(false);
+    }
   };
 
   if (loading) {
@@ -239,6 +286,78 @@ export default function OtpVerificationPage() {
                       {runningDiagnostic ? 'جارٍ التشخيص...' : 'تشخيص المشكلة'}
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Phone format fix banner — most common cause of OTP delivery failure */}
+            {phoneNeedsFix && !editingPhone && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-900/15 p-3 space-y-2">
+                <div className="flex items-start gap-2 text-rose-700 dark:text-rose-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 text-xs space-y-1">
+                    <div className="font-semibold">رقم الهاتف ليس بصيغة دولية</div>
+                    <div className="opacity-80">
+                      الرقم المخزَّن: <span dir="ltr" className="font-mono">{phone}</span>
+                      <br />
+                      تليجرام يتطلب صيغة E.164 مثل <span dir="ltr" className="font-mono">+201555614624</span>.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingPhone(true); setNewPhone(phone || ''); }}
+                      className="mt-1 inline-flex items-center gap-1 underline hover:no-underline"
+                    >
+                      <Pencil className="h-3 w-3" /> تحديث الرقم
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Phone edit form */}
+            {editingPhone && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
+                <Label htmlFor="new-phone" className="text-xs font-medium">
+                  أدخل الرقم الصحيح (مثال: 01555614624)
+                </Label>
+                <Input
+                  id="new-phone"
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="01555614624"
+                  dir="ltr"
+                  disabled={savingPhone}
+                  className="text-sm h-10"
+                  autoFocus
+                />
+                <div className="text-[10px] text-muted-foreground">
+                  سيتم تحويله تلقائياً إلى: <span dir="ltr" className="font-mono">{normalizePhoneToE164(newPhone) || '—'}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSavePhone}
+                    disabled={savingPhone || !newPhone.trim()}
+                    className="h-8 text-xs"
+                  >
+                    {savingPhone ? (
+                      <><Loader2 className="h-3 w-3 animate-spin me-1" />جارٍ الحفظ...</>
+                    ) : (
+                      'حفظ وإرسال الكود'
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => { setEditingPhone(false); setNewPhone(''); }}
+                    disabled={savingPhone}
+                    className="h-8 text-xs"
+                  >
+                    إلغاء
+                  </Button>
                 </div>
               </div>
             )}

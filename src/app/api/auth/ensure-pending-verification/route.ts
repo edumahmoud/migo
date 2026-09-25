@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { normalizePhoneToE164, isValidE164 } from '@/lib/phone-utils';
 
 /**
  * POST /api/auth/ensure-pending-verification
@@ -85,8 +86,16 @@ export async function POST(request: NextRequest) {
 
   const p = profile as { id: string; account_status: string; phone: string | null; phone_verified: boolean };
 
-  // 4. Decide the new phone value (body > metadata > existing).
-  const newPhone = bodyPhone || metaPhone || p.phone;
+  // 4. Decide the new phone value (body > metadata > existing),
+  //    then NORMALIZE to E.164. Telegram Gateway requires international
+  //    format. If the user typed `01555614624` in the register form,
+  //    the metadata stores it as-is — we normalize here to `+201555614624`.
+  const rawPhone = bodyPhone || metaPhone || p.phone;
+  const normalizedPhone = normalizePhoneToE164(rawPhone);
+  // Use the normalized value if normalization succeeded; otherwise fall
+  // back to the raw value (so the user can still see what's stored
+  // even if the format is weird).
+  const newPhone = normalizedPhone || rawPhone;
 
   // 5. If the user has already verified their phone, don't downgrade.
   if (p.phone_verified === true) {

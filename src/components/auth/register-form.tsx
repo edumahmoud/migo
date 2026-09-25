@@ -26,6 +26,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
+import { normalizePhoneToE164, isParseablePhoneInput } from '@/lib/phone-utils';
 import { toast } from 'sonner';
 
 interface RegisterFormProps {
@@ -92,8 +93,15 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       return;
     }
     // Basic phone validation: digits, +, spaces, min 8 chars
-    if (!/^\+?[\d\s-]{8,15}$/.test(phone.trim())) {
+    if (!isParseablePhoneInput(phone.trim())) {
       toast.error('رقم الهاتف غير صحيح');
+      return;
+    }
+    // Normalize to E.164 before sending — Telegram Gateway requires
+    // international format like +201555614624.
+    const normalizedPhone = normalizePhoneToE164(phone.trim());
+    if (!normalizedPhone) {
+      toast.error('تعذّر تحويل رقم الهاتف إلى الصيغة الدولية (+201234567890)');
       return;
     }
     if (!password.trim()) {
@@ -111,7 +119,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
 
     setIsLoading(true);
     try {
-      const { error, needsConfirmation } = await signUpWithEmail(email, password, name, phone.trim());
+      const { error, needsConfirmation } = await signUpWithEmail(email, password, name, normalizedPhone);
       if (error) {
         toast.error(error);
         return;
@@ -222,7 +230,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   <Input
                     id="reg-phone"
                     type="tel"
-                    placeholder="+20 010 1234 5678"
+                    placeholder="01555614624 (أو +201555614624)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -233,7 +241,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                 </div>
                 <p className="text-[10px] text-gray-400">
-                  سيتم إرسال كود التحقق عبر تليجرام لهذا الرقم.
+                  سيتم تحويل الرقم تلقائياً إلى صيغة دولية (+20…) وإرسال كود عبر تليجرام.
                 </p>
               </motion.div>
 
