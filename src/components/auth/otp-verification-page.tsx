@@ -62,13 +62,18 @@ export default function OtpVerificationPage() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // Poll for account status changes.
+  // Poll for verification result.
+  // We use `phone_verified` (NOT `account_status`) as the signal —
+  // because in the degraded state (v73 migration partially applied),
+  // `account_status` stays 'pending' both before AND after the OTP
+  // step. `phone_verified` flips from false → true on success, which
+  // is unambiguous in both the v73 and degraded paths.
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
         const res = await fetch('/api/auth/me', { headers: await getCachedAuthHeaders() });
         const json = await res.json();
-        if (json.profile?.account_status === 'pending') {
+        if (json.profile?.phone_verified === true) {
           toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
           setTimeout(() => router.push('/'), 1500);
         }

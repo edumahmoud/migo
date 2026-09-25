@@ -180,3 +180,37 @@ Stage Summary:
 - Google Forms titles use ★ prefix for visual emphasis in the form
 - Exported questions list shown in success stage with type mapping info
 - All changes verified with lint ✅ and dev server ✅
+
+---
+Task ID: v73-otp-resilience-fix
+Agent: main
+Task: Fix: new student accounts skip OTP verification and go directly to the activation page despite v73 migration reportedly applied.
+
+Diagnosis:
+- The v73 migration updates `handle_new_user()` to set `account_status='pending_verification'` for self-registered students with a phone.
+- But verify-otp / resend-otp APIs strictly checked `account_status === 'pending_verification'`. If the trigger set `'pending'` instead (partial v73 apply: ALTER TABLE ok but CHECK widening OR function body didn't take), the APIs rejected the OTP request and page.tsx routed to the activation page.
+- The v73 EXCEPTION block also retried the INSERT with the SAME value that just failed (`new_account_status`), so a partial-apply made the trigger raise an unhandled exception — auth.users INSERT failed → signup broken.
+
+Fix (multi-layered, resilient):
+1. `supabase/migrations/v73_phone_otp_verification.sql`:
+   - EXCEPTION block now falls back to `'pending'` (safe in old v68 CHECK) instead of retrying `'pending_verification'`.
+   - Added `DROP TRIGGER + CREATE TRIGGER on_auth_user_created` to re-bind the trigger to the updated function (avoids OID caching issues).
+2. `src/app/api/auth/verify-otp/route.ts` + `resend-otp/route.ts`:
+   - Resilient OTP gate: accept `'pending_verification'` OR `('pending' + phone present + phone_verified=false)`. Works in both v73 and degraded paths.
+3. `src/app/page.tsx`:
+   - Routing logic now treats `pending + phone + !phone_verified` as needing OTP (renders OtpVerificationPage) — same resilient gate.
+4. `src/components/auth/otp-verification-page.tsx`:
+   - Polling now uses `phone_verified === true` as the success signal (not `account_status === 'pending'`) — works in both paths because `phone_verified` flips false → true on success regardless of the initial status.
+5. NEW `src/app/api/auth/ensure-pending-verification/route.ts`:
+   - Safety-net called by `signUpWithEmail` after a successful signup.
+   - Uses service role to recover the phone from auth metadata and UPDATE the profile to `pending_verification` if the trigger left it in `pending`. Also sets `phone` if missing. No-op if the trigger already did the right thing.
+   - Returns helpful error if the v73 ALTER TABLE didn't apply (phone column missing) — instructs operator to run /api/setup/check-otp-migration.
+6. NEW `src/app/api/setup/check-otp-migration/route.ts`:
+   - Diagnostic that probes the live DB and reports whether v73 was fully applied, partially applied, or not applied. Returns a verdict + copy-pasteable fix SQL.
+7. NEW `supabase/migrations/reapply/reapply_v73_phone_otp_verification.sql`:
+   - One-shot idempotent SQL to re-apply v73 cleanly in the Supabase SQL editor. Includes a backfill for users stuck in the degraded state.
+
+Stage Summary:
+- Root cause: most likely v73 was only partially applied (CHECK widening or function update didn't take). The trigger set `'pending'` and the frontend couldn't route to OTP.
+- Fix: layered resilience. Even if v73 isn't fully applied, signups now: (a) auto-promote to `pending_verification` via the ensure endpoint, OR (b) get routed to the OTP page based on `phone + !phone_verified` columns alone.
+- Operator action required: run `supabase/migrations/reapply/reapply_v73_phone_otp_verification.sql` in the Supabase SQL editor to bring the DB fully in sync. Then verify with `GET /api/setup/check-otp-migration`.

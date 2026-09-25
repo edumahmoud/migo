@@ -87,7 +87,12 @@ export async function POST(request: NextRequest) {
 
   const p = profile as { id: string; account_status: string; phone: string | null; phone_verified: boolean };
 
-  if (p.account_status !== 'pending_verification') {
+  // Resilient OTP gate — see verify-otp/route.ts for the rationale.
+  const needsOtp =
+    p.account_status === 'pending_verification' ||
+    (p.account_status === 'pending' && !!p.phone && p.phone_verified === false);
+
+  if (!needsOtp) {
     return NextResponse.json({ success: false, error: 'حسابك لا يحتاج إلى التحقق' }, { status: 400 });
   }
 

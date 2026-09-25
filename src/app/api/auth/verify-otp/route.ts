@@ -48,8 +48,18 @@ export async function POST(request: NextRequest) {
 
   const p = profile as { id: string; account_status: string; phone: string | null; phone_verified: boolean };
 
-  // 2. Only pending_verification users can verify OTP.
-  if (p.account_status !== 'pending_verification') {
+  // 2. Resilient OTP gate.
+  //    - 'pending_verification' is the v73 status (preferred path).
+  //    - 'pending' + phone set + phone_verified=false is the degraded
+  //      state when v73 migration wasn't applied (v68 trigger set
+  //      'pending' instead). We still let the user verify their phone
+  //      so they can complete registration.
+  //    - 'active' / 'suspended' / phone already verified → reject.
+  const needsOtp =
+    p.account_status === 'pending_verification' ||
+    (p.account_status === 'pending' && !!p.phone && p.phone_verified === false);
+
+  if (!needsOtp) {
     return NextResponse.json({ success: false, error: 'حسابك لا يحتاج إلى التحقق من الهاتف' }, { status: 400 });
   }
 
@@ -103,6 +113,11 @@ export async function POST(request: NextRequest) {
     .update({ used: true })
     .eq('id', otp.id);
 
+  // Resilient transition:
+  //   - If user was 'pending_verification' (v73 path) → transition to 'pending'.
+  //   - If user was already 'pending' (degraded path) → keep 'pending'.
+  //   Either way, phone_verified=true is the authoritative signal that
+  //   the OTP step is complete; the activation page takes over from there.
   await supabaseServer
     .from('users')
     .update({

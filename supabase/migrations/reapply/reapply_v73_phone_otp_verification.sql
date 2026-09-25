@@ -1,70 +1,56 @@
 -- =============================================================
--- v73_phone_otp_verification.sql
--- AttenDo LMS — Phone verification via Telegram OTP.
+-- reapply_v73_phone_otp_verification.sql
+-- =============================================================
+-- AttenDo LMS — One-shot re-apply of the v73 phone-OTP migration.
 --
--- Adds:
---   1. users.phone (TEXT, nullable for backward compat)
---   2. users.phone_verified (BOOLEAN DEFAULT FALSE)
---   3. otp_codes table (hashed OTP + expiry + retry + rate limit)
---   4. account_status CHECK widened with 'pending_verification'
---   5. Updated handle_new_user() for self-registered + phone
+-- Run this in the Supabase SQL Editor (Dashboard > SQL Editor) when:
+--   - New students skip the OTP page on signup, OR
+--   - GET /api/setup/check-otp-migration returns a verdict other than
+--     "v73_FULLY_applied", OR
+--   - The v73 migration file was edited locally and the changes need to
+--     be propagated to the live database.
+--
+-- This script is IDEMPOTENT — safe to run multiple times.
 -- =============================================================
 
--- 1. users.phone + phone_verified
-ALTER TABLE public.users
-  ADD COLUMN IF NOT EXISTS phone TEXT;
+-- 1. Add phone + phone_verified columns
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;
 
-ALTER TABLE public.users
-  ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;
-
--- 2. Widen account_status CHECK
-ALTER TABLE public.users
-  DROP CONSTRAINT IF EXISTS users_account_status_check;
-ALTER TABLE public.users
-  ADD CONSTRAINT users_account_status_check
+-- 2. Widen the account_status CHECK constraint to allow 'pending_verification'.
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_account_status_check;
+ALTER TABLE public.users ADD CONSTRAINT users_account_status_check
   CHECK (account_status IN ('pending_verification', 'pending', 'active', 'suspended'));
 
--- 3. otp_codes table
+-- 3. Create the otp_codes table (if missing).
 CREATE TABLE IF NOT EXISTS public.otp_codes (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   phone             TEXT NOT NULL,
-  code_hash         TEXT NOT NULL,     -- scrypt hash (never store plaintext)
-  code_salt         TEXT NOT NULL,     -- per-code random salt
+  code_hash         TEXT NOT NULL,
+  code_salt         TEXT NOT NULL,
   expires_at        TIMESTAMPTZ NOT NULL,
   attempts          INTEGER NOT NULL DEFAULT 0,
   max_attempts      INTEGER NOT NULL DEFAULT 5,
   used              BOOLEAN NOT NULL DEFAULT FALSE,
-  telegram_chat_id  BIGINT,           -- Telegram chat ID for delivery
+  telegram_chat_id  BIGINT,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_otp_codes_user ON public.otp_codes(user_id);
+CREATE INDEX IF NOT EXISTS idx_otp_codes_user  ON public.otp_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_otp_codes_phone ON public.otp_codes(phone);
 CREATE INDEX IF NOT EXISTS idx_otp_codes_expires ON public.otp_codes(expires_at);
 
 ALTER TABLE public.otp_codes ENABLE ROW LEVEL SECURITY;
--- Students can only see their own OTP rows (for verification status).
 DROP POLICY IF EXISTS otp_student_read ON public.otp_codes;
 CREATE POLICY otp_student_read
   ON public.otp_codes FOR SELECT
   USING (user_id = auth.uid());
--- Service role manages all (INSERT, UPDATE, DELETE).
 DROP POLICY IF EXISTS otp_admin_all ON public.otp_codes;
 CREATE POLICY otp_admin_all
   ON public.otp_codes FOR ALL
   USING (public.is_admin());
 
--- 4. Updated handle_new_user() — sets 'pending_verification' for
---    self-registered students with a phone number.
---
--- IMPORTANT (resilience): If this migration is re-applied on a DB where
--- the CHECK constraint widening above didn't take (e.g., partial apply),
--- the INSERT with 'pending_verification' will raise check_violation.
--- The EXCEPTION block catches that and FALLS BACK to 'pending' (a
--- status that exists in the OLD CHECK from v68). The frontend + APIs
--- are designed to detect "phone present + phone_verified=false +
--- account_status='pending'" and route to the OTP page anyway — so the
--- user flow still works even in this degraded state.
+-- 4. Recreate the handle_new_user() function with the v73 logic.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -101,12 +87,9 @@ BEGIN
     RETURN NEW;
   EXCEPTION
     WHEN check_violation THEN
-      -- The CHECK constraint doesn't allow new_account_status (most
-      -- likely because v73's CHECK widening didn't apply and the value
-      -- is 'pending_verification'). Fall back to 'pending' which IS
-      -- allowed by the older v68 CHECK. The frontend will still route
-      -- the user to the OTP page based on the phone/phone_verified
-      -- columns, so the flow continues to work.
+      -- Fallback: 'pending_verification' not allowed (CHECK widening
+      -- didn't take). Use 'pending' — the frontend + APIs will still
+      -- route the user to the OTP page based on phone + phone_verified.
       IF insert_role = 'superadmin' THEN
         INSERT INTO public.users (id, email, name, role, account_status, phone)
         VALUES (NEW.id, NEW.email, user_name, 'admin', 'active', user_phone);
@@ -123,13 +106,46 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Re-bind the trigger to the updated function. (Some Supabase setups
--- cache the function OID; re-creating the trigger guarantees the new
--- body is invoked.)
+-- 5. Re-bind the trigger. DROP+CREATE guarantees the trigger invokes
+--    the function body we just defined above (no cached OID issues).
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 5. Realtime
+-- 6. Realtime.
 ALTER PUBLICATION supabase_realtime SET TABLE public.otp_codes;
+
+-- =============================================================
+-- Backfill: existing users who have a phone in auth metadata but
+-- NULL in the DB column. Run ONCE after the columns exist.
+-- =============================================================
+-- Note: this can't reference auth.users from public schema RLS, so we
+-- do it via a SECURITY DEFINER function that reads auth.users metadata.
+CREATE OR REPLACE FUNCTION public.backfill_user_phones()
+RETURNS void AS $$
+DECLARE
+  u RECORD;
+BEGIN
+  FOR u IN SELECT id, raw_user_meta_data FROM auth.users WHERE raw_user_meta_data ? 'phone' LOOP
+    UPDATE public.users
+    SET phone = COALESCE(phone, u.raw_user_meta_data->>'phone')
+    WHERE id = u.id AND phone IS NULL;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+SELECT public.backfill_user_phones();
+
+-- Also: if any users are stuck in 'pending' with a phone set + phone_verified=false
+-- (the degraded state from a partial v73 apply), promote them to 'pending_verification'
+-- now that the CHECK allows it.
+UPDATE public.users
+SET account_status = 'pending_verification', updated_at = now()
+WHERE account_status = 'pending'
+  AND phone IS NOT NULL
+  AND phone_verified = false;
+
+-- Done. Verify with:
+-- SELECT account_status, COUNT(*) FROM public.users GROUP BY account_status;
+-- SELECT id, phone, phone_verified, account_status FROM public.users WHERE phone IS NOT NULL LIMIT 5;

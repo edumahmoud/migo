@@ -776,14 +776,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Auto-confirmed: session is available immediately
       const authUser = signUpData.user;
       if (!authUser) return { error: 'فشل في إنشاء الحساب' };
-      
+
+      // v73 safety-net: if the trigger set account_status='pending'
+      // (because the CHECK widening or function update didn't take),
+      // call the ensure-pending-verification endpoint to set it back
+      // to 'pending_verification' + store phone from auth metadata.
+      // This is a no-op if the trigger already did the right thing.
+      try {
+        const session = await supabase.auth.getSession();
+        const accessToken = session.data.session?.access_token;
+        if (accessToken) {
+          await fetch('/api/auth/ensure-pending-verification', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ phone: phone || undefined }),
+          });
+        }
+      } catch {
+        // Non-critical: if this fails, the trigger may have already
+        // done the right thing. The resilient page.tsx routing handles
+        // both 'pending_verification' and 'pending+phone+!verified'.
+      }
+
+      // Re-fetch the session (the ensure call may have updated app_metadata)
+      await supabase.auth.refreshSession();
+
       // Try to fetch existing profile first (may have been created by auth trigger)
       let { data: profile } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
         .single();
-      
+
       if (profile) {
         // Profile already exists (created by auth trigger)
         // Check if this is the first user (promote to superadmin)

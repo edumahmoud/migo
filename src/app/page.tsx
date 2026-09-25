@@ -395,11 +395,20 @@ function HomeContent() {
     if (user) {
       if (currentPage === 'auth') {
         const accountStatus = (user as { account_status?: string }).account_status;
-        // v73: pending_verification students see the OTP verification page first.
-        if (user.role === 'student' && accountStatus === 'pending_verification') {
-          setCurrentPage('student-dashboard');  // the dashboard switch will render OtpVerificationPage
+        const userPhone = (user as { phone?: string | null }).phone;
+        const phoneVerified = (user as { phone_verified?: boolean }).phone_verified;
+        // v73 resilient routing: pending_verification OR (pending + phone +
+        // !phone_verified) → student dashboard (which renders OtpVerificationPage
+        // in the dashboard switch below).
+        const needsOtp =
+          user.role === 'student' &&
+          (accountStatus === 'pending_verification' ||
+            (accountStatus === 'pending' && !!userPhone && phoneVerified === false));
+
+        if (needsOtp) {
+          setCurrentPage('student-dashboard');
         } else if (user.role === 'student' && accountStatus === 'pending') {
-          setCurrentPage('student-dashboard');  // the dashboard switch will render ActivationPage
+          setCurrentPage('student-dashboard');  // dashboard switch renders ActivationPage
         } else {
           setCurrentPage(
             user.role === 'superadmin' || user.role === 'admin'
@@ -852,19 +861,35 @@ function HomeContent() {
 
     // Student dashboard (default) — but pending_verification students see the OTP page,
     // and pending students see the activation page.
-    if (user.role === 'student' && (user as { account_status?: string }).account_status === 'pending_verification') {
-      return (
-        <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
-          <OtpVerificationPage />
-        </DashboardErrorBoundary>
-      );
-    }
-    if (user.role === 'student' && (user as { account_status?: string }).account_status === 'pending') {
-      return (
-        <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
-          <StudentActivationPage />
-        </DashboardErrorBoundary>
-      );
+    //
+    // RESILIENT ROUTING (v73 partial-apply safe):
+    //   - 'pending_verification'         → OTP page (preferred v73 path)
+    //   - 'pending' + phone + !verified  → OTP page (degraded: v73 CHECK widening
+    //                                     didn't apply; v68 trigger set 'pending'
+    //                                     instead. Still needs OTP.)
+    //   - 'pending' + (no phone OR phone_verified=true) → Activation page
+    if (user.role === 'student') {
+      const status = (user as { account_status?: string }).account_status;
+      const phone = (user as { phone?: string | null }).phone;
+      const phoneVerified = (user as { phone_verified?: boolean }).phone_verified;
+      const needsOtp =
+        status === 'pending_verification' ||
+        (status === 'pending' && !!phone && phoneVerified === false);
+
+      if (needsOtp) {
+        return (
+          <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+            <OtpVerificationPage />
+          </DashboardErrorBoundary>
+        );
+      }
+      if (status === 'pending') {
+        return (
+          <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+            <StudentActivationPage />
+          </DashboardErrorBoundary>
+        );
+      }
     }
 
     const studentContent = (

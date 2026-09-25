@@ -133,6 +133,10 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           } else if (user.role === 'registration_agent') {
             setCurrentPage('agent-portal');
           } else {
+            // v73: Students go to student-dashboard; the dashboard switch
+            // in page.tsx will route them to OtpVerificationPage (if
+            // pending_verification) or StudentActivationPage (if pending)
+            // or StudentDashboard (if active).
             setCurrentPage('student-dashboard');
           }
         }
