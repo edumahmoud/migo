@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, MessageCircle } from 'lucide-react';
+import { Loader2, KeyRound, RefreshCw, LogOut, CheckCircle2, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +15,6 @@ import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 
-const TELEGRAM_BOT_NAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || 'AttenDoBot';
-
 export default function OtpVerificationPage() {
   const { t } = useTranslations();
   const router = useRouter();
@@ -27,14 +25,15 @@ export default function OtpVerificationPage() {
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [phone, setPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gatewaySent, setGatewaySent] = useState(false);
 
-  // Fetch the user's phone + request initial OTP.
+  const phone = (user as { phone?: string } | null)?.phone ?? null;
+
+  // Request OTP on mount.
   const init = useCallback(async () => {
     setLoading(true);
     try {
-      // Request an OTP to be sent via Telegram.
       const res = await fetch('/api/auth/resend-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
@@ -43,6 +42,7 @@ export default function OtpVerificationPage() {
       if (json.success) {
         toast.success(json.message || 'تم إرسال كود التحقق');
         setCooldown(60);
+        setGatewaySent(json.gateway_sent ?? false);
       } else {
         toast.error(json.error || 'تعذّر إرسال الكود');
       }
@@ -53,12 +53,7 @@ export default function OtpVerificationPage() {
     }
   }, [t]);
 
-  useEffect(() => {
-    // Set the phone from the user profile.
-    const p = (user as { phone?: string } | null)?.phone ?? null;
-    setPhone(p);
-    init();
-  }, [init, user]);
+  useEffect(() => { init(); }, [init]);
 
   // Cooldown timer.
   useEffect(() => {
@@ -67,24 +62,23 @@ export default function OtpVerificationPage() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // Poll for account status changes (when OTP verified on another device).
+  // Poll for account status changes.
   useEffect(() => {
     const interval = setInterval(async () => {
-      const res = await fetch('/api/auth/me', { headers: await getCachedAuthHeaders() });
-      const json = await res.json();
-      if (json.profile?.account_status === 'pending') {
-        toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
-        setTimeout(() => router.push('/'), 1500);
-      }
+      try {
+        const res = await fetch('/api/auth/me', { headers: await getCachedAuthHeaders() });
+        const json = await res.json();
+        if (json.profile?.account_status === 'pending') {
+          toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
+          setTimeout(() => router.push('/'), 1500);
+        }
+      } catch { /* silent */ }
     }, 5000);
     return () => clearInterval(interval);
   }, [router]);
 
   const handleVerify = async () => {
-    if (otpCode.length !== 6) {
-      toast.error('أدخل كود من 6 أرقام');
-      return;
-    }
+    if (otpCode.length !== 6) { toast.error('أدخل كود من 6 أرقام'); return; }
     setVerifying(true);
     try {
       const res = await fetch('/api/auth/verify-otp', {
@@ -95,16 +89,12 @@ export default function OtpVerificationPage() {
       const json = await res.json();
       if (json.success) {
         toast.success('تم التحقق من رقم هاتفك بنجاح!');
-        // Refresh the auth store to get the updated account_status.
         setTimeout(() => router.push('/'), 1000);
       } else {
         toast.error(json.error || 'الكود غير صحيح');
       }
-    } catch {
-      toast.error(t('common.unexpectedError'));
-    } finally {
-      setVerifying(false);
-    }
+    } catch { toast.error(t('common.unexpectedError')); }
+    finally { setVerifying(false); }
   };
 
   const handleResend = async () => {
@@ -118,14 +108,12 @@ export default function OtpVerificationPage() {
       if (json.success) {
         toast.success(json.message || 'تم إعادة إرسال الكود');
         setCooldown(60);
+        setGatewaySent(json.gateway_sent ?? false);
       } else {
         toast.error(json.error || 'تعذّر إعادة الإرسال');
       }
-    } catch {
-      toast.error(t('common.unexpectedError'));
-    } finally {
-      setResending(false);
-    }
+    } catch { toast.error(t('common.unexpectedError')); }
+    finally { setResending(false); }
   };
 
   const handleSignOut = () => {
@@ -139,7 +127,7 @@ export default function OtpVerificationPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50">
         <div className="flex items-center gap-2 text-sky-700">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span>جارٍ تحميل صفحة التحقق...</span>
+          <span>جارٍ إرسال كود التحقق...</span>
         </div>
       </div>
     );
@@ -165,49 +153,38 @@ export default function OtpVerificationPage() {
             </motion.div>
             <CardTitle className="text-xl font-bold">تأكيد رقم الهاتف</CardTitle>
             <CardDescription className="text-sm mt-1">
-              تم إنشاء حسابك. للتحقق من رقم هاتفك، اتبع الخطوات التالية.
+              تم إرسال كود التحقق إلى تطبيق تليجرام على رقمك.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="pt-2 px-6 pb-6 space-y-4">
-            {/* Telegram instructions */}
-            <div className="rounded-lg bg-sky-50 border border-sky-200 p-3 space-y-2">
-              <div className="flex items-center gap-2 text-sky-800 font-semibold text-sm">
-                <MessageCircle className="h-4 w-4" />
-                الخطوة 1: افتح تليجرام
+            {/* Phone info */}
+            {phone && (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Phone className="h-4 w-4" />
+                <span dir="ltr">{phone}</span>
+                {!gatewaySent && (
+                  <Badge variant="secondary" className="text-xs">وضع التطوير</Badge>
+                )}
               </div>
-              <p className="text-xs text-sky-700">
-                افتح تليجرام وابدأ محادثة مع البوت{' '}
-                <a
-                  href={`https://t.me/${TELEGRAM_BOT_NAME}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-bold underline"
-                >
-                  @{TELEGRAM_BOT_NAME}
-                </a>
-                {' '}ثم اضغط زر "مشاركة رقم الهاتف".
-              </p>
-              {phone && (
-                <Badge variant="outline" className="text-xs" dir="ltr">{phone}</Badge>
-              )}
-            </div>
+            )}
 
             {/* OTP input */}
             <div className="space-y-2">
-              <Label htmlFor="otp-input" className="text-sm font-medium">
-                الخطوة 2: أدخل كود التحقق (6 أرقام)
+              <Label htmlFor="otp-input" className="text-sm font-medium text-center block">
+                أدخل كود التحقق (6 أرقام)
               </Label>
               <Input
                 id="otp-input"
                 type="text"
                 inputMode="numeric"
-                placeholder="000000"
+                placeholder="••••••"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 className="text-center text-2xl font-mono tracking-[0.5em] h-14"
                 disabled={verifying}
                 onKeyDown={(e) => { if (e.key === 'Enter' && otpCode.length === 6) handleVerify(); }}
+                autoFocus
               />
             </div>
 
@@ -224,7 +201,7 @@ export default function OtpVerificationPage() {
               )}
             </Button>
 
-            {/* Resend button */}
+            {/* Resend + sign out */}
             <div className="flex items-center justify-between">
               <button
                 onClick={handleResend}
@@ -246,6 +223,11 @@ export default function OtpVerificationPage() {
                 <LogOut className="h-3 w-3" />تسجيل الخروج
               </button>
             </div>
+
+            {/* Help text */}
+            <p className="text-center text-xs text-muted-foreground">
+              إذا لم تصلك رسالة التحقق، تأكد من أن تليجرام مثبت على هاتفك ومسجّل بنفس الرقم.
+            </p>
           </CardContent>
         </Card>
       </motion.div>

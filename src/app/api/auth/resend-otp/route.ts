@@ -6,20 +6,68 @@ import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 /**
  * POST /api/auth/resend-otp
  *
- * Generates a new OTP and sends it via Telegram. The student must be
- * authenticated and have account_status='pending_verification'.
+ * Generates a 6-digit OTP, stores it hashed (scrypt + random salt),
+ * and sends it directly to the student's phone number via the
+ * Telegram Gateway API.
+ *
+ * The Telegram Gateway sends the code to the Telegram app installed
+ * on that phone number (with SMS fallback if Telegram is not installed).
  *
  * Rate limiting:
- *   - Resend cooldown: 60 seconds (check last OTP created_at).
+ *   - Resend cooldown: 60 seconds.
  *   - Max 3 OTP requests per phone per hour.
+ *
+ * Env: TELEGRAM_GATEWAY_API_TOKEN (from Telegram Gateway dashboard).
  */
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const GATEWAY_TOKEN = process.env.TELEGRAM_GATEWAY_API_TOKEN || '';
+const GATEWAY_SEND_URL = 'https://gateway.telegram.org/sendCode';
 const OTP_EXPIRY_MINUTES = 5;
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_OTP_PER_HOUR = 3;
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Send the OTP code to a phone number via the Telegram Gateway API.
+ * Returns true if the gateway accepted the request.
+ * If the token is not configured, the OTP is still stored locally
+ * (for dev/testing — the code can be read from server logs).
+ */
+async function sendOtpViaGateway(phone: string, code: string): Promise<{ sent: boolean; error?: string }> {
+  if (!GATEWAY_TOKEN) {
+    // Dev mode — log the code so the developer can test.
+    console.log(`[OTP DEV MODE] Code for ${phone}: ${code}`);
+    return { sent: false, error: 'Telegram Gateway not configured (dev mode)' };
+  }
+
+  try {
+    const res = await fetch(GATEWAY_SEND_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GATEWAY_TOKEN}`,
+      },
+      body: JSON.stringify({
+        phone_number: phone,
+        code: code,
+        // Optional: brand name shown in the Telegram message.
+        sender: 'AttenDo',
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => 'unknown');
+      console.error('[resend-otp] Gateway error:', res.status, errText);
+      return { sent: false, error: `Gateway error: ${res.status}` };
+    }
+
+    return { sent: true };
+  } catch (err) {
+    console.error('[resend-otp] Gateway fetch error:', err);
+    return { sent: false, error: 'Network error contacting Telegram Gateway' };
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -47,7 +95,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'لا يوجد رقم هاتف مرتبط بحسابك' }, { status: 400 });
   }
 
-  // 2. Check resend cooldown (last OTP must be > 60s ago).
+  // 2. Check resend cooldown.
   const { data: lastOtp } = await supabaseServer
     .from('otp_codes')
     .select('created_at')
@@ -83,25 +131,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 4. Generate new OTP (6-digit).
+  // 4. Generate OTP (6-digit).
   const code = generateOTP();
   const salt = randomBytes(16).toString('hex');
   const hash = scryptSync(code, salt, 64).toString('hex');
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
 
-  // 5. Try to find the student's Telegram chat_id (from a previous OTP delivery).
-  const { data: prevOtp } = await supabaseServer
-    .from('otp_codes')
-    .select('telegram_chat_id')
-    .eq('user_id', p.id)
-    .not('telegram_chat_id', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const telegramChatId = (prevOtp as { telegram_chat_id: string | null } | null)?.telegram_chat_id ?? null;
-
-  // 6. Insert the OTP record.
+  // 5. Insert the OTP record.
   const { data: newOtp, error: otpErr } = await supabaseServer
     .from('otp_codes')
     .insert({
@@ -112,39 +148,27 @@ export async function POST(request: NextRequest) {
       expires_at: expiresAt,
       max_attempts: 5,
       used: false,
-      telegram_chat_id: telegramChatId,
     })
     .select('id')
     .single();
 
   if (otpErr) {
+    console.error('[resend-otp] INSERT error:', otpErr);
     return NextResponse.json({ success: false, error: 'فشل إنشاء كود التحقق' }, { status: 500 });
   }
 
-  // 7. Send OTP via Telegram (if we have a chat_id).
-  let sentViaTelegram = false;
-  if (telegramChatId && TELEGRAM_BOT_TOKEN) {
-    try {
-      const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: telegramChatId,
-          text: `🔐 كود التحقق الخاص بك هو: ${code}\n\nهذا الكود صالح لمدة ${OTP_EXPIRY_MINUTES} دقائق فقط.`,
-        }),
-      });
-      if (tgRes.ok) sentViaTelegram = true;
-    } catch {
-      // Non-fatal — the OTP is stored, user can try again.
-    }
-  }
+  // 6. Send OTP via Telegram Gateway API (directly to the phone number).
+  const gatewayResult = await sendOtpViaGateway(p.phone, code);
 
+  // 7. Response.
   return NextResponse.json({
     success: true,
-    message: sentViaTelegram
-      ? 'تم إرسال كود التحقق عبر تليجرام.'
-      : 'تم إنشاء كود التحقق. يرجى بدء محادثة مع البوت على تليجرام لاستلام الكود.',
-    telegram_chat_id: telegramChatId ? true : false,
+    message: gatewayResult.sent
+      ? 'تم إرسال كود التحقق إلى رقم هاتفك عبر تليجرام. تحقق من تطبيق تليجرام.'
+      : GATEWAY_TOKEN
+        ? 'تعذّر إرسال الكود عبر تليجرام. حاول مرة أخرى.'
+        : 'تم إنشاء كود التحقق. (وضع التطوير — راجع سجل الخادم للحصول على الكود.)',
+    gateway_sent: gatewayResult.sent,
     otp_id: (newOtp as { id: string }).id,
   });
 }
