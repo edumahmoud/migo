@@ -166,7 +166,41 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertErr) {
-    return NextResponse.json({ success: false, error: 'فشل إنشاء جلسة التحقق' }, { status: 500 });
+    // Detect missing migration v74 (the most common cause of insert failures).
+    const errMsg = insertErr.message || '';
+    const isMissingColumn = /column.*does not exist/i.test(errMsg)
+      || /verify_token_hash|verify_token_salt|verify_expires_at|status/i.test(errMsg);
+    const isNotNullViolation = /null value in column.*code_hash/i.test(errMsg)
+      || /not-null constraint/i.test(errMsg);
+
+    // Log the full error server-side (NEVER expose to client).
+    console.error('[initiate-telegram-verification] INSERT error:', insertErr);
+
+    if (isMissingColumn) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '⚠️ migration v74 غير مُطبَّقة على قاعدة البيانات. الأعمدة verify_token_hash / verify_token_salt / verify_expires_at / status غير موجودة. شغّل supabase/migrations/v74_telegram_bot_verification.sql في Supabase SQL Editor.',
+          migration_required: true,
+        },
+        { status: 500 }
+      );
+    }
+    if (isNotNullViolation) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '⚠️ migration v74 غير مكتملة — قيد NOT NULL على code_hash لم يُرفع. أعد تشغيل v74_migration.sql كاملاً.',
+          migration_required: true,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'فشل إنشاء جلسة التحقق. راجع سجل الخادم للتفاصيل.' },
+      { status: 500 }
+    );
   }
 
   // 8. Build deep link
