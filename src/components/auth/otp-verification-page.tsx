@@ -247,8 +247,8 @@ export default function OtpVerificationPage() {
             {showDiagnostic && diagnostic && (
               <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 text-xs space-y-1">
                 <div className="font-semibold mb-1">نتائج التشخيص:</div>
-                {diagnostic.verdict && (
-                  <div className="text-sky-700 dark:text-sky-300">{diagnostic.verdict as string}</div>
+                {typeof diagnostic.verdict === 'string' && diagnostic.verdict && (
+                  <div className="text-sky-700 dark:text-sky-300">{diagnostic.verdict}</div>
                 )}
                 <div className="font-mono text-[10px] text-muted-foreground mt-2 max-h-32 overflow-auto">
                   <pre dir="ltr">{JSON.stringify(diagnostic, null, 2)}</pre>
