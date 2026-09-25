@@ -59,6 +59,7 @@ export default function StudentActivationPage() {
 
   const [data, setData] = useState<ActivationData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [silentRefreshing, setSilentRefreshing] = useState(false);
   const [teacherCode, setTeacherCode] = useState('');
   const [linking, setLinking] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
@@ -67,6 +68,28 @@ export default function StudentActivationPage() {
 
   const studentId = user?.id;
 
+  // Silent reload — updates data WITHOUT showing the full-page loading spinner.
+  // Used by realtime events and action callbacks (link teacher, create order).
+  const silentReload = useCallback(async () => {
+    setSilentRefreshing(true);
+    try {
+      const res = await fetch('/api/student/activation/me', { headers: await getCachedAuthHeaders() });
+      const json = await res.json();
+      if (json.success) {
+        setData(json as ActivationData);
+        if ((json as ActivationData).student.account_status === 'active') {
+          toast.success('تم تفعيل حسابك! جارٍ فتح المنصة...');
+          setTimeout(() => router.push('/'), 1500);
+        }
+      }
+    } catch {
+      // Silent — don't show error toast on background refreshes
+    } finally {
+      setSilentRefreshing(false);
+    }
+  }, [router]);
+
+  // Initial load — shows the full-page spinner (only on first mount).
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -88,38 +111,33 @@ export default function StudentActivationPage() {
 
   // ─── Realtime subscriptions (replaces polling) ───
   // Fires ONLY when actual DB changes happen — no interval, no page refresh.
+  // Uses silentReload (no full-page spinner) so the update is instant.
   useEffect(() => {
     if (!studentId) return;
 
     const channel = supabase
       .channel('activation-realtime')
-      // Watch orders table: when an order status changes (e.g., supervisor
-      // approves → status='paid'), reload to show updated pending list.
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `student_id=eq.${studentId}` },
-        () => { load(); }
+        () => { silentReload(); }
       )
-      // Watch subject_students: when a new enrollment is created or updated
-      // (e.g., supervisor activates → new row with status='approved'), reload.
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'subject_students', filter: `student_id=eq.${studentId}` },
-        () => { load(); }
+        () => { silentReload(); }
       )
-      // Watch users: when account_status changes from 'pending' to 'active',
-      // reload → the load() function will detect 'active' and redirect.
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${studentId}` },
-        () => { load(); }
+        () => { silentReload(); }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [studentId, load]);
+  }, [studentId, silentReload]);
 
   const handleLinkTeacher = async () => {
     if (!teacherCode.trim()) { toast.error('أدخل كود المعلم'); return; }
@@ -130,7 +148,7 @@ export default function StudentActivationPage() {
         body: JSON.stringify({ teacherCode: teacherCode.trim() }),
       });
       const json = await res.json();
-      if (json.success) { toast.success(`تم الربط بـ ${json.teacher?.name ?? 'المعلم'}`); setTeacherCode(''); await load(); }
+      if (json.success) { toast.success(`تم الربط بـ ${json.teacher?.name ?? 'المعلم'}`); setTeacherCode(''); await silentReload(); }
       else toast.error(json.error || t('common.unexpectedError'));
     } catch { toast.error(t('common.unexpectedError')); }
     finally { setLinking(false); }
@@ -155,7 +173,7 @@ export default function StudentActivationPage() {
       const json = await res.json();
       if (json.success) {
         setSelectedCourses(new Set());
-        await load();
+        await silentReload();
         if (json.payment_methods?.length > 0 || json.created_orders?.length > 0) {
           setPaymentDialog({
             methods: json.payment_methods ?? [],
@@ -199,6 +217,10 @@ export default function StudentActivationPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50 p-3 sm:p-6">
+      {/* Subtle refresh indicator — shows a thin bar when silently refreshing */}
+      {silentRefreshing && (
+        <div className="fixed top-0 left-0 right-0 h-0.5 bg-sky-500 z-50 animate-pulse" />
+      )}
       <div className="max-w-3xl mx-auto space-y-4">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
