@@ -78,16 +78,20 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // 3. Query orders.
+  // 3. Query orders (includes proof fields for supervisor review).
   let query = supabaseServer
     .from('orders')
     .select(
       'id, student_id, subject_id, amount, currency, status, confirmation_mode, created_at, ' +
+      'sender_name, transaction_ref, proof_notes, proof_submitted_at, proof_url, ' +
+      'payment_method_id, ' +
       'subject:subjects(id, name, level, sub_level), ' +
-      'student:users!student_id(id, email, name, student_code)'
+      'student:users!student_id(id, email, name, student_code), ' +
+      'payment_method:payment_methods(id, name, icon, account_identifier, contact_for_confirmation)'
     )
     .eq('status', 'pending')
     .eq('confirmation_mode', 'manual')
+    .order('proof_submitted_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(200);
 

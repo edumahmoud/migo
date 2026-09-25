@@ -28,6 +28,8 @@ import {
   Trash2,
   FolderTree,
   ChevronLeft,
+  Gift,
+  AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -78,7 +80,17 @@ const SUBJECT_COLORS = [
 // Module-level cache for subjects (reduces refetch on tab switches)
 // -------------------------------------------------------
 
-const subjectsCache = new Map<string, { data: Subject[]; teacherNames: Record<string, string>; enrollmentStatuses: Record<string, string>; timestamp: number }>();
+const subjectsCache = new Map<string, { data: Subject[]; teacherNames: Record<string, string>; enrollmentStatuses: Record<string, string>; subscriptions: Record<string, SubscriptionInfo>; timestamp: number }>();
+
+interface SubscriptionInfo {
+  status: string;
+  enrollment_method: string;
+  period_start: string | null;
+  period_end: string | null;
+  next_billing_at: string | null;
+  monthly_price: number | null;
+  enrolled_at: string | null;
+}
 const SUBJECTS_CACHE_TTL = 30000; // 30 seconds
 
 // -------------------------------------------------------
@@ -198,6 +210,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
   // ─── Enrollment status map (student only) ───
   const [enrollmentStatuses, setEnrollmentStatuses] = useState<Record<string, string>>({});
+  const [subscriptions, setSubscriptions] = useState<Record<string, SubscriptionInfo>>({});
 
   // ─── Create subject modal ───
   const [createSubjectOpen, setCreateSubjectOpen] = useState(false);
@@ -314,6 +327,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         setSubjects(cached.data);
         setTeacherNames(cached.teacherNames);
         setEnrollmentStatuses(cached.enrollmentStatuses);
+        setSubscriptions(cached.subscriptions || {});
         setLoadingSubjects(false);
         return;
       }
@@ -390,7 +404,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         // Student: two separate queries to avoid PostgREST JOIN (PGRST200)
         const { data: enrollmentData, error: enrollmentError } = await supabase
           .from('subject_students')
-          .select('id, subject_id, status')
+          .select('id, subject_id, status, enrollment_method, current_period_start, current_period_end, next_billing_at, monthly_price, enrolled_at')
           .eq('student_id', profile.id);
 
         if (enrollmentError) {
@@ -416,15 +430,43 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
             // Build enrollment status map and enrollment ID map
             const statusMap: Record<string, string> = {};
+            const subscriptionsMap: Record<string, {
+              status: string;
+              enrollment_method: string;
+              period_start: string | null;
+              period_end: string | null;
+              next_billing_at: string | null;
+              monthly_price: number | null;
+              enrolled_at: string | null;
+            }> = {};
             const subjectsList: Subject[] = [];
             const enrollmentMap: Record<string, string> = {};
 
-            enrollmentData.forEach((e: { id: string; subject_id: string; status?: string }) => {
+            enrollmentData.forEach((e: {
+              id: string;
+              subject_id: string;
+              status?: string;
+              enrollment_method?: string;
+              current_period_start?: string | null;
+              current_period_end?: string | null;
+              next_billing_at?: string | null;
+              monthly_price?: number | null;
+              enrolled_at?: string | null;
+            }) => {
               const subject = subjectMap.get(e.subject_id);
               if (subject) {
                 subjectsList.push(subject);
                 // status might be undefined if column doesn't exist yet
                 statusMap[subject.id] = e.status || 'approved';
+                subscriptionsMap[subject.id] = {
+                  status: e.status || 'approved',
+                  enrollment_method: e.enrollment_method || 'self_join',
+                  period_start: e.current_period_start ?? null,
+                  period_end: e.current_period_end ?? null,
+                  next_billing_at: e.next_billing_at ?? null,
+                  monthly_price: e.monthly_price !== null && e.monthly_price !== undefined ? Number(e.monthly_price) : null,
+                  enrolled_at: e.enrolled_at ?? null,
+                };
                 // Map enrollment ID → subject ID for Realtime DELETE handling
                 if (e.id) enrollmentMap[e.id] = subject.id;
               }
@@ -432,6 +474,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
             setSubjects(subjectsList);
             setEnrollmentStatuses(statusMap);
+            setSubscriptions(subscriptionsMap);
             enrollmentIdMapRef.current = enrollmentMap;
 
             // Save to cache (teacherNames will be updated after fetchTeacherNames completes)
@@ -439,6 +482,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               data: subjectsList,
               teacherNames: {},
               enrollmentStatuses: statusMap,
+              subscriptions: subscriptionsMap,
               timestamp: Date.now(),
             });
 
@@ -1914,6 +1958,66 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               )}
                             </div>
                           )}
+
+                          {/* ── Subscription info badge (student only) ── */}
+                          {role === 'student' && subscriptions[subject.id] && (() => {
+                            const sub = subscriptions[subject.id];
+                            const now = new Date();
+                            const periodEnd = sub.period_end ? new Date(sub.period_end) : null;
+                            const daysLeft = periodEnd ? Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                            const isFree = sub.monthly_price === 0 || sub.monthly_price === null;
+                            const isExpired = periodEnd && periodEnd <= now;
+                            const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+                            const isPermanent = sub.enrollment_method === 'teacher_add' || sub.enrollment_method === 'agent_register';
+
+                            // Don't show if no period_end and not self_paid
+                            if (!periodEnd && sub.enrollment_method !== 'self_paid' && !isPermanent) return null;
+
+                            const badgeColor = isExpired
+                              ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/15 dark:border-rose-900/60 dark:text-rose-400'
+                              : isExpiringSoon
+                                ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/15 dark:border-amber-900/60 dark:text-amber-400'
+                                : 'bg-teal-50 border-teal-200 text-teal-700 dark:bg-teal-900/15 dark:border-teal-900/60 dark:text-teal-400';
+
+                            const formatDateShort = (d: Date) => {
+                              try {
+                                return d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' });
+                              } catch {
+                                return d.toISOString().slice(0, 10);
+                              }
+                            };
+
+                            return (
+                              <div className={`mt-2 rounded-lg border ${badgeColor} px-3 py-2 text-xs space-y-1`}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5">
+                                    {isPermanent ? (
+                                      <><Shield className="h-3 w-3 shrink-0" /><span className="font-medium">دائم</span></>
+                                    ) : isFree ? (
+                                      <><Gift className="h-3 w-3 shrink-0" /><span className="font-medium">مجاني</span></>
+                                    ) : isExpired ? (
+                                      <><AlertCircle className="h-3 w-3 shrink-0" /><span className="font-medium">منتهي</span></>
+                                    ) : (
+                                      <><Clock className="h-3 w-3 shrink-0" /><span className="font-medium">صالح حتى</span></>
+                                    )}
+                                    {periodEnd && (
+                                      <span className="font-mono">{formatDateShort(periodEnd)}</span>
+                                    )}
+                                  </div>
+                                  {!isPermanent && !isExpired && daysLeft !== null && (
+                                    <span className="text-[10px] opacity-80">
+                                      {daysLeft === 0 ? 'ينتهي اليوم' : `${daysLeft} يوم`}
+                                    </span>
+                                  )}
+                                </div>
+                                {sub.monthly_price !== null && sub.monthly_price > 0 && (
+                                  <div className="text-[10px] opacity-70">
+                                    {Number(sub.monthly_price)} {subject.currency || 'EGP'}/شهرياً
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Co-teacher badge */}
                           {role === 'teacher' && subject.is_co_teacher && (

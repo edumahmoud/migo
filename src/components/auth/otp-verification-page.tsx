@@ -245,7 +245,7 @@ export default function OtpVerificationPage() {
                   type="tel"
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="01555614624"
+                  placeholder="01000000000"
                   dir="ltr"
                   disabled={savingPhone}
                   className="text-sm h-10"

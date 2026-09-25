@@ -523,11 +523,58 @@ export default function StudentActivationPage() {
                 </div>
               )}
 
-              {/* Mock gateway (dev only) */}
-              {paymentDialog.checkoutUrl && selectedProvider === 'manual' && (
-                <Button className="w-full" variant="outline" onClick={() => { window.location.href = paymentDialog.checkoutUrl!; }}>
-                  الدفع عبر البوابة (تجريبي)
-                </Button>
+              {/* ── Instant payment (auto-activation via mock gateway) ──
+                  Switches pending orders to confirmation_mode='automatic'
+                  then redirects to mock-checkout. The mock gateway simulates
+                  a card / online payment gateway. In production, replace
+                  with real Paymob / Fawry / Stripe gateway. */}
+              {!selectedProvider && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/student/orders/switch-to-automatic', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+                      });
+                      const json = await res.json();
+                      if (json.success && json.checkout_url) {
+                        // Redirect to the mock gateway checkout
+                        window.location.href = json.checkout_url;
+                      } else {
+                        toast.error(json.error || 'تعذّر تحويل الطلبات');
+                      }
+                    } catch {
+                      toast.error('تعذّر الاتصال بالخادم');
+                    }
+                  }}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50/50 p-3 hover:bg-sky-100/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-sky-100 flex items-center justify-center shrink-0">
+                      <CreditCard className="h-5 w-5 text-sky-600" />
+                    </div>
+                    <div className="text-start">
+                      <div className="font-semibold text-sm">دفع فوري (محاكاة البطاقة)</div>
+                      <div className="text-xs text-muted-foreground">يُفعّل الاشتراك تلقائياً بعد الدفع — بدون انتظار المشرف</div>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
+                    تفعيل فوري
+                  </Badge>
+                </button>
+              )}
+
+              {/* ── Proof-of-payment form (manual mode only) ── */}
+              {selectedProvider === 'manual' && (
+                <ProofForm
+                  orders={paymentDialog.orders.filter(o => o.status === 'pending')}
+                  onSubmitted={() => {
+                    setPaymentDialog(null);
+                    setSelectedProvider(null);
+                    silentReload();
+                  }}
+                />
               )}
             </div>
           )}
@@ -536,6 +583,163 @@ export default function StudentActivationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ProofForm — student fills this after transferring money externally
+// ─────────────────────────────────────────────────────────────
+function ProofForm({
+  orders,
+  onSubmitted,
+}: {
+  orders: Array<{ subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
+  onSubmitted: () => void;
+}) {
+  const [senderName, setSenderName] = useState('');
+  const [transactionRef, setTransactionRef] = useState('');
+  const [proofNotes, setProofNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedOrders, setSubmittedOrders] = useState<Set<string>>(new Set());
+
+  // Find the first order that still needs proof submission
+  const pendingOrder = orders.find(o => !submittedOrders.has(o.subject_id));
+
+  const handleSubmit = async () => {
+    if (!pendingOrder) return;
+    // Find the order ID via the parent state — but we only have subject_id here.
+    // We'll fetch the order_id by querying.
+    if (!senderName.trim() || !transactionRef.trim()) {
+      toast.error('الرجاء إدخال اسم المرسل ورقم العملية');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // First, find the order_id from the student's pending orders.
+      const lookupRes = await fetch('/api/student/orders', {
+        method: 'GET',
+        headers: await getCachedAuthHeaders(),
+      });
+      const lookupJson = await lookupRes.json();
+      // The student-orders API returns pending orders — we find by subject_id.
+      // Actually /api/student/orders is POST-only. Use /api/student/activation/me which returns recent_orders.
+      const meRes = await fetch('/api/student/activation/me', {
+        headers: await getCachedAuthHeaders(),
+      });
+      const meJson = await meRes.json();
+      const recentOrders: Array<{ id: string; subject_id: string; status: string; confirmation_mode: string }> = meJson.recent_orders || [];
+      const orderRow = recentOrders.find(o => o.subject_id === pendingOrder.subject_id && o.status === 'pending' && o.confirmation_mode === 'manual');
+      if (!orderRow) {
+        toast.error('تعذّر العثور على الطلب');
+        return;
+      }
+
+      const res = await fetch(`/api/student/orders/${orderRow.id}/submit-proof`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({
+          sender_name: senderName.trim(),
+          transaction_ref: transactionRef.trim(),
+          proof_notes: proofNotes.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('تم إرسال إثبات الدفع. سيقوم المشرف بمراجعته.');
+        setSubmittedOrders(prev => new Set(prev).add(pendingOrder.subject_id));
+        // Clear fields for next order
+        setSenderName('');
+        setTransactionRef('');
+        setProofNotes('');
+        // If no more pending orders, close the dialog
+        if (orders.length === submittedOrders.size + 1) {
+          setTimeout(() => onSubmitted(), 1000);
+        }
+      } else {
+        toast.error(json.error || 'فشل إرسال الإثبات');
+      }
+    } catch {
+      toast.error('تعذّر الاتصال بالخادم');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!pendingOrder) {
+    return (
+      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4" />
+        تم إرسال إثبات الدفع لجميع الطلبات. سيقوم المشرف بالتفعيل.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-sky-800">إرسال إثبات الدفع</div>
+        <Badge variant="outline" className="text-xs">
+          {pendingOrder.subject_name} — {Number(pendingOrder.amount).toFixed(2)} {pendingOrder.currency}
+        </Badge>
+      </div>
+
+      <div className="space-y-2">
+        <div>
+          <label className="text-xs font-medium text-foreground mb-1 block">اسم المرسل *</label>
+          <Input
+            type="text"
+            value={senderName}
+            onChange={(e) => setSenderName(e.target.value)}
+            placeholder="مثال: محمد أحمد"
+            className="h-9 text-sm"
+            disabled={submitting}
+            maxLength={100}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-foreground mb-1 block">رقم العملية / المرجع *</label>
+          <Input
+            type="text"
+            value={transactionRef}
+            onChange={(e) => setTransactionRef(e.target.value)}
+            placeholder="مثال: 1234567890 أو TXN-XXXX"
+            className="h-9 text-sm font-mono"
+            disabled={submitting}
+            dir="ltr"
+            maxLength={100}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-foreground mb-1 block">ملاحظات (اختياري)</label>
+          <Input
+            type="text"
+            value={proofNotes}
+            onChange={(e) => setProofNotes(e.target.value)}
+            placeholder="مثال: تم التحويل من فودافون كاش"
+            className="h-9 text-sm"
+            disabled={submitting}
+            maxLength={500}
+          />
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        onClick={handleSubmit}
+        disabled={submitting || !senderName.trim() || !transactionRef.trim()}
+        className="w-full h-10 bg-emerald-600 hover:bg-emerald-700"
+      >
+        {submitting ? (
+          <><Loader2 className="h-4 w-4 animate-spin me-2" />جارٍ الإرسال...</>
+        ) : (
+          <><CheckCircle2 className="h-4 w-4 me-2" />إرسال الإثبات</>
+        )}
+      </Button>
+
+      <p className="text-[10px] text-muted-foreground text-center">
+        سيقوم المشرف بمراجعة الإثبات وتفعيل الاشتراك خلال وقت قصير.
+      </p>
     </div>
   );
 }

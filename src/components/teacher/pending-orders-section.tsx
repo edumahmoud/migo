@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Loader2, Check, X, Clock, User, BookOpen, RefreshCw, Wallet,
+  FileText, MessageSquare, AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,8 +20,22 @@ interface PendingOrder {
   currency: string;
   status: string;
   created_at: string;
+  confirmation_mode: string;
+  sender_name: string | null;
+  transaction_ref: string | null;
+  proof_notes: string | null;
+  proof_submitted_at: string | null;
+  proof_url: string | null;
+  payment_method_id: string | null;
   subject?: { id: string; name: string; level: string | null; sub_level: string | null } | null;
   student?: { id: string; email: string; name: string | null; student_code: string | null } | null;
+  payment_method?: {
+    id: string;
+    name: string;
+    icon: string | null;
+    account_identifier: string;
+    contact_for_confirmation: string | null;
+  } | null;
 }
 
 export default function PendingOrdersSection() {
@@ -103,9 +118,10 @@ export default function PendingOrdersSection() {
             const studentName = o.student?.name ?? o.student?.email ?? '—';
             const courseName = o.subject?.name ?? '—';
             const meta = [o.subject?.level, o.subject?.sub_level].filter(Boolean).join(' / ');
+            const hasProof = !!(o.proof_submitted_at && o.sender_name && o.transaction_ref);
             return (
-              <Card key={o.id} className="overflow-hidden">
-                <CardContent className="p-3">
+              <Card key={o.id} className={`overflow-hidden ${hasProof ? 'border-sky-300 bg-sky-50/30' : ''}`}>
+                <CardContent className="p-3 space-y-2">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -113,6 +129,15 @@ export default function PendingOrdersSection() {
                         <span className="font-semibold truncate">{studentName}</span>
                         {o.student?.student_code && (
                           <Badge variant="outline" className="text-xs font-mono">{o.student.student_code}</Badge>
+                        )}
+                        {hasProof ? (
+                          <Badge className="text-xs bg-sky-100 text-sky-800 hover:bg-sky-200 border-sky-200">
+                            <FileText className="h-3 w-3 me-1" /> إثبات مُرسَل
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                            <AlertCircle className="h-3 w-3 me-1" /> بدون إثبات
+                          </Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -153,6 +178,51 @@ export default function PendingOrdersSection() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* ── Proof-of-payment details (when submitted) ── */}
+                  {hasProof && (
+                    <div className="rounded-md border border-sky-200 bg-white p-2 space-y-1 text-xs">
+                      <div className="font-semibold text-sky-800 flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        إثبات الدفع
+                        {o.proof_submitted_at && (
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            · {new Date(o.proof_submitted_at).toLocaleString('ar-EG')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        <div className="flex items-start gap-1.5">
+                          <User className="h-3 w-3 mt-0.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">اسم المرسل</div>
+                            <div className="font-medium">{o.sender_name}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-1.5">
+                          <FileText className="h-3 w-3 mt-0.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">رقم العملية / المرجع</div>
+                            <div className="font-mono font-medium" dir="ltr">{o.transaction_ref}</div>
+                          </div>
+                        </div>
+                      </div>
+                      {o.proof_notes && (
+                        <div className="flex items-start gap-1.5 pt-1 border-t border-sky-100">
+                          <MessageSquare className="h-3 w-3 mt-0.5 text-muted-foreground shrink-0" />
+                          <div>
+                            <div className="text-[10px] text-muted-foreground">ملاحظات</div>
+                            <div>{o.proof_notes}</div>
+                          </div>
+                        </div>
+                      )}
+                      {o.payment_method && (
+                        <div className="text-[10px] text-muted-foreground pt-1 border-t border-sky-100">
+                          وسيلة الدفع: {o.payment_method.name} · {o.payment_method.account_identifier}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

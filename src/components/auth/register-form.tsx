@@ -230,7 +230,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   <Input
                     id="reg-phone"
                     type="tel"
-                    placeholder="01555614624 (أو +201555614624)"
+                    placeholder="01000000000 (أو +201000000000)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
