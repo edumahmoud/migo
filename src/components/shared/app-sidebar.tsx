@@ -93,6 +93,7 @@ const teacherNavItems: NavItem[] = [
   { id: 'paymentMethods', labelKey: 'nav.paymentMethods', icon: <Wallet className="h-5 w-5" /> },
   { id: 'pendingOrders', labelKey: 'nav.pendingOrders', icon: <Clock className="h-5 w-5" /> },
   { id: 'financial', labelKey: 'nav.financial', icon: <DollarSign className="h-5 w-5" /> },
+  { id: 'payoutMethods', labelKey: 'nav.payoutMethods', icon: <Wallet className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
   { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },

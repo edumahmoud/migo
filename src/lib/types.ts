@@ -565,7 +565,7 @@ export type AppPage =
   | 'profile';
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar' | 'paymentMethods';
-export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary' | 'registration' | 'paymentMethods' | 'pendingOrders' | 'financial';
+export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary' | 'registration' | 'paymentMethods' | 'pendingOrders' | 'financial' | 'payoutMethods';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications' | 'performanceTracking' | 'paymentGateways';
 
 // -------------------------------------------------------

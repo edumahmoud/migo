@@ -326,7 +326,8 @@
     "registration": "Supervisors",
     "paymentMethods": "Payment Methods",
     "pendingOrders": "Pending Orders",
-    "financial": "Financial Revenue"
+    "financial": "Financial Revenue",
+    "payoutMethods": "Payout Methods"
   },
   "roles": {
     "student": "Student",
@@ -3436,6 +3437,77 @@
     },
     "loading": "Loading financial data...",
     "currency": "EGP"
+  },
+  "payoutMethods": {
+    "title": "Payout Methods",
+    "subtitle": "Manage your payout methods (Vodafone Cash / Etisalat Cash / Orange Cash / WE Cash wallets)",
+    "loading": "Loading payout methods...",
+    "empty": "No payout methods added yet. Add your first wallet to streamline receiving your earnings later.",
+    "providers": {
+      "vodafoneCash": "Vodafone Cash",
+      "etisalatCash": "Etisalat Cash",
+      "orangeCash": "Orange Cash",
+      "weCash": "WE Cash"
+    },
+    "fields": {
+      "masked": "Data (masked)",
+      "createdAt": "Added on",
+      "verifiedAt": "Verified on"
+    },
+    "badges": {
+      "default": "Default",
+      "verified": "Verified",
+      "disabled": "Disabled"
+    },
+    "actions": {
+      "add": "Add Method",
+      "addFirst": "Add your first method",
+      "edit": "Edit",
+      "disable": "Disable",
+      "reenable": "Re-enable",
+      "setDefault": "Set as default",
+      "showInactive": "Show disabled",
+      "hideInactive": "Hide disabled"
+    },
+    "dialog": {
+      "createTitle": "Add a new payout method",
+      "editTitle": "Edit payout method",
+      "createDescription": "Enter your mobile wallet info. Data is stored encrypted and only the last 4 digits are shown.",
+      "editDescription": "Update the display label or wallet data. Leave sensitive fields empty to keep current values.",
+      "methodType": "Method type",
+      "selectType": "Select type",
+      "cannotChangeType": "Cannot change the type after creation. Disable this method and create a new one if you need a different type.",
+      "displayLabel": "Display label",
+      "displayLabelPlaceholder": "e.g., My personal wallet",
+      "walletNumber": "Wallet number",
+      "walletHelpText": "11 digits starting with 010 / 011 / 012 / 015",
+      "holderName": "Wallet holder name",
+      "holderNamePlaceholder": "The name registered on the wallet",
+      "leaveBlankToKeep": "Leave empty to keep current value",
+      "setAsDefault": "Make this the default method",
+      "cancel": "Cancel",
+      "create": "Create",
+      "saveChanges": "Save changes"
+    },
+    "confirm": {
+      "disable": "Are you sure you want to disable this method? Data will not be deleted, and you can re-enable it later."
+    },
+    "toast": {
+      "created": "Method added successfully",
+      "updated": "Method updated successfully",
+      "disabled": "Method disabled",
+      "reenabled": "Method re-enabled",
+      "defaultSet": "Method set as default"
+    },
+    "errors": {
+      "loadFailed": "Failed to load payout methods. Please try again.",
+      "createFailed": "Failed to create method",
+      "updateFailed": "Failed to update method",
+      "disableFailed": "Failed to disable method",
+      "reenableFailed": "Failed to re-enable method",
+      "setDefaultFailed": "Failed to set as default",
+      "retry": "Retry"
+    }
   },
   "student": {
     "mySubjects": "My Subjects",

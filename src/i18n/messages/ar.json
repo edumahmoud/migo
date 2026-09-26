@@ -326,7 +326,8 @@
     "registration": "المشرفون",
     "paymentMethods": "وسائل الدفع",
     "pendingOrders": "تفعيل الاشتراكات",
-    "financial": "الإيرادات المالية"
+    "financial": "الإيرادات المالية",
+    "payoutMethods": "وسائل الاستلام"
   },
   "roles": {
     "student": "طالب",
@@ -3437,6 +3438,77 @@
     },
     "loading": "جاري تحميل البيانات المالية...",
     "currency": "ج.م"
+  },
+  "payoutMethods": {
+    "title": "وسائل استلام المستحقات",
+    "subtitle": "أدر وسائل استلام مستحقاتك (محافظ Vodafone Cash / Etisalat Cash / Orange Cash / WE Cash)",
+    "loading": "جاري تحميل وسائل الاستلام...",
+    "empty": "لم تُضف أي وسيلة استلام بعد. أضف محفظتك الأولى لتسهيل استلام مستحقاتك لاحقًا.",
+    "providers": {
+      "vodafoneCash": "فودافون كاش",
+      "etisalatCash": "اتصالات كاش",
+      "orangeCash": "اورانج كاش",
+      "weCash": "وي كاش"
+    },
+    "fields": {
+      "masked": "البيانات (مخفية)",
+      "createdAt": "تاريخ الإضافة",
+      "verifiedAt": "تاريخ التحقق"
+    },
+    "badges": {
+      "default": "افتراضية",
+      "verified": "موثقة",
+      "disabled": "معطّلة"
+    },
+    "actions": {
+      "add": "إضافة وسيلة",
+      "addFirst": "أضف وسيلتك الأولى",
+      "edit": "تعديل",
+      "disable": "تعطيل",
+      "reenable": "إعادة تفعيل",
+      "setDefault": "اجعلها افتراضية",
+      "showInactive": "إظهار المعطّلة",
+      "hideInactive": "إخفاء المعطّلة"
+    },
+    "dialog": {
+      "createTitle": "إضافة وسيلة استلام جديدة",
+      "editTitle": "تعديل وسيلة الاستلام",
+      "createDescription": "أدخل بيانات محفظتك الإلكترونية. ستُخزّن البيانات مشفّرة ولن تُعرض إلا آخر 4 أرقام.",
+      "editDescription": "يمكنك تعديل اسم العرض أو بيانات المحفظة. اترك الحقول الحساسة فارغة للاحتفاظ بالقيم الحالية.",
+      "methodType": "نوع الوسيلة",
+      "selectType": "اختر النوع",
+      "cannotChangeType": "لا يمكن تغيير النوع بعد الإنشاء. احذف الوسيلة وأنشئ واحدة جديدة لو رغبت في تغيير النوع.",
+      "displayLabel": "اسم العرض",
+      "displayLabelPlaceholder": "مثال: محفظتي الشخصية",
+      "walletNumber": "رقم المحفظة",
+      "walletHelpText": "11 رقم يبدأ بـ 010 / 011 / 012 / 015",
+      "holderName": "اسم صاحب المحفظة",
+      "holderNamePlaceholder": "الاسم كما هو مسجّل على المحفظة",
+      "leaveBlankToKeep": "اتركه فارغًا للاحتفاظ بالقيمة الحالية",
+      "setAsDefault": "اجعلها الوسيلة الافتراضية",
+      "cancel": "إلغاء",
+      "create": "إنشاء",
+      "saveChanges": "حفظ التغييرات"
+    },
+    "confirm": {
+      "disable": "هل أنت متأكد من تعطيل هذه الوسيلة؟ لن تُحذف البيانات، ويمكنك إعادة التفعيل لاحقًا."
+    },
+    "toast": {
+      "created": "تمت إضافة الوسيلة بنجاح",
+      "updated": "تم تحديث الوسيلة بنجاح",
+      "disabled": "تم تعطيل الوسيلة",
+      "reenabled": "تمت إعادة تفعيل الوسيلة",
+      "defaultSet": "تم ضبط الوسيلة كافتراضية"
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل وسائل الاستلام. حاول مرة أخرى.",
+      "createFailed": "فشل إنشاء الوسيلة",
+      "updateFailed": "فشل تحديث الوسيلة",
+      "disableFailed": "فشل تعطيل الوسيلة",
+      "reenableFailed": "فشلت إعادة التفعيل",
+      "setDefaultFailed": "فشل ضبط الوسيلة كافتراضية",
+      "retry": "إعادة المحاولة"
+    }
   },
   "student": {
     "mySubjects": "مقرراتي",
