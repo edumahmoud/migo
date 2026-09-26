@@ -2810,6 +2810,74 @@
     "adminTrackingInsightEngagementScore": "درجة التفاعل",
     "adminTrackingInsightConsistency": "الاستقرار"
   },
+  "adminFinancial": {
+    "title": "اللوحة المالية",
+    "subtitle": "نظرة شاملة على إيرادات المنصة وحصص المعلمين ورسوم البوابات",
+    "loading": "جاري تحميل البيانات المالية...",
+    "summary": {
+      "totalGross": "إجمالي الإيرادات",
+      "teacherShare": "حصة المعلمين",
+      "platformShare": "حصة المنصة",
+      "gatewayFees": "رسوم البوابات",
+      "netPlatformRevenue": "صافي إيراد المنصة",
+      "transactionCount": "عدد المعاملات"
+    },
+    "statusBreakdown": {
+      "title": "تفصيل الحالات"
+    },
+    "filters": {
+      "title": "تصفية النتائج",
+      "fromDate": "من تاريخ",
+      "toDate": "إلى تاريخ",
+      "teacher": "المعلم",
+      "subject": "المقرر",
+      "gateway": "البوابة",
+      "status": "الحالة",
+      "allTeachers": "كل المعلمين",
+      "allSubjects": "كل المقررات",
+      "allGateways": "كل البوابات",
+      "allStatuses": "كل الحالات",
+      "apply": "تطبيق",
+      "clear": "مسح الفلاتر"
+    },
+    "status": {
+      "paid": "مدفوع",
+      "settled": "تم التسوية",
+      "refunded": "مسترد",
+      "reversed": "معكوس",
+      "pending": "قيد الانتظار",
+      "failed": "فشل"
+    },
+    "table": {
+      "title": "سجل المعاملات المالية",
+      "date": "التاريخ",
+      "order": "الطلب",
+      "student": "الطالب",
+      "teacher": "المعلم",
+      "subject": "المقرر",
+      "gateway": "البوابة",
+      "gross": "الإجمالي",
+      "platform": "حصة المنصة",
+      "teacherShare": "حصة المعلم",
+      "gatewayFee": "رسوم البوابة",
+      "net": "الصافي",
+      "status": "الحالة",
+      "empty": "لا توجد معاملات تطابق الفلاتر المختارة"
+    },
+    "pagination": {
+      "previous": "السابق",
+      "next": "التالي",
+      "pageOf": "صفحة {current} من {total}",
+      "showing": "عرض {from} - {to} من {total}",
+      "pageSize": "لكل صفحة"
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل البيانات المالية. حاول مرة أخرى.",
+      "noSecretsLeaked": "لا تعرض رسائل SQL أو معلومات داخلية.",
+      "retry": "إعادة المحاولة"
+    },
+    "currency": "ج.م"
+  },
   "setup": {
     "setup": "الإعداد",
     "setupWizard": "معالج الإعداد",

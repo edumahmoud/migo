@@ -2809,6 +2809,74 @@
     "adminTrackingInsightEngagementScore": "Engagement Score",
     "adminTrackingInsightConsistency": "Consistency"
   },
+  "adminFinancial": {
+    "title": "Financial Dashboard",
+    "subtitle": "Platform-wide view of revenue, teacher shares, and gateway fees",
+    "loading": "Loading financial data...",
+    "summary": {
+      "totalGross": "Gross Revenue",
+      "teacherShare": "Teacher Share",
+      "platformShare": "Platform Share",
+      "gatewayFees": "Gateway Fees",
+      "netPlatformRevenue": "Net Platform Revenue",
+      "transactionCount": "Transactions"
+    },
+    "statusBreakdown": {
+      "title": "Status Breakdown"
+    },
+    "filters": {
+      "title": "Filter Results",
+      "fromDate": "From Date",
+      "toDate": "To Date",
+      "teacher": "Teacher",
+      "subject": "Subject",
+      "gateway": "Gateway",
+      "status": "Status",
+      "allTeachers": "All Teachers",
+      "allSubjects": "All Subjects",
+      "allGateways": "All Gateways",
+      "allStatuses": "All Statuses",
+      "apply": "Apply",
+      "clear": "Clear Filters"
+    },
+    "status": {
+      "paid": "Paid",
+      "settled": "Settled",
+      "refunded": "Refunded",
+      "reversed": "Reversed",
+      "pending": "Pending",
+      "failed": "Failed"
+    },
+    "table": {
+      "title": "Financial Ledger",
+      "date": "Date",
+      "order": "Order",
+      "student": "Student",
+      "teacher": "Teacher",
+      "subject": "Subject",
+      "gateway": "Gateway",
+      "gross": "Gross",
+      "platform": "Platform",
+      "teacherShare": "Teacher Share",
+      "gatewayFee": "Gateway Fee",
+      "net": "Net",
+      "status": "Status",
+      "empty": "No transactions match the selected filters"
+    },
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {current} of {total}",
+      "showing": "Showing {from} - {to} of {total}",
+      "pageSize": "Per page"
+    },
+    "errors": {
+      "loadFailed": "Failed to load financial data. Please try again.",
+      "noSecretsLeaked": "SQL errors or internal details are not shown.",
+      "retry": "Retry"
+    },
+    "currency": "EGP"
+  },
   "setup": {
     "setup": "Setup",
     "setupWizard": "Setup Wizard",
