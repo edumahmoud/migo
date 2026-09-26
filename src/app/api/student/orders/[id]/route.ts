@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   const { data: order, error } = await supabaseServer
     .from('orders')
     .select(
-      'id, student_id, subject_id, amount, currency, provider, status, confirmation_mode, payment_method_id, created_at, paid_at, activated_at, ' +
+      'id, student_id, subject_id, amount, currency, provider, status, created_at, paid_at, activated_at, ' +
         'subject:subjects!inner(id, name, level, sub_level, teacher_id), ' +
         'payments(id, provider_payment_id, amount, currency, status, created_at, confirmed_by)'
     )

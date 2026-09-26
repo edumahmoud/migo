@@ -7,27 +7,28 @@ import { requireEligibleStudent, authErrorResponse } from '@/lib/auth-helpers';
 /**
  * POST /api/student/orders
  *
- * Body: {
- *   subjectIds: string[] (UUID array — multi-course),
- *   paymentMethodId?: string (UUID — selects a specific payment method)
- * }
+ * Body: { subjectIds: string[] (UUID array — multi-course) }
  *
- * Creates one order per selected course. Confirmation mode depends
- * on the payment method's requires_manual_approval flag:
- *   - No paymentMethodId → manual (student pays externally, teacher approves)
- *   - paymentMethodId with requires_manual_approval=false → automatic (redirect to gateway)
- *   - paymentMethodId with requires_manual_approval=true → manual
+ * Creates one order per selected course.
  *
- * Response includes:
- *   - created_orders: array of order objects
- *   - payment_methods: the teacher's active payment methods (for display)
- *   - checkout_url: if any order is automatic mode (for the mock gateway)
+ * Two paths:
+ *   - FREE course (price=0): creates a 'pending' order then immediately
+ *     calls activate_subscription_after_payment RPC → marks 'paid' +
+ *     creates enrollment + activates student. No payment gateway needed.
+ *   - PAID course (price>0): creates a 'pending' order. Activation will
+ *     happen later via /api/payment/webhook when the payment gateway
+ *     (Paymob) confirms a real payment.
+ *
+ * The old manual proof-of-payment + supervisor approval + mock gateway
+ * paths have been REMOVED. Only the webhook (called by the real payment
+ * gateway) can transition a paid order to 'paid' status.
  *
  * Server-side source of truth: student_id from session, price from DB.
+ *
+ * Response: { success, created_orders, skipped, message }
  */
 const BodySchema = z.object({
   subjectIds: z.array(z.string().uuid()).min(1),
-  paymentMethodId: z.string().uuid().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -80,22 +81,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 3. Determine confirmation mode from the payment method (if provided).
-  let confirmationMode: 'automatic' | 'manual' = 'manual';
-  if (parsed.data.paymentMethodId) {
-    const { data: pm } = await supabaseServer
-      .from('payment_methods')
-      .select('id, teacher_id, requires_manual_approval')
-      .in('teacher_id', Array.from(teacherIds))
-      .eq('id', parsed.data.paymentMethodId)
-      .eq('is_active', true)
-      .maybeSingle();
-    if (pm) {
-      confirmationMode = (pm as { requires_manual_approval: boolean }).requires_manual_approval ? 'manual' : 'automatic';
-    }
-  }
-
-  // 4. Check for existing pending orders (idempotency).
+  // 3. Check for existing pending orders (idempotency — don't create duplicates).
   const { data: existingOrders } = await supabaseServer
     .from('orders')
     .select('id, subject_id')
@@ -107,9 +93,13 @@ export async function POST(request: NextRequest) {
     ((existingOrders ?? []) as Array<{ subject_id: string }>).map((o) => o.subject_id)
   );
 
-  // 5. Create new orders. For FREE courses (price=0), auto-activate
-  //    immediately via the RPC — no order, no supervisor, no payment dialog.
-  //    For PAID courses, create a manual-confirmation order that goes to the supervisor.
+  // 4. Create new orders.
+  //    - FREE courses (price=0): create 'pending' order then immediately
+  //      call the RPC to activate (no payment gateway needed for free).
+  //    - PAID courses (price>0): create 'pending' order. Activation will
+  //      happen ONLY when the payment gateway calls /api/payment/webhook
+  //      after a real successful payment. Until then, the order stays
+  //      'pending' and the student sees it in their pending list.
   const createdOrders: Array<Record<string, unknown>> = [];
   for (const subjectId of requestedSubjectIds) {
     if (existingBySubject.has(subjectId)) continue;
@@ -117,10 +107,9 @@ export async function POST(request: NextRequest) {
     if (!subject) continue;
 
     if (subject.price === 0) {
-      // FREE course — create order as 'pending', then immediately call
-      // the RPC which will mark it 'paid' + create the enrollment.
-      // (Creating with status='paid' directly would cause the RPC to
-      //  return 'already_paid' WITHOUT creating the enrollment.)
+      // FREE course — auto-activate immediately via the RPC.
+      // (Free courses are NOT considered a "payment system" — they
+      //  just need the enrollment to be created.)
       const orderRef = `free_${randomUUID()}`;
       const { data: freeOrder } = await supabaseServer
         .from('orders')
@@ -132,18 +121,11 @@ export async function POST(request: NextRequest) {
           provider: 'free',
           provider_order_ref: orderRef,
           status: 'pending',
-          confirmation_mode: 'manual',
         })
         .select('id')
         .single();
 
       if (freeOrder) {
-        // Call the RPC — it will:
-        //   1. SELECT FOR UPDATE (sees status='pending') → proceeds.
-        //   2. INSERT payment record.
-        //   3. UPDATE order status='paid'.
-        //   4. UPSERT enrollment (with 1-month period).
-        //   5. Activate student if pending.
         const { data: rpcData, error: rpcErr } = await supabaseServer.rpc(
           'activate_subscription_after_payment',
           {
@@ -159,7 +141,6 @@ export async function POST(request: NextRequest) {
 
         if (rpcErr) {
           console.error('[student/orders] FREE RPC error:', rpcErr);
-          // Still push the order but mark it as failed
           createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'error', free: true, error: rpcErr.message });
         } else {
           const rpcResult = (rpcData as { success?: boolean; error?: string }) ?? {};
@@ -172,7 +153,10 @@ export async function POST(request: NextRequest) {
         }
       }
     } else {
-      // PAID course — create a pending manual-confirmation order.
+      // PAID course — create 'pending' order. The order will be
+      // activated later ONLY via /api/payment/webhook (called by
+      // Paymob after a real successful payment). There is NO manual
+      // approval path, NO proof submission, NO admin bypass.
       const { data: order } = await supabaseServer
         .from('orders')
         .insert({
@@ -180,12 +164,11 @@ export async function POST(request: NextRequest) {
           subject_id: subjectId,
           amount: subject.price,
           currency: subject.currency,
-          provider: 'manual',
-          provider_order_ref: `manual_${randomUUID()}`,
+          provider: 'pending_gateway', // will be set to 'paymob' once integrated
+          provider_order_ref: `order_${randomUUID()}`,
           status: 'pending',
-          confirmation_mode: 'manual',
         })
-        .select('id, subject_id, amount, currency, provider, status, confirmation_mode, created_at')
+        .select('id, subject_id, amount, currency, provider, status, created_at')
         .single();
 
       if (order) {
@@ -194,36 +177,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 6. Fetch teacher's active payment methods for display.
-  let paymentMethods: Array<Record<string, unknown>> = [];
-  if (teacherIds.size > 0) {
-    const { data: pms } = await supabaseServer
-      .from('payment_methods')
-      .select('id, name, icon, account_identifier, contact_for_confirmation, requires_manual_approval')
-      .in('teacher_id', Array.from(teacherIds))
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
-    paymentMethods = (pms ?? []) as Array<Record<string, unknown>>;
-  }
-
-  // 7. If automatic mode, provide checkout URL for the first order.
-  let checkoutUrl: string | null = null;
-  if (confirmationMode === 'automatic' && createdOrders.length > 0) {
-    const firstOrder = createdOrders[0] as { id: string };
-    if (firstOrder?.id) {
-      checkoutUrl = `/api/payment/mock-checkout?order_id=${firstOrder.id}`;
-    }
-  }
-
   return NextResponse.json({
     success: true,
     created_orders: createdOrders,
     skipped: Array.from(existingBySubject),
-    payment_methods: paymentMethods,
-    confirmation_mode: confirmationMode,
-    checkout_url: checkoutUrl,
-    message: confirmationMode === 'manual'
-      ? 'تم إنشاء طلبات الدفع. قم بالتحويل عبر إحدى وسائل الدفع، ثم سيقوم المركز بتفعيل اشتراكك.'
-      : 'تم إنشاء الطلبات. سيتم تحويلك لصفحة الدفع.',
+    message: createdOrders.some(o => o.status === 'pending')
+      ? 'تم إنشاء الطلبات. سيتم تفعيل المقررات المدفوعة تلقائياً بعد إتمام الدفع عبر بوابة الدفع.'
+      : 'تم تفعيل المقررات المجانية بنجاح.',
   });
 }

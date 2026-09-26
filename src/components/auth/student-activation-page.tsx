@@ -5,15 +5,14 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Loader2, KeyRound, Copy, Link as LinkIcon, BookOpen, CreditCard,
-  CheckCircle2, AlertCircle, RefreshCw, LogOut, Wallet, Check, X,
-  Contact, Clock,
+  CheckCircle2, AlertCircle, RefreshCw, LogOut, Check, X,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -28,18 +27,13 @@ interface AvailableCourse {
 }
 interface OrderRow {
   id: string; subject_id: string; amount: number; currency: string;
-  provider: string; status: string; confirmation_mode: string;
+  provider: string; status: string;
   created_at: string; paid_at: string | null;
 }
 interface Subscription {
   subject_id: string; status: string; enrollment_method: string;
   current_period_start: string | null; current_period_end: string | null;
   next_billing_at: string | null; monthly_price: number | null; enrolled_at: string;
-}
-interface PaymentMethod {
-  id: string; name: string; icon: string;
-  account_identifier: string; contact_for_confirmation: string | null;
-  requires_manual_approval: boolean;
 }
 interface ActivationData {
   student: { id: string; email: string; name: string | null; student_code: string | null; account_status: string };
@@ -49,7 +43,6 @@ interface ActivationData {
   subscriptions: Subscription[];
 }
 
-const ICON_MAP: Record<string, string> = { wallet: '👛', credit_card: '💳', banknote: '💵', smartphone: '📱', building: '🏦', landmark: '🏛️', repeat: '🔁' };
 
 export default function StudentActivationPage() {
   const { t } = useTranslations();
@@ -64,13 +57,6 @@ export default function StudentActivationPage() {
   const [linking, setLinking] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState<{
-    methods: PaymentMethod[];
-    orders: Array<{ id?: string; subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
-    mode: string;
-    checkoutUrl: string | null;
-  } | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
 
   const studentId = user?.id;
 
@@ -180,15 +166,6 @@ export default function StudentActivationPage() {
       if (json.success) {
         setSelectedCourses(new Set());
         await silentReload();
-        if (json.payment_methods?.length > 0 || json.created_orders?.length > 0) {
-          setSelectedProvider(null);
-          setPaymentDialog({
-            methods: json.payment_methods ?? [],
-            orders: json.created_orders ?? [],
-            mode: json.confirmation_mode ?? 'manual',
-            checkoutUrl: json.checkout_url ?? null,
-          });
-        }
         toast.success(json.message || 'تم إنشاء الطلبات');
       } else toast.error(json.error || t('common.unexpectedError'));
     } catch { toast.error(t('common.unexpectedError')); }
@@ -371,352 +348,6 @@ export default function StudentActivationPage() {
         )}
       </div>
 
-      {/* Payment dialog — order summary + provider selection + payment methods */}
-      <Dialog open={!!paymentDialog} onOpenChange={o => { if (!o) { setPaymentDialog(null); setSelectedProvider(null); } }}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-sky-600" />الدفع والاشتراك</DialogTitle>
-          </DialogHeader>
-          {paymentDialog && (
-            <div className="space-y-3">
-              {/* Order summary — total + course list */}
-              {paymentDialog.orders.length > 0 && (
-                <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3 space-y-2">
-                  <div className="text-sm font-semibold text-sky-800">ملخص الطلب</div>
-                  {paymentDialog.orders.map((o, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <span className="truncate">{o.subject_name}</span>
-                      <span className="font-mono font-semibold">
-                        {Number(o.amount).toFixed(2)} {o.currency}
-                        {o.status === 'paid' && <span className="text-emerald-600 ms-1">✓ مجاني</span>}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between border-t border-sky-200 pt-2">
-                    <span className="text-sm font-bold text-sky-900">الإجمالي المطلوب دفعه</span>
-                    <span className="font-mono font-bold text-base text-emerald-700">
-                      {paymentDialog.orders
-                        .filter(o => o.status === 'pending')
-                        .reduce((sum, o) => sum + Number(o.amount), 0)
-                        .toFixed(2)} {paymentDialog.orders[0]?.currency ?? 'EGP'}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Provider selection — choose how to pay */}
-              {!selectedProvider && (
-                <div className="space-y-2">
-                  <div className="text-sm font-semibold text-foreground">اختر طريقة الدفع</div>
-                  {/* Manual transfer (teacher's configured payment methods) */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProvider('manual')}
-                    disabled={paymentDialog.methods.length === 0}
-                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                        <Wallet className="h-5 w-5 text-emerald-600" />
-                      </div>
-                      <div className="text-start">
-                        <div className="font-semibold text-sm">تحويل يدوي</div>
-                        <div className="text-xs text-muted-foreground">فودافون كاش / إنستا باي / تحويل بنكي</div>
-                      </div>
-                    </div>
-                    {paymentDialog.methods.length > 0 && (
-                      <span className="text-xs text-muted-foreground">{paymentDialog.methods.length} وسيلة</span>
-                    )}
-                  </button>
-                  {/* Fawry */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProvider('fawry')}
-                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                        <span className="text-lg">🏪</span>
-                      </div>
-                      <div className="text-start">
-                        <div className="font-semibold text-sm">فوري</div>
-                        <div className="text-xs text-muted-foreground">ادفع من أقرب ماكينة فوري</div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded">قريباً</span>
-                  </button>
-                  {/* Visa / Card */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProvider('card')}
-                    className="w-full flex items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-sky-100 flex items-center justify-center shrink-0">
-                        <span className="text-lg">💳</span>
-                      </div>
-                      <div className="text-start">
-                        <div className="font-semibold text-sm">بطاقة ائتمانية</div>
-                        <div className="text-xs text-muted-foreground">Visa / Mastercard</div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] text-sky-600 bg-sky-50 px-2 py-0.5 rounded">قريباً</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Manual transfer — show teacher's payment methods */}
-              {selectedProvider === 'manual' && paymentDialog.methods.length > 0 && (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProvider(null)}
-                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                  >
-                    ← رجوع لاختيار طريقة الدفع
-                  </button>
-                  <div className="text-sm font-semibold text-foreground">وسائل الدفع المتاحة</div>
-                  {paymentDialog.methods.map((m, i) => (
-                    <div key={i} className="rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{m.name}</span>
-                        <span className="text-xl">{ICON_MAP[m.icon] ?? m.icon ?? '👛'}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <code className="font-mono text-sm bg-white/20 px-2 py-1 rounded break-all" dir="ltr">{m.account_identifier}</code>
-                        <button onClick={() => copy(m.account_identifier, 'رقم الحساب')} className="text-white hover:bg-white/20 h-8 w-8 flex items-center justify-center rounded shrink-0">
-                          <Copy className="h-4 w-4" />
-                        </button>
-                      </div>
-                      {m.contact_for_confirmation && (
-                        <div className="flex items-center gap-2 text-xs bg-white/20 rounded px-2 py-1">
-                          <Contact className="h-3 w-3" />
-                          <span>للتأكيد: {m.contact_for_confirmation}</span>
-                          <button onClick={() => { if (m.contact_for_confirmation) copy(m.contact_for_confirmation, 'رقم التواصل'); }} className="ms-auto text-white hover:bg-white/20 h-6 w-6 flex items-center justify-center rounded">
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  <div className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 text-xs p-3">
-                    ✓ بعد التحويل وإرسال الإثبات، سيقوم المشرف بتفعيل اشتراكك فوراً.
-                  </div>
-                </div>
-              )}
-              {selectedProvider === 'manual' && paymentDialog.methods.length === 0 && (
-                <div className="space-y-2">
-                  <button type="button" onClick={() => setSelectedProvider(null)} className="text-xs text-muted-foreground hover:text-foreground">← رجوع</button>
-                  <div className="text-center text-sm text-muted-foreground py-4">لا توجد وسائل دفع مُهيأة. تواصل مع معلمك.</div>
-                </div>
-              )}
-
-              {/* Fawry / Card — coming soon */}
-              {(selectedProvider === 'fawry' || selectedProvider === 'card') && (
-                <div className="space-y-2">
-                  <button type="button" onClick={() => setSelectedProvider(null)} className="text-xs text-muted-foreground hover:text-foreground">← رجوع</button>
-                  <div className="text-center py-6 space-y-2">
-                    <span className="text-4xl">{selectedProvider === 'fawry' ? '🏪' : '💳'}</span>
-                    <p className="text-sm font-semibold">{selectedProvider === 'fawry' ? 'الدفع عبر فوري' : 'الدفع بالبطاقة'}</p>
-                    <p className="text-xs text-muted-foreground">هذه الخدمة قيد التطوير وستكون متاحة قريباً. يرجى استخدام التحويل اليدوي في الوقت الحالي.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Proof-of-payment form (manual mode only) ──
-                  One form for ALL pending orders. Student transfers money
-                  once externally, then submits ONE proof that covers all
-                  courses in this batch. */}
-              {selectedProvider === 'manual' && (
-                <ProofForm
-                  orders={paymentDialog.orders.filter(o => o.status === 'pending')}
-                  onSubmitted={() => {
-                    setPaymentDialog(null);
-                    setSelectedProvider(null);
-                    silentReload();
-                  }}
-                />
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setPaymentDialog(null); setSelectedProvider(null); }}>تم</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// ProofForm — student fills this after transferring money externally.
-// ONE form covers ALL pending orders (the student transfers once,
-// then submits ONE proof that applies to every order in this batch).
-// ─────────────────────────────────────────────────────────────
-function ProofForm({
-  orders,
-  onSubmitted,
-}: {
-  orders: Array<{ id?: string; subject_id: string; subject_name: string; amount: number; currency: string; status: string }>;
-  onSubmitted: () => void;
-}) {
-  const [senderName, setSenderName] = useState('');
-  const [transactionRef, setTransactionRef] = useState('');
-  const [proofNotes, setProofNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submittedCount, setSubmittedCount] = useState(0);
-
-  // Filter to orders that have an ID (created by the orders API).
-  // Free courses (status='paid') are skipped — they don't need proof.
-  const ordersNeedingProof = orders.filter(o => o.id && o.status === 'pending');
-  const totalAmount = ordersNeedingProof.reduce((sum, o) => sum + Number(o.amount), 0);
-  const totalCurrency = ordersNeedingProof[0]?.currency ?? 'EGP';
-
-  const handleSubmit = async () => {
-    if (!senderName.trim() || !transactionRef.trim()) {
-      toast.error('الرجاء إدخال اسم المرسل ورقم العملية');
-      return;
-    }
-    if (ordersNeedingProof.length === 0) {
-      toast.error('لا توجد طلبات قابلة لإرسال الإثبات');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      // Submit proof for ALL orders in parallel. Each order gets the
-      // same sender_name + transaction_ref (one payment covers all).
-      const results = await Promise.allSettled(
-        ordersNeedingProof.map(async (o) => {
-          const res = await fetch(`/api/student/orders/${o.id}/submit-proof`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-            body: JSON.stringify({
-              sender_name: senderName.trim(),
-              transaction_ref: transactionRef.trim(),
-              proof_notes: proofNotes.trim() || undefined,
-            }),
-          });
-          if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(`HTTP ${res.status}: ${text.slice(0, 100)}`);
-          }
-          return res.json();
-        })
-      );
-
-      const successCount = results.filter(r => r.status === 'fulfilled' && (r.value as { success?: boolean })?.success).length;
-      const failCount = results.length - successCount;
-
-      if (successCount > 0) {
-        setSubmittedCount(successCount);
-        if (failCount === 0) {
-          toast.success(`تم إرسال إثبات الدفع لـ ${successCount} طلب. سيقوم المشرف بمراجعته وتفعيل الاشتراك.`);
-        } else {
-          toast.warning(`تم إرسال ${successCount} طلب، فشل ${failCount}. يمكنك المحاولة مرة أخرى للطلبات الفاشلة.`);
-        }
-        setTimeout(() => onSubmitted(), 1500);
-      } else {
-        // All failed — show the first error
-        const firstError = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined;
-        const errorMsg = firstError?.reason?.message || 'فشل إرسال الإثبات';
-        toast.error(`فشل الإرسال: ${errorMsg}`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'خطأ غير متوقع';
-      toast.error(`تعذّر إرسال الإثبات: ${msg}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (ordersNeedingProof.length === 0) {
-    return (
-      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700 flex items-center gap-2">
-        <CheckCircle2 className="h-4 w-4" />
-        لا توجد طلبات بحاجة لإثبات دفع — جميع المقررات المجانية مُفعّلة تلقائياً.
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3 space-y-3">
-      <div className="text-sm font-semibold text-sky-800">إرسال إثبات الدفع</div>
-
-      {/* All pending orders list */}
-      <div className="rounded-md bg-white border border-sky-100 p-2 space-y-1">
-        <div className="text-xs text-muted-foreground mb-1">الطلبات المشمولة بالإثبات ({ordersNeedingProof.length}):</div>
-        {ordersNeedingProof.map((o, i) => (
-          <div key={i} className="flex items-center justify-between text-xs py-0.5">
-            <span className="truncate">{o.subject_name}</span>
-            <span className="font-mono font-semibold">
-              {Number(o.amount).toFixed(2)} {o.currency}
-            </span>
-          </div>
-        ))}
-        <div className="border-t border-sky-100 pt-1 mt-1 flex items-center justify-between text-xs font-semibold">
-          <span>الإجمالي:</span>
-          <span className="font-mono">{totalAmount.toFixed(2)} {totalCurrency}</span>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <div>
-          <label className="text-xs font-medium text-foreground mb-1 block">اسم المرسل *</label>
-          <Input
-            type="text"
-            value={senderName}
-            onChange={(e) => setSenderName(e.target.value)}
-            placeholder="مثال: محمد أحمد"
-            className="h-9 text-sm"
-            disabled={submitting}
-            maxLength={100}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-foreground mb-1 block">رقم العملية / المرجع *</label>
-          <Input
-            type="text"
-            value={transactionRef}
-            onChange={(e) => setTransactionRef(e.target.value)}
-            placeholder="مثال: 1234567890 أو TXN-XXXX"
-            className="h-9 text-sm font-mono"
-            disabled={submitting}
-            dir="ltr"
-            maxLength={100}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-foreground mb-1 block">ملاحظات (اختياري)</label>
-          <Input
-            type="text"
-            value={proofNotes}
-            onChange={(e) => setProofNotes(e.target.value)}
-            placeholder="مثال: تم التحويل من فودافون كاش"
-            className="h-9 text-sm"
-            disabled={submitting}
-            maxLength={500}
-          />
-        </div>
-      </div>
-
-      <Button
-        type="button"
-        onClick={handleSubmit}
-        disabled={submitting || !senderName.trim() || !transactionRef.trim()}
-        className="w-full h-10 bg-emerald-600 hover:bg-emerald-700"
-      >
-        {submitting ? (
-          <><Loader2 className="h-4 w-4 animate-spin me-2" />جارٍ الإرسال...</>
-        ) : submittedCount > 0 ? (
-          <><CheckCircle2 className="h-4 w-4 me-2" />تم إرسال {submittedCount} طلب</>
-        ) : (
-          <><CheckCircle2 className="h-4 w-4 me-2" />إرسال الإثبات لجميع الطلبات ({ordersNeedingProof.length})</>
-        )}
-      </Button>
-
-      <p className="text-[10px] text-muted-foreground text-center">
-        سيقوم المشرف بمراجعة الإثبات وتفعيل الاشتراك خلال وقت قصير.
-      </p>
     </div>
   );
 }

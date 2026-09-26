@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   // 3. Fetch orders to see what's actually paid
   const { data: orders } = await supabaseServer
     .from('orders')
-    .select('id, subject_id, student_id, amount, currency, status, confirmation_mode, created_at, paid_at, activated_at')
+    .select('id, subject_id, student_id, amount, currency, status, created_at, paid_at, activated_at')
     .eq('student_id', userId)
     .order('created_at', { ascending: false })
     .limit(10);

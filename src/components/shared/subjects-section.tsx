@@ -221,13 +221,6 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     subscriptions: Array<{ subject_id: string; current_period_end: string | null }>;
   } | null>(null);
   const [subscribingCourseId, setSubscribingCourseId] = useState<string | null>(null);
-  // Payment methods dialog (shown after creating a paid order)
-  const [paymentMethodsData, setPaymentMethodsData] = useState<{
-    methods: Array<{ id: string; name: string; icon: string; account_identifier: string; contact_for_confirmation: string | null }>;
-    courseName: string;
-    amount: number;
-    currency: string;
-  } | null>(null);
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectDesc, setNewSubjectDesc] = useState('');
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
@@ -415,7 +408,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         // badge so the student knows their payment is being processed.
         const { data: pendingOrdersData, error: pendingOrdersErr } = await supabase
           .from('orders')
-          .select('id, subject_id, status, confirmation_mode, amount, currency, created_at')
+          .select('id, subject_id, status, amount, currency, created_at')
           .eq('student_id', profile.id)
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
@@ -433,7 +426,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         // the "pending approval" courses.
         const pendingOrdersForNewSubjects = (pendingOrdersData ?? []).filter(
           (o: { subject_id: string }) => !enrolledSubjectIds.has(o.subject_id)
-        ) as Array<{ id: string; subject_id: string; status: string; confirmation_mode: string; amount: number; currency: string; created_at: string }>;
+        ) as Array<{ id: string; subject_id: string; status: string; amount: number; currency: string; created_at: string }>;
 
         // Combine: enrolled subjects + pending-order subjects (for fetching subject data)
         const allEnrollmentData = [
@@ -2915,15 +2908,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                         fetchSubjects();
                                       }
                                     } else {
-                                      // Paid course — show payment methods dialog.
-                                      toast.success('تم إنشاء طلب اشتراك. اختر وسيلة الدفع.');
-                                      setPaymentMethodsData({
-                                        methods: json.payment_methods ?? [],
-                                        courseName: c.name,
-                                        amount: c.price,
-                                        currency: c.currency,
-                                      });
+                                      // Paid course — order created in 'pending' state.
+                                      // The order will be activated later via /api/payment/webhook
+                                      // when the real payment gateway (Paymob) confirms payment.
+                                      // Until Paymob is integrated, the order stays 'pending'
+                                      // (no manual approval path, no proof submission, no admin bypass).
+                                      toast.info('تم إنشاء طلب الاشتراك. سيتم تفعيله تلقائياً بعد الدفع عبر بوابة الدفع.');
                                       setAvailableCoursesOpen(false);
+                                      fetchSubjects();
                                     }
                                   } else { toast.error(json.error || t('common.unexpectedError')); }
                                 } catch { toast.error(t('common.unexpectedError')); }
@@ -2946,72 +2938,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         )}
       </AnimatePresence>
 
-      {/* ─── Payment Methods Dialog (shown after creating a paid order) ─── */}
-      <AnimatePresence>
-        {paymentMethodsData && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setPaymentMethodsData(null)} />
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
-              dir={direction}
-            >
-              <div className="px-6 pt-6 pb-4 border-b">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold">وسائل الدفع</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{paymentMethodsData.courseName} — {Number(paymentMethodsData.amount).toFixed(2)} {paymentMethodsData.currency}/شهر</p>
-                  </div>
-                  <button onClick={() => setPaymentMethodsData(null)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
-                </div>
-              </div>
-              <div className="overflow-y-auto p-4 space-y-2">
-                {paymentMethodsData.methods.length === 0 ? (
-                  <div className="text-center text-sm text-muted-foreground py-6">لا توجد وسائل دفع مُهيأة. تواصل مع معلمك.</div>
-                ) : (
-                  paymentMethodsData.methods.map((m, i) => (
-                    <div key={i} className="rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{m.name}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <code className="font-mono text-sm bg-white/20 px-2 py-1 rounded break-all" dir="ltr">{m.account_identifier}</code>
-                        <button
-                          onClick={() => { navigator.clipboard?.writeText(m.account_identifier); toast.success('تم نسخ رقم الحساب'); }}
-                          className="text-white hover:bg-white/20 h-8 w-8 flex items-center justify-center rounded"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                      </div>
-                      {m.contact_for_confirmation && (
-                        <div className="flex items-center gap-2 text-xs bg-white/20 rounded px-2 py-1">
-                          <span>للتأكيد: {m.contact_for_confirmation}</span>
-                          <button
-                            onClick={() => { if (m.contact_for_confirmation) { navigator.clipboard?.writeText(m.contact_for_confirmation); toast.success('تم نسخ رقم التواصل'); } }}
-                            className="text-white hover:bg-white/20 h-6 w-6 flex items-center justify-center rounded"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-                <div className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 text-xs p-3">
-                  ✓ بعد التحويل وإرسال الإثبات، سيقوم المشرف بتفعيل اشتراكك. ستجد المقرر في قائمتك بعد التفعيل.
-                </div>
-              </div>
-              <div className="px-6 pb-6 pt-2">
-                <button onClick={() => setPaymentMethodsData(null)} className="w-full rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700">تم</button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+      {/* ─── Join by Code Modal (student only) ─── */}
       {/* ─── Join by Code Modal (student only) ─── */}
       <AnimatePresence>
         {joinCodeOpen && (

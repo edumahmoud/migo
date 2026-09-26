@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
   // 4. Active orders + payment status.
   const { data: orders } = await supabaseServer
     .from('orders')
-    .select('id, subject_id, amount, currency, provider, status, confirmation_mode, created_at, paid_at')
+    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at')
     .eq('student_id', studentId)
     .order('created_at', { ascending: false })
     .limit(10);

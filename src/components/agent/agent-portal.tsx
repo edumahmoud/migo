@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
-import PendingOrdersSection from '@/components/teacher/pending-orders-section';
 import StudentSubscriptionsLog from '@/components/agent/student-subscriptions-log';
 
 interface StudentResult {
@@ -179,9 +178,6 @@ export default function AgentPortal() {
           )}
         </CardContent>
       </Card>
-
-      {/* Pending orders approval */}
-      <PendingOrdersSection />
 
       {/* Student subscriptions log (active / expired / free) */}
       <StudentSubscriptionsLog />
