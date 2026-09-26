@@ -1,179 +1,247 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 
+// Import the payment core (this also registers the Paymob adapter)
+import '@/lib/payment/providers/paymob';
+import { PaymentService, isPaymentError } from '@/lib/payment';
+import { logPaymentEvent } from '@/lib/payment/logger';
+
 /**
- * POST /api/payment/webhook
+ * POST /api/payment/webhook?provider=paymob&gateway_id={gatewayId}
  *
- * Provider-agnostic, idempotent webhook endpoint for payment confirmations.
- *
- * Headers expected:
- *   X-Webhook-Signature: hex-encoded HMAC-SHA256 of the raw body, using
- *     the shared secret from process.env.PAYMENT_WEBHOOK_SECRET.
- *   X-Webhook-Provider: e.g. 'mock', 'fawry', 'paymob', 'instapay'.
- *
- * Body (JSON):
- *   {
- *     provider_order_ref: string,    // matches orders.provider_order_ref
- *     provider_payment_id: string,  // gateway-side unique id (UNIQUE in payments table)
- *     amount: number,
- *     currency: string,
- *     status: 'paid' | 'failed' | 'cancelled' | 'refunded',
- *     raw_payload?: object          // optional original gateway payload
- *   }
+ * Unified webhook endpoint for ALL payment gateway callbacks.
  *
  * Flow:
- *   1. Verify HMAC signature (constant-time compare).
- *   2. Look up order by provider_order_ref.
- *   3. Verify amount + currency match the order's stored values (defends
- *      against client tampering with the price during order creation).
- *   4. Call the activate_subscription_after_payment() RPC — atomic,
- *      idempotent, transactional:
- *        - INSERTs the payment record (UNIQUE on provider_payment_id).
- *        - UPDATEs the order status to 'paid'.
- *        - UPSERTs the enrollment (UNIQUE on subject_id+student_id).
- *        - Activates the student on first successful subscription.
+ *   1. Read `provider` and `gateway_id` from query params.
+ *   2. If `gateway_id` is provided → resolve that specific gateway
+ *      (uses the gateway snapshot — even if the default changed since
+ *      the payment was created).
+ *   3. If only `provider` is provided → resolve the default gateway
+ *      for that provider.
+ *   4. If neither is provided → reject (can't identify the caller).
+ *   5. Call PaymentService.handleWebhook(rawBody, headers, gatewayId)
+ *      → the adapter verifies HMAC + parses the callback.
+ *   6. The webhook validates: order exists, amount matches, currency matches.
+ *   7. If status='paid' → call activate_subscription_after_payment RPC
+ *      (existing, unchanged — atomic + idempotent).
+ *   8. If status='failed' → update order status to 'failed'.
  *
- * Repeated webhooks for the same provider_payment_id are NO-OPs (the UNIQUE
- * constraint on payments.provider_payment_id catches them, and the RPC
- * returns success: true, already_processed: true).
+ * Security:
+ *   - HMAC verification happens inside the adapter (gateway-specific).
+ *   - No global PAYMENT_WEBHOOK_SECRET for Paymob — Paymob HMAC uses
+ *     the gateway's stored hmacSecret (encrypted in DB).
+ *   - The webhook route does NOT trust the frontend/redirect.
+ *   - The webhook route does NOT call the RPC directly for failed/pending
+ *     callbacks — only for verified 'paid' callbacks.
  *
- * If the webhook is for a 'failed' status, the order is marked 'failed'
- * (no subscription activation happens).
- *
- * ─── Phase 3 note ───
- * This webhook uses a global HMAC secret (PAYMENT_WEBHOOK_SECRET) as a
- * transitional measure. In Phase 4, this will be refactored to use the
- * Payment Gateway Core (PaymentService.handleWebhook) which resolves
- * the gateway-specific credentials from the payment_gateways table.
- *
- * The fallback secret 'attendo_dev_webhook_secret_change_me_in_production'
- * has been REMOVED — if PAYMENT_WEBHOOK_SECRET is not set, ALL webhooks
- * are rejected with 401. This is the correct secure behavior.
+ * Phase 3 note:
+ *   The old global PAYMENT_WEBHOOK_SECRET (used by the deleted mock gateway)
+ *   has been removed. Paymob callbacks use the per-gateway hmacSecret.
  */
-const WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || '';
-
-function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
-  // Fail closed: if no secret is configured, reject ALL webhooks.
-  // This prevents the webhook from being a bypass when misconfigured.
-  if (!WEBHOOK_SECRET) return false;
-  if (!signatureHeader) return false;
-  const expected = createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
-  if (expected.length !== signatureHeader.length) return false;
-  try {
-    return timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: NextRequest) {
-  // 1. Read the raw body (for HMAC verification) — don't use request.json() yet.
+  const startTime = Date.now();
+
+  // 1. Read provider + gateway_id from query params
+  const provider = request.nextUrl.searchParams.get('provider');
+  const gatewayId = request.nextUrl.searchParams.get('gateway_id');
+
+  if (!gatewayId && !provider) {
+    // Can't identify the caller — reject
+    return NextResponse.json(
+      { success: false, error: 'Missing provider or gateway_id query parameter' },
+      { status: 400 },
+    );
+  }
+
+  // 2. Read the raw body (for HMAC verification by the adapter)
   const rawBody = await request.text();
+  const headers: Record<string, string> = {};
+  request.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
 
-  const signature = request.headers.get('x-webhook-signature');
-  if (!verifySignature(rawBody, signature)) {
-    return NextResponse.json(
-      { success: false, error: 'توقيع غير صالح' },
-      { status: 401 }
-    );
-  }
-
-  // 2. Parse the body.
-  let body: {
-    provider_order_ref?: string;
-    provider_payment_id?: string;
-    amount?: number;
-    currency?: string;
-    status?: string;
-    raw_payload?: unknown;
-  };
+  // 3. Call PaymentService.handleWebhook → adapter verifies HMAC + parses
+  let webhookResult;
   try {
-    body = JSON.parse(rawBody);
-  } catch {
-    return NextResponse.json({ success: false, error: 'صيغة JSON غير صالحة' }, { status: 400 });
-  }
-
-  const {
-    provider_order_ref,
-    provider_payment_id,
-    amount,
-    currency,
-    status,
-    raw_payload,
-  } = body;
-
-  if (!provider_order_ref || !provider_payment_id || amount === undefined || !currency || !status) {
-    return NextResponse.json(
-      { success: false, error: 'حقول مفقودة: provider_order_ref, provider_payment_id, amount, currency, status' },
-      { status: 400 }
+    webhookResult = await PaymentService.handleWebhook(
+      { rawBody, headers },
+      gatewayId || undefined,
     );
+  } catch (err) {
+    // HMAC failure, gateway not found, gateway disabled, etc.
+    logPaymentEvent({
+      level: 'error',
+      operation: 'handleWebhook',
+      provider: provider || undefined,
+      success: false,
+      errorCode: isPaymentError(err) ? err.code : 'UNKNOWN',
+      message: err instanceof Error ? err.message : 'unknown error',
+      durationMs: Date.now() - startTime,
+    });
+
+    // Return 200 to prevent Paymob from retrying on verification failure
+    // (security: don't reveal the error to the caller)
+    return NextResponse.json({ ok: true, ignored: 'verification_failed' });
   }
 
-  // 3. Look up the order by provider_order_ref.
+  // 4. Validate the order exists + amount + currency match
+  if (!webhookResult.orderId) {
+    logPaymentEvent({
+      level: 'warn',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      success: false,
+      errorCode: 'ORDER_NOT_FOUND',
+      message: 'Callback has no orderId (special_reference missing)',
+      durationMs: Date.now() - startTime,
+    });
+    return NextResponse.json({ ok: true, ignored: 'no_order_ref' });
+  }
+
+  // Look up the order by the internal order ID (from special_reference)
   const { data: order, error: orderErr } = await supabaseServer
     .from('orders')
-    .select('id, amount, currency, status, student_id, subject_id')
-    .eq('provider_order_ref', provider_order_ref)
+    .select('id, student_id, subject_id, amount, currency, status, gateway_id')
+    .eq('id', webhookResult.orderId)
     .maybeSingle();
 
   if (orderErr || !order) {
-    return NextResponse.json(
-      { success: false, error: 'الطلب غير موجود' },
-      { status: 404 }
-    );
+    logPaymentEvent({
+      level: 'warn',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      orderId: webhookResult.orderId,
+      success: false,
+      errorCode: 'ORDER_NOT_FOUND',
+      message: `Order not found: ${webhookResult.orderId}`,
+      durationMs: Date.now() - startTime,
+    });
+    return NextResponse.json({ ok: true, ignored: 'order_not_found' });
   }
 
-  // 4. For 'paid' status, run the activation RPC (atomic + idempotent).
-  //    For other statuses (failed/cancelled/refunded), just mark the order.
-  if (status === 'paid') {
+  const o = order as {
+    id: string;
+    student_id: string;
+    subject_id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    gateway_id: string | null;
+  };
+
+  // 5. Validate amount + currency match the internal order
+  if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - Number(o.amount)) > 0.01) {
+    logPaymentEvent({
+      level: 'error',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      orderId: o.id,
+      success: false,
+      errorCode: 'AMOUNT_MISMATCH',
+      message: `Expected ${o.amount} got ${webhookResult.amount}`,
+      durationMs: Date.now() - startTime,
+    });
+    return NextResponse.json({ ok: true, ignored: 'amount_mismatch' });
+  }
+
+  if (webhookResult.currency && webhookResult.currency !== o.currency) {
+    logPaymentEvent({
+      level: 'error',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      orderId: o.id,
+      success: false,
+      errorCode: 'CURRENCY_MISMATCH',
+      message: `Expected ${o.currency} got ${webhookResult.currency}`,
+      durationMs: Date.now() - startTime,
+    });
+    return NextResponse.json({ ok: true, ignored: 'currency_mismatch' });
+  }
+
+  // 6. Handle the payment status
+  if (webhookResult.status === 'paid') {
+    // Check if already paid (idempotency — the RPC handles this too)
+    if (o.status === 'paid') {
+      logPaymentEvent({
+        level: 'info',
+        operation: 'handleWebhook',
+        provider: webhookResult.provider,
+        orderId: o.id,
+        success: true,
+        errorCode: 'ALREADY_PAID',
+        message: 'Order already paid — idempotent success',
+        durationMs: Date.now() - startTime,
+      });
+      return NextResponse.json({ ok: true, already_paid: true });
+    }
+
+    // Call the existing RPC — atomic + idempotent
+    // The RPC: INSERTs payment → UPDATEs order='paid' → UPSERTs enrollment → activates student
     const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
       'activate_subscription_after_payment',
       {
-        p_order_id: (order as { id: string }).id,
-        p_provider_payment_id: provider_payment_id,
-        p_amount: amount,
-        p_currency: currency,
-        p_status: status,
-        p_raw_payload: raw_payload ?? null,
+        p_order_id: o.id,
+        p_provider_payment_id: webhookResult.providerTransactionId || `paymob_${randomUUID()}`,
+        p_amount: Number(o.amount),
+        p_currency: o.currency,
+        p_status: 'paid',
+        p_raw_payload: webhookResult.metadata || {},
         p_confirmed_by: null,
-      }
+      },
     );
 
     if (rpcErr) {
-      console.error('[webhook] RPC error:', rpcErr);
-      return NextResponse.json(
-        { success: false, error: 'فشل تفعيل الاشتراك: ' + rpcErr.message },
-        { status: 500 }
-      );
+      logPaymentEvent({
+        level: 'error',
+        operation: 'handleWebhook',
+        provider: webhookResult.provider,
+        orderId: o.id,
+        success: false,
+        errorCode: 'RPC_ERROR',
+        message: rpcErr.message,
+        durationMs: Date.now() - startTime,
+      });
+      return NextResponse.json({ ok: true, error: 'rpc_failed' });
     }
 
-    const result = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean; already_processed?: boolean }) ?? {};
-    if (result.success === false) {
-      return NextResponse.json(
-        { success: false, error: result.error || 'فشل التفعيل' },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
+    const result = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
+    logPaymentEvent({
+      level: 'info',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      orderId: o.id,
+      paymentReference: webhookResult.paymentReference,
       success: true,
-      already_paid: !!result.already_paid,
-      already_processed: !!result.already_processed,
+      message: result.already_paid ? 'Already paid (idempotent)' : 'Subscription activated',
+      durationMs: Date.now() - startTime,
     });
-  } else {
-    // failed / cancelled / refunded — just mark the order.
-    const { error: updateErr } = await supabaseServer
-      .from('orders')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', (order as { id: string }).id);
 
-    if (updateErr) {
-      return NextResponse.json(
-        { success: false, error: 'فشل تحديث حالة الطلب' },
-        { status: 500 }
-      );
-    }
-    return NextResponse.json({ success: true, status });
+    return NextResponse.json({ ok: true, success: true });
   }
+
+  // Handle failed/cancelled status
+  if (webhookResult.status === 'failed' || webhookResult.status === 'cancelled') {
+    await supabaseServer
+      .from('orders')
+      .update({ status: webhookResult.status, updated_at: new Date().toISOString() })
+      .eq('id', o.id)
+      .eq('status', 'pending');
+
+    logPaymentEvent({
+      level: 'warn',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      orderId: o.id,
+      success: false,
+      message: `Payment ${webhookResult.status}`,
+      durationMs: Date.now() - startTime,
+    });
+
+    return NextResponse.json({ ok: true, status: webhookResult.status });
+  }
+
+  // Pending or other status — no action
+  return NextResponse.json({ ok: true, status: webhookResult.status });
 }

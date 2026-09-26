@@ -52,10 +52,17 @@ class PaymentServiceImpl {
     const startTime = Date.now();
 
     try {
+      // Inject gatewayId into configuration so the adapter can build
+      // the notification_url with the gateway snapshot reference.
+      const configWithGatewayId = {
+        ...gateway.configuration,
+        gatewayId: gateway.id,
+      };
+
       const result = await adapter.createPayment(
         input,
         gateway.credentials,
-        gateway.configuration,
+        configWithGatewayId,
       );
 
       logPaymentEvent({
@@ -145,10 +152,15 @@ class PaymentServiceImpl {
     const startTime = Date.now();
 
     try {
+      const configWithGatewayId = {
+        ...gateway.configuration,
+        gatewayId: gateway.id,
+      };
+
       const result = await adapter.handleWebhook(
         input,
         gateway.credentials,
-        gateway.configuration,
+        configWithGatewayId,
       );
 
       logPaymentEvent({
