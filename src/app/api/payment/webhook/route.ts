@@ -40,10 +40,23 @@ import { supabaseServer } from '@/lib/supabase-server';
  *
  * If the webhook is for a 'failed' status, the order is marked 'failed'
  * (no subscription activation happens).
+ *
+ * ─── Phase 3 note ───
+ * This webhook uses a global HMAC secret (PAYMENT_WEBHOOK_SECRET) as a
+ * transitional measure. In Phase 4, this will be refactored to use the
+ * Payment Gateway Core (PaymentService.handleWebhook) which resolves
+ * the gateway-specific credentials from the payment_gateways table.
+ *
+ * The fallback secret 'attendo_dev_webhook_secret_change_me_in_production'
+ * has been REMOVED — if PAYMENT_WEBHOOK_SECRET is not set, ALL webhooks
+ * are rejected with 401. This is the correct secure behavior.
  */
-const WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || 'attendo_dev_webhook_secret_change_me_in_production';
+const WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || '';
 
 function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
+  // Fail closed: if no secret is configured, reject ALL webhooks.
+  // This prevents the webhook from being a bypass when misconfigured.
+  if (!WEBHOOK_SECRET) return false;
   if (!signatureHeader) return false;
   const expected = createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('hex');
   if (expected.length !== signatureHeader.length) return false;
