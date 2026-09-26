@@ -60,6 +60,7 @@ export interface ResolvedGateway {
 // ─── Public metadata (no secrets) ───
 export function rowToMetadata(row: PaymentGatewayRow): GatewayMetadata {
   return {
+    id: row.id,
     provider: row.provider,
     displayName: row.display_name,
     environment: row.environment as GatewayEnvironment,

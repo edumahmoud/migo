@@ -65,6 +65,11 @@ class PaymentServiceImpl {
         configWithGatewayId,
       );
 
+      // Inject the resolved gatewayId so the caller (pay endpoint)
+      // can save it in orders.gateway_id — this is the gateway snapshot
+      // that the webhook will use to resolve the correct credentials.
+      result.gatewayId = gateway.id;
+
       logPaymentEvent({
         level: result.success ? 'info' : 'warn',
         operation: 'createPayment',

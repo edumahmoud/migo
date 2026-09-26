@@ -31,6 +31,13 @@ export interface PaymobConfiguration {
   redirectionUrl: string;
   /** Payment methods to enable (e.g., ['card', 'wallet']) — or use integrationIds in credentials */
   paymentMethods?: string[];
+  /**
+   * The resolved gateway's DB ID — injected by PaymentService at runtime
+   * (NOT stored in the database). Used to append `gateway_id` to the
+   * notification_url so the webhook can resolve the correct gateway
+   * (gateway snapshot — even if the default changes later).
+   */
+  gatewayId?: string;
 }
 
 // ─── Paymob API response types (internal) ───

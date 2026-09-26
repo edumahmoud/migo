@@ -111,15 +111,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       checkoutUrl = result.checkoutUrl;
       paymentReference = result.paymentReference ?? null;
 
-      // 5. Update the order with the provider_order_ref (intention ID) + gateway_id
-      // This links the callback to the correct gateway (gateway snapshot).
-      // The gateway_id is injected into the configuration by PaymentService.
-      // We can extract it from the result metadata or look it up.
-      // For now, we update provider_order_ref with the intention ID.
+      // 5. Update the order with:
+      //    - provider_order_ref = Paymob intention ID (for callback linking)
+      //    - gateway_id = the resolved gateway's DB ID (gateway snapshot)
+      //      This ensures the webhook uses the SAME gateway config that
+      //      created the payment — even if the default gateway changes later.
       await supabaseServer
         .from('orders')
         .update({
           provider_order_ref: paymentReference,
+          gateway_id: result.gatewayId ?? null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', o.id)

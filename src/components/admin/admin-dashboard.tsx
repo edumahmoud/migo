@@ -49,6 +49,7 @@ import {
   ShieldAlert,
   PartyPopper,
   Bell,
+  Wallet,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -73,6 +74,7 @@ import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import InstitutionSection from '@/components/admin/institution-section';
+import PaymentGatewaysSection from '@/components/admin/payment-gateways-section';
 import ReportsSection from '@/components/reports/reports-section';
 import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
@@ -134,6 +136,7 @@ const adminNavItemDefs = [
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'paymentGateways', labelKey: 'nav.paymentGateways', icon: <Wallet className="h-5 w-5" />, superadminOnly: true },
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
 
@@ -4012,6 +4015,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'institution' && (
                 <motion.div key="institution" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   <InstitutionSection profile={profile} />
+                </motion.div>
+              )}
+              {activeSection === 'paymentGateways' && (
+                <motion.div key="paymentGateways" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <PaymentGatewaysSection />
                 </motion.div>
               )}
             </AnimatePresence>

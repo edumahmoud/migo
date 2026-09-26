@@ -86,3 +86,24 @@ export {
 
 // ─── Abstract adapter base class (for adapter implementation) ───
 export { PaymentGatewayAdapter } from './gateway-adapter';
+
+// ─── Utility functions (for all adapters) ───
+export { appendGatewayIdToUrl } from './utils';
+
+// ─── Provider schemas (for admin UI form rendering) ───
+export {
+  getProviderSchema,
+  listProviderSchemas,
+  registerProviderSchema,
+  type ProviderSchema,
+  type ProviderFieldSchema,
+} from './provider-schemas';
+
+// ─── Financial Ledger (Phase 8) ───
+export {
+  calculateFinancialShares,
+  toPublicMetadata,
+  type FinancialCalculation,
+  type LedgerRow,
+  type LedgerMetadata,
+} from './financial';

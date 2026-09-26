@@ -26,6 +26,7 @@ import {
 } from '../../errors';
 import { createIntention, getIntention, buildCheckoutUrl } from './client';
 import { verifyPaymobHmac } from './hmac';
+import { appendGatewayIdToUrl } from '../../utils';
 import type {
   PaymentGateway,
   GatewayCapabilities,
@@ -124,11 +125,20 @@ export class PaymobAdapter implements PaymentGateway {
 
     // Build the Intention API request body
     const amountCents = toCents(input.amount);
+
+    // Build the notification_url with gateway_id appended — so the
+    // webhook can resolve the EXACT gateway config used at payment
+    // creation (gateway snapshot). This is GENERIC — any adapter
+    // should do this. The helper handles URL separators (? vs &).
+    const notificationUrl = config.gatewayId
+      ? appendGatewayIdToUrl(config.notificationUrl, config.gatewayId)
+      : config.notificationUrl;
+
     const body: Record<string, unknown> = {
       amount: amountCents,
       currency: input.currency,
       special_reference: input.orderId,  // internal order UUID — for callback linking
-      notification_url: config.notificationUrl,
+      notification_url: notificationUrl,
       redirection_url: config.redirectionUrl,
       items: [
         {

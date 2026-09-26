@@ -25,6 +25,7 @@ export interface GatewayCapabilities {
 
 // ─── Gateway metadata (non-secret — safe to log + return in API responses) ───
 export interface GatewayMetadata {
+  id: string;  // DB UUID — needed by admin UI to call [id] endpoints
   provider: GatewayProvider;
   displayName: string;
   environment: GatewayEnvironment;
@@ -61,6 +62,7 @@ export interface CreatePaymentInput {
 export interface CreatePaymentResult {
   success: boolean;
   provider: GatewayProvider;
+  gatewayId?: string;              // the resolved gateway's DB ID (for order linking — gateway snapshot)
   paymentReference?: string;       // gateway's payment ID
   providerOrderReference?: string; // gateway's order ID
   checkoutUrl?: string;            // for redirect-checkout gateways

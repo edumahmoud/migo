@@ -43,10 +43,13 @@ export async function createIntention(
     const text = await res.text();
 
     if (!res.ok) {
-      // Map Paymob error to unified PaymentCreationFailedError
+      // Map Paymob error to unified PaymentCreationFailedError.
+      // The error MESSAGE is safe (HTTP status only) — does NOT include
+      // raw response body. The full body is kept in `cause` for internal
+      // debugging (stripped by PaymentError.toJSON() before reaching the client).
       throw new PaymentCreationFailedError(
         'paymob',
-        `Paymob API returned HTTP ${res.status}: ${text.slice(0, 200)}`,
+        `Paymob API request failed (HTTP ${res.status})`,
         { httpStatus: res.status, body: text.slice(0, 500) },
       );
     }
@@ -68,9 +71,12 @@ export async function createIntention(
     if (err instanceof PaymentCreationFailedError) throw err;
 
     // Network error, timeout, etc.
+    // Message is generic — does NOT include the raw network error (which
+    // could potentially contain connection details). The original error
+    // is kept in `cause` for debugging (stripped by toJSON()).
     throw new PaymentCreationFailedError(
       'paymob',
-      `Failed to call Paymob API: ${err instanceof Error ? err.message : 'unknown'}`,
+      'Failed to connect to Paymob API',
       err,
     );
   }
@@ -99,10 +105,12 @@ export async function getIntention(
     const text = await res.text();
 
     if (!res.ok) {
+      // Message is safe (HTTP status only). Raw response body is NOT
+      // included in the message — only in `cause` (stripped by toJSON()).
       throw new PaymentVerificationFailedError(
         'paymob',
-        `Paymob API returned HTTP ${res.status}: ${text.slice(0, 200)}`,
-        { httpStatus: res.status },
+        `Paymob API request failed (HTTP ${res.status})`,
+        { httpStatus: res.status, body: text.slice(0, 500) },
       );
     }
 
@@ -112,7 +120,7 @@ export async function getIntention(
 
     throw new PaymentVerificationFailedError(
       'paymob',
-      `Failed to verify payment: ${err instanceof Error ? err.message : 'unknown'}`,
+      'Failed to connect to Paymob API for verification',
       err,
     );
   }
