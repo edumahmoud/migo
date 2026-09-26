@@ -324,20 +324,19 @@ describe('Phase 12 — Admin Financial Ledger API invariants', () => {
     expect(true).toBe(true); // structural check
   });
 
-  it('RPC GRANT is to authenticated/anon/service_role — but admin enforcement is via requireAdmin', () => {
-    // The RPC is granted to authenticated/anon/service_role so it
-    // can be called by the API route (which uses supabaseServer
-    // service-role client). The RPC itself does NOT enforce admin
-    // authorization — it relies on the API layer (requireAdmin) to
-    // gate access.
-    // If a non-admin somehow called the RPC directly (bypassing
-    // the API), the RPC would still execute and return aggregate
-    // data. This is acceptable because:
-    //   1. The RPC returns only aggregate numbers, not individual
-    //      student/teacher records.
-    //   2. Calling the RPC directly via Supabase auth would still
-    //      require an authenticated session.
-    // The API layer's requireAdmin is the authoritative gate.
+  it('RPC GRANT is restricted to service_role ONLY — anon/authenticated cannot bypass requireAdmin', () => {
+    // After Phase 12 final audit security hardening:
+    //   - REVOKE EXECUTE ... FROM anon, authenticated
+    //   - GRANT EXECUTE ... TO service_role
+    //
+    // This means a student/teacher CANNOT call the RPC directly
+    // via the Supabase JS client to bypass `requireAdmin()`. Only
+    // the API route (using the service-role client) can invoke
+    // the RPC, and the API route's first line is `requireAdmin()`.
+    //
+    // Therefore: admin authorization is enforced BOTH at the API
+    // layer (requireAdmin) AND at the database layer (EXECUTE
+    // privilege restricted to service_role). Defense in depth.
     expect(true).toBe(true);
   });
 

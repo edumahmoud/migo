@@ -64,14 +64,43 @@ AS $$
     AND (p_status     IS NULL OR status     = p_status);
 $$;
 
--- Grant execute to authenticated (the API layer is the gate).
--- The function does NOT bypass admin authorization — callers
--- still need to be authenticated. Admin enforcement is in the
--- API route via `requireAdmin()`.
+-- ─── RPC Authorization ─────────────────────────────────────
+-- Phase 12 Final Audit (security hardening):
+--
+--   The RPC returns AGGREGATE platform-wide financial totals
+--   (gross, platform_share, teacher_share, gateway_fees, status
+--   breakdown). It MUST NOT be callable directly by `anon` or
+--   `authenticated` users — that would allow students/teachers
+--   to bypass `requireAdmin()` and read platform-wide financials.
+--
+--   The ONLY intended caller is the Admin API route
+--   `/api/admin/financial-ledger`, which uses the service-role
+--   client (bypasses RLS) AFTER `requireAdmin()` succeeds.
+--
+--   Therefore:
+--     1. REVOKE EXECUTE from anon + authenticated (defensive —
+--        in case v80 was previously deployed with the broader
+--        grants; REVOKE is idempotent).
+--     2. GRANT EXECUTE to service_role ONLY.
+--
+--   The function itself (SECURITY DEFINER + SET search_path = public)
+--   remains UNCHANGED. Only the GRANT/REVOKE scope changes.
+-- ─────────────────────────────────────────────────────────
+
+-- Defensive: revoke any previously-granted EXECUTE to anon/authenticated.
+-- (No-op if those grants were never applied.)
+REVOKE EXECUTE ON FUNCTION public.get_financial_summary(
+  TIMESTAMPTZ, TIMESTAMPTZ, UUID, UUID, UUID, TEXT
+) FROM anon, authenticated;
+
+-- Explicit: only the service-role client (used by the Admin API
+-- after requireAdmin() succeeds) can call this RPC.
 GRANT EXECUTE ON FUNCTION public.get_financial_summary(
   TIMESTAMPTZ, TIMESTAMPTZ, UUID, UUID, UUID, TEXT
-) TO authenticated, anon, service_role;
+) TO service_role;
 
 -- Done. Verify with:
 --   \df public.get_financial_summary
---   SELECT public.get_financial_summary(NULL, NULL, NULL, NULL, NULL, NULL);
+--   SELECT routine_name, routine_type FROM information_schema.routine_privileges
+--   WHERE routine_name = 'get_financial_summary';
+--   -- Should show ONLY service_role with EXECUTE.
