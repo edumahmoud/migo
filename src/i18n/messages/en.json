@@ -325,7 +325,8 @@
     "scormLibrary": "SCORM Library",
     "registration": "Supervisors",
     "paymentMethods": "Payment Methods",
-    "pendingOrders": "Pending Orders"
+    "pendingOrders": "Pending Orders",
+    "financial": "Financial Revenue"
   },
   "roles": {
     "student": "Student",
@@ -3386,6 +3387,55 @@
     "trendStudentsImproved": "{count} students improved",
     "trendStudentsDeclined": "{count} students declined",
     "trendStudentsStable": "{count} students stable"
+  },
+  "financial": {
+    "title": "Financial Revenue",
+    "subtitle": "Detailed summary of your revenue from completed transactions",
+    "summary": {
+      "totalGross": "Total Revenue",
+      "teacherShare": "My Earnings",
+      "platformShare": "Platform Share",
+      "gatewayFee": "Gateway Fee",
+      "transactions": "Transactions"
+    },
+    "filters": {
+      "title": "Filter Results",
+      "dateFrom": "From Date",
+      "dateTo": "To Date",
+      "subject": "Course",
+      "status": "Status",
+      "allSubjects": "All Courses",
+      "allStatuses": "All Statuses",
+      "apply": "Apply",
+      "clear": "Clear Filters",
+      "noFilters": "No filters applied"
+    },
+    "status": {
+      "paid": "Paid",
+      "refunded": "Refunded",
+      "reversed": "Reversed",
+      "settled": "Settled",
+      "pending": "Pending",
+      "failed": "Failed"
+    },
+    "table": {
+      "date": "Date",
+      "student": "Student",
+      "course": "Course",
+      "gross": "Gross",
+      "teacherShare": "Teacher Share",
+      "platformShare": "Platform Share",
+      "gatewayFee": "Gateway Fee",
+      "status": "Status",
+      "empty": "No financial transactions yet. They will appear here once the first payment completes."
+    },
+    "errors": {
+      "loadFailed": "Failed to load financial data. Please try again.",
+      "rateLimited": "Too many attempts. Try again later.",
+      "retry": "Retry"
+    },
+    "loading": "Loading financial data...",
+    "currency": "EGP"
   },
   "student": {
     "mySubjects": "My Subjects",

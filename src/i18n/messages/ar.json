@@ -325,7 +325,8 @@
     "scormLibrary": "مكتبة SCORM",
     "registration": "المشرفون",
     "paymentMethods": "وسائل الدفع",
-    "pendingOrders": "تفعيل الاشتراكات"
+    "pendingOrders": "تفعيل الاشتراكات",
+    "financial": "الإيرادات المالية"
   },
   "roles": {
     "student": "طالب",
@@ -3387,6 +3388,55 @@
     "trendStudentsImproved": "{count} طالب تحسنوا",
     "trendStudentsDeclined": "{count} طالب تراجعوا",
     "trendStudentsStable": "{count} طالب ثابتون"
+  },
+  "financial": {
+    "title": "الإيرادات المالية",
+    "subtitle": "ملخص تفصيلي لإيراداتك من المعاملات المُكتملة",
+    "summary": {
+      "totalGross": "إجمالي الإيرادات",
+      "teacherShare": "مستحقاتي",
+      "platformShare": "حصة المنصة",
+      "gatewayFee": "رسوم البوابة",
+      "transactions": "عدد المعاملات"
+    },
+    "filters": {
+      "title": "تصفية النتائج",
+      "dateFrom": "من تاريخ",
+      "dateTo": "إلى تاريخ",
+      "subject": "المقرر",
+      "status": "الحالة",
+      "allSubjects": "كل المقررات",
+      "allStatuses": "كل الحالات",
+      "apply": "تطبيق",
+      "clear": "مسح الفلاتر",
+      "noFilters": "لا توجد فلاتر مطبقة"
+    },
+    "status": {
+      "paid": "مدفوع",
+      "refunded": "مسترد",
+      "reversed": "معكوس",
+      "settled": "تم التسوية",
+      "pending": "قيد الانتظار",
+      "failed": "فشل"
+    },
+    "table": {
+      "date": "التاريخ",
+      "student": "الطالب",
+      "course": "المقرر",
+      "gross": "إجمالي العملية",
+      "teacherShare": "حصة المعلم",
+      "platformShare": "حصة المنصة",
+      "gatewayFee": "رسوم البوابة",
+      "status": "الحالة",
+      "empty": "لا توجد معاملات مالية بعد. ستظهر هنا فور أول عملية دفع مكتملة."
+    },
+    "errors": {
+      "loadFailed": "تعذر تحميل البيانات المالية. حاول مرة أخرى.",
+      "rateLimited": "تم تجاوز عدد المحاولات. حاول لاحقًا.",
+      "retry": "إعادة المحاولة"
+    },
+    "loading": "جاري تحميل البيانات المالية...",
+    "currency": "ج.م"
   },
   "student": {
     "mySubjects": "مقرراتي",
