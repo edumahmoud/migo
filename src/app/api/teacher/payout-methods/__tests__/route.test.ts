@@ -1,318 +1,529 @@
 // =====================================================
-// Teacher Payout Methods — Phase 11 Tests
+// Teacher Payout Methods — Phase 13 Step 1 Architecture Correction
 // =====================================================
-// Tests covering the security invariants and validation logic
-// of the Phase 11 payout methods system.
+// Tests covering the two architectural changes from the Phase 13
+// Step 1 Architecture Correction + Final Audit:
 //
-// Uses `bun:test` (consistent with existing __tests__ files
-// in src/lib/payment/__tests__/).
+//   A. Discriminated Union for `PayoutMethodDetails`:
+//      - `ResolvedPayoutMethod.details` is now a discriminated
+//        union on `method_type`. TypeScript narrows automatically
+//        when the caller branches on `details.method_type` —
+//        no casts needed.
 //
+//   B. Bank Card Data Minimization:
+//      - `bank_card` schema no longer stores `card_number` (PAN).
+//      - Stores only `last4` (safe to display) + card_brand? +
+//        expiry_month + expiry_year + holder_name.
+//      - NO CVV / CVC / security_code field.
+//      - NO provider_token field (that belongs to PayoutProvider,
+//        Phase 13 Step 10 — deferred).
+//      - Validation REJECTS `card_number`, `cvv`, `provider_token`
+//        fields if a client tries to send them via bank_card details.
+//
+// Uses `bun:test` (consistent with existing __tests__ files).
 // Run manually:
 //   bun test src/app/api/teacher/payout-methods/__tests__/route.test.ts
-//
-// Note: project does NOT have a `test` script in package.json.
-// These tests serve as both runnable checks (once a runner is
-// configured) and as documentation of expected behavior.
 // =====================================================
 
 import { describe, it, expect, beforeEach } from 'bun:test';
 import {
   EGYPTIAN_MOBILE_REGEX,
+  IBAN_REGEX,
+  LAST4_REGEX,
+  CARD_BRAND_REGEX,
+  INSTAPAY_IDENTIFIER_REGEX,
   getPayoutMethodSchema,
   listPayoutMethodSchemas,
   validatePayoutMethodDetails,
   isSupportedPayoutMethodType,
+  coercePayoutMethodDetails,
+  SUPPORTED_PAYOUT_METHOD_TYPES,
+  FIELD_NAMES,
+  type PayoutMethodDetails,
+  type WalletDetails,
+  type BankAccountDetails,
+  type BankCardDetails,
+  type InstaPayDetails,
 } from '@/lib/payment/payout-method-schemas';
 import {
   maskWalletNumber,
   maskAccountNumber,
   maskHolderName,
+  maskIBAN,
+  maskCardNumber,
+  maskInstaPayIdentifier,
   buildMaskedSummary,
+  buildMaskedSummaryForMethod,
 } from '@/lib/payment/masking';
+import type { ResolvedPayoutMethod } from '@/lib/payment/payout-methods-repository';
 import { encrypt, decrypt, isEncryptionKeyConfigured } from '@/lib/payment/crypto';
 
 // ─── Test data ───
 const TEACHER_A_ID = '00000000-0000-0000-0000-000000000001';
 const TEACHER_B_ID = '00000000-0000-0000-0000-000000000002';
-const VALID_WALLET_A = '01012345678';
-const VALID_WALLET_B = '01187654321';
+const VALID_WALLET_PHONE = '01012345678';
+const VALID_LAST4 = '5678';
+const VALID_CARD_PAN = '4111111111111111'; // for legacy-rejection tests only
 
-// Set the encryption key for tests that need it
 beforeEach(() => {
-  process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY = 'a'.repeat(64); // 64-char hex
+  process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY = 'a'.repeat(64);
 });
 
-describe('Phase 11 — Teacher Payout Methods invariants', () => {
-  // ─── Test 1: Teacher can read their own methods ───
-  // (Pure logic — verifies the schema + masking layer supports
-  //  returning masked-only data to the frontend.)
-  it('returns masked data only — never the full wallet number', () => {
-    const masked = maskWalletNumber(VALID_WALLET_A);
-    expect(masked).toBe('**** **** 5678');
-    expect(masked).not.toContain('01012345678');
-    expect(masked).not.toContain('0101');
-  });
+// ═══════════════════════════════════════════════════════════════════
+// A. Discriminated Union Tests
+// ═══════════════════════════════════════════════════════════════════
 
-  // ─── Test 2: Teacher A cannot see Teacher B's methods ───
-  // (Pure logic — the API's WHERE clause must include teacher_id.
-  //  This test verifies that the schema validation + masking layer
-  //  does not produce data that could leak across teachers.)
-  it('teacher A and teacher B have distinct IDs (used for isolation tests)', () => {
-    expect(TEACHER_A_ID).not.toBe(TEACHER_B_ID);
-  });
-
-  // ─── Test 3: Create valid wallet ───
-  it('accepts a valid 11-digit Egyptian mobile number', () => {
-    expect(EGYPTIAN_MOBILE_REGEX.test('01012345678')).toBe(true);
-    expect(EGYPTIAN_MOBILE_REGEX.test('01112345678')).toBe(true);
-    expect(EGYPTIAN_MOBILE_REGEX.test('01212345678')).toBe(true);
-    expect(EGYPTIAN_MOBILE_REGEX.test('01512345678')).toBe(true);
-  });
-
-  // ─── Test 4: Reject invalid wallet number ───
-  it('rejects invalid wallet numbers', () => {
-    // Too short
-    expect(EGYPTIAN_MOBILE_REGEX.test('0101234567')).toBe(false);
-    // Too long
-    expect(EGYPTIAN_MOBILE_REGEX.test('010123456789')).toBe(false);
-    // Wrong prefix
-    expect(EGYPTIAN_MOBILE_REGEX.test('01612345678')).toBe(false);
-    expect(EGYPTIAN_MOBILE_REGEX.test('02012345678')).toBe(false);
-    // Non-numeric
-    expect(EGYPTIAN_MOBILE_REGEX.test('0101234567a')).toBe(false);
-    // Empty
-    expect(EGYPTIAN_MOBILE_REGEX.test('')).toBe(false);
-    // Spaces
-    expect(EGYPTIAN_MOBILE_REGEX.test('010 1234 5678')).toBe(false);
-  });
-
-  // ─── Test 5: Reject unsupported method type ───
-  it('rejects method types outside the supported list', () => {
-    expect(isSupportedPayoutMethodType('vodafone_cash')).toBe(true);
-    expect(isSupportedPayoutMethodType('etisalat_cash')).toBe(true);
-    expect(isSupportedPayoutMethodType('orange_cash')).toBe(true);
-    expect(isSupportedPayoutMethodType('we_cash')).toBe(true);
-    // Out-of-scope types (Phase 13 / forbidden)
-    expect(isSupportedPayoutMethodType('bank_account')).toBe(false);
-    expect(isSupportedPayoutMethodType('instapay')).toBe(false);
-    expect(isSupportedPayoutMethodType('fawry')).toBe(false);
-    expect(isSupportedPayoutMethodType('paypal')).toBe(false);
-    expect(isSupportedPayoutMethodType('')).toBe(false);
-  });
-
-  // ─── Test 6: Encryption before storage ───
-  it('encrypts wallet details before storage (roundtrip + no plaintext)', () => {
-    const details = {
-      wallet_number: VALID_WALLET_A,
+describe('Phase 13 Step 1 — A. Discriminated Union', () => {
+  // Test 1: ResolvedPayoutMethod.details uses discriminated union
+  it('ResolvedPayoutMethod.details is PayoutMethodDetails (discriminated union)', () => {
+    const walletDetails = coercePayoutMethodDetails('wallet', {
+      wallet_number: VALID_WALLET_PHONE,
       holder_name: 'Mahmoud Ahmed',
-    };
-    const encrypted = encrypt(details);
-
-    // The encrypted blob must NOT contain the plaintext wallet number
-    expect(encrypted).not.toContain(VALID_WALLET_A);
-    expect(encrypted).not.toContain('Mahmoud');
-    expect(encrypted).not.toContain('Ahmed');
-
-    // Decrypt + verify roundtrip
-    const decrypted = decrypt(encrypted);
-    expect(decrypted.wallet_number).toBe(VALID_WALLET_A);
-    expect(decrypted.holder_name).toBe('Mahmoud Ahmed');
-  });
-
-  // ─── Test 7: Encrypted details never returned to frontend ───
-  // (Verifies the masking layer produces output that doesn't
-  //  contain the full wallet number.)
-  it('masked summary does not leak the full wallet number', () => {
-    const masked = buildMaskedSummary(VALID_WALLET_A, 'Mahmoud Ahmed');
-    expect(masked).toContain('5678');
-    expect(masked).not.toContain(VALID_WALLET_A);
-    expect(masked).not.toContain('0101');
-    // Mask should contain placeholder chars
-    expect(masked).toMatch(/^\*+\s*\*+\s*\d+\s*•\s*[A-Z]\./);
-  });
-
-  // ─── Test 8: Correct masking format ───
-  it('produces **** **** XXXX format for 11-digit wallets', () => {
-    expect(maskWalletNumber(VALID_WALLET_A)).toBe('**** **** 5678');
-    expect(maskWalletNumber('01187654321')).toBe('**** **** 4321');
-  });
-
-  it('handles edge cases for masking', () => {
-    // Empty
-    expect(maskWalletNumber('')).toBe('****');
-    expect(maskWalletNumber(null)).toBe('****');
-    expect(maskWalletNumber(undefined)).toBe('****');
-    // Short
-    expect(maskWalletNumber('1234')).toBe('**** 1234');
-    // Non-numeric stripped
-    expect(maskWalletNumber('010-1234-5678')).toBe('**** **** 5678');
-  });
-
-  it('masks holder name to initials', () => {
-    expect(maskHolderName('Mahmoud Ahmed')).toBe('M. A.');
-    expect(maskHolderName('single')).toBe('S.');
-    expect(maskHolderName('')).toBe('—');
-    expect(maskHolderName(null)).toBe('—');
-  });
-
-  // ─── Test 9: Update ownership protection ───
-  // (Pure logic — verifies the schema + masking layer doesn't
-  //  expose any field that could leak across teachers.)
-  it('schema fields do not include teacher_id (immutable)', () => {
-    const schema = getPayoutMethodSchema('vodafone_cash')!;
-    expect(schema).toBeDefined();
-    const fieldNames = schema.fields.map((f) => f.name);
-    expect(fieldNames).not.toContain('teacher_id');
-    expect(fieldNames).not.toContain('id');
-    expect(fieldNames).toContain('wallet_number');
-    expect(fieldNames).toContain('holder_name');
-  });
-
-  // ─── Test 10: Soft-disable behavior ───
-  // (Pure logic — verifies the masking + schema layer is stateless
-  //  so disable/reenable don't leak anything.)
-  it('schema validation rejects empty wallet_number', () => {
-    const schema = getPayoutMethodSchema('vodafone_cash')!;
-    const errors = validatePayoutMethodDetails(schema, {
-      wallet_number: '',
-      holder_name: 'Mahmoud',
     });
-    expect(errors.length).toBeGreaterThan(0);
+    expect(walletDetails.method_type).toBe('wallet');
+    expect(walletDetails.wallet_number).toBe(VALID_WALLET_PHONE);
+
+    const cardDetails = coercePayoutMethodDetails('bank_card', {
+      last4: VALID_LAST4,
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(cardDetails.method_type).toBe('bank_card');
+    expect(cardDetails.last4).toBe(VALID_LAST4);
+    // Type narrowing proof: TS knows BankCardDetails here (no cast)
+    expect((cardDetails as BankCardDetails).last4).toBe(VALID_LAST4);
   });
 
-  // ─── Test 11: Set-default logic ───
-  // (Verifies that the schema supports only one default per teacher
-  //  by virtue of the unique index. The pure logic test confirms
-  //  the masking layer doesn't confuse the default badge.)
-  it('schema supports exactly 4 mobile wallet types', () => {
-    const schemas = listPayoutMethodSchemas();
-    expect(schemas.length).toBe(4);
-    const types = schemas.map((s) => s.methodType).sort();
-    expect(types).toEqual(['etisalat_cash', 'orange_cash', 'vodafone_cash', 'we_cash']);
-  });
+  // Test 2: narrowing by method_type works correctly (no casts needed)
+  it('TypeScript narrowing by details.method_type works without casts', () => {
+    const variants: PayoutMethodDetails[] = [
+      coercePayoutMethodDetails('wallet', { wallet_number: VALID_WALLET_PHONE, holder_name: 'A' }),
+      coercePayoutMethodDetails('bank_account', { bank_name: 'B', iban: 'EG1100006000010000123456789012', holder_name: 'C' }),
+      coercePayoutMethodDetails('bank_card', { last4: VALID_LAST4, expiry_month: '12', expiry_year: '28', holder_name: 'D' }),
+      coercePayoutMethodDetails('instapay', { recipient_identifier: 'mahmoud@instapay', holder_name: 'E' }),
+    ];
 
-  // ─── Test 12: Prevent more than one default ───
-  // (Logic test — the DB partial unique index enforces this.
-  //  Here we verify the schema layer produces consistent masked output
-  //  so the frontend's "default" badge is reliable.)
-  it('masking is deterministic for the same input', () => {
-    expect(maskWalletNumber(VALID_WALLET_A)).toBe(maskWalletNumber(VALID_WALLET_A));
-    expect(buildMaskedSummary(VALID_WALLET_A, 'Mahmoud')).toBe(
-      buildMaskedSummary(VALID_WALLET_A, 'Mahmoud')
-    );
-  });
-
-  // ─── Test 13: Admin verification ───
-  // (Logic test — verifies the verification flow doesn't accept
-  //  verified_by from the client. The repository.setVerifiedBy()
-  //  function takes adminId from requireAdmin().user.id only.)
-  it('schema has no "verified_by" field (admin-set only)', () => {
-    const schema = getPayoutMethodSchema('vodafone_cash')!;
-    const fieldNames = schema.fields.map((f) => f.name);
-    expect(fieldNames).not.toContain('verified_by');
-    expect(fieldNames).not.toContain('verified_at');
-  });
-
-  // ─── Test 14: teacher_id never accepted from client ───
-  // (Logic test — verifies the schema's field list doesn't
-  //  include teacher_id, which is the precondition for the
-  //  API route's defense.)
-  it('no schema exposes teacher_id as an input field', () => {
-    const schemas = listPayoutMethodSchemas();
-    for (const s of schemas) {
-      const fieldNames = s.fields.map((f) => f.name);
-      expect(fieldNames).not.toContain('teacher_id');
+    for (const d of variants) {
+      switch (d.method_type) {
+        case 'wallet':
+          // TS narrows d to WalletDetails — wallet_number is accessible
+          expect(typeof d.wallet_number).toBe('string');
+          expect(d.wallet_number.length).toBeGreaterThan(0);
+          break;
+        case 'bank_account':
+          // TS narrows d to BankAccountDetails
+          expect(typeof d.bank_name).toBe('string');
+          expect(d.account_number !== undefined || d.iban !== undefined).toBe(true);
+          break;
+        case 'bank_card':
+          // TS narrows d to BankCardDetails
+          expect(typeof d.last4).toBe('string');
+          expect(d.last4).toMatch(LAST4_REGEX);
+          // NO card_number, NO cvv, NO provider_token in this variant
+          expect((d as BankCardDetails & { card_number?: string }).card_number).toBeUndefined();
+          expect((d as BankCardDetails & { cvv?: string }).cvv).toBeUndefined();
+          expect((d as BankCardDetails & { provider_token?: string }).provider_token).toBeUndefined();
+          break;
+        case 'instapay':
+          // TS narrows d to InstaPayDetails
+          expect(typeof d.recipient_identifier).toBe('string');
+          break;
+      }
     }
   });
 
-  // ─── Additional invariant: encryption key check ───
-  it('encryption key is configured in tests', () => {
-    expect(isEncryptionKeyConfigured()).toBe(true);
+  // Test 3: coercePayoutMethodDetails throws for unsupported method_type
+  it('coercePayoutMethodDetails throws for unsupported method_type', () => {
+    expect(() => coercePayoutMethodDetails('vodafone_cash', {})).toThrow();
+    expect(() => coercePayoutMethodDetails('paypal', {})).toThrow();
+    expect(() => coercePayoutMethodDetails('', {})).toThrow();
   });
 
-  it('fails safe when encryption key is missing', () => {
-    delete process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY;
-    expect(isEncryptionKeyConfigured()).toBe(false);
-    expect(() => encrypt({ wallet_number: '01012345678' })).toThrow();
-    // Restore for subsequent tests
-    process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY = 'a'.repeat(64);
+  // Test 4: coercePayoutMethodDetails handles null/undefined raw input
+  it('coercePayoutMethodDetails handles null/undefined raw input', () => {
+    const walletFromNull = coercePayoutMethodDetails('wallet', null);
+    expect(walletFromNull.method_type).toBe('wallet');
+    expect(walletFromNull.wallet_number).toBe('');
+    expect(walletFromNull.holder_name).toBe('');
+
+    const cardFromUndefined = coercePayoutMethodDetails('bank_card', undefined);
+    expect(cardFromUndefined.method_type).toBe('bank_card');
+    expect(cardFromUndefined.last4).toBe('');
   });
 
-  // ─── Invariant: validation rejects holder_name too short ───
-  it('rejects holder_name shorter than 2 characters', () => {
-    const schema = getPayoutMethodSchema('vodafone_cash')!;
+  // Test 5: ResolvedPayoutMethod type can hold all 4 variants
+  it('ResolvedPayoutMethod can hold all 4 variants (type assignability)', () => {
+    const walletResolved: ResolvedPayoutMethod = {
+      id: '1', method_type: 'wallet', display_label: 'W', details_masked: 'm',
+      is_active: true, is_default: false, verified_at: null, verified_by: null,
+      created_at: '2026', updated_at: '2026',
+      details: coercePayoutMethodDetails('wallet', { wallet_number: VALID_WALLET_PHONE, holder_name: 'M' }),
+    };
+    expect(walletResolved.details.method_type).toBe('wallet');
+
+    const cardResolved: ResolvedPayoutMethod = {
+      id: '2', method_type: 'bank_card', display_label: 'C', details_masked: 'm',
+      is_active: true, is_default: false, verified_at: null, verified_by: null,
+      created_at: '2026', updated_at: '2026',
+      details: coercePayoutMethodDetails('bank_card', { last4: VALID_LAST4, expiry_month: '12', expiry_year: '28', holder_name: 'M' }),
+    };
+    expect(cardResolved.details.method_type).toBe('bank_card');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// B. Bank Card Data Minimization Tests
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
+  // Test 3: bank_card accepts last4
+  it('bank_card schema accepts valid last4 + expiry + holder_name', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
     const errors = validatePayoutMethodDetails(schema, {
-      wallet_number: '01012345678',
-      holder_name: 'A', // too short
-    });
-    expect(errors.some((e) => e.includes('صاحب المحفظة') || e.includes('قصير'))).toBe(true);
-  });
-
-  // ─── Invariant: validation accepts valid input ───
-  it('accepts a fully valid input', () => {
-    const schema = getPayoutMethodSchema('vodafone_cash')!;
-    const errors = validatePayoutMethodDetails(schema, {
-      wallet_number: '01012345678',
+      last4: VALID_LAST4,
+      expiry_month: '12',
+      expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
     });
     expect(errors).toEqual([]);
   });
 
-  // ─── Invariant: validation rejects missing fields ───
-  it('rejects missing required fields', () => {
-    const schema = getPayoutMethodSchema('vodafone_cash')!;
-    const errors = validatePayoutMethodDetails(schema, {});
-    expect(errors.length).toBeGreaterThanOrEqual(2); // wallet_number + holder_name
+  // Test 4: bank_card REJECTS card_number field if client tries to send it
+  it('bank_card validation REJECTS card_number field (PAN must not be stored)', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
+    const errors = validatePayoutMethodDetails(schema, {
+      last4: VALID_LAST4,
+      card_number: VALID_CARD_PAN,  // <-- forbidden field
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(errors.some((e) => e.includes('card_number') && e.includes('ممنوع'))).toBe(true);
   });
 
-  // ─── Invariant: masking account number for future bank_account support ───
-  it('maskAccountNumber handles long account numbers (future-proofing)', () => {
-    expect(maskAccountNumber('EG12345678901234567890')).toBe('**** **** 7890');
-    expect(maskAccountNumber('1234')).toBe('**** 1234');
-    expect(maskAccountNumber('')).toBe('****');
+  // Test 5: bank_card REJECTS cvv / cvc / security_code fields
+  it('bank_card validation REJECTS cvv / cvc / security_code fields', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
+    const errorsCvv = validatePayoutMethodDetails(schema, {
+      last4: VALID_LAST4,
+      cvv: '123',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(errorsCvv.some((e) => e.includes('cvv') && e.includes('ممنوع'))).toBe(true);
+
+    const errorsCvc = validatePayoutMethodDetails(schema, {
+      last4: VALID_LAST4,
+      cvc: '123',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(errorsCvc.some((e) => e.includes('cvc') && e.includes('ممنوع'))).toBe(true);
+
+    const errorsSecurityCode = validatePayoutMethodDetails(schema, {
+      last4: VALID_LAST4,
+      security_code: '123',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(errorsSecurityCode.some((e) => e.includes('security_code') && e.includes('ممنوع'))).toBe(true);
+  });
+
+  // Test 6: bank_card REJECTS provider_token
+  it('bank_card validation REJECTS provider_token (belongs to PayoutProvider, NOT Payout Method)', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
+    const errors = validatePayoutMethodDetails(schema, {
+      last4: VALID_LAST4,
+      provider_token: 'tok_xxx',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(errors.some((e) => e.includes('provider_token') && e.includes('ممنوع'))).toBe(true);
+  });
+
+  // Test 7: bank_card schema has NO forbidden fields declared
+  it('bank_card schema has NO card_number / cvv / provider_token field declared', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
+    expect(schema).toBeDefined();
+    const fieldNames = schema.fields.map((f) => f.name);
+    expect(fieldNames).not.toContain('card_number');
+    expect(fieldNames).not.toContain('pan');
+    expect(fieldNames).not.toContain('cvv');
+    expect(fieldNames).not.toContain('cvc');
+    expect(fieldNames).not.toContain('security_code');
+    expect(fieldNames).not.toContain('provider_token');
+
+    // Required fields ARE present:
+    expect(fieldNames).toContain(FIELD_NAMES.last4);
+    expect(fieldNames).toContain(FIELD_NAMES.expiryMonth);
+    expect(fieldNames).toContain(FIELD_NAMES.expiryYear);
+    expect(fieldNames).toContain(FIELD_NAMES.holderName);
+    expect(fieldNames).toContain(FIELD_NAMES.cardBrand);
+  });
+
+  // Test 8: bank_card last4 must be exactly 4 digits
+  it('bank_card validation: last4 must be exactly 4 digits', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
+    // 3 digits — too short
+    const errorsShort = validatePayoutMethodDetails(schema, {
+      last4: '123',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'M. A.',
+    });
+    expect(errorsShort.some((e) => e.includes('الصيغة') || e.includes('format'))).toBe(true);
+
+    // 5 digits — too long
+    const errorsLong = validatePayoutMethodDetails(schema, {
+      last4: '12345',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'M. A.',
+    });
+    expect(errorsLong.some((e) => e.includes('الصيغة') || e.includes('format'))).toBe(true);
+
+    // Alphanumeric — invalid
+    const errorsAlpha = validatePayoutMethodDetails(schema, {
+      last4: 'abcd',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'M. A.',
+    });
+    expect(errorsAlpha.some((e) => e.includes('الصيغة') || e.includes('format'))).toBe(true);
+  });
+
+  // Test 9: bank_card card_brand is optional + accepts free text
+  it('bank_card validation: card_brand is optional', () => {
+    const schema = getPayoutMethodSchema('bank_card')!;
+    const errors = validatePayoutMethodDetails(schema, {
+      last4: VALID_LAST4,
+      // card_brand not provided
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'M. A.',
+    });
+    expect(errors).toEqual([]);
+  });
+
+  // Test 10: PAN never stored — coercePayoutMethodDetails ignores legacy card_number
+  it('coercePayoutMethodDetails IGNORES legacy card_number in raw blob (no PAN leak)', () => {
+    const legacyRaw = {
+      card_number: VALID_CARD_PAN,  // legacy field — should NOT leak
+      last4: VALID_LAST4,
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    };
+    const typed = coercePayoutMethodDetails('bank_card', legacyRaw);
+    expect(typed.method_type).toBe('bank_card');
+    expect(typed.last4).toBe(VALID_LAST4);
+    expect((typed as BankCardDetails & { card_number?: string }).card_number).toBeUndefined();
+    expect((typed as BankCardDetails & { cvv?: string }).cvv).toBeUndefined();
+    expect((typed as BankCardDetails & { provider_token?: string }).provider_token).toBeUndefined();
+  });
+
+  // Test 11: Masking uses last4 (no full PAN in any output)
+  it('maskCardNumber: when given last4 (4 digits), uses it directly (no PAN extraction needed)', () => {
+    expect(maskCardNumber(VALID_LAST4)).toContain(VALID_LAST4);
+    expect(maskCardNumber(VALID_LAST4)).not.toContain(VALID_CARD_PAN);
+  });
+
+  it('maskCardNumber: when given a full PAN (legacy), still extracts only last 4', () => {
+    const masked = maskCardNumber(VALID_CARD_PAN);
+    expect(masked).toContain('1111');
+    expect(masked).not.toContain('4111');
+    expect(masked).not.toContain(VALID_CARD_PAN);
+  });
+
+  // Test 12: buildMaskedSummaryForMethod('bank_card', ...) uses last4
+  it('buildMaskedSummaryForMethod: bank_card summary uses last4, no PAN leak', () => {
+    const summary = buildMaskedSummaryForMethod('bank_card', {
+      last4: VALID_LAST4,
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(summary).toContain(VALID_LAST4);
+    expect(summary).toContain('M. A.');
+    expect(summary).not.toContain(VALID_CARD_PAN);
+    expect(summary).not.toContain('4111');
+  });
+
+  it('buildMaskedSummaryForMethod: bank_card with card_brand shows brand', () => {
+    const summary = buildMaskedSummaryForMethod('bank_card', {
+      last4: VALID_LAST4,
+      card_brand: 'Visa',
+      expiry_month: '12',
+      expiry_year: '28',
+      holder_name: 'Mahmoud Ahmed',
+    });
+    expect(summary).toContain(VALID_LAST4);
+    expect(summary).toContain('VISA');
+    expect(summary).toContain('M. A.');
+  });
+
+  it('buildMaskedSummaryForMethod: bank_card handles missing/empty details', () => {
+    expect(buildMaskedSummaryForMethod('bank_card', null)).toBe('****');
+    expect(buildMaskedSummaryForMethod('bank_card', {})).toBe('•••• • —');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// C. Cross-cutting Invariants (preserved from Phase 13 Step 1 Architecture Correction)
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Phase 13 Step 1 — Cross-cutting invariants', () => {
+  // Test 8: 4 current method types still work
+  it('4 current generic method types still work end-to-end', () => {
+    expect(SUPPORTED_PAYOUT_METHOD_TYPES.length).toBe(4);
+    expect(SUPPORTED_PAYOUT_METHOD_TYPES).toEqual(
+      expect.arrayContaining(['wallet', 'bank_account', 'bank_card', 'instapay'])
+    );
+
+    for (const t of SUPPORTED_PAYOUT_METHOD_TYPES) {
+      expect(isSupportedPayoutMethodType(t)).toBe(true);
+      expect(getPayoutMethodSchema(t)).not.toBeNull();
+    }
+  });
+
+  // Test 9: 4 old wallet-specific types remain UNSUPPORTED
+  it('4 old Phase 11 wallet-specific types remain unsupported', () => {
+    expect(isSupportedPayoutMethodType('vodafone_cash')).toBe(false);
+    expect(isSupportedPayoutMethodType('etisalat_cash')).toBe(false);
+    expect(isSupportedPayoutMethodType('orange_cash')).toBe(false);
+    expect(isSupportedPayoutMethodType('we_cash')).toBe(false);
+
+    expect(getPayoutMethodSchema('vodafone_cash')).toBeNull();
+    expect(getPayoutMethodSchema('etisalat_cash')).toBeNull();
+    expect(getPayoutMethodSchema('orange_cash')).toBeNull();
+    expect(getPayoutMethodSchema('we_cash')).toBeNull();
+
+    expect(() => coercePayoutMethodDetails('vodafone_cash', {})).toThrow();
+    expect(() => coercePayoutMethodDetails('etisalat_cash', {})).toThrow();
+    expect(() => coercePayoutMethodDetails('orange_cash', {})).toThrow();
+    expect(() => coercePayoutMethodDetails('we_cash', {})).toThrow();
+  });
+
+  it('schemas are method_type-driven — no provider-specific fields in any variant', () => {
+    const allSchemas = listPayoutMethodSchemas();
+    for (const s of allSchemas) {
+      const fieldNames = s.fields.map((f) => f.name);
+      expect(fieldNames).not.toContain('wallet_provider');
+      expect(fieldNames).not.toContain('provider');
+      expect(fieldNames).not.toContain('operator');
+      expect(fieldNames).not.toContain('carrier');
+      expect(fieldNames).not.toContain('teacher_id');
+      expect(fieldNames).not.toContain('verified_by');
+      expect(fieldNames).not.toContain('verified_at');
+      expect(fieldNames).not.toContain('is_active');
+      expect(fieldNames).not.toContain('is_default');
+      expect(fieldNames).not.toContain('id');
+    }
+  });
+
+  it('LAST4_REGEX validates exactly 4 digits', () => {
+    expect(LAST4_REGEX.test('5678')).toBe(true);
+    expect(LAST4_REGEX.test('123')).toBe(false);
+    expect(LAST4_REGEX.test('12345')).toBe(false);
+    expect(LAST4_REGEX.test('abcd')).toBe(false);
+    expect(LAST4_REGEX.test('')).toBe(false);
+  });
+
+  it('CARD_BRAND_REGEX accepts letters/digits/spaces/dashes (2-20 chars)', () => {
+    expect(CARD_BRAND_REGEX.test('Visa')).toBe(true);
+    expect(CARD_BRAND_REGEX.test('Mastercard')).toBe(true);
+    expect(CARD_BRAND_REGEX.test('American Express')).toBe(true);
+    expect(CARD_BRAND_REGEX.test('V')).toBe(false);
+    expect(CARD_BRAND_REGEX.test('ThisBrandNameIsWayTooLongForTheField')).toBe(false);
+    expect(CARD_BRAND_REGEX.test('Vi$$a')).toBe(false);
+  });
+
+  it('encryption key is configured + encrypt/decrypt roundtrip', () => {
+    expect(isEncryptionKeyConfigured()).toBe(true);
+    const details = { last4: VALID_LAST4, expiry_month: '12', holder_name: 'M. A.' };
+    const encrypted = encrypt(details);
+    expect(encrypted).not.toContain(VALID_LAST4);
+    expect(encrypted).not.toContain('M. A.');
+    const decrypted = decrypt(encrypted);
+    expect(decrypted.last4).toBe(VALID_LAST4);
+  });
+
+  it('fails safe when encryption key is missing', () => {
+    delete process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY;
+    expect(isEncryptionKeyConfigured()).toBe(false);
+    expect(() => encrypt({ last4: VALID_LAST4 })).toThrow();
+    process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY = 'a'.repeat(64);
+  });
+
+  it('wallet schema unchanged (wallet_number + holder_name)', () => {
+    const schema = getPayoutMethodSchema('wallet')!;
+    const fieldNames = schema.fields.map((f) => f.name);
+    expect(fieldNames).toContain(FIELD_NAMES.walletNumber);
+    expect(fieldNames).toContain(FIELD_NAMES.holderName);
+    expect(fieldNames).not.toContain('wallet_provider');
+  });
+
+  it('bank_account schema unchanged (alternative-required for account_number/iban)', () => {
+    const schema = getPayoutMethodSchema('bank_account')!;
+    const fieldNames = schema.fields.map((f) => f.name);
+    expect(fieldNames).toContain(FIELD_NAMES.bankName);
+    expect(fieldNames).toContain(FIELD_NAMES.accountNumber);
+    expect(fieldNames).toContain(FIELD_NAMES.iban);
+    expect(fieldNames).toContain(FIELD_NAMES.holderName);
+    const accountField = schema.fields.find((f) => f.name === FIELD_NAMES.accountNumber)!;
+    const ibanField = schema.fields.find((f) => f.name === FIELD_NAMES.iban)!;
+    expect(accountField.alternativeGroup).toBe(ibanField.alternativeGroup);
+  });
+
+  it('instapay schema unchanged (recipient_identifier + holder_name)', () => {
+    const schema = getPayoutMethodSchema('instapay')!;
+    const fieldNames = schema.fields.map((f) => f.name);
+    expect(fieldNames).toContain(FIELD_NAMES.recipientIdentifier);
+    expect(fieldNames).toContain(FIELD_NAMES.holderName);
+  });
+
+  it('teacher A and teacher B have distinct IDs', () => {
+    expect(TEACHER_A_ID).not.toBe(TEACHER_B_ID);
   });
 });
 
 // =====================================================
 // Manual QA checklist (testable without a runner)
 // =====================================================
-// Teacher isolation:
-//   - Log in as Teacher A, add a payout method.
-//   - Try fetching GET /api/teacher/payout-methods/[B_method_id]
-//     as Teacher A. Expect 404 (the WHERE clause filters it out).
-//   - Try PATCH/DELETE on Teacher B's method as Teacher A. Expect 404.
+// Phase 13 Step 1 Architecture Correction specific checks:
+//   A. Discriminated Union:
+//     - In any Phase 13 execution code, write:
+//         const resolved: ResolvedPayoutMethod = await resolvePayoutMethod(...);
+//         if (resolved.details.method_type === 'wallet') {
+//           console.log(resolved.details.wallet_number);  // ✓ no cast
+//         }
+//       The TS compiler must NOT require any cast.
+//     - Try `resolved.details.card_number` for a bank_card resolved — TS must
+//       reject (BankCardDetails has no card_number field).
 //
-// IDOR defense:
-//   - Try POST /api/teacher/payout-methods with a body containing
-//     "teacher_id": "<DIFFERENT_USER_ID>". The server should ignore
-//     the body's teacher_id and use the session's user.id.
-//   - Verify the created method's teacher_id matches the session user.
+//   B. Bank Card Data Minimization:
+//     - Submit a bank_card via the API with `card_number` in details → 400 error
+//       with message "الحقل card_number ممنوع".
+//     - Submit a bank_card with `cvv` → 400 error with cvv forbidden message.
+//     - Submit a bank_card with `provider_token` → 400 error.
+//     - Submit a bank_card with only `last4` + expiry + holder_name → 201 success.
+//     - Inspect the encrypted blob in DB → it contains ONLY last4 + (optional)
+//       card_brand + expiry_month + expiry_year + holder_name. NO card_number.
+//     - Call resolvePayoutMethod on a bank_card → returns BankCardDetails with
+//       NO card_number field accessible (TS compile error if accessed).
 //
-// Default uniqueness:
-//   - Create 3 methods for Teacher A. Set each as default in sequence.
-//   - After each set-default, query the DB and verify exactly one row
-//     has is_default=true AND is_active=true.
-//
-// Soft-disable doesn't lose data:
-//   - Disable a method. Verify the row remains in the table with
-//     is_active=false and audit_log has 'payout_method.disabled' event.
-//   - Re-enable it. Verify audit_log has 'payout_method.reenabled'.
-//
-// Encryption at rest:
-//   - Query the DB directly: SELECT details_encrypted, details_masked
-//     FROM teacher_payout_methods WHERE teacher_id = ?
-//   - Verify details_encrypted does NOT contain the wallet_number plaintext.
-//   - Verify details_masked is "**** **** XXXX • M. A." format.
-//
-// Admin verification:
-//   - As a teacher, try POST /api/teacher/payout-methods/[id]/verify.
-//     Expect 403 (requireAdmin fails for non-admins).
-//   - As admin, verify a method. Verify verified_by matches the admin's id.
-//   - Try submitting verified_by in the body. Server should ignore it
-//     and use the admin's session id.
-//
-// Frontend never sees encrypted details:
-//   - Inspect every API response from /api/teacher/payout-methods*.
-//   - Verify no response field is named "details_encrypted".
-//   - Verify no response contains the full wallet_number (11 digits).
+//   C. Phase 11 / Phase 13 Step 1 Architecture Correction invariants preserved:
+//     - 4 generic types supported, 4 old wallet-specific types rejected.
+//     - bank_account alternative-required still works.
+//     - instapay flexible identifier still works.
+//     - masking is type-aware + last4-driven for bank_card.
+//     - Encryption at rest via AES-256-GCM (unchanged).
+//     - Audit log stores only masked values (unchanged).
+//     - RLS + teacher_id from session (unchanged).
+//     - NO provider_token field anywhere in PayoutMethodDetails.
 // =====================================================

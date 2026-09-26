@@ -3508,19 +3508,30 @@
   },
   "payoutMethods": {
     "title": "Payout Methods",
-    "subtitle": "Manage your payout methods (Vodafone Cash / Etisalat Cash / Orange Cash / WE Cash wallets)",
+    "subtitle": "Manage your payout methods (mobile wallet / bank account / bank card / InstaPay)",
     "loading": "Loading payout methods...",
-    "empty": "No payout methods added yet. Add your first wallet to streamline receiving your earnings later.",
+    "empty": "No payout methods added yet. Add your first method to streamline receiving your earnings later.",
     "providers": {
-      "vodafoneCash": "Vodafone Cash",
-      "etisalatCash": "Etisalat Cash",
-      "orangeCash": "Orange Cash",
-      "weCash": "WE Cash"
+      "wallet": "Mobile Wallet",
+      "bankAccount": "Bank Account",
+      "bankCard": "Bank Card",
+      "instapay": "InstaPay"
     },
     "fields": {
       "masked": "Data (masked)",
       "createdAt": "Added on",
-      "verifiedAt": "Verified on"
+      "verifiedAt": "Verified on",
+      "wallet_number": "Wallet Number",
+      "holder_name": "Holder Name",
+      "bank_name": "Bank Name",
+      "account_number": "Account Number",
+      "iban": "IBAN",
+      "card_number": "Card Number",
+      "last4": "Last 4 Digits",
+      "card_brand": "Card Brand",
+      "expiry_month": "Expiry Month",
+      "expiry_year": "Expiry Year",
+      "recipient_identifier": "Recipient Identifier"
     },
     "badges": {
       "default": "Default",
@@ -3540,17 +3551,19 @@
     "dialog": {
       "createTitle": "Add a new payout method",
       "editTitle": "Edit payout method",
-      "createDescription": "Enter your mobile wallet info. Data is stored encrypted and only the last 4 digits are shown.",
-      "editDescription": "Update the display label or wallet data. Leave sensitive fields empty to keep current values.",
+      "createDescription": "Enter your payout method info. Data is stored encrypted and only the last digits are shown.",
+      "editDescription": "Update the display label or method data. Leave sensitive fields empty to keep current values.",
       "methodType": "Method type",
       "selectType": "Select type",
+      "selectTypeFirst": "Select a method type first to see its required fields",
       "cannotChangeType": "Cannot change the type after creation. Disable this method and create a new one if you need a different type.",
+      "alternative": "or",
       "displayLabel": "Display label",
-      "displayLabelPlaceholder": "e.g., My personal wallet",
+      "displayLabelPlaceholder": "e.g., My personal account",
       "walletNumber": "Wallet number",
       "walletHelpText": "11 digits starting with 010 / 011 / 012 / 015",
-      "holderName": "Wallet holder name",
-      "holderNamePlaceholder": "The name registered on the wallet",
+      "holderName": "Holder name",
+      "holderNamePlaceholder": "The name registered on the method",
       "leaveBlankToKeep": "Leave empty to keep current value",
       "setAsDefault": "Make this the default method",
       "cancel": "Cancel",
@@ -3574,6 +3587,7 @@
       "disableFailed": "Failed to disable method",
       "reenableFailed": "Failed to re-enable method",
       "setDefaultFailed": "Failed to set as default",
+      "missingDetails": "Required details are missing",
       "retry": "Retry"
     }
   },

@@ -26,11 +26,13 @@
 
 import { supabaseServer } from '@/lib/supabase-server';
 import { encrypt, decrypt, isEncryptionKeyConfigured } from './crypto';
-import { buildMaskedSummary, maskWalletNumber } from './masking';
+import { buildMaskedSummaryForMethod } from './masking';
 import {
   getPayoutMethodSchema,
   validatePayoutMethodDetails,
   isSupportedPayoutMethodType,
+  coercePayoutMethodDetails,
+  type PayoutMethodDetails,
 } from './payout-method-schemas';
 import { EncryptionKeyMissingError } from './errors';
 
@@ -66,13 +68,26 @@ export interface PayoutMethodMetadata {
 }
 
 // ─── Resolved method (with decrypted details) ───
-// Used internally when the payout execution layer needs the full
-// wallet number (Phase 13). Never returned from API routes.
+// Used internally when the payout execution layer (Phase 13 Step 6+)
+// needs the full recipient data. Never returned from API routes.
+//
+// After the Phase 13 Step 1 Architecture Correction, `details` is a
+// Discriminated Union on `method_type`. TypeScript narrows the union
+// automatically based on `details.method_type` — NO casts needed
+// when the caller branches on the discriminant:
+//
+//   if (resolved.details.method_type === 'wallet') {
+//     // TS narrows resolved.details to WalletDetails here
+//     console.log(resolved.details.wallet_number);  // ✓ type-safe
+//   }
+//
+// The Phase 13 Payout Provider execution layer (Step 10, deferred)
+// will use this narrowing to call the right provider adapter per
+// method_type. NO branching is implemented in this repository —
+// `coercePayoutMethodDetails()` only constructs the typed union
+// from the decrypted raw Record.
 export interface ResolvedPayoutMethod extends PayoutMethodMetadata {
-  details: {
-    wallet_number: string;
-    holder_name: string;
-  };
+  details: PayoutMethodDetails;
 }
 
 // ─── Audit event types (mirror DB CHECK constraint) ───
@@ -169,8 +184,20 @@ export interface CreatePayoutMethodInput {
   teacherId: string;           // server-side only — never from client
   methodType: string;
   displayLabel: string;
-  walletNumber: string;
-  holderName: string;
+  /**
+   * Generic details object whose shape depends on `methodType`:
+   *   - 'wallet':       { wallet_number, holder_name }
+   *   - 'bank_account': { bank_name, account_number? OR iban?, holder_name }
+   *   - 'bank_card':    { last4, card_brand?, expiry_month, expiry_year, holder_name }
+   *   - 'instapay':     { recipient_identifier, holder_name }
+   *
+   * Validated server-side against the schema in payout-method-schemas.ts.
+   * Encrypted via AES-256-GCM before storage.
+   *
+   * Forbidden fields for 'bank_card' (rejected by validation):
+   *   card_number, pan, cvv, cvc, security_code, provider_token
+   */
+  details: Record<string, unknown>;
   setAsDefault?: boolean;
 }
 
@@ -195,20 +222,16 @@ export async function createPayoutMethod(
     throw new Error(`Unsupported method type: ${input.methodType}`);
   }
   const schema = getPayoutMethodSchema(input.methodType)!;
-  const validationErrors = validatePayoutMethodDetails(schema, {
-    wallet_number: input.walletNumber,
-    holder_name: input.holderName,
-  });
+  const validationErrors = validatePayoutMethodDetails(schema, input.details);
   if (validationErrors.length > 0) {
     throw new Error(`Validation failed: ${validationErrors.join('; ')}`);
   }
 
-  // Encrypt sensitive details
-  const detailsEncrypted = encrypt({
-    wallet_number: input.walletNumber,
-    holder_name: input.holderName,
-  });
-  const detailsMasked = buildMaskedSummary(input.walletNumber, input.holderName);
+  // Encrypt sensitive details — encrypted blob shape matches the
+  // validated `details` object exactly. Decryption recovers the
+  // same shape; the caller (Phase 13 execution) reads fields by name.
+  const detailsEncrypted = encrypt(input.details);
+  const detailsMasked = buildMaskedSummaryForMethod(input.methodType, input.details);
 
   // If setAsDefault, clear existing default first (atomic operation)
   if (input.setAsDefault) {
@@ -236,9 +259,9 @@ export async function createPayoutMethod(
     .single();
 
   if (error) {
-    // Handle unique constraint violation (duplicate wallet for same teacher)
+    // Handle unique constraint violation (duplicate method for same teacher)
     if (error.code === '23505') {
-      throw new Error('هذه المحفظة مسجلة بالفعل');
+      throw new Error('هذه الوسيلة مسجلة بالفعل');
     }
     throw new Error(`Failed to create payout method: ${error.message}`);
   }
@@ -261,13 +284,22 @@ export interface UpdatePayoutMethodInput {
   id: string;
   teacherId: string;           // server-side only — never from client
   displayLabel?: string;
-  walletNumber?: string;
-  holderName?: string;
+  /**
+   * Partial details object — only the fields the teacher is updating.
+   * Empty/absent fields are preserved from the existing encrypted blob.
+   * Validation is applied to the MERGED details (existing + new)
+   * against the schema for the row's method_type.
+   *
+   * NOTE: `method_type` is IMMUTABLE after creation. To change method
+   * type, the teacher must disable this method + create a new one.
+   */
+  detailsPatch?: Record<string, unknown>;
 }
 
 /**
  * Update a payout method's label and/or details.
- * If wallet_number or holder_name is changed, details are re-encrypted
+ * If `detailsPatch` is provided, the existing encrypted details are
+ * decrypted, merged with the patch, re-validated, re-encrypted,
  * and the masked summary is regenerated.
  *
  * Critical: the WHERE clause includes teacher_id to enforce ownership.
@@ -294,8 +326,8 @@ export async function updatePayoutMethod(
     update.display_label = input.displayLabel;
   }
 
-  // If wallet_number OR holder_name is being updated, re-encrypt + re-mask
-  if (input.walletNumber !== undefined || input.holderName !== undefined) {
+  // If a details patch is provided, decrypt + merge + validate + re-encrypt
+  if (input.detailsPatch && Object.keys(input.detailsPatch).length > 0) {
     if (!isEncryptionKeyConfigured()) {
       throw new EncryptionKeyMissingError();
     }
@@ -311,25 +343,20 @@ export async function updatePayoutMethod(
       .maybeSingle();
 
     const rawRowCasted = rawRow as { details_encrypted: string } | null;
-    let existingDetails: { wallet_number?: string; holder_name?: string } = {};
+    let existingDetails: Record<string, unknown> = {};
     if (rawRowCasted?.details_encrypted) {
       try {
-        existingDetails = decrypt(rawRowCasted.details_encrypted) as {
-          wallet_number?: string;
-          holder_name?: string;
-        };
+        existingDetails = decrypt(rawRowCasted.details_encrypted) as Record<string, unknown>;
       } catch {
         // Can't decrypt — fail safe
         throw new Error('Failed to decrypt existing details — encryption key may have changed');
       }
     }
 
-    const mergedDetails = {
-      wallet_number: input.walletNumber ?? existingDetails.wallet_number ?? '',
-      holder_name: input.holderName ?? existingDetails.holder_name ?? '',
-    };
+    // Merge existing details with the patch — patch fields override
+    const mergedDetails: Record<string, unknown> = { ...existingDetails, ...input.detailsPatch };
 
-    // Validate the merged details against the schema
+    // Validate the merged details against the schema for the existing method_type
     const schema = getPayoutMethodSchema(existing.method_type);
     if (schema) {
       const errors = validatePayoutMethodDetails(schema, mergedDetails);
@@ -339,7 +366,7 @@ export async function updatePayoutMethod(
     }
 
     update.details_encrypted = encrypt(mergedDetails);
-    newMasked = buildMaskedSummary(mergedDetails.wallet_number, mergedDetails.holder_name);
+    newMasked = buildMaskedSummaryForMethod(existing.method_type, mergedDetails);
     update.details_masked = newMasked;
   }
 
@@ -351,7 +378,7 @@ export async function updatePayoutMethod(
 
   if (error) {
     if (error.code === '23505') {
-      throw new Error('هذه المحفظة مسجلة بالفعل');
+      throw new Error('هذه الوسيلة مسجلة بالفعل');
     }
     throw new Error(`Failed to update: ${error.message}`);
   }
@@ -576,6 +603,34 @@ async function writeAuditLog(entry: {
 }
 
 // ─── Internal helper: resolve + decrypt (for future Phase 13 use) ───
+/**
+ * Resolve a payout method to its full (decrypted, type-safe) form.
+ *
+ * Used internally by the payout execution layer (Phase 13 Step 6+).
+ * The caller MUST read `details.method_type` first to determine
+ * which fields are in `details`. TypeScript narrows the union
+ * automatically based on `details.method_type`:
+ *
+ *   if (resolved.details.method_type === 'wallet') {
+ *     // TS knows resolved.details is WalletDetails here
+ *     console.log(resolved.details.wallet_number);  // ✓
+ *   }
+ *
+ * The execution layer branches on `details.method_type` to call the
+ * appropriate Payout Provider. This branching is NOT implemented
+ * here — it's deferred to Phase 13 Step 10 (provider integration).
+ *
+ * NEVER returned from any API response. Only used inside the
+ * payout execution flow.
+ *
+ * Note on bank_card: After the Phase 13 Step 1 Architecture Correction,
+ * the bank_card details shape no longer includes `card_number` (PAN) —
+ * only `last4`. If the encrypted blob in the DB contains a legacy
+ * `card_number` field (created before this architecture correction),
+ * the `coercePayoutMethodDetails` function will IGNORE it (it only
+ * extracts `last4` from the typed union). The PAN is not leaked
+ * via this function's return type.
+ */
 export async function resolvePayoutMethod(
   id: string,
   teacherId: string
@@ -592,14 +647,23 @@ export async function resolvePayoutMethod(
   const row = data as PayoutMethodRow;
   const metadata = rowToPayoutMetadata(row);
 
-  let details: { wallet_number: string; holder_name: string } = { wallet_number: '', holder_name: '' };
+  let raw: Record<string, unknown> = {};
   if (row.details_encrypted) {
     try {
-      details = decrypt(row.details_encrypted) as { wallet_number: string; holder_name: string };
+      raw = decrypt(row.details_encrypted) as Record<string, unknown>;
     } catch {
       throw new Error('Failed to decrypt payout method details — encryption key may have changed');
     }
   }
+
+  // Construct the typed PayoutMethodDetails (discriminated union)
+  // from the raw decrypted Record + the row's method_type. This is
+  // type-safe: the schema validation ran at creation time and
+  // guarantees the shape. `coercePayoutMethodDetails` explicitly
+  // extracts only the fields the current schema declares — any
+  // legacy fields (e.g., a `card_number` from before this architecture
+  // correction) are NOT surfaced via the typed union.
+  const details = coercePayoutMethodDetails(row.method_type, raw);
 
   return { ...metadata, details };
 }

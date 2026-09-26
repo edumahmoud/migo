@@ -5,7 +5,6 @@ import {
   softDisablePayoutMethod,
   getPayoutMethodForTeacher,
 } from '@/lib/payment/payout-methods-repository';
-import { getPayoutMethodSchema, validatePayoutMethodDetails } from '@/lib/payment/payout-method-schemas';
 
 interface RouteContext { params: Promise<{ id: string }> }
 
@@ -15,18 +14,21 @@ interface RouteContext { params: Promise<{ id: string }> }
  * Update a payout method owned by the authenticated teacher.
  * - `teacher_id` from session only (NEVER from body).
  * - IDOR defense: WHERE clause includes both `id` AND `teacher_id`.
- * - Allowed updates: `display_label`, `wallet_number`, `holder_name`.
+ * - Allowed updates: `display_label`, `details` (partial patch — merged
+ *   with existing decrypted details, then re-validated + re-encrypted).
  * - Immutable: `id`, `teacher_id`, `method_type` (changing method_type
- *   requires creating a new method — audit history preserved).
- * - When wallet_number / holder_name change, details are re-encrypted
- *   and the masked summary is regenerated.
+ *   requires disabling this method + creating a new one — audit history
+ *   preserved).
  *
  * Body (any subset):
  *   {
  *     display_label?: string,
- *     wallet_number?: string,    // must match Egyptian mobile regex
- *     holder_name?: string,
+ *     details?: Record<string, unknown>,  // partial patch — merge with existing
  *   }
+ *
+ * Examples:
+ *   PATCH with details: { holder_name: 'New Name' }   // updates only holder_name
+ *   PATCH with details: { last4: '5678', expiry_month: '12' }  // updates bank_card fields
  */
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
   const authResult = await requireTeacher(request);
@@ -53,7 +55,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Fetch the existing method to get its method_type (for schema validation)
+  // Fetch the existing method to verify ownership (the repository does
+  // this again, but doing it here lets us return a clean 404 before
+  // any encryption work).
   const existing = await getPayoutMethodForTeacher(id, teacherId);
   if (!existing) {
     return NextResponse.json(
@@ -62,52 +66,44 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Validate any provided wallet_number / holder_name against the schema
-  const schema = getPayoutMethodSchema(existing.method_type);
-  if (schema) {
-    const toValidate: Record<string, unknown> = {};
-    if (body.wallet_number !== undefined) toValidate.wallet_number = body.wallet_number;
-    if (body.holder_name !== undefined) toValidate.holder_name = body.holder_name;
-    if (Object.keys(toValidate).length > 0) {
-      // Merge with existing values for full validation
-      // (validatePayoutMethodDetails checks required fields — but on update,
-      //  we don't pass the existing values. We just validate the provided ones.)
-      if (body.wallet_number !== undefined || body.holder_name !== undefined) {
-        const errors = validatePayoutMethodDetails(schema, toValidate);
-        // Allow missing fields (they won't be updated) — only reject on
-        // format errors (regex, length).
-        const formatErrors = errors.filter((e) => e.includes('الصيغة') || e.includes('يتجاوز'));
-        if (formatErrors.length > 0) {
-          return NextResponse.json(
-            { success: false, error: formatErrors.join(' | ') },
-            { status: 400 }
-          );
-        }
-      }
-    }
-  }
-
   // Validate display_label if provided
+  let displayLabel: string | undefined;
   if (body.display_label !== undefined) {
-    const label = String(body.display_label).trim();
-    if (label.length < 2 || label.length > 100) {
+    displayLabel = String(body.display_label).trim();
+    if (displayLabel.length < 2 || displayLabel.length > 100) {
       return NextResponse.json(
         { success: false, error: 'اسم العرض يجب أن يكون 2-100 حرف' },
         { status: 400 }
       );
     }
-    body.display_label = label;
   }
 
-  // Apply the update via repository (re-encrypts if wallet/holder changed)
+  // Validate details patch if provided — must be a plain object
+  let detailsPatch: Record<string, unknown> | undefined;
+  if (body.details !== undefined) {
+    if (typeof body.details !== 'object' || body.details === null || Array.isArray(body.details)) {
+      return NextResponse.json(
+        { success: false, error: 'details يجب أن يكون كائنًا (object)' },
+        { status: 400 }
+      );
+    }
+    detailsPatch = body.details as Record<string, unknown>;
+    if (Object.keys(detailsPatch).length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'details لا يمكن أن يكون فارغًا' },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Apply the update via repository (re-encrypts if details patch is present)
   try {
     const result = await updatePayoutMethod(
       {
         id,
         teacherId,
-        displayLabel: body.display_label as string | undefined,
-        walletNumber: body.wallet_number as string | undefined,
-        holderName: body.holder_name as string | undefined,
+        displayLabel,
+        detailsPatch,
       },
       teacherId
     );
@@ -126,13 +122,19 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'فشل التحديث';
-    if (message.includes('هذه المحفظة مسجلة')) {
+    if (message.includes('هذه الوسيلة مسجلة')) {
       return NextResponse.json({ success: false, error: message }, { status: 409 });
     }
     if (message.includes('encryption key')) {
       return NextResponse.json(
         { success: false, error: 'مفتاح التشفير غير مضبوط. تواصل مع الإدارة.' },
         { status: 500 }
+      );
+    }
+    if (message.includes('Validation failed')) {
+      return NextResponse.json(
+        { success: false, error: message },
+        { status: 400 }
       );
     }
     return NextResponse.json({ success: false, error: message }, { status: 400 });

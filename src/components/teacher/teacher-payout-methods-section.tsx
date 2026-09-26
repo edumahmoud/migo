@@ -1,17 +1,27 @@
 'use client';
 
 // =====================================================
-// TeacherPayoutMethodsSection — Phase 11
+// TeacherPayoutMethodsSection — Phase 11 / Phase 13 Step 1 Architecture Correction
 // =====================================================
-// Allows the authenticated teacher to manage their own
-// payout methods (mobile wallets only — Vodafone/Etisalat/
-// Orange/WE Cash).
+// Allows the authenticated teacher to manage their own payout methods.
 //
-// Critical security properties:
-//   - teacher_id is NEVER sent from the client; the API
-//     derives it from the session.
-//   - The frontend NEVER sees the full wallet number — only
-//     the masked summary (last 4 digits).
+// After the Phase 13 Step 1 Architecture Correction, the method types are
+// GENERIC and provider-independent:
+//   - wallet         (mobile wallet — phone + holder name)
+//   - bank_account   (bank_name + account_number OR iban + holder name)
+//   - bank_card      (last4 + card_brand? + expiry + holder name — NO PAN, NO CVV, NO provider_token)
+//   - instapay       (recipient identifier + holder name)
+//
+// The UI is now SCHEMA-DRIVEN: it fetches the list of supported method
+// types + their field schemas from /api/teacher/payout-methods/providers,
+// then renders the appropriate form fields dynamically per type. No
+// mobile-operator dropdown is shown.
+//
+// Critical security properties (unchanged from Phase 11):
+//   - teacher_id is NEVER sent from the client; the API derives it
+//     from the session.
+//   - The frontend NEVER sees the full wallet/account/card numbers —
+//     only the masked summary.
 //   - The component offers NO way to:
 //       * access another teacher's methods
 //       * change teacher_id
@@ -23,7 +33,7 @@
 //   - Loading (skeleton / spinner)
 //   - Empty state (no methods yet)
 //   - List state (cards with masked info + actions)
-//   - Create/Edit form (modal or inline)
+//   - Create/Edit form (modal)
 //   - Error state (with retry)
 //
 // Mobile responsive:
@@ -44,7 +54,6 @@ import {
   Pencil,
   Power,
   PowerOff,
-  X,
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
@@ -85,29 +94,31 @@ interface PayoutMethod {
   updated_at: string;
 }
 
+interface ProviderField {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  placeholder?: string;
+  pattern?: string;
+  helpText?: string;
+  maxLength?: number;
+  alternativeGroup?: string;
+}
+
 interface ProviderSchema {
   method_type: string;
   display_name: string;
-  fields: Array<{
-    name: string;
-    label: string;
-    type: string;
-    required: boolean;
-    placeholder?: string;
-    pattern?: string;
-    helpText?: string;
-    maxLength?: number;
-  }>;
+  fields: ProviderField[];
 }
 
-// ─── Method type → i18n key + icon map ───
-// All 4 supported types. Adding a new type requires updating this map
-// AND the schema + DB CHECK constraint.
+// ─── Method type → i18n key map ───
+// After Phase 13 Step 1 Architecture Correction: 4 generic, provider-independent types.
 const METHOD_TYPE_LABEL_KEY: Record<string, string> = {
-  vodafone_cash: 'payoutMethods.providers.vodafoneCash',
-  etisalat_cash: 'payoutMethods.providers.etisalatCash',
-  orange_cash: 'payoutMethods.providers.orangeCash',
-  we_cash: 'payoutMethods.providers.weCash',
+  wallet: 'payoutMethods.providers.wallet',
+  bank_account: 'payoutMethods.providers.bankAccount',
+  bank_card: 'payoutMethods.providers.bankCard',
+  instapay: 'payoutMethods.providers.instapay',
 };
 
 // ─── Component ───
@@ -128,12 +139,18 @@ export default function TeacherPayoutMethodsSection() {
   const [editingMethod, setEditingMethod] = useState<PayoutMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Form state
-  const [form, setForm] = useState({
+  // Form state — method_type + a generic details object (per-schema fields)
+  // The details object is keyed by the field name from the selected schema
+  // (wallet_number, account_number, iban, last4, card_brand, recipient_identifier, holder_name, etc.)
+  const [form, setForm] = useState<{
+    method_type: string;
+    display_label: string;
+    details: Record<string, string>;
+    set_as_default: boolean;
+  }>({
     method_type: '',
     display_label: '',
-    wallet_number: '',
-    holder_name: '',
+    details: {},
     set_as_default: false,
   });
 
@@ -183,8 +200,7 @@ export default function TeacherPayoutMethodsSection() {
     setForm({
       method_type: '',
       display_label: '',
-      wallet_number: '',
-      holder_name: '',
+      details: {},
       set_as_default: false,
     });
   };
@@ -196,24 +212,68 @@ export default function TeacherPayoutMethodsSection() {
   };
 
   const openEdit = (method: PayoutMethod) => {
+    // For edit mode: pre-fill method_type + display_label, but leave
+    // the details object EMPTY — sensitive fields are never sent
+    // back from the API. The teacher can leave a field empty to
+    // preserve the existing value (handled by the PATCH endpoint).
     setForm({
       method_type: method.method_type,
       display_label: method.display_label,
-      wallet_number: '', // never pre-fill sensitive fields
-      holder_name: '',
+      details: {},
       set_as_default: method.is_default,
     });
     setEditingMethod(method);
     setShowCreate(true);
   };
 
+  // When method_type changes in the form, re-initialize the details object
+  // with empty strings for all schema fields.
+  const handleMethodTypeChange = (newType: string) => {
+    const schema = providers.find((p) => p.method_type === newType);
+    const initialDetails: Record<string, string> = {};
+    if (schema) {
+      for (const field of schema.fields) {
+        initialDetails[field.name] = '';
+      }
+    }
+    setForm((f) => ({ ...f, method_type: newType, details: initialDetails }));
+  };
+
+  const handleFieldChange = (fieldName: string, value: string) => {
+    setForm((f) => ({
+      ...f,
+      details: { ...f.details, [fieldName]: value },
+    }));
+  };
+
+  // Build the body for create or patch. Filters out empty strings
+  // (which the PATCH endpoint treats as "preserve existing value").
+  const buildDetailsPayload = (): Record<string, unknown> => {
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(form.details)) {
+      if (v.trim() !== '') payload[k] = v.trim();
+    }
+    return payload;
+  };
+
   const handleCreate = async () => {
     setSubmitting(true);
     try {
+      const detailsPayload = buildDetailsPayload();
+      if (Object.keys(detailsPayload).length === 0) {
+        toast.error(t('payoutMethods.errors.missingDetails'));
+        setSubmitting(false);
+        return;
+      }
       const res = await fetch('/api/teacher/payout-methods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          method_type: form.method_type,
+          display_label: form.display_label,
+          details: detailsPayload,
+          set_as_default: form.set_as_default,
+        }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -235,12 +295,11 @@ export default function TeacherPayoutMethodsSection() {
     if (!editingMethod) return;
     setSubmitting(true);
     try {
-      // Build patch body — only include fields the user filled in.
-      const patch: Record<string, unknown> = {
+      const patch: { display_label?: string; details?: Record<string, unknown> } = {
         display_label: form.display_label,
       };
-      if (form.wallet_number.trim()) patch.wallet_number = form.wallet_number.trim();
-      if (form.holder_name.trim()) patch.holder_name = form.holder_name.trim();
+      const detailsPayload = buildDetailsPayload();
+      if (Object.keys(detailsPayload).length > 0) patch.details = detailsPayload;
 
       const res = await fetch(`/api/teacher/payout-methods/${editingMethod.id}`, {
         method: 'PATCH',
@@ -337,7 +396,7 @@ export default function TeacherPayoutMethodsSection() {
     }
   };
 
-  // Selected schema (for create form field rendering)
+  // Selected schema (for create/edit form field rendering)
   const selectedSchema = providers.find((p) => p.method_type === form.method_type);
 
   // ─── Render ───
@@ -461,7 +520,7 @@ export default function TeacherPayoutMethodsSection() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {/* Masked info — NEVER the full wallet number */}
+                  {/* Masked info — NEVER the full identifier */}
                   <div className="rounded-md bg-muted/50 p-3">
                     <p className="text-xs text-muted-foreground mb-1">
                       {t('payoutMethods.fields.masked')}
@@ -563,7 +622,7 @@ export default function TeacherPayoutMethodsSection() {
               </label>
               <Select
                 value={form.method_type}
-                onValueChange={(v) => setForm((f) => ({ ...f, method_type: v }))}
+                onValueChange={handleMethodTypeChange}
                 disabled={!!editingMethod || providersLoading}
               >
                 <SelectTrigger>
@@ -572,7 +631,7 @@ export default function TeacherPayoutMethodsSection() {
                 <SelectContent>
                   {providers.map((p) => (
                     <SelectItem key={p.method_type} value={p.method_type}>
-                      {p.display_name}
+                      {t(METHOD_TYPE_LABEL_KEY[p.method_type] || p.display_name)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -597,49 +656,60 @@ export default function TeacherPayoutMethodsSection() {
               />
             </div>
 
-            {/* Wallet number */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                {t('payoutMethods.dialog.walletNumber')}
-                {editingMethod && (
-                  <span className="text-[10px] text-muted-foreground ms-1">
-                    ({t('payoutMethods.dialog.leaveBlankToKeep')})
-                  </span>
-                )}
-              </label>
-              <Input
-                type="tel"
-                inputMode="numeric"
-                value={form.wallet_number}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, wallet_number: e.target.value.replace(/\D/g, '') }))
-                }
-                maxLength={11}
-                placeholder="01012345678"
-                pattern="^01[0125][0-9]{8}$"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                {t('payoutMethods.dialog.walletHelpText')}
+            {/* Dynamic fields per method type — schema-driven */}
+            {selectedSchema ? (
+              selectedSchema.fields.map((field) => (
+                <div key={field.name} className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {t(`payoutMethods.fields.${field.name}`) !== `payoutMethods.fields.${field.name}`
+                      ? t(`payoutMethods.fields.${field.name}`)
+                      : field.label}
+                    {editingMethod && (
+                      <span className="text-[10px] text-muted-foreground ms-1">
+                        ({t('payoutMethods.dialog.leaveBlankToKeep')})
+                      </span>
+                    )}
+                    {field.alternativeGroup && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 ms-1">
+                        ({t('payoutMethods.dialog.alternative')})
+                      </span>
+                    )}
+                  </label>
+                  <Input
+                    type={field.type === 'password' ? 'password' : field.type === 'number' ? 'tel' : 'text'}
+                    value={form.details[field.name] ?? ''}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      // Numeric fields (wallet_number, account_number, last4, expiry_month, expiry_year):
+                      // strip non-digits. For iban: uppercase + strip spaces.
+                      // For instapay recipient_identifier: keep alphanumerics + @._-
+                      // For card_brand: keep letters/digits/spaces/dashes (free text).
+                      if (['wallet_number', 'account_number', 'last4', 'expiry_month', 'expiry_year'].includes(field.name)) {
+                        val = val.replace(/\D/g, '');
+                      } else if (field.name === 'iban') {
+                        val = val.toUpperCase().replace(/\s+/g, '');
+                      } else if (field.name === 'recipient_identifier') {
+                        val = val.replace(/[^A-Za-z0-9._@-]/g, '');
+                      } else if (field.name === 'card_brand') {
+                        // Free text — keep letters/digits/spaces/dashes only
+                        val = val.replace(/[^A-Za-z0-9 -]/g, '');
+                      }
+                      handleFieldChange(field.name, val);
+                    }}
+                    maxLength={field.maxLength}
+                    placeholder={field.placeholder}
+                    pattern={field.pattern ? `^${field.pattern}$` : undefined}
+                  />
+                  {field.helpText && (
+                    <p className="text-[10px] text-muted-foreground">{field.helpText}</p>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                {t('payoutMethods.dialog.selectTypeFirst')}
               </p>
-            </div>
-
-            {/* Holder name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                {t('payoutMethods.dialog.holderName')}
-                {editingMethod && (
-                  <span className="text-[10px] text-muted-foreground ms-1">
-                    ({t('payoutMethods.dialog.leaveBlankToKeep')})
-                  </span>
-                )}
-              </label>
-              <Input
-                value={form.holder_name}
-                onChange={(e) => setForm((f) => ({ ...f, holder_name: e.target.value }))}
-                maxLength={100}
-                placeholder={t('payoutMethods.dialog.holderNamePlaceholder')}
-              />
-            </div>
+            )}
 
             {/* Set as default (only for create) */}
             {!editingMethod && (
@@ -675,7 +745,7 @@ export default function TeacherPayoutMethodsSection() {
                 submitting ||
                 !form.method_type ||
                 !form.display_label ||
-                (!editingMethod && (!form.wallet_number || !form.holder_name))
+                (!editingMethod && Object.keys(buildDetailsPayload()).length === 0)
               }
             >
               {submitting ? (
