@@ -329,7 +329,13 @@ function AddGatewayDialog({
       const processedCreds: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(credentials)) {
         if (selectedSchema?.credentialFields.find(f => f.name === k)?.type === 'array') {
-          processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map(Number.isNaN ? String : Number);
+          // Convert each comma-separated value to Number if it parses as
+          // a valid number, otherwise keep it as String. (Paymob integration
+          // IDs are numbers; payment method names are strings.)
+          processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map((s) => {
+            const n = Number(s);
+            return Number.isNaN(n) ? s : n;
+          });
         } else {
           processedCreds[k] = v;
         }
@@ -498,7 +504,10 @@ function EditGatewayDialog({
         for (const [k, v] of Object.entries(credentials)) {
           if (!v.trim()) continue;
           if (schema?.credentialFields.find(f => f.name === k)?.type === 'array') {
-            processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map(Number.isNaN ? String : Number);
+            processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map((s) => {
+              const n = Number(s);
+              return Number.isNaN(n) ? s : n;
+            });
           } else {
             processedCreds[k] = v;
           }

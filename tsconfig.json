@@ -41,6 +41,11 @@
     "examples",
     "mini-services",
     "skills",
-    "src/lib/__tests__"
+    "src/lib/__tests__",
+    "src/lib/payment/__tests__",
+    "src/lib/payment/providers/paymob/__tests__",
+    "src/app/api/admin/financial-ledger/__tests__",
+    "src/app/api/teacher/revenue/__tests__",
+    "src/app/api/teacher/payout-methods/__tests__"
   ]
 }

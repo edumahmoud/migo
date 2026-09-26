@@ -24,7 +24,7 @@
 
 import { resolveDefaultGateway, resolveGatewayById, type ResolvedAdapter } from './resolver';
 import { GatewayRegistry } from './registry';
-import { UnsupportedCapabilityError, isPaymentError, PaymentError } from './errors';
+import { UnsupportedCapabilityError, isPaymentError, PaymentError, PaymentErrorCode } from './errors';
 import { logPaymentEvent } from './logger';
 import type {
   CreatePaymentInput,
@@ -308,7 +308,7 @@ class PaymentServiceImpl {
     }
     // Wrap non-PaymentError into a generic PaymentError
     return new PaymentError(
-      'PAYMENT_CREATION_FAILED', // default code — caller should override
+      PaymentErrorCode.PaymentCreationFailed, // default code — caller should override
       err instanceof Error ? err.message : 'Unknown payment error',
       provider,
       err, // cause — NOT exposed in toJSON()
