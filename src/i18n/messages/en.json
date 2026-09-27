@@ -327,7 +327,9 @@
     "paymentMethods": "Payment Methods",
     "pendingOrders": "Pending Orders",
     "financial": "Financial Revenue",
-    "payoutMethods": "Payout Methods"
+    "payoutMethods": "Payout Methods",
+    "payouts": "Payouts",
+    "payoutHistory": "Payout History"
   },
   "roles": {
     "student": "Student",

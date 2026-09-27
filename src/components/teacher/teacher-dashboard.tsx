@@ -80,6 +80,7 @@ import ScormLibrarySection from '@/components/teacher/scorm-library-section';
 import RegistrationAgentsSection from '@/components/teacher/registration-agents-section';
 import TeacherFinancialSection from '@/components/teacher/teacher-financial-section';
 import TeacherPayoutMethodsSection from '@/components/teacher/teacher-payout-methods-section';
+import TeacherPayoutsSection from '@/components/teacher/teacher-payouts-section';
 import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -2516,6 +2517,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'payoutMethods' && (
                   <SectionErrorBoundary name="PayoutMethods">
                     <TeacherPayoutMethodsSection />
+                  </SectionErrorBoundary>
+                )}
+                {activeSection === 'payoutHistory' && (
+                  <SectionErrorBoundary name="PayoutHistory">
+                    <TeacherPayoutsSection />
                   </SectionErrorBoundary>
                 )}
                 {activeSection === 'students' && renderStudents()}

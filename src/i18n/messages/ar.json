@@ -327,7 +327,9 @@
     "paymentMethods": "وسائل الدفع",
     "pendingOrders": "تفعيل الاشتراكات",
     "financial": "الإيرادات المالية",
-    "payoutMethods": "وسائل الاستلام"
+    "payoutMethods": "وسائل الاستلام",
+    "payouts": "المدفوعات",
+    "payoutHistory": "سجل المدفوعات"
   },
   "roles": {
     "student": "طالب",
