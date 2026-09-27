@@ -7,12 +7,21 @@
  * NEVER trusts client-supplied teacher_id/admin_id.
  * NEVER exposes provider-specific details.
  * NEVER leaks secrets in responses or logs.
+ *
+ * Phase 13 Hardening:
+ *   - initiatePayout now enforces amount ≤ teacher's eligible balance.
+ *   - initiatePayout now links ledger entries with the correct
+ *     teacher_share (not the previous 0 placeholder that violated
+ *     the v82 CHECK constraint `amount_settled > 0`).
+ *   - processPayoutWebhook now resolves the payout directly via
+ *     getPayoutByProviderReference — no redundant primary-key lookup.
  */
 
 import {
   createPayout,
   getPayoutById,
   getPayoutByIdempotencyKey,
+  getPayoutByProviderReference,
   getEligibleLedgerEntries,
   linkLedgerEntry,
   getPayoutLedgerEntries,
@@ -66,6 +75,84 @@ export async function initiatePayout(input: {
     return { payoutId: existing.id };
   }
 
+  // ── Fix #2: Enforce amount ≤ teacher's eligible balance ──
+  //
+  // Fetch all eligible (status='paid' AND unlinked) ledger entries
+  // for this teacher. Filter by currency to match the payout currency
+  // (the DB trigger also enforces currency consistency at link time,
+  // but we filter here so the eligible balance reflects only entries
+  // that can actually be linked to this payout).
+  //
+  // CONCURRENCY NOTE:
+  //   The service-layer check is a sanity guard. The authoritative
+  //   concurrency defense is at the DB layer:
+  //     - UNIQUE(ledger_id) on teacher_payout_ledger_entries prevents
+  //       the same ledger entry from being linked to two payouts.
+  //     - check_payout_ledger_integrity() trigger takes an advisory
+  //       xact_lock + FOR UPDATE on the parent payout row so that
+  //       concurrent links for the same payout serialize.
+  //     - protect_payout_immutability() trigger enforces
+  //       SUM(linked) = amount at completion time.
+  //   So even if two simultaneous payout-initiation requests both
+  //   observe the same eligible balance and both pass this sanity
+  //   check, the actual settlement cannot double-allocate any
+  //   ledger entry — each entry is linkable to exactly one payout.
+  const eligibleEntries = await getEligibleLedgerEntries(input.teacherId);
+  const currencyMatchingEntries = eligibleEntries.filter(
+    (e) => String(e.currency ?? 'EGP').toUpperCase() === input.currency.toUpperCase(),
+  );
+  const totalEligible = currencyMatchingEntries.reduce(
+    (sum, e) => sum + Number(e.teacher_share),
+    0,
+  );
+  if (totalEligible <= 0) {
+    throw new PayoutExecutionRejectedError(
+      'No eligible balance — teacher has no paid, unsettled ledger entries in this currency',
+    );
+  }
+  if (input.amount > totalEligible) {
+    throw new PayoutExecutionRejectedError(
+      `Payout amount ${input.amount} exceeds teacher's eligible balance ${totalEligible.toFixed(2)} ${input.currency}`,
+    );
+  }
+
+  // ── Fix #3: Pre-resolve ledger entries (if provided) with their
+  //    actual teacher_share, instead of passing 0 at link time. ──
+  //
+  // The v82 CHECK constraint requires `amount_settled > 0`. The
+  // previous implementation passed 0 as a placeholder, which violated
+  // the constraint and made the linking path unusable.
+  //
+  // We resolve each requested ledger entry from the eligible list:
+  //   - Confirms the entry is eligible (paid + unlinked + owned by
+  //     teacher + currency matches).
+  //   - Gives us the actual teacher_share to pass as amount_settled.
+  //   - Reuses the existing repository function — no new query path.
+  //
+  // The DB trigger check_payout_ledger_integrity() still enforces:
+  //   - teacher_id ownership (link vs ledger vs payout)
+  //   - currency consistency
+  //   - amount_settled <= ledger.teacher_share
+  //   - cumulative SUM <= payout.amount
+  //   - payout.status = 'pending'
+  // so even if the service-side resolution races with another
+  // concurrent payout, the trigger is the authoritative gate.
+  let entriesToLink: { id: string; teacherShare: number }[] = [];
+  if (input.ledgerEntryIds && input.ledgerEntryIds.length > 0) {
+    const eligibleById = new Map(
+      currencyMatchingEntries.map((e) => [String(e.id), Number(e.teacher_share)] as const),
+    );
+    for (const ledgerId of input.ledgerEntryIds) {
+      const share = eligibleById.get(ledgerId);
+      if (share === undefined) {
+        throw new PayoutExecutionRejectedError(
+          `Ledger entry ${ledgerId} is not eligible for this teacher (not paid, already linked, currency mismatch, or not owned)`,
+        );
+      }
+      entriesToLink.push({ id: ledgerId, teacherShare: share });
+    }
+  }
+
   // Resolve payout method to get snapshot info
   const method = await resolvePayoutMethod(input.payoutMethodId, input.teacherId);
   if (!method) {
@@ -88,15 +175,26 @@ export async function initiatePayout(input: {
 
   const result = await createPayout(createInput);
 
-  // Link ledger entries if provided
-  if (input.ledgerEntryIds && input.ledgerEntryIds.length > 0) {
-    for (const ledgerId of input.ledgerEntryIds) {
-      await linkLedgerEntry(result.id, ledgerId, input.teacherId, 0, input.currency);
-      // Note: amount_settled=0 is a placeholder — the real amount
-      // comes from the ledger entry's teacher_share. The DB trigger
-      // will validate the cumulative amount against payout.amount.
-      // In a production system, we'd fetch teacher_share per entry.
-    }
+  // Link ledger entries if provided — using the REAL teacher_share
+  // resolved above (Fix #3). The v82 CHECK constraint
+  // (`amount_settled > 0`) is now satisfied because teacher_share is
+  // always > 0 (validated by the financial_ledger schema).
+  //
+  // The DB trigger check_payout_ledger_integrity() enforces:
+  //   - amount_settled <= ledger.teacher_share (we pass exactly the share)
+  //   - cumulative SUM <= payout.amount (linking fails if it exceeds)
+  // So if entriesToLink sums to > payout.amount, the trigger rejects
+  // the offending insert and createPayout's INSERT is already
+  // committed as 'pending' — the partial linkage failure surfaces
+  // as an exception here. The admin can then cancel the payout.
+  for (const entry of entriesToLink) {
+    await linkLedgerEntry(
+      result.id,
+      entry.id,
+      input.teacherId,
+      entry.teacherShare,
+      input.currency,
+    );
   }
 
   return { payoutId: result.id };
@@ -279,21 +377,26 @@ export async function getEligibleBalance(
 }
 
 // ─── Process Webhook (idempotent) ───
+//
+// Fix #4: The webhook resolves the payout directly via
+// getPayoutByProviderReference(providerReference). The previous
+// implementation did a wasteful + semantically wrong first lookup via
+// getPayoutById(input.providerReference) — which queried the `id`
+// (primary-key UUID) column, not the `provider_reference` column.
+// That first lookup returned null in 99% of cases (provider_reference
+// is rarely a UUID), causing a guaranteed redundant second query.
+//
+// The webhook caller MUST verify the request signature at the route
+// layer (see src/app/api/payout/webhook/route.ts). The service trusts
+// the provider_reference + status only AFTER signature verification
+// has succeeded at the route layer.
 export async function processPayoutWebhook(input: {
   providerReference: string;
   status: 'completed' | 'failed';
   failureReason?: string;
 }): Promise<{ processed: boolean; payoutId?: string }> {
-  const payout = await getPayoutById(input.providerReference);
-  if (!payout) {
-    // Also try by provider_reference column
-    const { getPayoutByProviderReference } = await import('./repository');
-    const byRef = await getPayoutByProviderReference(input.providerReference);
-    if (!byRef) return { processed: false };
-    // Process the found payout
-  }
-
-  const found = payout || (await (await import('./repository')).getPayoutByProviderReference(input.providerReference));
+  // Direct lookup by provider_reference — single query, no fallback.
+  const found = await getPayoutByProviderReference(input.providerReference);
   if (!found) return { processed: false };
 
   // Idempotent — if already in the target state, don't reprocess

@@ -48,6 +48,7 @@
     "src/lib/payment/payout-domain/adapters/__tests__",
     "src/app/api/admin/financial-ledger/__tests__",
     "src/app/api/teacher/revenue/__tests__",
-    "src/app/api/teacher/payout-methods/__tests__"
+    "src/app/api/teacher/payout-methods/__tests__",
+    "src/app/api/payout/webhook/__tests__"
   ]
 }
