@@ -45,6 +45,7 @@
     "src/lib/payment/__tests__",
     "src/lib/payment/providers/paymob/__tests__",
     "src/lib/payment/payout-domain/__tests__",
+    "src/lib/payment/payout-domain/adapters/__tests__",
     "src/app/api/admin/financial-ledger/__tests__",
     "src/app/api/teacher/revenue/__tests__",
     "src/app/api/teacher/payout-methods/__tests__"

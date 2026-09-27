@@ -46,3 +46,7 @@ export {
 } from './errors';
 
 export type { PayoutErrorCode } from './errors';
+
+// Phase 13 Step 4 — Dev stub adapter + registration
+export { DevStubPayoutAdapter, devStubPayoutAdapter } from './adapters/dev-stub-adapter';
+export { registerDevStubAdapter, unregisterDevStubAdapter } from './registration';
