@@ -24,6 +24,11 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
  *   - transactions: per-record details (date, student name, course name,
  *                    amounts, gateway_fee, status)
  *   - subjects: list of distinct subjects owned by this teacher (for filter dropdown)
+ *
+ * FIX: Replaced PostgREST nested joins (which require FK constraints that
+ * intentionally don't exist on financial_ledger snapshot columns) with
+ * batch lookups using .in('id', ids). This avoids the FK dependency while
+ * preserving the same response shape.
  */
 export async function GET(request: NextRequest) {
   const authResult = await requireTeacher(request);
@@ -71,7 +76,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // ── Build query against financial_ledger (snapshotted values) ──
+  // ── Build query against financial_ledger (no nested joins) ──
   let query = supabaseServer
     .from('financial_ledger')
     .select(
@@ -79,20 +84,16 @@ export async function GET(request: NextRequest) {
       id, order_id, student_id, subject_id, teacher_id,
       gateway_id, currency,
       gross_amount, platform_share, teacher_share, gateway_fee, net_amount,
-      commission_rate, status, created_at,
-      subject:subjects!subject_id(name),
-      student:users!student_id(name)
+      commission_rate, status, created_at
       `
     )
     .eq('teacher_id', teacherId); // CRITICAL — server-side enforced scope
 
   // Date range filters
   if (dateFrom) {
-    // created_at >= date_from 00:00:00 UTC
     query = query.gte('created_at', `${dateFrom}T00:00:00Z`);
   }
   if (dateTo) {
-    // created_at <= date_to 23:59:59 UTC
     query = query.lte('created_at', `${dateTo}T23:59:59Z`);
   }
   if (subjectId) {
@@ -102,8 +103,6 @@ export async function GET(request: NextRequest) {
     query = query.eq('status', status);
   }
 
-  // Order newest first. Raise limit to 1000 to accommodate filtered views
-  // (was 100 in Phase 9 — insufficient with no filters + many transactions).
   const { data: ledger, error } = await query
     .order('created_at', { ascending: false })
     .limit(1000);
@@ -116,7 +115,39 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const rows = ledger ?? [];
+  const rows = (ledger ?? []) as any[];
+
+  // ── Batch lookup: collect unique IDs from ledger rows ──
+  const studentIds = [...new Set(rows.map((r) => r.student_id).filter(Boolean))] as string[];
+  const subjectIdsForLookup = [...new Set(rows.map((r) => r.subject_id).filter(Boolean))] as string[];
+
+  // ── Batch query users for student names ──
+  const studentNameMap = new Map<string, string>();
+  if (studentIds.length > 0) {
+    const { data: students, error: studentsErr } = await supabaseServer
+      .from('users')
+      .select('id, name')
+      .in('id', studentIds);
+    if (!studentsErr && students) {
+      for (const s of students as any[]) {
+        studentNameMap.set(s.id, s.name ?? '—');
+      }
+    }
+  }
+
+  // ── Batch query subjects for names ──
+  const subjectNameMap = new Map<string, string>();
+  if (subjectIdsForLookup.length > 0) {
+    const { data: subjects, error: subjectsErr } = await supabaseServer
+      .from('subjects')
+      .select('id, name')
+      .in('id', subjectIdsForLookup);
+    if (!subjectsErr && subjects) {
+      for (const s of subjects as any[]) {
+        subjectNameMap.set(s.id, s.name ?? '—');
+      }
+    }
+  }
 
   // ── Compute summary from rows only (no recomputing from orders) ──
   // Use cents (piasters) to avoid floating-point summation drift.
@@ -140,22 +171,13 @@ export async function GET(request: NextRequest) {
     failed_count: rows.filter((r) => r.status === 'failed').length,
   };
 
-  // ── Map to public-safe shape ──
-  // NOTE: We expose platform_share + gateway_fee to the teacher for transparency
-  // (their dashboard shows how the gross splits between teacher / platform / gateway).
-  // The teacher already owns this snapshot — it's their revenue. We DO NOT expose
-  // other teachers' rows (filtered by teacher_id above).
-  const extractNameRaw = (rel: unknown): string => {
-    if (!rel) return '—';
-    if (Array.isArray(rel)) return (rel[0] as { name?: string } | null)?.name ?? '—';
-    return (rel as { name?: string }).name ?? '—';
-  };
+  // ── Map to public-safe shape (enriched with batch lookups) ──
   const transactions = rows.map((r: any) => ({
     id: r.id,
     order_id: r.order_id,
     subject_id: r.subject_id,
-    subject_name: extractNameRaw(r.subject),
-    student_name: extractNameRaw(r.student),
+    subject_name: subjectNameMap.get(r.subject_id) ?? '—',
+    student_name: studentNameMap.get(r.student_id) ?? '—',
     currency: r.currency,
     gross_amount: Number(r.gross_amount),
     platform_share: Number(r.platform_share),
@@ -168,17 +190,14 @@ export async function GET(request: NextRequest) {
   }));
 
   // ── Subjects list (for filter dropdown) ──
-  // Only subjects that appear in this teacher's ledger (snapshot teacher_id).
-  // We do NOT use subjects.teacher_id — that would re-introduce "current" teacher
-  // of the subject, breaking historical accuracy.
   const subjectsForFilter: { subject_id: string; subject_name: string }[] = [];
   const seenSubjectIds = new Set<string>();
-  for (const r of rows as any[]) {
+  for (const r of rows) {
     if (r.subject_id && !seenSubjectIds.has(r.subject_id)) {
       seenSubjectIds.add(r.subject_id);
       subjectsForFilter.push({
         subject_id: r.subject_id,
-        subject_name: extractNameRaw(r.subject),
+        subject_name: subjectNameMap.get(r.subject_id) ?? '—',
       });
     }
   }

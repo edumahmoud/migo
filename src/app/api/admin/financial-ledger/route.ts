@@ -22,9 +22,11 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
  *      EXCLUDES `payment_id` and `provider_payment_id` from the
  *      default response (operational secrets).
  *   5. Related names (student, teacher, subject, gateway) are
- *      fetched via Supabase nested joins in a SINGLE query — no
- *      N+1 patterns. LEFT JOIN semantics: a row remains even if
- *      its related record was deleted (snapshot integrity).
+ *      fetched via BATCH LOOKUPS after fetching the paginated rows.
+ *      This avoids PostgREST nested-join FK dependency — the
+ *      financial_ledger snapshot columns intentionally have NO FK
+ *      constraints. Missing referenced records return '—' (the
+ *      ledger row remains visible).
  *
  * Query params (all optional):
  *   page           int > 0        (default: 1)
@@ -90,34 +92,12 @@ interface StatusBreakdown {
  *     the WHERE uses `< p_to_date` and includes the entire calendar day).
  */
 function dateToUtcStartOfDay(dateStr: string, isToDate: boolean = false): string {
-  // Parse YYYY-MM-DD into Date at UTC midnight.
   const [year, month, day] = dateStr.split('-').map(Number);
   const d = new Date(Date.UTC(year, month - 1, day));
   if (isToDate) {
-    // For to_date, advance one day so `< p_to_date` includes the
-    // full calendar day specified by the user.
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return d.toISOString();
-}
-
-/**
- * Helper to normalize Supabase nested-join results. Supabase-js typing
- * can return either an object or an array depending on FK cardinality
- * inference; we normalize both shapes to a single string.
- */
-function extractName(rel: unknown): string {
-  if (!rel) return '—';
-  if (Array.isArray(rel)) return (rel[0] as { name?: string } | null)?.name ?? '—';
-  return (rel as { name?: string }).name ?? '—';
-}
-
-function extractDisplayName(rel: unknown): string {
-  if (!rel) return '—';
-  if (Array.isArray(rel)) {
-    return (rel[0] as { display_name?: string } | null)?.display_name ?? '—';
-  }
-  return (rel as { display_name?: string }).display_name ?? '—';
 }
 
 export async function GET(request: NextRequest) {
@@ -215,9 +195,6 @@ export async function GET(request: NextRequest) {
   const toDateNormalized = toDateRaw ? dateToUtcStartOfDay(toDateRaw, true) : null;
 
   // ─── Build filter base (reused by RPC + ledger SELECT + count) ───
-  // We construct a filter object and apply it to all three queries.
-  // This guarantees the summary, the page rows, and the total_count
-  // all reflect the SAME filter set.
   type FilterMap = Record<string, { op: 'eq' | 'gte' | 'lt'; value: string }>;
   const filters: FilterMap = {};
   if (teacherId) filters.teacher_id = { op: 'eq', value: teacherId };
@@ -236,7 +213,6 @@ export async function GET(request: NextRequest) {
       lt(col: string, val: string): unknown;
     };
     for (const [col, { op, value }] of Object.entries(filters)) {
-      // Map from_date/to_date back to created_at for the ledger SELECT
       const realCol = col === 'from_date' ? 'created_at' : col === 'to_date' ? 'created_at' : col;
       if (op === 'eq') query = query.eq(realCol, value) as typeof query;
       else if (op === 'gte') query = query.gte(realCol, value) as typeof query;
@@ -246,7 +222,6 @@ export async function GET(request: NextRequest) {
   };
 
   // ─── 1. Summary via SQL RPC (server-side aggregation) ───
-  // MUST be independent of pagination.
   const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
     'get_financial_summary',
     {
@@ -267,9 +242,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // The RPC returns a single JSONB object. supabase-js may return
-  // it as a single-element array or as the bare object, depending
-  // on the supabase-js version. Normalize both shapes.
   const summaryObj: Record<string, unknown> = Array.isArray(rpcResult)
     ? (rpcResult[0] as Record<string, unknown>) ?? {}
     : (rpcResult as Record<string, unknown>) ?? {};
@@ -293,7 +265,6 @@ export async function GET(request: NextRequest) {
   };
 
   // ─── 2. Total count for pagination (separate query, head-only) ───
-  // Apply SAME filters as the RPC.
   let countQuery = supabaseServer
     .from('financial_ledger')
     .select('id', { count: 'exact', head: true });
@@ -313,9 +284,7 @@ export async function GET(request: NextRequest) {
   const total_count = totalCount ?? 0;
   const total_pages = total_count === 0 ? 0 : Math.ceil(total_count / pageSize);
 
-  // ─── 3. Paginated data rows with nested joins ───
-  // Explicit column list — NEVER select('*').
-  // Excludes: payment_id, provider_payment_id, details_encrypted.
+  // ─── 3. Paginated data rows (no nested joins — plain columns only) ───
   const from = (page - 1) * pageSize;
   const to = page * pageSize - 1;
 
@@ -325,11 +294,7 @@ export async function GET(request: NextRequest) {
       `
       id, order_id, student_id, subject_id, teacher_id, gateway_id,
       currency, gross_amount, platform_share, teacher_share, gateway_fee,
-      net_amount, commission_rate, status, created_at, updated_at,
-      student:users!student_id(name),
-      teacher:users!teacher_id(name),
-      subject:subjects!subject_id(name),
-      gateway:payment_gateways!gateway_id(display_name)
+      net_amount, commission_rate, status, created_at, updated_at
       `
     )
     .order('created_at', { ascending: false })
@@ -347,19 +312,88 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // ─── 4. Map rows to public shape (exclude secrets) ───
-  const rows = (ledgerRows ?? []) as unknown as Array<Record<string, unknown>>;
+  // ─── 4. Batch lookups: enrich ledger rows with related names ───
+  const rows = (ledgerRows ?? []) as any[];
+
+  // Collect unique IDs (filter out nulls — gateway_id can be null)
+  const allUserIds = new Set<string>();
+  const studentIds = new Set<string>();
+  const teacherIds = new Set<string>();
+  const subjectIdsSet = new Set<string>();
+  const gatewayIdsSet = new Set<string>();
+
+  for (const r of rows) {
+    if (r.student_id) {
+      studentIds.add(r.student_id);
+      allUserIds.add(r.student_id);
+    }
+    if (r.teacher_id) {
+      teacherIds.add(r.teacher_id);
+      allUserIds.add(r.teacher_id);
+    }
+    if (r.subject_id) subjectIdsSet.add(r.subject_id);
+    if (r.gateway_id) gatewayIdsSet.add(r.gateway_id);
+  }
+
+  // Batch query users (students + teachers in one query)
+  const userNameMap = new Map<string, string>();
+  const userIdsArray = [...allUserIds];
+  if (userIdsArray.length > 0) {
+    const { data: users, error: usersErr } = await supabaseServer
+      .from('users')
+      .select('id, name')
+      .in('id', userIdsArray);
+    if (!usersErr && users) {
+      for (const u of users as any[]) {
+        userNameMap.set(u.id, u.name ?? '—');
+      }
+    }
+  }
+
+  // Batch query subjects
+  const subjectNameMap = new Map<string, string>();
+  const subjectIdsArray = [...subjectIdsSet];
+  if (subjectIdsArray.length > 0) {
+    const { data: subjects, error: subjectsErr } = await supabaseServer
+      .from('subjects')
+      .select('id, name')
+      .in('id', subjectIdsArray);
+    if (!subjectsErr && subjects) {
+      for (const s of subjects as any[]) {
+        subjectNameMap.set(s.id, s.name ?? '—');
+      }
+    }
+  }
+
+  // Batch query payment_gateways
+  const gatewayDisplayNameMap = new Map<string, string>();
+  const gatewayIdsArray = [...gatewayIdsSet];
+  if (gatewayIdsArray.length > 0) {
+    const { data: gateways, error: gatewaysErr } = await supabaseServer
+      .from('payment_gateways')
+      .select('id, display_name')
+      .in('id', gatewayIdsArray);
+    if (!gatewaysErr && gateways) {
+      for (const g of gateways as any[]) {
+        gatewayDisplayNameMap.set(g.id, g.display_name ?? '—');
+      }
+    }
+  }
+
+  // ─── 5. Map rows to public shape (enriched with batch lookups) ───
   const data = rows.map((r) => ({
     id: r.id,
     order_id: r.order_id,
     student_id: r.student_id,
-    student_name: extractName(r.student),
+    student_name: userNameMap.get(r.student_id) ?? '—',
     teacher_id: r.teacher_id,
-    teacher_name: extractName(r.teacher),
+    teacher_name: userNameMap.get(r.teacher_id) ?? '—',
     subject_id: r.subject_id,
-    subject_name: extractName(r.subject),
+    subject_name: subjectNameMap.get(r.subject_id) ?? '—',
     gateway_id: r.gateway_id,
-    gateway_display_name: extractDisplayName(r.gateway),
+    gateway_display_name: r.gateway_id
+      ? (gatewayDisplayNameMap.get(r.gateway_id) ?? '—')
+      : '—',
     currency: r.currency,
     gross_amount: Number(r.gross_amount),
     platform_share: Number(r.platform_share),
