@@ -78,14 +78,27 @@ $$;
 --   client (bypasses RLS) AFTER `requireAdmin()` succeeds.
 --
 --   Therefore:
---     1. REVOKE EXECUTE from anon + authenticated (defensive —
+--     1. REVOKE EXECUTE from PUBLIC (PostgreSQL grants EXECUTE to
+--        PUBLIC by default for SECURITY DEFINER functions — this
+--        is the broadest possible grant and includes anon +
+--        authenticated + every other role).
+--     2. REVOKE EXECUTE from anon + authenticated (defensive —
 --        in case v80 was previously deployed with the broader
 --        grants; REVOKE is idempotent).
---     2. GRANT EXECUTE to service_role ONLY.
+--     3. GRANT EXECUTE to service_role ONLY.
 --
 --   The function itself (SECURITY DEFINER + SET search_path = public)
 --   remains UNCHANGED. Only the GRANT/REVOKE scope changes.
 -- ─────────────────────────────────────────────────────────
+
+-- CRITICAL: PostgreSQL grants EXECUTE to PUBLIC by default for
+-- SECURITY DEFINER functions. PUBLIC includes ALL roles (anon,
+-- authenticated, service_role, etc). This REVOKE is the primary
+-- security gate — without it, anon/authenticated can call the RPC
+-- directly via the Supabase JS client and bypass requireAdmin().
+REVOKE EXECUTE ON FUNCTION public.get_financial_summary(
+  TIMESTAMPTZ, TIMESTAMPTZ, UUID, UUID, UUID, TEXT
+) FROM PUBLIC;
 
 -- Defensive: revoke any previously-granted EXECUTE to anon/authenticated.
 -- (No-op if those grants were never applied.)
@@ -101,6 +114,9 @@ GRANT EXECUTE ON FUNCTION public.get_financial_summary(
 
 -- Done. Verify with:
 --   \df public.get_financial_summary
---   SELECT routine_name, routine_type FROM information_schema.routine_privileges
---   WHERE routine_name = 'get_financial_summary';
---   -- Should show ONLY service_role with EXECUTE.
+--   SELECT grantee, privilege_type FROM information_schema.routine_privileges
+--   WHERE routine_schema = 'public' AND routine_name = 'get_financial_summary';
+--   -- Should show ONLY:
+--   --   postgres      | EXECUTE  (superuser — expected)
+--   --   service_role  | EXECUTE  (intended)
+--   -- NO PUBLIC, NO anon, NO authenticated.
