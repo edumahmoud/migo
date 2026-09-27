@@ -10,3 +10,39 @@ export {
   canModifyAmount, canCancel, canRetry, canModifySnapshot,
   findForbiddenFields,
 } from './types';
+
+// Phase 13 Step 3 — Provider-agnostic contracts
+export type {
+  PayoutExecutionStatus,
+  PayoutCapabilities,
+  PayoutRequest,
+  PayoutResult,
+  PayoutProvider,
+} from './provider';
+
+export {
+  PAYOUT_EXECUTION_STATUSES,
+  providerSupportsMethod,
+  providerSupportsCurrency,
+  buildCompletedResult,
+  buildFailedResult,
+  buildAcceptedResult,
+} from './provider';
+
+export { PayoutProviderRegistry } from './provider-registry';
+
+export {
+  PayoutDomainError,
+  UnsupportedMethodTypeError,
+  UnsupportedCurrencyError,
+  ProviderUnavailableError,
+  InvalidPayoutStateError,
+  IdempotencyConflictError,
+  PayoutExecutionRejectedError,
+  PayoutAlreadyCompletedError,
+  PayoutCancelledError,
+  isPayoutDomainError,
+  getPayoutErrorCode,
+} from './errors';
+
+export type { PayoutErrorCode } from './errors';
