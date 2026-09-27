@@ -70,6 +70,7 @@ export type ServerPaymentErrorCategory =
   | 'CURRENCY_MISMATCH'
   | 'ORDER_NOT_PENDING'
   | 'INVALID_AMOUNT'
+  | 'PAYMENT_ALREADY_INITIATED'
   | 'UNKNOWN';
 
 /** Single-order info for the dialog (single-order mode). */
@@ -530,6 +531,8 @@ export function getPaymentActionErrorMessage(
       return 'أحد الطلبات ليس معلّقًا — لا يمكن دفعه.';
     case 'INVALID_AMOUNT':
       return 'أحد الطلبات له مبلغ غير صالح.';
+    case 'PAYMENT_ALREADY_INITIATED':
+      return 'تم بدء عملية الدفع لهذه الجلسة — لا يمكن إزالة الطلبات بعد بدء الدفع.';
     case 'UNKNOWN':
     default:
       // Fall back to the server's Arabic message if it's a known
@@ -539,4 +542,121 @@ export function getPaymentActionErrorMessage(
       }
       return fallbackAr;
   }
+}
+
+// ============================================================
+// Multi-subject session item removal
+// ============================================================
+
+/**
+ * Remove a single order from a multi-subject checkout session.
+ *
+ * Calls POST /api/student/checkout/sessions/[id]/remove with
+ * { orderId }. The server validates ownership, session membership,
+ * pending status, and that payment hasn't been initiated yet.
+ *
+ * Returns the updated session info (remaining items + new total).
+ *
+ * @param sessionId  The session_id (from createCheckoutSession).
+ * @param orderId    The order ID to remove from the session.
+ * @param headers    Auth headers.
+ * @returns          Updated session info (items + total + currency).
+ *
+ * @throws PaymentActionError on any failure.
+ */
+export async function removeCheckoutSessionItem(
+  sessionId: string,
+  orderId: string,
+  headers: Record<string, string> = {},
+): Promise<CreateSessionResult> {
+  if (!sessionId) {
+    throw new PaymentActionError('HTTP_ERROR', 'sessionId is required');
+  }
+  if (!orderId) {
+    throw new PaymentActionError('HTTP_ERROR', 'orderId is required');
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`/api/student/checkout/sessions/${encodeURIComponent(sessionId)}/remove`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+  } catch (err) {
+    throw new PaymentActionError(
+      'NETWORK_ERROR',
+      err instanceof Error ? err.message : 'Network request failed',
+    );
+  }
+
+  const rawBody = await res.text();
+  let body: unknown;
+  try {
+    body = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    throw new PaymentActionError(
+      'INVALID_RESPONSE',
+      `Non-JSON response (status ${res.status})`,
+      res.status,
+    );
+  }
+
+  if (!res.ok) {
+    const errorStr =
+      body && typeof body === 'object' && 'error' in body
+        ? String((body as Record<string, unknown>).error)
+        : `HTTP ${res.status}`;
+    const category =
+      body && typeof body === 'object' && 'category' in body && typeof (body as Record<string, unknown>).category === 'string'
+        ? (body as Record<string, unknown>).category as ServerPaymentErrorCategory
+        : undefined;
+    throw new PaymentActionError('HTTP_ERROR', errorStr, res.status, errorStr, category);
+  }
+
+  const obj = body as Record<string, unknown> | null;
+  if (!obj || obj.success !== true) {
+    const errorStr =
+      typeof obj?.error === 'string' ? obj.error : 'Backend returned success=false';
+    throw new PaymentActionError('HTTP_ERROR', errorStr, res.status, errorStr);
+  }
+
+  // Validate response shape (same as createCheckoutSession)
+  const returnedSessionId =
+    typeof obj.session_id === 'string' ? obj.session_id : null;
+  const itemsRaw = Array.isArray(obj.items) ? obj.items : [];
+  const items: CheckoutSessionItem[] = itemsRaw.map((it: unknown) => {
+    const i = it as Record<string, unknown>;
+    return {
+      order_id: String(i.order_id),
+      subject_id: String(i.subject_id),
+      subject_name: String(i.subject_name),
+      amount: Number(i.amount),
+      currency: String(i.currency),
+    };
+  });
+  const totalAmount =
+    typeof obj.total_amount === 'number' ? Number(obj.total_amount) : 0;
+  const currency = typeof obj.currency === 'string' ? String(obj.currency) : 'EGP';
+  const itemCount =
+    typeof obj.item_count === 'number' ? Number(obj.item_count) : items.length;
+
+  if (!returnedSessionId) {
+    throw new PaymentActionError(
+      'INVALID_RESPONSE',
+      'Backend returned success but no session_id',
+      res.status,
+    );
+  }
+
+  return {
+    session_id: returnedSessionId,
+    items,
+    total_amount: totalAmount,
+    currency,
+    item_count: itemCount,
+  };
 }

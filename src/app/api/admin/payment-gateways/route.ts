@@ -7,6 +7,8 @@ import '@/lib/payment/providers/paymob';
 import {
   listGateways,
   createGateway,
+  getDefaultGateway,
+  setGatewayEnabled,
   type CreateGatewayInput,
 } from '@/lib/payment';
 import { GatewayRegistry } from '@/lib/payment';
@@ -70,6 +72,34 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Auto-default + auto-enable logic (Fix: gateway "not configured" error
+  // even after admin configured Paymob in sandbox mode).
+  //
+  // ROOT CAUSE: The admin UI's AddGatewayDialog does NOT send `setAsDefault`
+  // in the POST body. The backend defaulted to `setAsDefault: false` +
+  // `is_enabled: false`. The admin then had to MANUALLY click "Enable"
+  // + "Set as Default" separately — a 3-step process. If they forgot
+  // either step, `getDefaultGateway()` returned null → categorized as
+  // GATEWAY_NOT_CONFIGURED → student sees "بوابة الدفع غير مُهيّأة".
+  //
+  // FIX:
+  //   - If `setAsDefault` is explicitly provided (true/false), honor it.
+  //   - If `setAsDefault` is undefined (admin UI default), auto-determine:
+  //     if no other default gateway exists in the DB, auto-set this one
+  //     as default. This makes the admin's FIRST gateway automatically
+  //     the default — they don't need to click "Set as Default" manually.
+  //   - Auto-enable on creation (`is_enabled = true`). The admin can
+  //     always disable later via the "تعطيل" button. This eliminates
+  //     the need to click "تفعيل" separately.
+  let resolvedSetAsDefault: boolean;
+  if (typeof setAsDefault === 'boolean') {
+    resolvedSetAsDefault = setAsDefault;
+  } else {
+    // Auto-determine: if no default gateway exists, make this one the default
+    const existingDefault = await getDefaultGateway();
+    resolvedSetAsDefault = existingDefault === null;
+  }
+
   const input: CreateGatewayInput = {
     provider,
     displayName,
@@ -77,11 +107,17 @@ export async function POST(request: NextRequest) {
     credentials: credentials || undefined,
     configuration: configuration || undefined,
     capabilities: GatewayRegistry.getCapabilities(provider),
-    setAsDefault: setAsDefault || false,
+    setAsDefault: resolvedSetAsDefault,
   };
 
   try {
     const gatewayId = await createGateway(input);
+
+    // Auto-enable the gateway on creation (the admin can disable later).
+    // The createGateway function sets `is_enabled: false` by default —
+    // we override it here so the admin doesn't need a separate "Enable" click.
+    await setGatewayEnabled(gatewayId, true);
+
     await auditGatewayCreated(gatewayId, provider, authResult.user.id);
 
     logPaymentEvent({
@@ -89,10 +125,14 @@ export async function POST(request: NextRequest) {
       operation: 'gatewayManagement',
       provider,
       success: true,
-      message: `Gateway created: ${displayName} (${environment})`,
+      message: `Gateway created: ${displayName} (${environment}) — auto-enabled${resolvedSetAsDefault ? ' + set as default' : ''}`,
     });
 
-    return NextResponse.json({ success: true, gatewayId, message: 'تم إنشاء بوابة الدفع بنجاح' });
+    return NextResponse.json({
+      success: true,
+      gatewayId,
+      message: `تم إنشاء بوابة الدفع بنجاح${resolvedSetAsDefault ? ' وتعيينها كافتراضية' : ''} وتفعيلها تلقائيًا`,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'فشل إنشاء البوابة';
     logPaymentEvent({

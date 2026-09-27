@@ -533,6 +533,13 @@ export default function StudentActivationPage() {
         order={paymentSummaryOrder}
         sessionItems={sessionItems}
         sessionId={sessionId}
+        onSessionItemsChange={(updatedItems) => {
+          setSessionItems(updatedItems);
+          if (updatedItems.length === 0) {
+            setSessionId(null);
+            setPaymentSummaryOpen(false);
+          }
+        }}
       />
 
     </div>

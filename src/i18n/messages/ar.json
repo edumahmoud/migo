@@ -3867,7 +3867,10 @@
       "completePaymentGroup": "استكمال الدفع للكل",
       "callbackReturningTitle": "تم الرجوع من بوابة الدفع",
       "callbackReturningDesc": "جارٍ تأكيد العملية. ستظهر المقررات في قائمتك تلقائياً بعد تأكيد الدفع.",
-      "paymentCancelledDesc": "تم إلغاء عملية الدفع. يمكنك المحاولة مرة أخرى في أي وقت."
+      "paymentCancelledDesc": "تم إلغاء عملية الدفع. يمكنك المحاولة مرة أخرى في أي وقت.",
+      "removeItem": "إزالة هذا المقرر من الجلسة",
+      "itemRemoved": "تمت إزالة المقرر من الجلسة",
+      "sessionEmptied": "تمت إزالة جميع المقررات. الجلسة فارغة الآن."
     }
   },
   "supabaseConfig": {

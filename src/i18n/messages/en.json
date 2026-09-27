@@ -3866,7 +3866,10 @@
       "completePaymentGroup": "Complete Payment for All",
       "callbackReturningTitle": "Returned from payment gateway",
       "callbackReturningDesc": "Confirming the transaction. Your courses will appear in your list automatically after payment is confirmed.",
-      "paymentCancelledDesc": "The payment was cancelled. You can try again at any time."
+      "paymentCancelledDesc": "The payment was cancelled. You can try again at any time.",
+      "removeItem": "Remove this course from the session",
+      "itemRemoved": "Course removed from the session",
+      "sessionEmptied": "All courses removed. The session is now empty."
     }
   },
   "supabaseConfig": {

@@ -64,6 +64,7 @@ import {
   initiatePayment,
   initiateSessionPayment,
   redirectToCheckout,
+  removeCheckoutSessionItem,
   getPaymentActionErrorMessage,
   PaymentActionError,
   type PaymentSummaryOrder,
@@ -86,6 +87,14 @@ interface PaymentSummaryDialogProps {
   // MULTI-SESSION mode: pass `sessionItems` (array) + `sessionId`
   sessionItems?: CheckoutSessionItem[] | null;
   sessionId?: string | null;
+
+  // MULTI-SESSION item removal callback (optional).
+  // When the user clicks the remove (X) button on an item, the dialog
+  // calls removeCheckoutSessionItem(sessionId, orderId) server-side,
+  // then calls this callback with the updated items array so the
+  // parent can update its state. If the callback is not provided,
+  // the remove button is hidden (backward compat with single-order mode).
+  onSessionItemsChange?: (items: CheckoutSessionItem[]) => void;
 }
 
 type PaymentState = 'ready' | 'preparing' | 'redirecting' | 'error';
@@ -96,10 +105,12 @@ export function PaymentSummaryDialog({
   order,
   sessionItems,
   sessionId,
+  onSessionItemsChange,
 }: PaymentSummaryDialogProps) {
   const { t, direction } = useTranslations();
   const [state, setState] = useState<PaymentState>('ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [removingOrderId, setRemovingOrderId] = useState<string | null>(null);
 
   // Determine mode + items to display
   const isMultiMode = !order && Array.isArray(sessionItems) && sessionItems.length > 0 && !!sessionId;
@@ -165,6 +176,38 @@ export function PaymentSummaryDialog({
     onOpenChange(next);
   }, [state, onOpenChange]);
 
+  // ─── Remove item from multi-session (Fix 2) ───
+  // Calls removeCheckoutSessionItem(sessionId, orderId) → server
+  // validates ownership + session membership + pending status +
+  // payment-not-initiated, then updates orders.checkout_session_id=NULL.
+  // On success, updates the parent's sessionItems via onSessionItemsChange.
+  // If 0 items remain, closes the dialog.
+  const handleRemoveItem = useCallback(async (orderId: string) => {
+    if (!isMultiMode || !sessionId || !onSessionItemsChange) return;
+    if (removingOrderId) return; // prevent double-click
+    setRemovingOrderId(orderId);
+    try {
+      const headers = await getCachedAuthHeaders();
+      const result = await removeCheckoutSessionItem(sessionId, orderId, headers);
+      // Update the parent's sessionItems state
+      onSessionItemsChange(result.items);
+      if (result.items.length === 0) {
+        // No items left → close the dialog
+        toast.info(t('student.payment.sessionEmptied'));
+        handleOpenChange(false);
+      } else {
+        toast.success(t('student.payment.itemRemoved'));
+      }
+    } catch (err) {
+      const message = err instanceof PaymentActionError
+        ? getPaymentActionErrorMessage(err, t('student.payment.paymentInitFailed'))
+        : (err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
+      toast.error(message);
+    } finally {
+      setRemovingOrderId(null);
+    }
+  }, [isMultiMode, sessionId, onSessionItemsChange, removingOrderId, t, handleOpenChange]);
+
   if (!order && !isMultiMode) {
     return null;
   }
@@ -197,23 +240,50 @@ export function PaymentSummaryDialog({
 
         {/* Items list (server-authoritative values) */}
         <div className="space-y-2 py-2">
-          {items.map((it, i) => (
-            <div key={i} className="flex items-start justify-between gap-3 border-b pb-2">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-end break-words">
-                  {it.subjectName}
+          {items.map((it, i) => {
+            // For multi-mode, find the original CheckoutSessionItem
+            // (which has order_id) so we can pass it to handleRemoveItem.
+            const sessionItem = isMultiMode
+              ? (sessionItems as CheckoutSessionItem[])[i]
+              : null;
+            const orderId = sessionItem?.order_id;
+            const canRemove = isMultiMode && !!orderId && !!onSessionItemsChange && state === 'ready';
+            const isRemoving = removingOrderId === orderId;
+            return (
+              <div key={i} className="flex items-start justify-between gap-3 border-b pb-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-end break-words">
+                    {it.subjectName}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {t('student.payment.monthlySubscription')}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {t('student.payment.monthlySubscription')}
+                <div className="text-end shrink-0 flex items-center gap-2">
+                  <span className="text-sm font-mono">
+                    {Number(it.amount).toFixed(2)} {it.currency}
+                  </span>
+                  {/* Remove button (multi-mode only, before payment initiation) */}
+                  {canRemove && (
+                    <button
+                      type="button"
+                      onClick={() => orderId && handleRemoveItem(orderId)}
+                      disabled={isRemoving}
+                      title={t('student.payment.removeItem')}
+                      className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={t('student.payment.removeItem')}
+                    >
+                      {isRemoving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="text-end shrink-0">
-                <span className="text-sm font-mono">
-                  {Number(it.amount).toFixed(2)} {it.currency}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Item count (multi-mode) */}
           {isMultiMode && (
