@@ -458,8 +458,9 @@ function HomeContent() {
 
   // ─── Payment callback (UX only) ───
   // When the student returns from Paymob's hosted checkout, the backend
-  // constructs the URL with `?payment_callback=success` (see
-  // src/app/api/student/orders/[id]/pay/route.ts → redirectUrl).
+  // constructs the URL with `?payment_callback=success` (or `=cancelled`)
+  // (see src/app/api/student/orders/[id]/pay/route.ts → redirectUrl,
+  //  and Paymob's redirection_url after checkout).
   //
   // This is a UX acknowledgement ONLY. The authoritative payment
   // confirmation still flows: Paymob → /api/payment/webhook (HMAC-verified)
@@ -470,22 +471,30 @@ function HomeContent() {
   //   - Create a payment record from the client
   //
   // We DO:
-  //   - Show a toast that the request was received + payment is being
-  //     confirmed via the gateway (informational, NOT a success claim)
-  //   - Strip the query param from the URL (clean browser history)
+  //   - Show a toast: "Returned from gateway, payment is being confirmed."
+  //     (NOT a success claim — the actual confirmation happens async via webhook)
+  //   - Strip the query param from the URL (clean browser history, prevent re-trigger)
   //   - The Supabase Realtime subscription on the orders table
-  //     (already set up in StudentActivationPage) will pick up the
+  //     (already set up in StudentActivationPage) picks up the
   //     status change automatically when the webhook completes.
   useEffect(() => {
     const paymentCallback = searchParams.get('payment_callback');
-    if (paymentCallback === 'success') {
+    if (paymentCallback === 'success' || paymentCallback === 'cancelled') {
       import('sonner').then(({ toast }) => {
-        // Informational message — NOT a success claim. The actual
-        // confirmation happens asynchronously via the webhook.
-        toast.info(t('student.payment.paymentCallbackPending'), {
-          description: t('student.payment.paymentCallbackPendingDesc'),
-          duration: 6000,
-        });
+        if (paymentCallback === 'success') {
+          // Informational message — NOT a success claim. The actual
+          // confirmation happens asynchronously via the webhook.
+          toast.info(t('student.payment.callbackReturningTitle'), {
+            description: t('student.payment.callbackReturningDesc'),
+            duration: 6000,
+          });
+        } else {
+          // cancelled
+          toast.info(t('student.payment.cancel'), {
+            description: t('student.payment.paymentCancelledDesc'),
+            duration: 5000,
+          });
+        }
       });
       // Clean the query param from the URL (so a refresh doesn't
       // re-trigger the toast).

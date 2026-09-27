@@ -3854,7 +3854,20 @@
       "currencyEGP": "ج.م",
       "perMonth": "/شهر",
       "freeCourse": "مجاناً",
-      "close": "إغلاق"
+      "close": "إغلاق",
+      "orderSummary": "ملخص الطلب",
+      "itemCount": "عدد المقررات",
+      "coursesLabel": "مقرر",
+      "redirecting": "جارٍ التحويل إلى بوابة الدفع...",
+      "readyToPay": "جاهز للدفع",
+      "paymentFailed": "تعذّر إتمام الدفع",
+      "cancel": "إلغاء",
+      "pendingGroupTitle": "لديك {count} مقررات في انتظار الدفع",
+      "pendingGroupDesc": "يمكنك دفعها معًا في عملية واحدة عبر بوابة الدفع",
+      "completePaymentGroup": "استكمال الدفع للكل",
+      "callbackReturningTitle": "تم الرجوع من بوابة الدفع",
+      "callbackReturningDesc": "جارٍ تأكيد العملية. ستظهر المقررات في قائمتك تلقائياً بعد تأكيد الدفع.",
+      "paymentCancelledDesc": "تم إلغاء عملية الدفع. يمكنك المحاولة مرة أخرى في أي وقت."
     }
   },
   "supabaseConfig": {

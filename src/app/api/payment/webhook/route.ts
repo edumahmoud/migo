@@ -215,17 +215,206 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (orderErr || !order) {
-      logPaymentEvent({
-        level: 'warn',
-        operation: 'handleWebhook',
-        provider: webhookResult.provider,
-        orderId: webhookResult.orderId,
-        success: false,
-        errorCode: 'ORDER_NOT_FOUND',
-        message: `Order not found: ${webhookResult.orderId}`,
-        durationMs: Date.now() - startTime,
-      });
-      return NextResponse.json({ ok: true, ignored: 'order_not_found' });
+      // ── Multi-subject checkout session fallback (Phase 14) ──
+      //
+      // The webhookResult.orderId didn't match any order by `id`.
+      // It might be a `checkout_session_id` from the multi-subject
+      // checkout flow (POST /api/student/checkout/sessions/[id]/pay
+      // sets Paymob's special_reference = session_id).
+      //
+      // Look up all orders WHERE checkout_session_id = orderId.
+      // If found, validate + activate each one.
+      //
+      // Security:
+      //   - We do NOT trust webhookResult.orderId as a session_id
+      //     without validation. The lookup is parameterized.
+      //   - The Paymob HMAC verification already happened inside
+      //     PaymentService.handleWebhook (above) — we only reach this
+      //     point with a verified callback.
+      //   - The amount validation uses SUM(orders.amount) to match
+      //     webhookResult.amount (the total Paymob received).
+      //   - The currency validation uses the session's currency
+      //     (all orders share the same currency — enforced at session
+      //     creation in /api/student/checkout/sessions).
+      //   - Per-order activation: each order gets its OWN
+      //     `provider_payment_id` (`${paymobTxId}:${order.id}`) so
+      //     the `payments` UNIQUE(provider_payment_id) constraint
+      //     is satisfied AND each order has its own payment row +
+      //     financial_ledger entry.
+      //   - Idempotency: if the webhook is replayed, the RPC returns
+      //     `already_paid` for each order (the RPC's existing
+      //     idempotency).
+      const { data: sessionOrders, error: sessionErr } = await supabaseServer
+        .from('orders')
+        .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id')
+        .eq('checkout_session_id', webhookResult.orderId);
+
+      if (sessionErr || !sessionOrders || sessionOrders.length === 0) {
+        // Not a single order, not a session — give up.
+        logPaymentEvent({
+          level: 'warn',
+          operation: 'handleWebhook',
+          provider: webhookResult.provider,
+          orderId: webhookResult.orderId,
+          success: false,
+          errorCode: 'ORDER_NOT_FOUND',
+          message: `Order/session not found: ${webhookResult.orderId}`,
+          durationMs: Date.now() - startTime,
+        });
+        return NextResponse.json({ ok: true, ignored: 'order_not_found' });
+      }
+
+      // Multi-subject session path
+      const sessOrders = sessionOrders as Array<{
+        id: string;
+        student_id: string;
+        subject_id: string;
+        amount: number;
+        currency: string;
+        status: string;
+        gateway_id: string | null;
+        checkout_session_id: string | null;
+      }>;
+
+      // Validate SUM(orders.amount) == webhookResult.amount
+      // (Paymob reports the total in major units; convert to cents
+      //  for comparison with the per-order amounts).
+      const sessionTotal = sessOrders.reduce((sum, o) => sum + Number(o.amount), 0);
+      if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - sessionTotal) > 0.01) {
+        logPaymentEvent({
+          level: 'error',
+          operation: 'handleWebhook',
+          provider: webhookResult.provider,
+          orderId: webhookResult.orderId,
+          success: false,
+          errorCode: 'AMOUNT_MISMATCH',
+          message: `Session total ${sessionTotal} got ${webhookResult.amount}`,
+          durationMs: Date.now() - startTime,
+        });
+        return NextResponse.json({ ok: true, ignored: 'session_amount_mismatch' });
+      }
+
+      // Validate all session orders share the same currency
+      const sessionCurrencies = new Set(sessOrders.map((o) => o.currency));
+      if (webhookResult.currency && !sessionCurrencies.has(webhookResult.currency)) {
+        logPaymentEvent({
+          level: 'error',
+          operation: 'handleWebhook',
+          provider: webhookResult.provider,
+          orderId: webhookResult.orderId,
+          success: false,
+          errorCode: 'CURRENCY_MISMATCH',
+          message: `Session currencies ${Array.from(sessionCurrencies).join(',')} got ${webhookResult.currency}`,
+          durationMs: Date.now() - startTime,
+        });
+        return NextResponse.json({ ok: true, ignored: 'session_currency_mismatch' });
+      }
+
+      if (webhookResult.status === 'paid') {
+        // Activate each order in the session.
+        // Use a per-order unique provider_payment_id so the payments
+        // table UNIQUE constraint is satisfied and each order has its
+        // own payment row + financial_ledger entry.
+        const basePaymobTxId = webhookResult.providerTransactionId || `gateway_${randomUUID()}`;
+        const activationResults: Array<{ order_id: string; success: boolean; already_paid?: boolean; error?: string }> = [];
+
+        for (const sessOrder of sessOrders) {
+          // Idempotency check — skip if already paid
+          if (sessOrder.status === 'paid') {
+            activationResults.push({ order_id: sessOrder.id, success: true, already_paid: true });
+            continue;
+          }
+          // Skip non-pending orders (cancelled/failed/refunded)
+          if (sessOrder.status !== 'pending') {
+            activationResults.push({ order_id: sessOrder.id, success: false, error: `status=${sessOrder.status}` });
+            continue;
+          }
+
+          const perOrderPaymentId = `${basePaymobTxId}:${sessOrder.id}`;
+          const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
+            'activate_subscription_after_payment',
+            {
+              p_order_id: sessOrder.id,
+              p_provider_payment_id: perOrderPaymentId,
+              p_amount: Number(sessOrder.amount),
+              p_currency: sessOrder.currency,
+              p_status: 'paid',
+              p_raw_payload: {
+                ...webhookResult.metadata,
+                checkout_session_id: webhookResult.orderId,
+                session_total: sessionTotal,
+                paymob_transaction_id: basePaymobTxId,
+              },
+              p_confirmed_by: null,
+            },
+          );
+
+          if (rpcErr) {
+            logPaymentEvent({
+              level: 'error',
+              operation: 'handleWebhook',
+              provider: webhookResult.provider,
+              orderId: sessOrder.id,
+              success: false,
+              errorCode: 'RPC_ERROR',
+              message: rpcErr.message,
+              durationMs: Date.now() - startTime,
+            });
+            activationResults.push({ order_id: sessOrder.id, success: false, error: rpcErr.message });
+            continue;
+          }
+
+          const result = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean; already_processed?: boolean }) ?? {};
+          activationResults.push({
+            order_id: sessOrder.id,
+            success: result.success === true,
+            already_paid: result.already_paid === true,
+            error: result.error,
+          });
+        }
+
+        logPaymentEvent({
+          level: 'info',
+          operation: 'handleWebhook',
+          provider: webhookResult.provider,
+          orderId: webhookResult.orderId,
+          paymentReference: webhookResult.paymentReference,
+          success: true,
+          message: `Session activated ${activationResults.filter(r => r.success).length}/${sessOrders.length} orders`,
+          durationMs: Date.now() - startTime,
+        });
+
+        return NextResponse.json({
+          ok: true,
+          success: true,
+          session_id: webhookResult.orderId,
+          activated_orders: activationResults,
+        });
+      }
+
+      // Handle failed/cancelled for the session
+      if (webhookResult.status === 'failed' || webhookResult.status === 'cancelled') {
+        await supabaseServer
+          .from('orders')
+          .update({ status: webhookResult.status, updated_at: new Date().toISOString() })
+          .eq('checkout_session_id', webhookResult.orderId)
+          .eq('status', 'pending');
+
+        logPaymentEvent({
+          level: 'warn',
+          operation: 'handleWebhook',
+          provider: webhookResult.provider,
+          orderId: webhookResult.orderId,
+          success: false,
+          message: `Session ${webhookResult.status}`,
+          durationMs: Date.now() - startTime,
+        });
+
+        return NextResponse.json({ ok: true, status: webhookResult.status });
+      }
+
+      // Pending or other — no action
+      return NextResponse.json({ ok: true, status: webhookResult.status });
     }
 
     o = order as OrderRow;

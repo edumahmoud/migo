@@ -3853,7 +3853,20 @@
       "currencyEGP": "EGP",
       "perMonth": "/mo",
       "freeCourse": "Free",
-      "close": "Close"
+      "close": "Close",
+      "orderSummary": "Order Summary",
+      "itemCount": "Number of Courses",
+      "coursesLabel": "courses",
+      "redirecting": "Redirecting to payment gateway...",
+      "readyToPay": "Ready to pay",
+      "paymentFailed": "Payment failed",
+      "cancel": "Cancel",
+      "pendingGroupTitle": "You have {count} courses awaiting payment",
+      "pendingGroupDesc": "You can pay them together in one transaction via the payment gateway",
+      "completePaymentGroup": "Complete Payment for All",
+      "callbackReturningTitle": "Returned from payment gateway",
+      "callbackReturningDesc": "Confirming the transaction. Your courses will appear in your list automatically after payment is confirmed.",
+      "paymentCancelledDesc": "The payment was cancelled. You can try again at any time."
     }
   },
   "supabaseConfig": {

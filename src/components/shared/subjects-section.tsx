@@ -42,6 +42,12 @@ import {
   PaymentSummaryDialog,
   type PaymentSummaryOrder,
 } from '@/components/student/payment-summary-dialog';
+import {
+  createCheckoutSession,
+  PaymentActionError,
+  getPaymentActionErrorMessage,
+  type CheckoutSessionItem,
+} from '@/lib/student/payment-action';
 
 // -------------------------------------------------------
 // Auth helpers
@@ -244,8 +250,16 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // Holds the pending order info to display in the Payment Summary dialog.
   // The dialog is opened AFTER the order is created (POST /api/student/orders)
   // and the user must explicitly click "Pay Now" to call /api/student/orders/[id]/pay.
+  //
+  // Phase 14.1 (multi-subject): when the student selects multiple paid
+  // courses, we open the dialog in MULTI-SESSION mode. We pass
+  // `sessionItems` + `sessionId` (created via createCheckoutSession).
   const [paymentSummaryOrder, setPaymentSummaryOrder] = useState<PaymentSummaryOrder | null>(null);
   const [paymentSummaryOpen, setPaymentSummaryOpen] = useState(false);
+  // Multi-subject session state — when set, the dialog renders in
+  // multi-item mode showing all the session's items + total.
+  const [sessionItems, setSessionItems] = useState<import('@/lib/student/payment-action').CheckoutSessionItem[] | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [searchingSubject, setSearchingSubject] = useState(false);
 
   // ─── Cancel / Leave loading state ───
@@ -3324,11 +3338,17 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {/* ─── Payment Summary Dialog (student checkout) ─── */}
       {/* Rendered at the end so it overlays above everything else when open.
           Opened by either of the two paid-course flows (available-courses
-          dialog OR join-by-code dialog) after creating a pending order. */}
+          dialog OR join-by-code dialog) after creating a pending order.
+          - For SINGLE-ORDER flow: `order` is set (one pending order).
+          - For MULTI-SUBJECT flow: `sessionItems` + `sessionId` are set
+            (multiple pending orders grouped into one checkout session).
+          The dialog auto-detects which mode based on which props are set. */}
       <PaymentSummaryDialog
         open={paymentSummaryOpen}
         onOpenChange={setPaymentSummaryOpen}
         order={paymentSummaryOrder}
+        sessionItems={sessionItems}
+        sessionId={sessionId}
       />
     </motion.div>
   );

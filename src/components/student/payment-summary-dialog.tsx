@@ -1,56 +1,56 @@
 'use client';
 
 /**
- * Payment Summary Dialog — Student Checkout UI
+ * Payment Summary Dialog — Student Checkout UI (Single + Multi-Subject)
  *
- * Reusable dialog shown BEFORE a student confirms payment for a paid
- * course order. The dialog:
- *   1. Displays the server-authoritative order info (subject name,
- *      monthly duration, price, currency, total, payment method).
- *   2. Has a "Pay Now" button that calls the EXISTING backend endpoint
- *      POST /api/student/orders/[id]/pay (via the pure helper
- *      src/lib/student/payment-action.ts).
- *   3. On success, redirects the browser to the Paymob hosted-checkout
- *      URL (window.location.href — external navigation, not Next router).
- *   4. On failure, shows a clear error toast + keeps the order pending
- *      (no client-side "mark as paid" ever happens).
+ * Reusable dialog shown BEFORE a student confirms payment for one or
+ * more pending paid orders. The dialog supports TWO modes:
  *
- * The dialog is REUSED by:
- *   - subjects-section.tsx (new-order flow): after creating a pending
- *     order via POST /api/student/orders, opens the dialog with the new
- *     order ID + course info.
- *   - student-activation-page.tsx (existing-order flow): when a student
- *     clicks "Complete Payment" on a pending order in the "قيد الدفع"
- *     list, opens the dialog with that order's ID + course info — no
- *     new order is created.
+ *   1. SINGLE-ORDER mode (Phase 14.0):
+ *      - Pass `order: PaymentSummaryOrder` (one order).
+ *      - Pay Now calls initiatePayment(order.orderId) → POST /api/student/orders/[id]/pay
+ *      - Used by: student-activation-page pending-order "Complete Payment" button.
+ *
+ *   2. MULTI-SESSION mode (Phase 14.1):
+ *      - Pass `sessionItems: CheckoutSessionItem[]` (multiple orders) +
+ *        a pre-created `sessionId` (from createCheckoutSession()).
+ *      - Pay Now calls initiateSessionPayment(sessionId) → POST /api/student/checkout/sessions/[id]/pay
+ *      - Used by: subjects-section multi-subject subscribe flow.
  *
  * SECURITY:
  *   - The dialog never trusts a client-supplied price/currency/student_id.
- *     It displays the values that came from the server response (the
- *     POST /api/student/orders response, or the existing pending order's
- *     row from the activation page).
+ *     It displays values that came from the server response (the
+ *     POST /api/student/orders response, or the createCheckoutSession response).
  *   - The dialog never directly marks an order as paid. Only the Paymob
  *     webhook (server-to-server) can transition orders to 'paid'.
  *   - No Paymob secrets/credentials/tokens are exposed to the client.
- *     The dialog only ever receives the public checkout_url from the
- *     backend's authenticated endpoint.
+ *
+ * STATE UX:
+ *   - "جاهز للدفع" (ready) — initial state, Pay Now enabled.
+ *   - "جارٍ تجهيز الدفع..." (preparing payment) — Pay Now clicked, request in-flight.
+ *   - "جارٍ التحويل إلى بوابة الدفع..." (redirecting) — checkout URL received,
+ *     about to navigate away.
+ *   - Error display — categorized Arabic message from getPaymentActionErrorMessage.
+ *
+ * DUPLICATE PREVENTION:
+ *   - Pay Now is disabled while a payment is being initiated (no double-click).
+ *   - The dialog cannot be closed while in the redirecting state (the browser
+ *     is about to navigate away).
+ *   - The backend endpoint is itself idempotent — re-calling /pay returns the
+ *     same checkout URL (Paymob deduplicates via special_reference).
  *
  * Accessibility:
  *   - Built on the existing src/components/ui/dialog (Radix-based).
  *   - Keyboard accessible (Tab cycle, Esc to close — Radix default).
  *   - dir="rtl" | "ltr" follows the project's i18n direction.
- *   - Close button + Cancel button both clearly labelled.
  *
- * Idempotency:
- *   - The "Pay Now" button is disabled while a payment is being initiated
- *     (prevents duplicate /pay requests from rapid double-clicks).
- *   - The backend endpoint is itself idempotent — if the order already
- *     has a provider_order_ref, it verifies the existing intention's
- *     status instead of creating a duplicate Paymob intention.
+ * Mobile + Desktop:
+ *   - sm:max-w-md (mobile-first) → max-w-lg (desktop) for multi-item.
+ *   - max-h-[90vh] overflow-y-auto for long item lists.
  */
 
-import { useState, useCallback } from 'react';
-import { Loader2, CreditCard, X, AlertCircle, ShieldCheck } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Loader2, CreditCard, X, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose,
@@ -62,48 +62,75 @@ import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import {
   initiatePayment,
+  initiateSessionPayment,
   redirectToCheckout,
+  getPaymentActionErrorMessage,
   PaymentActionError,
+  type PaymentSummaryOrder,
+  type CheckoutSessionItem,
 } from '@/lib/student/payment-action';
 
-// ─── Types ───
-export interface PaymentSummaryOrder {
-  /** The order ID returned by POST /api/student/orders (created_orders[].id). */
-  orderId: string;
-  /** Subject name (server-authoritative — from the order's subject row). */
-  subjectName: string;
-  /** Subscription amount (server-authoritative — from the order's amount). */
-  amount: number;
-  /** Currency code (server-authoritative — from the order's currency). */
-  currency: string;
-}
+// Re-export PaymentSummaryOrder + CheckoutSessionItem so existing
+// import sites (subjects-section.tsx, student-activation-page.tsx)
+// can keep importing them from the dialog component.
+export type { PaymentSummaryOrder, CheckoutSessionItem };
 
+// ─── Props ───
 interface PaymentSummaryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  order: PaymentSummaryOrder | null;
+
+  // SINGLE-ORDER mode: pass `order` (single)
+  order?: PaymentSummaryOrder | null;
+
+  // MULTI-SESSION mode: pass `sessionItems` (array) + `sessionId`
+  sessionItems?: CheckoutSessionItem[] | null;
+  sessionId?: string | null;
 }
 
-// ─── Component ───
+type PaymentState = 'ready' | 'preparing' | 'redirecting' | 'error';
+
 export function PaymentSummaryDialog({
   open,
   onOpenChange,
   order,
+  sessionItems,
+  sessionId,
 }: PaymentSummaryDialogProps) {
   const { t, direction } = useTranslations();
-  const [initiating, setInitiating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<PaymentState>('ready');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Determine mode + items to display
+  const isMultiMode = !order && Array.isArray(sessionItems) && sessionItems.length > 0 && !!sessionId;
+  const items: Array<{ subjectName: string; amount: number; currency: string }> = isMultiMode
+    ? (sessionItems as CheckoutSessionItem[]).map((it) => ({
+        subjectName: it.subject_name,
+        amount: Number(it.amount),
+        currency: it.currency,
+      }))
+    : (order ? [{ subjectName: order.subjectName, amount: Number(order.amount), currency: order.currency }] : []);
+
+  const totalAmount = useMemo(
+    () => items.reduce((sum, it) => sum + Number(it.amount), 0),
+    [items],
+  );
+  const currency = items[0]?.currency ?? 'EGP';
 
   const handlePayNow = useCallback(async () => {
-    if (!order || initiating) return;
-    setInitiating(true);
-    setError(null);
+    if (state === 'preparing' || state === 'redirecting') return; // prevent double-click
+    setState('preparing');
+    setErrorMessage(null);
     try {
       const headers = await getCachedAuthHeaders();
-      const result = await initiatePayment(order.orderId, headers);
-      // Successfully received a checkout_url — redirect the browser
-      // to Paymob's hosted checkout. This is a full-page navigation
-      // AWAY from the app (external URL).
+      const result = isMultiMode
+        ? await initiateSessionPayment(sessionId as string, headers)
+        : await initiatePayment((order as PaymentSummaryOrder).orderId, headers);
+
+      // Successfully received a checkout URL — begin the redirect state.
+      // The browser is about to navigate away; the dialog stays open
+      // in the "redirecting" state until the page actually unloads.
+      setState('redirecting');
       const didRedirect = redirectToCheckout(result.checkoutUrl);
       if (!didRedirect) {
         // SSR or no window — shouldn't happen in a 'use client' component,
@@ -113,83 +140,92 @@ export function PaymentSummaryDialog({
           'window unavailable — cannot redirect to checkout',
         );
       }
-      // If we got here, the browser is navigating away. The dialog stays
-      // open in the loading state until the page actually unloads.
+      // If we got here, the browser is navigating away. The dialog
+      // stays open in the "redirecting" state until the page unloads.
     } catch (err) {
       const message = err instanceof PaymentActionError
-        ? err.message
-        : (err instanceof Error ? err.message : 'Unknown error');
-      setError(message);
-      toast.error(t('student.payment.paymentInitFailed'));
-      setInitiating(false);
+        ? getPaymentActionErrorMessage(err, t('student.payment.paymentInitFailed'))
+        : (err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
+      setErrorMessage(message);
+      toast.error(message);
+      setState('error');
     }
-  }, [order, initiating, t]);
+  }, [state, isMultiMode, sessionId, order, t]);
 
-  // Reset error + loading state when the dialog closes
+  // Reset state when dialog closes
   const handleOpenChange = useCallback((next: boolean) => {
     if (!next) {
-      // Closing — only allow if not in the middle of initiating
-      // (otherwise the user could close mid-redirect)
-      if (initiating) return;
-      setError(null);
+      // Only allow closing if not in the middle of redirecting
+      // (otherwise the user could close mid-navigation, which is OK
+      // but we want to discourage it).
+      if (state === 'redirecting') return; // can't close mid-redirect
+      setState('ready');
+      setErrorMessage(null);
     }
     onOpenChange(next);
-  }, [initiating, onOpenChange]);
+  }, [state, onOpenChange]);
 
-  if (!order) {
+  if (!order && !isMultiMode) {
     return null;
   }
 
-  const amount = Number(order.amount) || 0;
-  const currency = order.currency || 'EGP';
+  if (items.length === 0) {
+    return null;
+  }
+
+  const stateLabel =
+    state === 'preparing' ? t('student.payment.initializingPayment')
+    : state === 'redirecting' ? t('student.payment.redirecting')
+    : state === 'error' ? t('student.payment.paymentFailed')
+    : t('student.payment.readyToPay');
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+        className={isMultiMode ? "sm:max-w-lg max-h-[90vh] overflow-y-auto" : "sm:max-w-md max-h-[90vh] overflow-y-auto"}
         dir={direction}
       >
         <DialogHeader className="text-end">
           <DialogTitle className="flex items-center gap-2 justify-end text-end">
             <CreditCard className="h-5 w-5 text-teal-600" />
-            {t('student.payment.paymentSummary')}
+            {isMultiMode ? t('student.payment.orderSummary') : t('student.payment.paymentSummary')}
           </DialogTitle>
           <DialogDescription>
             {t('student.payment.paymentSummaryDesc')}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Order details — server-authoritative values */}
-        <div className="space-y-3 py-2">
-          {/* Course name */}
-          <div className="flex items-start justify-between gap-3 border-b pb-2">
-            <span className="text-sm text-muted-foreground">
-              {t('student.payment.course')}
-            </span>
-            <span className="text-sm font-medium text-end break-words">
-              {order.subjectName}
-            </span>
-          </div>
+        {/* Items list (server-authoritative values) */}
+        <div className="space-y-2 py-2">
+          {items.map((it, i) => (
+            <div key={i} className="flex items-start justify-between gap-3 border-b pb-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-end break-words">
+                  {it.subjectName}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {t('student.payment.monthlySubscription')}
+                </div>
+              </div>
+              <div className="text-end shrink-0">
+                <span className="text-sm font-mono">
+                  {Number(it.amount).toFixed(2)} {it.currency}
+                </span>
+              </div>
+            </div>
+          ))}
 
-          {/* Subscription duration */}
-          <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-sm text-muted-foreground">
-              {t('student.payment.subscriptionDuration')}
-            </span>
-            <Badge variant="secondary" className="text-xs">
-              {t('student.payment.oneMonth')}
-            </Badge>
-          </div>
-
-          {/* Amount */}
-          <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-sm text-muted-foreground">
-              {t('student.payment.amount')}
-            </span>
-            <span className="text-sm font-mono">
-              {amount.toFixed(2)} {currency}
-            </span>
-          </div>
+          {/* Item count (multi-mode) */}
+          {isMultiMode && (
+            <div className="flex items-center justify-between border-b pb-2">
+              <span className="text-sm text-muted-foreground">
+                {t('student.payment.itemCount')}
+              </span>
+              <Badge variant="secondary" className="text-xs">
+                {items.length} {t('student.payment.coursesLabel')}
+              </Badge>
+            </div>
+          )}
 
           {/* Payment method */}
           <div className="flex items-center justify-between border-b pb-2">
@@ -207,7 +243,7 @@ export function PaymentSummaryDialog({
               {t('student.payment.total')}
             </span>
             <span className="text-xl font-bold text-teal-700 dark:text-teal-300 font-mono">
-              {amount.toFixed(2)} {currency}
+              {totalAmount.toFixed(2)} {currency}
             </span>
           </div>
 
@@ -219,11 +255,19 @@ export function PaymentSummaryDialog({
             </span>
           </div>
 
-          {/* Error display (if any) */}
-          {error && (
+          {/* State label */}
+          {state !== 'ready' && state !== 'error' && (
+            <div className="flex items-center justify-center gap-2 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/30 rounded-md p-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>{stateLabel}</span>
+            </div>
+          )}
+
+          {/* Error display (categorized Arabic message) */}
+          {state === 'error' && errorMessage && (
             <div className="flex items-start gap-2 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/15 border border-rose-200 dark:border-rose-900/30 rounded-md p-2">
               <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span className="leading-relaxed">{error}</span>
+              <span className="leading-relaxed">{errorMessage}</span>
             </div>
           )}
         </div>
@@ -231,13 +275,18 @@ export function PaymentSummaryDialog({
         <DialogFooter className="gap-2 sm:gap-2 flex-row-reverse sm:flex-row-reverse">
           <Button
             onClick={handlePayNow}
-            disabled={initiating}
+            disabled={state === 'preparing' || state === 'redirecting'}
             className="bg-teal-600 hover:bg-teal-700 text-white flex-1 sm:flex-none"
           >
-            {initiating ? (
+            {state === 'preparing' ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t('student.payment.initializingPayment')}
+              </>
+            ) : state === 'redirecting' ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('student.payment.redirecting')}
               </>
             ) : (
               <>
@@ -249,10 +298,10 @@ export function PaymentSummaryDialog({
           <DialogClose asChild>
             <Button
               variant="outline"
-              disabled={initiating}
+              disabled={state === 'preparing' || state === 'redirecting'}
               onClick={() => handleOpenChange(false)}
             >
-              {t('student.payment.close')}
+              {t('student.payment.cancel')}
             </Button>
           </DialogClose>
         </DialogFooter>
