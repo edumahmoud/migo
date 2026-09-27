@@ -38,6 +38,10 @@ import { useTranslations } from '@/i18n/use-translations';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject, Category } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
+import {
+  PaymentSummaryDialog,
+  type PaymentSummaryOrder,
+} from '@/components/student/payment-summary-dialog';
 
 // -------------------------------------------------------
 // Auth helpers
@@ -236,6 +240,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [joiningSubject, setJoiningSubject] = useState(false);
   const [subjectPreview, setSubjectPreview] = useState<{ id: string; name: string; description?: string; color: string; teacher_name?: string; price?: number; currency?: string } | null>(null);
+  // ─── Payment Summary dialog state (Phase 14: student checkout) ───
+  // Holds the pending order info to display in the Payment Summary dialog.
+  // The dialog is opened AFTER the order is created (POST /api/student/orders)
+  // and the user must explicitly click "Pay Now" to call /api/student/orders/[id]/pay.
+  const [paymentSummaryOrder, setPaymentSummaryOrder] = useState<PaymentSummaryOrder | null>(null);
+  const [paymentSummaryOpen, setPaymentSummaryOpen] = useState(false);
   const [searchingSubject, setSearchingSubject] = useState(false);
 
   // ─── Cancel / Leave loading state ───
@@ -2909,11 +2919,26 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                       }
                                     } else {
                                       // Paid course — order created in 'pending' state.
-                                      // The order will be activated later via /api/payment/webhook
-                                      // when the real payment gateway (Paymob) confirms payment.
-                                      // Until Paymob is integrated, the order stays 'pending'
-                                      // (no manual approval path, no proof submission, no admin bypass).
-                                      toast.info('تم إنشاء طلب الاشتراك. سيتم تفعيله تلقائياً بعد الدفع عبر بوابة الدفع.');
+                                      // Open the Payment Summary dialog so the student
+                                      // can review the order and explicitly click
+                                      // "Pay Now" to call /api/student/orders/[id]/pay.
+                                      const created = (json.created_orders ?? []).find(
+                                        (o: { subject_id?: string; id?: string }) => o.subject_id === c.id,
+                                      );
+                                      if (created?.id) {
+                                        setPaymentSummaryOrder({
+                                          orderId: String(created.id),
+                                          subjectName: c.name,
+                                          amount: Number(c.price),
+                                          currency: String(c.currency ?? 'EGP'),
+                                        });
+                                        setPaymentSummaryOpen(true);
+                                      } else {
+                                        // Order was created but we couldn't find the
+                                        // new row in the response (rare — possibly
+                                        // skipped as duplicate). Show toast and refresh.
+                                        toast.info('تم إنشاء طلب الاشتراك مسبقاً. سيتم تفعيله تلقائياً بعد الدفع عبر بوابة الدفع.');
+                                      }
                                       setAvailableCoursesOpen(false);
                                       fetchSubjects();
                                     }
@@ -3136,7 +3161,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     <button
                       onClick={async () => {
                         if (subjectPreview.price && subjectPreview.price > 0) {
-                          // Paid course — create a subscription order
+                          // Paid course — create a subscription order,
+                          // then open the Payment Summary dialog so the
+                          // student can review + click "Pay Now" to call
+                          // /api/student/orders/[id]/pay (the existing
+                          // Paymob initiation endpoint).
                           setJoiningSubject(true);
                           try {
                             const res = await fetch('/api/student/orders', {
@@ -3146,12 +3175,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             });
                             const json = await res.json();
                             if (json.success) {
-                              toast.success('تم إنشاء طلب اشتراك. سيقوم المشرف بتفعيله بعد إثبات الدفع.');
-                              setJoinCodeOpen(false);
-                              setSubjectPreview(null);
-                              setJoinCodeInput('');
-                              // Refresh subjects list
-                              fetchSubjects();
+                              const created = (json.created_orders ?? []).find(
+                                (o: { subject_id?: string; id?: string }) => o.subject_id === subjectPreview.id,
+                              );
+                              if (created?.id) {
+                                // Open the Payment Summary dialog with the
+                                // server-authoritative order info. The user
+                                // must click "Pay Now" to actually initiate
+                                // the Paymob checkout.
+                                setPaymentSummaryOrder({
+                                  orderId: String(created.id),
+                                  subjectName: subjectPreview.name,
+                                  amount: Number(subjectPreview.price),
+                                  currency: String(subjectPreview.currency ?? 'EGP'),
+                                });
+                                setPaymentSummaryOpen(true);
+                                setJoinCodeOpen(false);
+                                setSubjectPreview(null);
+                                setJoinCodeInput('');
+                                fetchSubjects();
+                              } else {
+                                // Order was created but we couldn't find the
+                                // new row in the response (rare). Show toast.
+                                toast.info('تم إنشاء طلب اشتراك مسبقاً.');
+                                setJoinCodeOpen(false);
+                                setSubjectPreview(null);
+                                setJoinCodeInput('');
+                                fetchSubjects();
+                              }
                             } else {
                               toast.error(json.error || t('common.unexpectedError'));
                             }
@@ -3269,6 +3320,16 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ─── Payment Summary Dialog (student checkout) ─── */}
+      {/* Rendered at the end so it overlays above everything else when open.
+          Opened by either of the two paid-course flows (available-courses
+          dialog OR join-by-code dialog) after creating a pending order. */}
+      <PaymentSummaryDialog
+        open={paymentSummaryOpen}
+        onOpenChange={setPaymentSummaryOpen}
+        order={paymentSummaryOrder}
+      />
     </motion.div>
   );
 }

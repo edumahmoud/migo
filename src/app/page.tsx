@@ -456,6 +456,45 @@ function HomeContent() {
     }
   }, [searchParams]);
 
+  // ─── Payment callback (UX only) ───
+  // When the student returns from Paymob's hosted checkout, the backend
+  // constructs the URL with `?payment_callback=success` (see
+  // src/app/api/student/orders/[id]/pay/route.ts → redirectUrl).
+  //
+  // This is a UX acknowledgement ONLY. The authoritative payment
+  // confirmation still flows: Paymob → /api/payment/webhook (HMAC-verified)
+  // → activate_subscription_after_payment RPC. We do NOT:
+  //   - Trust this query param as proof of payment
+  //   - Mark any order as paid from the client
+  //   - Call the activation RPC from the client
+  //   - Create a payment record from the client
+  //
+  // We DO:
+  //   - Show a toast that the request was received + payment is being
+  //     confirmed via the gateway (informational, NOT a success claim)
+  //   - Strip the query param from the URL (clean browser history)
+  //   - The Supabase Realtime subscription on the orders table
+  //     (already set up in StudentActivationPage) will pick up the
+  //     status change automatically when the webhook completes.
+  useEffect(() => {
+    const paymentCallback = searchParams.get('payment_callback');
+    if (paymentCallback === 'success') {
+      import('sonner').then(({ toast }) => {
+        // Informational message — NOT a success claim. The actual
+        // confirmation happens asynchronously via the webhook.
+        toast.info(t('student.payment.paymentCallbackPending'), {
+          description: t('student.payment.paymentCallbackPendingDesc'),
+          duration: 6000,
+        });
+      });
+      // Clean the query param from the URL (so a refresh doesn't
+      // re-trigger the toast).
+      const url = new URL(window.location.href);
+      url.searchParams.delete('payment_callback');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams, t]);
+
   // Show session kicked toast if another device logged in
   useEffect(() => {
     if (sessionKickedMessage) {

@@ -19,6 +19,10 @@ import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 import { supabase } from '@/lib/supabase';
+import {
+  PaymentSummaryDialog,
+  type PaymentSummaryOrder,
+} from '@/components/student/payment-summary-dialog';
 
 interface AvailableCourse {
   id: string; name: string; description: string | null;
@@ -57,6 +61,14 @@ export default function StudentActivationPage() {
   const [linking, setLinking] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  // ─── Payment Summary dialog state ───
+  // For "continue payment on existing pending order" flow.
+  // When a student clicks "Complete Payment" on a pending order in
+  // the "قيد الدفع" list, we open the SAME Payment Summary dialog used
+  // by the new-order flow — no new order is created, the existing
+  // order's ID is passed to /api/student/orders/[id]/pay.
+  const [paymentSummaryOrder, setPaymentSummaryOrder] = useState<PaymentSummaryOrder | null>(null);
+  const [paymentSummaryOpen, setPaymentSummaryOpen] = useState(false);
 
   const studentId = user?.id;
 
@@ -340,6 +352,27 @@ export default function StudentActivationPage() {
                   <div className="text-end shrink-0 flex items-center gap-2">
                     <span className="font-mono text-xs">{Number(o.amount).toFixed(2)} {o.currency}</span>
                     <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
+                    {/* Complete Payment button — opens the SAME Payment Summary
+                        dialog used by the new-order flow. The dialog calls
+                        /api/student/orders/[id]/pay with the existing order's
+                        ID (no new order is created). The backend validates
+                        ownership + status (pending) before initiating payment. */}
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                      onClick={() => {
+                        setPaymentSummaryOrder({
+                          orderId: o.id,
+                          subjectName: courseNameById.get(o.subject_id) ?? '—',
+                          amount: Number(o.amount),
+                          currency: String(o.currency ?? 'EGP'),
+                        });
+                        setPaymentSummaryOpen(true);
+                      }}
+                    >
+                      <CreditCard className="h-3 w-3 me-1" />
+                      {t('student.payment.completePayment')}
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -347,6 +380,16 @@ export default function StudentActivationPage() {
           </Card>
         )}
       </div>
+
+      {/* ─── Payment Summary Dialog (existing pending order continuation) ─── */}
+      {/* Rendered here so it overlays above the activation page content
+          when opened. Uses the same dialog + same /pay endpoint as the
+          new-order flow in subjects-section.tsx. */}
+      <PaymentSummaryDialog
+        open={paymentSummaryOpen}
+        onOpenChange={setPaymentSummaryOpen}
+        order={paymentSummaryOrder}
+      />
 
     </div>
   );

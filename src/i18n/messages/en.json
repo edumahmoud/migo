@@ -3829,7 +3829,32 @@
     "trackingLevelWeak": "Weak",
     "trackingLevelFair": "Fair",
     "trackingLevelGood": "Good",
-    "trackingLevelExcellent": "Excellent"
+    "trackingLevelExcellent": "Excellent",
+    "payment": {
+      "paymentSummary": "Payment Summary",
+      "paymentSummaryDesc": "Review your order details before completing payment",
+      "course": "Course",
+      "monthlySubscription": "Monthly Subscription",
+      "subscriptionDuration": "Subscription Duration",
+      "oneMonth": "1 month (renews monthly)",
+      "amount": "Amount",
+      "total": "Total",
+      "paymentMethod": "Payment Method",
+      "paymentMethodValue": "Online Payment Gateway (Paymob)",
+      "payNow": "Pay Now",
+      "initializingPayment": "Initializing payment...",
+      "paymentInitFailed": "Failed to initialize payment. Please try again.",
+      "paymentRedirectFailed": "Failed to redirect to the payment gateway. Please try again.",
+      "paymentCallbackPending": "Your request was received. Payment is being confirmed by the gateway...",
+      "paymentCallbackPendingDesc": "Paid courses will appear in your list automatically after payment is confirmed.",
+      "completePayment": "Complete Payment",
+      "completePaymentDesc": "You have a pending subscription order. Click \"Complete Payment\" to continue via the payment gateway.",
+      "pendingOrderHint": "This order is awaiting payment. The course will not be activated until the gateway confirms payment.",
+      "currencyEGP": "EGP",
+      "perMonth": "/mo",
+      "freeCourse": "Free",
+      "close": "Close"
+    }
   },
   "supabaseConfig": {
     "configError": "Configuration Error",

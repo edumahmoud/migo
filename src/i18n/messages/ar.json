@@ -3830,7 +3830,32 @@
     "trackingLevelWeak": "ضعيف",
     "trackingLevelFair": "مقبول",
     "trackingLevelGood": "جيد",
-    "trackingLevelExcellent": "ممتاز"
+    "trackingLevelExcellent": "ممتاز",
+    "payment": {
+      "paymentSummary": "ملخص الدفع",
+      "paymentSummaryDesc": "راجع تفاصيل الطلب قبل إتمام الدفع",
+      "course": "المقرر",
+      "monthlySubscription": "اشتراك شهري",
+      "subscriptionDuration": "مدة الاشتراك",
+      "oneMonth": "شهر واحد (يتجدد شهرياً)",
+      "amount": "المبلغ",
+      "total": "الإجمالي",
+      "paymentMethod": "طريقة الدفع",
+      "paymentMethodValue": "بوابة الدفع الإلكتروني (Paymob)",
+      "payNow": "ادفع الآن",
+      "initializingPayment": "جارٍ تهيئة الدفع...",
+      "paymentInitFailed": "تعذّر تهيئة الدفع. يرجى المحاولة مرة أخرى.",
+      "paymentRedirectFailed": "تعذّر التحويل لبوابة الدفع. يرجى المحاولة مرة أخرى.",
+      "paymentCallbackPending": "تم استلام طلبك. جارٍ تأكيد الدفع عبر بوابة الدفع...",
+      "paymentCallbackPendingDesc": "ستظهر المقررات المدفوعة في قائمتك تلقائياً بعد تأكيد الدفع.",
+      "completePayment": "استكمال الدفع",
+      "completePaymentDesc": "لديك طلب اشتراك معلّق. اضغط \"استكمال الدفع\" للمتابعة عبر بوابة الدفع.",
+      "pendingOrderHint": "هذا الطلب بانتظار الدفع. لن يتم تفعيل المقرر إلا بعد تأكيد الدفع من البوابة.",
+      "currencyEGP": "ج.م",
+      "perMonth": "/شهر",
+      "freeCourse": "مجاناً",
+      "close": "إغلاق"
+    }
   },
   "supabaseConfig": {
     "configError": "خطأ في الإعدادات",
