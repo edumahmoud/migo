@@ -78,9 +78,7 @@ import TeacherStudentTrackingSection from '@/components/teacher/teacher-student-
 import QuestionBankSection from '@/components/teacher/question-bank-section';
 import ScormLibrarySection from '@/components/teacher/scorm-library-section';
 import RegistrationAgentsSection from '@/components/teacher/registration-agents-section';
-import TeacherFinancialSection from '@/components/teacher/teacher-financial-section';
-import TeacherPayoutMethodsSection from '@/components/teacher/teacher-payout-methods-section';
-import TeacherPayoutsSection from '@/components/teacher/teacher-payouts-section';
+import TeacherFinancialManagementSection from '@/components/teacher/teacher-financial-management-section';
 import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -2509,19 +2507,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <RegistrationAgentsSection />
                   </SectionErrorBoundary>
                 )}
-                {activeSection === 'financial' && (
-                  <SectionErrorBoundary name="Financial">
-                    <TeacherFinancialSection />
-                  </SectionErrorBoundary>
-                )}
-                {activeSection === 'payoutMethods' && (
-                  <SectionErrorBoundary name="PayoutMethods">
-                    <TeacherPayoutMethodsSection />
-                  </SectionErrorBoundary>
-                )}
-                {activeSection === 'payoutHistory' && (
-                  <SectionErrorBoundary name="PayoutHistory">
-                    <TeacherPayoutsSection />
+                {activeSection === 'financialManagement' && (
+                  <SectionErrorBoundary name="FinancialManagement">
+                    <TeacherFinancialManagementSection profile={profile} />
                   </SectionErrorBoundary>
                 )}
                 {activeSection === 'students' && renderStudents()}

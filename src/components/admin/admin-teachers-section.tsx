@@ -25,10 +25,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Users, Search, ChevronLeft, ChevronRight,
-  Wallet, DollarSign, Clock, CheckCircle2, X,
+  Wallet, DollarSign, Clock, CheckCircle2, X, Eye,
 } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -339,24 +340,64 @@ export default function AdminTeachersSection() {
                     </div>
                   </div>
 
-                  {/* Payout methods (masked) */}
+                  {/* Payout methods (masked by default + "show details" for admin) */}
                   <div className="rounded-lg border p-4 space-y-2">
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-sky-600" />
-                      {t('admin.payoutMethods') || 'طرق الدفع'}
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <Wallet className="h-4 w-4 text-sky-600" />
+                        {t('admin.payoutMethods') || 'طرق الاستلام'}
+                      </h3>
+                      {(teacherDetail.payout_methods ?? []).length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/admin/teachers/${selectedTeacherId}/payout-details`, { headers: await getCachedAuthHeaders() });
+                              const json = await res.json();
+                              if (json.success) {
+                                setTeacherDetail((prev: Record<string, unknown> | null) => ({ ...prev, payout_methods: json.payout_methods, show_full_details: true }));
+                              } else {
+                                toast.error(json.error || 'Failed');
+                              }
+                            } catch (e) { toast.error('Failed'); }
+                          }}
+                        >
+                          <Eye className="h-3 w-3 me-1" />
+                          {t('admin.showTransferDetails') || 'عرض تفاصيل التحويل'}
+                        </Button>
+                      )}
+                    </div>
                     {(teacherDetail.payout_methods ?? []).length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-2">{t('admin.noPayoutMethods') || 'لا توجد طرق دفع مُسجّلة'}</p>
+                      <p className="text-xs text-muted-foreground py-2">{t('admin.noPayoutMethods') || 'لا توجد طرق استلام مُسجّلة'}</p>
                     ) : (
                       <div className="space-y-2">
                         {(teacherDetail.payout_methods ?? []).map((pm: any) => (
-                          <div key={pm.id} className="flex items-center justify-between text-sm border-b pb-2">
-                            <div>
+                          <div key={pm.id} className="flex items-start justify-between text-sm border-b pb-2">
+                            <div className="min-w-0 flex-1">
                               <span className="font-medium">{pm.display_label}</span>
                               <span className="text-xs text-muted-foreground ms-2">({pm.method_type})</span>
-                              <div className="text-xs text-muted-foreground font-mono">{pm.details_masked ?? '—'}</div>
+                              {/* Show masked by default, full details when admin clicks "show details" */}
+                              {pm.details ? (
+                                <div className="text-xs font-mono space-y-0.5 mt-1 bg-muted/30 rounded p-2">
+                                  {Object.entries(pm.details)
+                                    .filter(([k]) => k !== 'method_type')
+                                    .map(([key, val]) => (
+                                      <div key={key} className="flex justify-between gap-2">
+                                        <span className="text-muted-foreground">{key}:</span>
+                                        <span className="font-semibold break-all text-end">{String(val)}</span>
+                                      </div>
+                                    ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground font-mono">{pm.details_masked ?? '—'}</div>
+                              )}
+                              {pm.details_error && (
+                                <div className="text-xs text-rose-600 mt-1">⚠️ {pm.details_error}</div>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0">
                               {pm.is_default && <Badge variant="secondary" className="text-xs">{t('admin.default') || 'افتراضي'}</Badge>}
                               <Badge variant={pm.is_active ? 'secondary' : 'outline'} className="text-xs">
                                 {pm.is_active ? (t('common.active') || 'نشط') : (t('common.inactive') || 'غير نشط')}

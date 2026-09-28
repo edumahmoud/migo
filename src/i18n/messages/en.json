@@ -329,7 +329,8 @@
     "financial": "Financial Revenue",
     "payoutMethods": "Payout Methods",
     "payouts": "Payouts",
-    "payoutHistory": "Payout History"
+    "payoutHistory": "Payout History",
+    "financialManagement": "Financial Management"
   },
   "roles": {
     "student": "Student",

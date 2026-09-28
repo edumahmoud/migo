@@ -329,7 +329,8 @@
     "financial": "الإيرادات المالية",
     "payoutMethods": "وسائل الاستلام",
     "payouts": "المدفوعات",
-    "payoutHistory": "سجل المدفوعات"
+    "payoutHistory": "سجل المدفوعات",
+    "financialManagement": "الإيرادات المالية"
   },
   "roles": {
     "student": "طالب",
@@ -2864,7 +2865,7 @@
       "paid": "مدفوع",
       "settled": "تم التسوية",
       "refunded": "مسترد",
-      "reversed": "معكوس",
+      "reversed": "مرتجع",
       "pending": "قيد الانتظار",
       "failed": "فشل"
     },

@@ -581,9 +581,9 @@ export default function TeacherPayoutMethodsSection() {
                     ) : (
                       <Button
                         onClick={() => handleReenable(method.id)}
-                        variant="ghost"
+                        variant="default"
                         size="sm"
-                        className="h-8 text-xs text-emerald-600 hover:text-emerald-700"
+                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <Power className="h-3.5 w-3.5 me-1" />
                         {t('payoutMethods.actions.reenable')}
@@ -661,9 +661,11 @@ export default function TeacherPayoutMethodsSection() {
               selectedSchema.fields.map((field) => (
                 <div key={field.name} className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
-                    {t(`payoutMethods.fields.${field.name}`) !== `payoutMethods.fields.${field.name}`
-                      ? t(`payoutMethods.fields.${field.name}`)
-                      : field.label}
+                    {/* Prefer the schema's method-specific label (e.g., "اسم صاحب الحساب"
+                        for bank_account, "اسم صاحب البطاقة" for bank_card) over the
+                        generic i18n key ("اسم صاحب الوسيلة"). The schema labels are
+                        more contextually accurate per method type. */}
+                    {field.label}
                     {editingMethod && (
                       <span className="text-[10px] text-muted-foreground ms-1">
                         ({t('payoutMethods.dialog.leaveBlankToKeep')})
