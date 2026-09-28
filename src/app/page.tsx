@@ -520,46 +520,104 @@ function HomeContent() {
       // subscription immediately. This is a fallback for when the
       // webhook doesn't fire (common in sandbox/test mode).
       if (paymentCallback === 'success') {
-        // Paymob puts the transaction ID in `?id=xxx` query param
-        const paymobTxnId = url.searchParams.get('id') || new URLSearchParams(window.location.search).get('id');
-        // Try also `?txn_id=xxx` or `?transaction_id=xxx` (varies by API)
-        const txnId = paymobTxnId
-          || new URLSearchParams(window.location.search).get('txn_id')
-          || new URLSearchParams(window.location.search).get('transaction_id');
+        // Capture ALL URL params from the ORIGINAL redirect URL
+        // (before we deleted payment_callback above). Paymob adds
+        // its own params to the redirect URL — different params
+        // for different API versions (id, txn_id, transaction_id,
+        // order_id, merchant_order_id, hmac, success, etc.)
+        const originalUrl = new URL(window.location.href);
+        // Re-add payment_callback temporarily (we deleted it above)
+        // — actually we can just use the url object we already have.
+        // But that already had payment_callback deleted. Let's
+        // reconstruct from the original.
+        const allParams: Record<string, string> = {};
+        // We need to re-read the URL from history BEFORE our replaceState.
+        // Since we already replaced, the original params are gone from window.location.
+        // BUT — we saved them in `url` BEFORE the replaceState. However, we
+        // also called `delete('payment_callback')` on that. The other params
+        // are still there. Let's iterate url.searchParams.
+        url.searchParams.forEach((value, key) => {
+          allParams[key] = value;
+        });
 
-        if (txnId) {
-          console.info('[payment-callback] verifying payment via Paymob transaction API', { txnId });
-          import('@/lib/client-auth').then(async ({ getCachedAuthHeaders }) => {
-            try {
-              const headers = await getCachedAuthHeaders();
-              const res = await fetch('/api/student/orders/verify-after-redirect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...headers },
-                body: JSON.stringify({ paymobTransactionId: txnId }),
+        // Try to extract the transaction ID from multiple possible param names
+        const transactionId = allParams.id
+          || allParams.txn_id
+          || allParams.transaction_id
+          || allParams.txn;
+        const orderId = allParams.order_id
+          || allParams.orderid
+          || allParams.orderId;
+        const merchantOrderId = allParams.merchant_order_id
+          || allParams.merchant_order_id_v2
+          || allParams.merchant_order_id_z2
+          || allParams.merchantOrderId
+          || allParams.merchant_order_id_alias;
+
+        console.info('[payment-callback] URL params received from Paymob redirect:', {
+          allParams,
+          transactionId,
+          orderId,
+          merchantOrderId,
+        });
+
+        // Send ALL params to the backend (the backend will try
+        // multiple strategies to verify the payment)
+        const callVerify = async (attempt: number) => {
+          console.info(`[payment-callback] calling verify-after-redirect (attempt ${attempt})`);
+          try {
+            const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+            const headers = await getCachedAuthHeaders();
+            const res = await fetch('/api/student/orders/verify-after-redirect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...headers },
+              body: JSON.stringify({
+                transactionId,
+                orderId,
+                merchantOrderId,
+                urlParams: allParams,
+              }),
+            });
+            const json = await res.json();
+            console.info(`[payment-callback] verify-after-redirect response (attempt ${attempt}):`, json);
+
+            if (json.success) {
+              const { toast } = await import('sonner');
+              toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
+                duration: 5000,
               });
-              const json = await res.json();
-              if (json.success) {
-                import('sonner').then(({ toast }) => {
-                  toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
-                    duration: 5000,
-                  });
-                });
-                // Force a page refresh after 2 seconds so the
-                // student sees the activated courses
-                setTimeout(() => window.location.reload(), 2000);
-              } else if (res.status !== 404) {
-                // 404 = transaction not found (Paymob might not
-                // have processed it yet — give it a few seconds)
-                // Other errors → show to the user
-                console.warn('[payment-callback] verify-after-redirect failed', json);
-              }
-            } catch (err) {
-              console.error('[payment-callback] failed to call verify-after-redirect', err);
+              // Force a page refresh after 2 seconds so the
+              // student sees the activated courses
+              setTimeout(() => window.location.reload(), 2000);
+              return true;
             }
-          });
-        } else {
-          console.warn('[payment-callback] no transaction ID in URL — skipping verify-after-redirect');
-        }
+
+            // If pending, retry after 5s (up to 6 attempts = 30s total)
+            if (json.pending && attempt < 6) {
+              console.info(`[payment-callback] transaction still pending — retrying in 5s`);
+              setTimeout(() => callVerify(attempt + 1), 5000);
+              return false;
+            }
+
+            // Show error to user
+            const { toast } = await import('sonner');
+            toast.error(json.error || 'تعذّر تفعيل الاشتراك تلقائياً', {
+              duration: 8000,
+            });
+            return false;
+          } catch (err) {
+            console.error('[payment-callback] failed to call verify-after-redirect', err);
+            // Retry on network error
+            if (attempt < 6) {
+              setTimeout(() => callVerify(attempt + 1), 5000);
+            }
+            return false;
+          }
+        };
+
+        // Start the verification (with small initial delay to give
+        // Paymob time to finalize the transaction in their system)
+        setTimeout(() => callVerify(1), 2000);
       }
     }
   }, [searchParams, t]);
