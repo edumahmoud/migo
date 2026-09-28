@@ -27,6 +27,20 @@ import {
   Loader2, Users, Search, ChevronLeft, ChevronRight,
   Wallet, DollarSign, Clock, CheckCircle2, X, Eye, EyeOff,
 } from 'lucide-react';
+
+// Arabic labels for payout method detail fields
+const FIELD_LABELS_AR: Record<string, string> = {
+  wallet_number: 'رقم المحفظة',
+  bank_name: 'اسم البنك',
+  account_number: 'رقم الحساب',
+  iban: 'IBAN',
+  holder_name: 'اسم صاحب الحساب',
+  last4: 'آخر 4 أرقام',
+  card_brand: 'نوع البطاقة',
+  expiry_month: 'شهر الانتهاء',
+  expiry_year: 'سنة الانتهاء',
+  recipient_identifier: 'معرّف المستلم',
+};
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
@@ -396,13 +410,13 @@ export default function AdminTeachersSection() {
                               <span className="text-xs text-muted-foreground ms-2">({pm.method_type})</span>
                               {/* Show masked by default, full details when admin clicks "show details" */}
                               {pm.details ? (
-                                <div className="text-xs font-mono space-y-0.5 mt-1 bg-muted/30 rounded p-2">
+                                <div className="text-xs space-y-1 mt-1 bg-muted/30 rounded p-2">
                                   {Object.entries(pm.details)
                                     .filter(([k]) => k !== 'method_type')
                                     .map(([key, val]) => (
                                       <div key={key} className="flex justify-between gap-2">
-                                        <span className="text-muted-foreground">{key}:</span>
-                                        <span className="font-semibold break-all text-end">{String(val)}</span>
+                                        <span className="text-muted-foreground">{FIELD_LABELS_AR[key] ?? key}:</span>
+                                        <span className="font-semibold break-all text-end" dir="ltr">{String(val)}</span>
                                       </div>
                                     ))}
                                 </div>
