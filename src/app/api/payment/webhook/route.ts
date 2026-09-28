@@ -110,8 +110,22 @@ export async function POST(request: NextRequest) {
   const provider = request.nextUrl.searchParams.get('provider');
   const gatewayIdFromUrl = request.nextUrl.searchParams.get('gateway_id');
 
+  // ── Top-level diagnostic log ──
+  // This confirms the webhook endpoint is being reached by Paymob.
+  // If you don't see this log in Vercel after a payment, the webhook
+  // URL is NOT configured in Paymob Dashboard.
+  console.error(`[webhook:debug] received callback`, {
+    provider,
+    gatewayIdFromUrl,
+    url: request.nextUrl.pathname + request.nextUrl.search,
+    method: request.method,
+    hasBody: true,
+    timestamp: new Date().toISOString(),
+  });
+
   if (!gatewayIdFromUrl && !provider) {
     // Can't identify the caller — reject
+    console.error('[webhook:debug] rejecting — missing provider or gateway_id');
     return NextResponse.json(
       { success: false, error: 'Missing provider or gateway_id query parameter' },
       { status: 400 },
@@ -174,12 +188,28 @@ export async function POST(request: NextRequest) {
   //      - resolvedGatewayId undefined → resolveDefaultGateway() (Priority 3)
   let webhookResult;
   try {
+    console.error('[webhook:debug] calling PaymentService.handleWebhook', {
+      resolvedGatewayId,
+      rawBodyLength: rawBody.length,
+      rawBodyPreview: rawBody.slice(0, 500),
+    });
     webhookResult = await PaymentService.handleWebhook(
       { rawBody, headers },
       resolvedGatewayId,
     );
+    console.error('[webhook:debug] HMAC verification OK + callback parsed', {
+      orderId: webhookResult.orderId,
+      status: webhookResult.status,
+      amount: webhookResult.amount,
+      currency: webhookResult.currency,
+      providerTransactionId: webhookResult.providerTransactionId,
+    });
   } catch (err) {
     // HMAC failure, gateway not found, gateway disabled, etc.
+    console.error('[webhook:debug] HMAC verification OR adapter error', {
+      error: err instanceof Error ? err.message : String(err),
+      errorCode: isPaymentError(err) ? err.code : 'UNKNOWN',
+    });
     logPaymentEvent({
       level: 'error',
       operation: 'handleWebhook',
