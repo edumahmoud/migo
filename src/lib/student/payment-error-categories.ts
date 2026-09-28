@@ -176,10 +176,12 @@ export function categorizePaymentError(
           underlyingCode: code,
         };
       }
+      // Extract the Paymob HTTP status code from the error message
+      // (e.g., "Paymob API request failed (HTTP 403)" → 403)
+      const paymobHttpStatus = e.message.match(/HTTP (\d+)/)?.[1];
       return {
         category: 'PAYMOB_API_REJECTED',
-        userMessageAr:
-          'تعذّر تجهيز عملية الدفع. لم يتم خصم أي مبلغ. حاول مرة أخرى.',
+        userMessageAr: `تعذّر تجهيز عملية الدفع${paymobHttpStatus ? ` (خطأ ${paymobHttpStatus} من بوابة الدفع)` : ''}. لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى.`,
         httpStatus: 502,
         underlyingCode: code,
       };

@@ -211,8 +211,17 @@ export default function StudentActivationPage() {
         );
 
         if (paidOrders.length === 0) {
-          // All free courses — show the existing success toast
-          toast.success(json.message || 'تم إنشاء الطلبات');
+          // No NEW paid orders were created. Check if any were skipped
+          // (already had pending orders from a previous attempt):
+          const skippedSubjectIds: string[] = Array.isArray(json.skipped) ? json.skipped : [];
+          if (skippedSubjectIds.length > 0) {
+            // Orders already exist for these subjects — show a message
+            // telling the user to complete payment from the pending list
+            toast.info('لديك طلبات معلّقة. استكمل الدفع من قائمة "قيد الدفع" أدناه.');
+          } else {
+            // All free courses — show the existing success toast
+            toast.success(json.message || 'تم إنشاء الطلبات');
+          }
         } else if (paidOrders.length === 1) {
           // Single paid order — open the single-order Payment Summary
           const o = paidOrders[0];

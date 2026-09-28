@@ -514,7 +514,11 @@ export function getPaymentActionErrorMessage(
     case 'GATEWAY_CONFIG_INVALID':
       return 'تعذّر قراءة إعدادات بوابة الدفع. تواصل مع المسؤول لإعادة التهيئة.';
     case 'PAYMOB_API_REJECTED':
-      return 'تعذّر تجهيز عملية الدفع. لم يتم خصم أي مبلغ. حاول مرة أخرى.';
+      // Use the server's categorized message if available (includes HTTP status)
+      if (err.serverError && /[\u0600-\u06FF]/.test(err.serverError)) {
+        return err.serverError;
+      }
+      return 'تعذّر تجهيز عملية الدفع. لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى.';
     case 'PAYMOB_NETWORK_FAILURE':
       return 'تعذّر الاتصال ببوابة الدفع. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
     case 'PAYMOB_RESPONSE_INVALID':
