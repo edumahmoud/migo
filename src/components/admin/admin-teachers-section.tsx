@@ -25,7 +25,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Users, Search, ChevronLeft, ChevronRight,
-  Wallet, DollarSign, Clock, CheckCircle2, X, Eye,
+  Wallet, DollarSign, Clock, CheckCircle2, X, Eye, EyeOff,
 } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -353,6 +353,19 @@ export default function AdminTeachersSection() {
                           variant="outline"
                           className="h-7 text-xs"
                           onClick={async () => {
+                            // Toggle: if already showing full details, hide them (revert to masked)
+                            if (teacherDetail.show_full_details) {
+                              setTeacherDetail((prev: Record<string, unknown> | null) => ({
+                                ...prev,
+                                show_full_details: false,
+                                payout_methods: (prev as { payout_methods?: unknown[] })?.payout_methods?.map((pm: any) => ({
+                                  ...pm,
+                                  details: null, // clear full details → show masked again
+                                })),
+                              }));
+                              return;
+                            }
+                            // Otherwise fetch + show full details
                             try {
                               const res = await fetch(`/api/admin/teachers/${selectedTeacherId}/payout-details`, { headers: await getCachedAuthHeaders() });
                               const json = await res.json();
@@ -364,8 +377,11 @@ export default function AdminTeachersSection() {
                             } catch (e) { toast.error('Failed'); }
                           }}
                         >
-                          <Eye className="h-3 w-3 me-1" />
-                          {t('admin.showTransferDetails') || 'عرض تفاصيل التحويل'}
+                          {teacherDetail.show_full_details ? (
+                            <><EyeOff className="h-3 w-3 me-1" />إخفاء التفاصيل</>
+                          ) : (
+                            <><Eye className="h-3 w-3 me-1" />{t('admin.showTransferDetails') || 'عرض تفاصيل التحويل'}</>
+                          )}
                         </Button>
                       )}
                     </div>
