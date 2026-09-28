@@ -206,16 +206,22 @@ export function buildMaskedSummaryForMethod(
     }
 
     case 'bank_card': {
-      // After Phase 13 Step 1, bank_card stores only `last4` (no full PAN).
-      // The masked summary uses last4 directly — no need to mask further
-      // (last4 is already safe to display). The bullets are decorative.
+      // Now stores `card_number` (full PAN, encrypted). Extract last4
+      // from it for the masked summary. If only last4 is present
+      // (legacy), use that directly.
+      const cardNumber =
+        typeof details.card_number === 'string' ? details.card_number : null;
       const last4 =
         typeof details.last4 === 'string' ? details.last4 : null;
       const cardBrand =
         typeof details.card_brand === 'string' && details.card_brand.trim() !== ''
           ? details.card_brand.trim().toUpperCase()
           : null;
-      const cardPart = last4 ? maskCardNumber(last4) : '••••';
+      // Extract last4 from card_number if available, else use explicit last4
+      const effectiveLast4 = cardNumber
+        ? cardNumber.replace(/\D/g, '').slice(-4)
+        : last4;
+      const cardPart = effectiveLast4 ? maskCardNumber(effectiveLast4) : '••••';
       const brandPart = cardBrand ? ` • ${cardBrand}` : '';
       return `${cardPart}${brandPart} • ${holder}`;
     }

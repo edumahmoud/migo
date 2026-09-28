@@ -84,15 +84,15 @@ describe('Phase 13 Step 1 — A. Discriminated Union', () => {
     expect(walletDetails.wallet_number).toBe(VALID_WALLET_PHONE);
 
     const cardDetails = coercePayoutMethodDetails('bank_card', {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
     });
     expect(cardDetails.method_type).toBe('bank_card');
-    expect(cardDetails.last4).toBe(VALID_LAST4);
-    // Type narrowing proof: TS knows BankCardDetails here (no cast)
-    expect((cardDetails as BankCardDetails).last4).toBe(VALID_LAST4);
+    expect((cardDetails as BankCardDetails).card_number).toBe('4111111111111111');
+    // last4 is auto-extracted from card_number
+    expect((cardDetails as BankCardDetails).last4).toBe('1111');
   });
 
   // Test 2: narrowing by method_type works correctly (no casts needed)
@@ -100,7 +100,7 @@ describe('Phase 13 Step 1 — A. Discriminated Union', () => {
     const variants: PayoutMethodDetails[] = [
       coercePayoutMethodDetails('wallet', { wallet_number: VALID_WALLET_PHONE, holder_name: 'A' }),
       coercePayoutMethodDetails('bank_account', { bank_name: 'B', iban: 'EG1100006000010000123456789012', holder_name: 'C' }),
-      coercePayoutMethodDetails('bank_card', { last4: VALID_LAST4, expiry_month: '12', expiry_year: '28', holder_name: 'D' }),
+      coercePayoutMethodDetails('bank_card', { card_number: '4111111111111111', expiry_month: '12', expiry_year: '28', holder_name: 'D' }),
       coercePayoutMethodDetails('instapay', { recipient_identifier: 'mahmoud@instapay', holder_name: 'E' }),
     ];
 
@@ -118,10 +118,10 @@ describe('Phase 13 Step 1 — A. Discriminated Union', () => {
           break;
         case 'bank_card':
           // TS narrows d to BankCardDetails
+          expect(typeof d.card_number).toBe('string');
+          // last4 is auto-extracted
           expect(typeof d.last4).toBe('string');
-          expect(d.last4).toMatch(LAST4_REGEX);
-          // NO card_number, NO cvv, NO provider_token in this variant
-          expect((d as BankCardDetails & { card_number?: string }).card_number).toBeUndefined();
+          // NO cvv, NO provider_token in this variant
           expect((d as BankCardDetails & { cvv?: string }).cvv).toBeUndefined();
           expect((d as BankCardDetails & { provider_token?: string }).provider_token).toBeUndefined();
           break;
@@ -166,7 +166,7 @@ describe('Phase 13 Step 1 — A. Discriminated Union', () => {
       id: '2', method_type: 'bank_card', display_label: 'C', details_masked: 'm',
       is_active: true, is_default: false, verified_at: null, verified_by: null,
       created_at: '2026', updated_at: '2026',
-      details: coercePayoutMethodDetails('bank_card', { last4: VALID_LAST4, expiry_month: '12', expiry_year: '28', holder_name: 'M' }),
+      details: coercePayoutMethodDetails('bank_card', { card_number: '4111111111111111', expiry_month: '12', expiry_year: '28', holder_name: 'M' }),
     };
     expect(cardResolved.details.method_type).toBe('bank_card');
   });
@@ -177,11 +177,11 @@ describe('Phase 13 Step 1 — A. Discriminated Union', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
-  // Test 3: bank_card accepts last4
-  it('bank_card schema accepts valid last4 + expiry + holder_name', () => {
+  // Test 3: bank_card accepts card_number + expiry + holder_name
+  it('bank_card schema accepts valid card_number + expiry + holder_name', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     const errors = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
@@ -189,24 +189,24 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
     expect(errors).toEqual([]);
   });
 
-  // Test 4: bank_card REJECTS card_number field if client tries to send it
-  it('bank_card validation REJECTS card_number field (PAN must not be stored)', () => {
+  // Test 4: bank_card ACCEPTS card_number (it's now required + encrypted)
+  it('bank_card validation ACCEPTS card_number field', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     const errors = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
-      card_number: VALID_CARD_PAN,  // <-- forbidden field
+      card_number: '4111111111111111',
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
     });
-    expect(errors.some((e) => e.includes('card_number') && e.includes('ممنوع'))).toBe(true);
+    // card_number is now a valid field — no errors about it
+    expect(errors.some((e) => e.includes('card_number') && e.includes('ممنوع'))).toBe(false);
   });
 
   // Test 5: bank_card REJECTS cvv / cvc / security_code fields
   it('bank_card validation REJECTS cvv / cvc / security_code fields', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     const errorsCvv = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       cvv: '123',
       expiry_month: '12',
       expiry_year: '28',
@@ -215,7 +215,7 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
     expect(errorsCvv.some((e) => e.includes('cvv') && e.includes('ممنوع'))).toBe(true);
 
     const errorsCvc = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       cvc: '123',
       expiry_month: '12',
       expiry_year: '28',
@@ -224,7 +224,7 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
     expect(errorsCvc.some((e) => e.includes('cvc') && e.includes('ممنوع'))).toBe(true);
 
     const errorsSecurityCode = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       security_code: '123',
       expiry_month: '12',
       expiry_year: '28',
@@ -237,7 +237,7 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
   it('bank_card validation REJECTS provider_token (belongs to PayoutProvider, NOT Payout Method)', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     const errors = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       provider_token: 'tok_xxx',
       expiry_month: '12',
       expiry_year: '28',
@@ -247,12 +247,14 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
   });
 
   // Test 7: bank_card schema has NO forbidden fields declared
-  it('bank_card schema has card_number (optional) + last4, but NO cvv/provider_token', () => {
+  it('bank_card schema has card_number (required), NO last4 field, NO cvv/provider_token', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     expect(schema).toBeDefined();
     const fieldNames = schema.fields.map((f) => f.name);
-    // card_number is now ALLOWED (optional — stored encrypted, masked in display)
+    // card_number is REQUIRED (stored encrypted, masked in display)
     expect(fieldNames).toContain('card_number');
+    // last4 field is REMOVED (auto-extracted from card_number)
+    expect(fieldNames).not.toContain('last4');
     // CVV / provider_token are STILL forbidden
     expect(fieldNames).not.toContain('pan');
     expect(fieldNames).not.toContain('cvv');
@@ -261,49 +263,30 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
     expect(fieldNames).not.toContain('provider_token');
 
     // Required fields ARE present:
-    expect(fieldNames).toContain(FIELD_NAMES.last4);
     expect(fieldNames).toContain(FIELD_NAMES.expiryMonth);
     expect(fieldNames).toContain(FIELD_NAMES.expiryYear);
     expect(fieldNames).toContain(FIELD_NAMES.holderName);
     expect(fieldNames).toContain(FIELD_NAMES.cardBrand);
   });
 
-  // Test 8: bank_card last4 must be exactly 4 digits
-  it('bank_card validation: last4 must be exactly 4 digits', () => {
+  // Test 8: bank_card card_number is required
+  it('bank_card validation: card_number is required', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
-    // 3 digits — too short
-    const errorsShort = validatePayoutMethodDetails(schema, {
-      last4: '123',
+    // Missing card_number → required error
+    const errors = validatePayoutMethodDetails(schema, {
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'M. A.',
     });
-    expect(errorsShort.some((e) => e.includes('الصيغة') || e.includes('format'))).toBe(true);
-
-    // 5 digits — too long
-    const errorsLong = validatePayoutMethodDetails(schema, {
-      last4: '12345',
-      expiry_month: '12',
-      expiry_year: '28',
-      holder_name: 'M. A.',
-    });
-    expect(errorsLong.some((e) => e.includes('الصيغة') || e.includes('format'))).toBe(true);
-
-    // Alphanumeric — invalid
-    const errorsAlpha = validatePayoutMethodDetails(schema, {
-      last4: 'abcd',
-      expiry_month: '12',
-      expiry_year: '28',
-      holder_name: 'M. A.',
-    });
-    expect(errorsAlpha.some((e) => e.includes('الصيغة') || e.includes('format'))).toBe(true);
+    // card_number is required → should produce a missing-field error
+    expect(errors.length).toBeGreaterThan(0);
   });
 
   // Test 9: bank_card card_brand is optional + accepts free text
   it('bank_card validation: card_brand is optional', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     const errors = validatePayoutMethodDetails(schema, {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       // card_brand not provided
       expiry_month: '12',
       expiry_year: '28',
@@ -312,19 +295,19 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
     expect(errors).toEqual([]);
   });
 
-  // Test 10: PAN never stored — coercePayoutMethodDetails ignores legacy card_number
-  it('coercePayoutMethodDetails IGNORES legacy card_number in raw blob (no PAN leak)', () => {
-    const legacyRaw = {
-      card_number: VALID_CARD_PAN,  // legacy field — should NOT leak
-      last4: VALID_LAST4,
+  // Test 10: coercePayoutMethodDetails INCLUDES card_number (stored encrypted)
+  it('coercePayoutMethodDetails INCLUDES card_number in typed output', () => {
+    const raw = {
+      card_number: '4111111111111111',
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
     };
-    const typed = coercePayoutMethodDetails('bank_card', legacyRaw);
+    const typed = coercePayoutMethodDetails('bank_card', raw);
     expect(typed.method_type).toBe('bank_card');
-    expect(typed.last4).toBe(VALID_LAST4);
-    expect((typed as BankCardDetails & { card_number?: string }).card_number).toBeUndefined();
+    expect((typed as BankCardDetails).card_number).toBe('4111111111111111');
+    // last4 is auto-extracted from card_number
+    expect((typed as BankCardDetails).last4).toBe('1111');
     expect((typed as BankCardDetails & { cvv?: string }).cvv).toBeUndefined();
     expect((typed as BankCardDetails & { provider_token?: string }).provider_token).toBeUndefined();
   });
@@ -345,26 +328,27 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
   // Test 12: buildMaskedSummaryForMethod('bank_card', ...) uses last4
   it('buildMaskedSummaryForMethod: bank_card summary uses last4, no PAN leak', () => {
     const summary = buildMaskedSummaryForMethod('bank_card', {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
     });
-    expect(summary).toContain(VALID_LAST4);
+    // Summary should contain the last4 (1111), not the full card_number
+    expect(summary).toContain('1111');
     expect(summary).toContain('M. A.');
-    expect(summary).not.toContain(VALID_CARD_PAN);
-    expect(summary).not.toContain('4111');
+    // Summary should NOT contain the full PAN
+    expect(summary).not.toContain('4111111111111111');
   });
 
   it('buildMaskedSummaryForMethod: bank_card with card_brand shows brand', () => {
     const summary = buildMaskedSummaryForMethod('bank_card', {
-      last4: VALID_LAST4,
+      card_number: '4111111111111111',
       card_brand: 'Visa',
       expiry_month: '12',
       expiry_year: '28',
       holder_name: 'Mahmoud Ahmed',
     });
-    expect(summary).toContain(VALID_LAST4);
+    expect(summary).toContain('1111');
     expect(summary).toContain('VISA');
     expect(summary).toContain('M. A.');
   });
@@ -447,7 +431,7 @@ describe('Phase 13 Step 1 — Cross-cutting invariants', () => {
 
   it('encryption key is configured + encrypt/decrypt roundtrip', () => {
     expect(isEncryptionKeyConfigured()).toBe(true);
-    const details = { last4: VALID_LAST4, expiry_month: '12', holder_name: 'M. A.' };
+    const details = { card_number: '4111111111111111', expiry_month: '12', holder_name: 'M. A.' };
     const encrypted = encrypt(details);
     expect(encrypted).not.toContain(VALID_LAST4);
     expect(encrypted).not.toContain('M. A.');
@@ -458,7 +442,7 @@ describe('Phase 13 Step 1 — Cross-cutting invariants', () => {
   it('fails safe when encryption key is missing', () => {
     delete process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY;
     expect(isEncryptionKeyConfigured()).toBe(false);
-    expect(() => encrypt({ last4: VALID_LAST4 })).toThrow();
+    expect(() => encrypt({ card_number: '4111111111111111' })).toThrow();
     process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY = 'a'.repeat(64);
   });
 

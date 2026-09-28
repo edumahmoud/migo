@@ -32,11 +32,13 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
   const { id: teacherId } = await ctx.params;
 
-  // 1. Fetch all payout method IDs for this teacher
+  // 1. Fetch all ACTIVE payout method IDs for this teacher
+  //    (disabled methods are not usable for transfers — skip them)
   const { data: methodRows, error: methodsErr } = await supabaseServer
     .from('teacher_payout_methods')
     .select('id, method_type, display_label, details_masked, is_active, is_default, verified_at')
     .eq('teacher_id', teacherId)
+    .eq('is_active', true)  // Only active methods
     .order('is_default', { ascending: false })
     .order('created_at', { ascending: false });
 

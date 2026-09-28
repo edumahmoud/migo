@@ -54,7 +54,8 @@ export const FIELD_NAMES = {
   bankName: 'bank_name',
   accountNumber: 'account_number',
   iban: 'iban',
-  // bank_card — NO card_number after Phase 13 Step 1
+  // bank_card
+  cardNumber: 'card_number',
   last4: 'last4',
   cardBrand: 'card_brand',
   expiryMonth: 'expiry_month',
@@ -141,8 +142,13 @@ export interface BankAccountDetails {
  */
 export interface BankCardDetails {
   method_type: 'bank_card';
-  /** Last 4 digits of the card PAN. Safe to display in masked UI. */
-  last4: string;
+  /** Full card number (PAN). Stored ENCRYPTED (AES-256-GCM). Never
+   * displayed in full — the masked summary shows only last4. */
+  card_number: string;
+  /** Last 4 digits extracted from card_number at creation time.
+   * Safe to display in masked UI. If card_number changes, last4
+   * is re-extracted. */
+  last4?: string;
   /** Optional card brand label (e.g., 'Visa', 'Mastercard'). Free
    * text — the teacher can type it; the future Payout Provider can
    * validate / normalize it. Not provider-specific. */
@@ -150,10 +156,9 @@ export interface BankCardDetails {
   expiry_month: string;
   expiry_year: string;
   holder_name: string;
-  // EXPLICITLY ABSENT FIELDS (per Phase 13 Step 1):
-  //   - card_number (the full PAN) — REMOVED. Never stored.
+  // EXPLICITLY ABSENT FIELDS:
   //   - cvv / cvc / security_code — REMOVED. Used at execution time only.
-  //   - provider_token — NOT HERE. Belongs to PayoutProvider (Phase 13 Step 10).
+  //   - provider_token — NOT HERE. Belongs to PayoutProvider.
 }
 
 /** InstaPay method details — flexible recipient identifier + holder_name. */
@@ -287,25 +292,13 @@ schemas.set('bank_card', {
   displayName: 'payoutMethods.providers.bankCard',
   fields: [
     {
-      name: 'card_number',
-      label: 'رقم البطاقة كامل',
+      name: FIELD_NAMES.cardNumber,
+      label: 'رقم البطاقة',
       type: 'text',
-      required: false, // alternative: either card_number OR last4
+      required: true,
       maxLength: 19,
-      placeholder: '4111 1111 1111 1111',
-      helpText: 'رقم البطاقة كامل — يُخزّن مشفّرًا، ويظهر آخر 4 أرقام فقط في العرض',
-      alternativeGroup: 'card_identifier',
-    },
-    {
-      name: FIELD_NAMES.last4,
-      label: 'آخر 4 أرقام من البطاقة',
-      type: 'text',
-      required: false, // alternative: either card_number OR last4
-      pattern: LAST4_REGEX.source,
-      maxLength: 4,
-      placeholder: '5678',
-      helpText: 'أدخل آخر 4 أرقام فقط، أو أدخل الرقم كامل أعلاه',
-      alternativeGroup: 'card_identifier',
+      placeholder: 'xxxx xxxx xxxx xxxx',
+      helpText: 'رقم البطاقة كامل — يُخزّن مشفّرًا ويظهر آخر 4 أرقام فقط في العرض',
     },
     {
       name: FIELD_NAMES.cardBrand,
@@ -430,14 +423,11 @@ export function validatePayoutMethodDetails(
     return ['البيانات مفقودة'];
   }
 
-  // ─── 1. For bank_card: REJECT forbidden fields (PAN, CVV, token) ───
-  // This is a defense-in-depth check — the schema doesn't even
-  // declare these fields, but if a client tries to send them, we
-  // reject them explicitly to avoid accidentally storing sensitive
-  // data via extra-field pass-through.
+  // ─── 1. For bank_card: REJECT forbidden fields (CVV, token) ───
+  // card_number is NOW ALLOWED (it's in the schema fields, stored encrypted).
+  // Only CVV/CVC/security_code/provider_token are still forbidden.
   if (schema.methodType === 'bank_card') {
     const FORBIDDEN_FIELDS = [
-      'card_number',
       'pan',
       'cvv',
       'cvc',
@@ -563,12 +553,14 @@ export function coercePayoutMethodDetails(
       };
 
     case 'bank_card': {
-      // EXPLICITLY EXCLUDE card_number, cvv, provider_token from the
-      // typed output — even if they happen to be present in the raw
-      // blob (legacy data), we do NOT surface them via the typed union.
+      // Include card_number in the typed output (stored encrypted).
+      // Also extract last4 from card_number if not explicitly provided.
+      const cardNumber = str(r[FIELD_NAMES.cardNumber]);
+      const last4 = cardNumber ? cardNumber.replace(/\D/g, '').slice(-4) : str(r[FIELD_NAMES.last4]);
       return {
         method_type: 'bank_card',
-        last4: str(r[FIELD_NAMES.last4]),
+        card_number: cardNumber,
+        last4,
         card_brand: optStr(r[FIELD_NAMES.cardBrand]),
         expiry_month: str(r[FIELD_NAMES.expiryMonth]),
         expiry_year: str(r[FIELD_NAMES.expiryYear]),

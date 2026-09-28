@@ -39,10 +39,13 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   }
 
   // 2. Fetch payout methods (masked only — NEVER expose encrypted details)
+  //    Only show ACTIVE methods to the admin (disabled methods are not
+  //    usable for transfers — no need to clutter the admin view).
   const { data: payoutMethods } = await supabaseServer
     .from('teacher_payout_methods')
     .select('id, method_type, display_label, details_masked, is_active, is_default, verified_at, verified_by, created_at, updated_at')
     .eq('teacher_id', teacherId)
+    .eq('is_active', true)  // Only active methods
     .order('created_at', { ascending: false });
 
   // 3. Fetch financial summary from financial_ledger
