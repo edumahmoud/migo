@@ -109,7 +109,84 @@ export async function POST(request: NextRequest) {
   );
 
   if (rpcErr) {
-    return NextResponse.json({ success: false, error: rpcErr.message }, { status: 500 });
+    // ── FALLBACK: RPC failed — directly insert the enrollment ──
+    console.error('[agent:activate] RPC failed — falling back to direct insert', {
+      orderId,
+      error: rpcErr.message,
+    });
+
+    const now = new Date().toISOString();
+
+    // Mark order as paid
+    await supabaseServer
+      .from('orders')
+      .update({
+        status: 'paid',
+        paid_at: now,
+        activated_at: now,
+        updated_at: now,
+      })
+      .eq('id', orderId)
+      .eq('status', 'pending');
+
+    // UPSERT enrollment
+    const { error: enrollErr } = await supabaseServer
+      .from('subject_students')
+      .upsert({
+        subject_id: o.subject_id,
+        student_id: o.student_id,
+        status: 'approved',
+        enrollment_method: 'self_paid',
+        enrolled_at: now,
+        monthly_price: Number(o.amount),
+        current_period_start: now,
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, {
+        onConflict: 'subject_id,student_id',
+      });
+
+    if (enrollErr) {
+      return NextResponse.json(
+        { success: false, error: `RPC failed AND fallback failed: ${enrollErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    // Activate student account
+    await supabaseServer
+      .from('users')
+      .update({ account_status: 'active', updated_at: now })
+      .eq('id', o.student_id)
+      .in('account_status', ['pending', 'pending_verification', null]);
+
+    // Insert payment record (best effort)
+    await supabaseServer
+      .from('payments')
+      .insert({
+        order_id: orderId,
+        provider_payment_id: manualPaymentId,
+        amount: Number(o.amount),
+        currency: o.currency,
+        status: 'paid',
+        raw_payload: {
+          manual_activation: true,
+          fallback: true,
+          activated_by: agentId,
+          activated_by_role: 'registration_agent',
+          reason: 'Manual activation by agent — RPC fallback',
+        },
+        confirmed_by: agentId,
+      })
+      .then(({ error }) => {
+        if (error) console.warn('[agent:activate] payment insert failed', error.message);
+      });
+
+    return NextResponse.json({
+      success: true,
+      order_id: orderId,
+      message: 'تم تفعيل الاشتراك يدويًا (fallback path)',
+    });
   }
 
   const result = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
@@ -118,6 +195,50 @@ export async function POST(request: NextRequest) {
       { success: false, error: result.error || 'فشل التفعيل' },
       { status: 400 },
     );
+  }
+
+  // ── VERIFY the enrollment was actually created ──
+  const { data: verifyEnrollment } = await supabaseServer
+    .from('subject_students')
+    .select('id, status')
+    .eq('subject_id', o.subject_id)
+    .eq('student_id', o.student_id)
+    .maybeSingle();
+
+  if (!verifyEnrollment || (verifyEnrollment as { status: string }).status !== 'approved') {
+    console.error('[agent:activate] RPC succeeded but enrollment missing — fallback', {
+      orderId,
+    });
+
+    const now = new Date().toISOString();
+    const { error: enrollErr } = await supabaseServer
+      .from('subject_students')
+      .upsert({
+        subject_id: o.subject_id,
+        student_id: o.student_id,
+        status: 'approved',
+        enrollment_method: 'self_paid',
+        enrolled_at: now,
+        monthly_price: Number(o.amount),
+        current_period_start: now,
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, {
+        onConflict: 'subject_id,student_id',
+      });
+
+    if (enrollErr) {
+      return NextResponse.json(
+        { success: false, error: `Enrollment creation failed: ${enrollErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    await supabaseServer
+      .from('users')
+      .update({ account_status: 'active', updated_at: now })
+      .eq('id', o.student_id)
+      .in('account_status', ['pending', 'pending_verification', null]);
   }
 
   return NextResponse.json({

@@ -99,15 +99,157 @@ export async function POST(request: NextRequest) {
   );
 
   if (rpcErr) {
-    return NextResponse.json({ success: false, error: rpcErr.message }, { status: 500 });
+    // ── FALLBACK: RPC failed — directly insert the enrollment ──
+    // This happens when the RPC has issues (missing columns, etc.)
+    // We bypass the RPC and do the work directly:
+    //   1. Mark order as paid
+    //   2. UPSERT subject_students enrollment
+    //   3. Activate student account
+    console.error('[teacher:activate] RPC failed — falling back to direct insert', {
+      orderId,
+      error: rpcErr.message,
+    });
+
+    const now = new Date().toISOString();
+
+    // Mark order as paid
+    await supabaseServer
+      .from('orders')
+      .update({
+        status: 'paid',
+        paid_at: now,
+        activated_at: now,
+        updated_at: now,
+      })
+      .eq('id', orderId)
+      .eq('status', 'pending');
+
+    // UPSERT enrollment (status='approved')
+    const { error: enrollmentErr } = await supabaseServer
+      .from('subject_students')
+      .upsert({
+        subject_id: o.subject_id,
+        student_id: o.student_id,
+        status: 'approved',
+        enrollment_method: 'self_paid',
+        enrolled_at: now,
+        monthly_price: Number(o.amount),
+        current_period_start: now,
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, {
+        onConflict: 'subject_id,student_id',
+      });
+
+    if (enrollmentErr) {
+      console.error('[teacher:activate] fallback enrollment insert failed', {
+        orderId,
+        error: enrollmentErr.message,
+      });
+      return NextResponse.json(
+        { success: false, error: `RPC failed AND fallback enrollment insert failed: ${enrollmentErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    // Activate student account (if pending)
+    await supabaseServer
+      .from('users')
+      .update({ account_status: 'active', updated_at: now })
+      .eq('id', o.student_id)
+      .in('account_status', ['pending', 'pending_verification', null]);
+
+    // Insert payment record (best effort — non-critical)
+    await supabaseServer
+      .from('payments')
+      .insert({
+        order_id: orderId,
+        provider_payment_id: manualPaymentId,
+        amount: Number(o.amount),
+        currency: o.currency,
+        status: 'paid',
+        raw_payload: {
+          manual_activation: true,
+          fallback: true,
+          activated_by: teacherId,
+          reason: 'Manual activation by teacher — RPC fallback path',
+        },
+        confirmed_by: teacherId,
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.warn('[teacher:activate] payment insert failed (non-critical)', error.message);
+        }
+      });
+
+    return NextResponse.json({
+      success: true,
+      order_id: orderId,
+      message: 'تم تفعيل الاشتراك يدويًا (fallback path)',
+    });
   }
 
   const result = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
   if (result.success === false) {
     return NextResponse.json(
-      { success: false, error: result.error || 'فشل التفعيل' },
+      { success: false, error: result.error || 'فشل التفغيل' },
       { status: 400 },
     );
+  }
+
+  // ── VERIFY the enrollment was actually created ──
+  // The RPC might return success but not create the enrollment (rare bug
+  // or schema mismatch). Check + fallback to direct INSERT if needed.
+  const { data: verifyEnrollment } = await supabaseServer
+    .from('subject_students')
+    .select('id, status')
+    .eq('subject_id', o.subject_id)
+    .eq('student_id', o.student_id)
+    .maybeSingle();
+
+  if (!verifyEnrollment || (verifyEnrollment as { status: string }).status !== 'approved') {
+    console.error('[teacher:activate] RPC succeeded but enrollment missing/not approved — falling back to direct insert', {
+      orderId,
+      verifyEnrollment,
+    });
+
+    const now = new Date().toISOString();
+    const { error: enrollErr } = await supabaseServer
+      .from('subject_students')
+      .upsert({
+        subject_id: o.subject_id,
+        student_id: o.student_id,
+        status: 'approved',
+        enrollment_method: 'self_paid',
+        enrolled_at: now,
+        monthly_price: Number(o.amount),
+        current_period_start: now,
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, {
+        onConflict: 'subject_id,student_id',
+      });
+
+    if (enrollErr) {
+      console.error('[teacher:activate] verify-fallback enrollment insert failed', enrollErr);
+      return NextResponse.json(
+        { success: false, error: `Enrollment creation failed: ${enrollErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    // Also activate student account (if pending)
+    await supabaseServer
+      .from('users')
+      .update({ account_status: 'active', updated_at: now })
+      .eq('id', o.student_id)
+      .in('account_status', ['pending', 'pending_verification', null]);
+
+    return NextResponse.json({
+      success: true,
+      order_id: orderId,
+      message: 'تم تفعيل الاشتراك (verify-fallback path)',
+    });
   }
 
   return NextResponse.json({
