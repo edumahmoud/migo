@@ -568,17 +568,27 @@ function HomeContent() {
   // ─── Shared sign-out handler ───
   // MUST be defined before any early returns to obey React's Rules of Hooks.
   // Previously this was after early returns, causing hook count mismatch.
-  const handleSignOut = useCallback(() => {
+  const handleSignOut = useCallback(async () => {
+    // 1. Immediately switch UI to auth page (instant feedback)
     setCurrentPage('auth');
+    // 2. Clean up websocket, status store, notifications
     destroySocket();
     cleanupStatusStore();
     cleanupNotifications();
+    // 3. Clear persisted app state from localStorage
     try { localStorage.removeItem('attendo-app-store'); } catch {}
     resetAppStore();
+    // 4. AWAIT signOut — clears the Supabase session cookie.
+    //    WITHOUT await, the cookie persists → on refresh the user is
+    //    re-hydrated from the cookie → still logged in → sees dashboard.
     try {
-      signOut();
+      await signOut();
     } catch (err) {
       console.warn('[handleSignOut] signOut() threw, but UI is already on auth page:', err);
+      // Even if signOut fails, force-clear the session by redirecting
+      if (typeof window !== 'undefined') {
+        window.location.href = '/?auth_error=' + encodeURIComponent('تم تسجيل الخروج');
+      }
     }
   }, [signOut, destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage]);
 
@@ -773,7 +783,7 @@ function HomeContent() {
           userGender={user.gender}
           titleId={user.title_id}
           avatarUrl={user.avatar_url ?? undefined}
-          onSignOut={() => {
+onSignOut={async () => {
             // Same fix as handleSignOut: setCurrentPage('auth') first, then signOut
             setCurrentPage('auth');
             destroySocket();
@@ -784,7 +794,7 @@ function HomeContent() {
             try { localStorage.removeItem('attendo-app-store'); } catch {}
             resetAppStore();
             try {
-              signOut();
+              await signOut();
             } catch (err) {
               console.warn('[AppHeader onSignOut] signOut() threw:', err);
             }
