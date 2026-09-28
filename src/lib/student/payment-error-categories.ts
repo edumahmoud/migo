@@ -145,6 +145,26 @@ export function categorizePaymentError(
       // Inspect the message to categorize the specific Paymob failure.
       // The message is safe (no provider data) — it's set by our own
       // client.ts, not by the raw Paymob response.
+
+      // Extract the step name (set by client.ts as `errorPrefix`):
+      //   'auth token'    → step 1: getting auth token from Paymob
+      //   'create order'  → step 2: creating order in Paymob
+      //   'payment key'    → step 3: getting payment key from Paymob
+      //   'get transaction'→ verify step: fetching transaction status
+      //
+      // Including this in the user-facing message helps the student
+      // (and support) know WHICH step failed — useful for debugging
+      // without needing server logs.
+      const stepMatch = e.message.match(/— (auth token|create order|payment key|get transaction)/);
+      const stepAr: string | null = stepMatch
+        ? {
+            'auth token': 'المصادقة',
+            'create order': 'إنشاء الطلب',
+            'payment key': 'تجهيز مفتاح الدفع',
+            'get transaction': 'التحقق من المعاملة',
+          }[stepMatch[1] as 'auth token' | 'create order' | 'payment key' | 'get transaction']
+        : null;
+
       if (e.message.includes('Failed to connect to Paymob API')) {
         return {
           category: 'PAYMOB_NETWORK_FAILURE',
@@ -179,9 +199,11 @@ export function categorizePaymentError(
       // Extract the Paymob HTTP status code from the error message
       // (e.g., "Paymob API request failed (HTTP 403)" → 403)
       const paymobHttpStatus = e.message.match(/HTTP (\d+)/)?.[1];
+      // Build the step label for the user-facing message
+      const stepLabel = stepAr ? ` في مرحلة ${stepAr}` : '';
       return {
         category: 'PAYMOB_API_REJECTED',
-        userMessageAr: `تعذّر تجهيز عملية الدفع${paymobHttpStatus ? ` (خطأ ${paymobHttpStatus} من بوابة الدفع)` : ''}. لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى.`,
+        userMessageAr: `تعذّر تجهيز عملية الدفع${stepLabel}${paymobHttpStatus ? ` (خطأ ${paymobHttpStatus} من بوابة الدفع)` : ''}. لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى.`,
         httpStatus: 502,
         underlyingCode: code,
       };
