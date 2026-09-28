@@ -91,6 +91,7 @@ const teacherNavItems: NavItem[] = [
   { id: 'scormLibrary', labelKey: 'nav.scormLibrary', icon: <Package className="h-5 w-5" /> },
   { id: 'registration', labelKey: 'nav.registration', icon: <UserCog className="h-5 w-5" /> },
   { id: 'financialManagement', labelKey: 'nav.financialManagement', icon: <DollarSign className="h-5 w-5" /> },
+  { id: 'pendingOrders', labelKey: 'nav.pendingOrders', icon: <Clock className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
   { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },

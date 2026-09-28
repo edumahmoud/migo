@@ -79,6 +79,7 @@ import QuestionBankSection from '@/components/teacher/question-bank-section';
 import ScormLibrarySection from '@/components/teacher/scorm-library-section';
 import RegistrationAgentsSection from '@/components/teacher/registration-agents-section';
 import TeacherFinancialManagementSection from '@/components/teacher/teacher-financial-management-section';
+import TeacherPendingOrdersSection from '@/components/teacher/teacher-pending-orders-section';
 import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -2510,6 +2511,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'financialManagement' && (
                   <SectionErrorBoundary name="FinancialManagement">
                     <TeacherFinancialManagementSection profile={profile} />
+                  </SectionErrorBoundary>
+                )}
+                {activeSection === 'pendingOrders' && (
+                  <SectionErrorBoundary name="PendingOrders">
+                    <TeacherPendingOrdersSection profile={profile} />
                   </SectionErrorBoundary>
                 )}
                 {activeSection === 'students' && renderStudents()}

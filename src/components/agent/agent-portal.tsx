@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, Loader2, Search, User, BookOpen, Wallet, CheckCircle2, XCircle } from 'lucide-react';
+import { Clock, Loader2, Search, User, BookOpen, Wallet, CheckCircle2, XCircle, Ban, BadgeCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,9 @@ export default function AgentPortal() {
     subscriptions: Subscription[];
     pending_orders: PendingOrder[];
   } | null>(null);
+  // Tracks which order is currently being activated or cancelled
+  // (so we can show a spinner on that specific button)
+  const [actioningOrderId, setActioningOrderId] = useState<string | null>(null);
 
   const searchStudent = async () => {
     if (!searchCode.trim()) { toast.error('أدخل كود الطالب'); return; }
@@ -54,6 +57,57 @@ export default function AgentPortal() {
       toast.error('حدث خطأ غير متوقع');
     } finally {
       setSearching(false);
+    }
+  };
+
+  // Activate a pending order manually (payment received outside the system)
+  const activateOrder = async (orderId: string) => {
+    if (actioningOrderId) return;
+    if (!confirm('تأكيد: تم استلام المبلغ من الطالب خارج النظام؟ سيتم تفعيل الاشتراك يدويًا.')) return;
+    setActioningOrderId(orderId);
+    try {
+      const res = await fetch('/api/agent/subscriptions/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ orderId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم تفعيل الاشتراك');
+        // Re-search to refresh the data (subscriptions will now show as active)
+        if (searchCode.trim()) searchStudent();
+      } else {
+        toast.error(json.error || 'فشل التفعيل');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setActioningOrderId(null);
+    }
+  };
+
+  // Cancel a pending order
+  const cancelOrder = async (orderId: string) => {
+    if (actioningOrderId) return;
+    if (!confirm('تأكيد: إلغاء هذا الطلب المعلّق؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.')) return;
+    setActioningOrderId(orderId);
+    try {
+      const res = await fetch(`/api/agent/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: { ...(await getCachedAuthHeaders()) },
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم إلغاء الطلب');
+        // Re-search to refresh the data (pending orders will no longer include this one)
+        if (searchCode.trim()) searchStudent();
+      } else {
+        toast.error(json.error || 'فشل الإلغاء');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setActioningOrderId(null);
     }
   };
 
@@ -160,14 +214,40 @@ export default function AgentPortal() {
                   <div className="text-xs font-semibold text-muted-foreground mb-1">طلبات قيد الدفع</div>
                   <div className="space-y-1">
                     {studentResult.pending_orders.map((o) => (
-                      <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-2 py-1.5 bg-amber-50/40">
-                        <div className="flex items-center gap-2">
-                          <Wallet className="h-3.5 w-3.5 text-amber-600" />
+                      <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-2 py-1.5 bg-amber-50/40 gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <Wallet className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                           <span className="truncate">{o.subject?.name ?? '—'}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs font-mono">{Number(o.amount).toFixed(2)} {o.currency}</span>
                           <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                            disabled={actioningOrderId === o.id}
+                            onClick={() => activateOrder(o.id)}
+                            title="تفعيل يدوي (تم استلام المبلغ خارج النظام)"
+                          >
+                            {actioningOrderId === o.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <BadgeCheck className="h-3 w-3" />
+                            )}
+                            تفعيل
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                            disabled={actioningOrderId === o.id}
+                            onClick={() => cancelOrder(o.id)}
+                            title="إلغاء الطلب المعلّق"
+                          >
+                            <Ban className="h-3 w-3" />
+                            إلغاء
+                          </Button>
                         </div>
                       </div>
                     ))}
