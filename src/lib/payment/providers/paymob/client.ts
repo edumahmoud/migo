@@ -261,12 +261,26 @@ export async function getPaymentKey(
     integration_id: number;
     billing_data: Record<string, unknown>;
     expiration?: number;
+    /**
+     * The URL Paymob will POST the webhook callback to AFTER the
+     * payment is processed. Per-transaction configuration — Paymob
+     * sends the webhook to THIS URL for THIS transaction, regardless
+     * of any account-level webhook settings.
+     *
+     * If NOT set, Paymob uses the account-level webhook URL
+     * (configured in Paymob Dashboard → Settings → Account Info →
+     * Webhook). For merchant accounts where the account-level
+     * webhook URL is NOT configured, the webhook will never fire
+     * unless we send `notification_url` here.
+     */
+    notification_url?: string;
   },
 ): Promise<PaymobPaymentKeyResponse> {
   console.info('[paymob:debug] step 3: requesting payment key', {
     amount_cents: body.amount_cents,
     order_id: body.order_id,
     integration_id: body.integration_id,
+    notification_url: body.notification_url,
     billing_data: body.billing_data,
   });
 
@@ -283,6 +297,12 @@ export async function getPaymentKey(
         integration_id: body.integration_id,
         order_id: body.order_id,
         billing_data: body.billing_data,
+        // CRITICAL: send notification_url so Paymob knows where to POST
+        // the webhook callback for THIS transaction. Without this,
+        // Paymob relies on the account-level webhook URL (which many
+        // merchant accounts don't have configured) and the webhook
+        // never fires → student's account is never activated.
+        notification_url: body.notification_url,
       }),
     },
     'payment key',

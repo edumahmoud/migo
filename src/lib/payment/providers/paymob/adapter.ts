@@ -270,6 +270,11 @@ export class PaymobAdapter implements PaymentGateway {
       currency: input.currency,
       integration_id: integrationId,
       billing_data: billingData,
+      // Send the notification_url with THIS transaction so Paymob
+      // knows where to POST the webhook callback. This is per-transaction
+      // configuration — works even if the merchant account doesn't have
+      // a global webhook URL set in Paymob Dashboard.
+      notification_url: notificationUrl,
     });
 
     // ── Step 4: Build iframe URL ──

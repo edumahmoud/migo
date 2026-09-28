@@ -68,14 +68,17 @@ export async function GET(request: NextRequest) {
 
     // ── Configuration checklist for the admin ──
     checklist: {
-      step1: 'ادخل على Paymob Dashboard (https://accept.paymob.com)',
-      step2: 'روح لـ Settings → Webhooks (أو Developer Settings → Webhooks)',
-      step3: 'ضيف Webhook URL جديد بالشكل ده:',
-      webhookUrlFormat: 'https://YOURDOMAIN.com/api/payment/webhook?provider=paymob&gateway_id=YOUR_GATEWAY_ID',
-      step4: 'في الـ admin panel، افتح Payment Gateways → عدّل الـ default gateway → شوف قيمة الـ Webhook URL (notification_url) — لازم تكون نفس اللي فوق',
-      step5: 'تأكد إن الـ HMAC Secret في الـ admin panel = الـ HMAC Secret في Paymob Dashboard',
-      step6: 'بعد ما تضيف الـ webhook في Paymob، اعمل دفعة اختبار جديدة — Paymob هت试用 الـ webhook',
-      step7: 'بعد الدفعة، شوف Vercel logs على الكوماند console.error prefix [webhook:debug] — لو مش موجود، الـ webhook مش بيوصل',
+      step1: 'الكود بيبعت notification_url مع كل عملية دفع — مفيش حاجة محتاجة تتعمل في Paymob Dashboard للـ webhook',
+      step2: 'لو الـ webhook لسه مش بيوصل بعد الإصلاح ده، اتأكد إن:',
+      step2a: '  - الـ notification_url في الـ admin panel = https://YOURDOMAIN.com/api/payment/webhook?provider=paymob',
+      step2b: '  - الـ gateway_id بيضاف كـ query param تلقائياً',
+      step3: 'لو عايز تأكد إن Paymob مظبوط يبعت webhook بشكل عام:',
+      step3a: '  - ادخل https://accept.paymob.com/portal2/en/login',
+      step3b: '  - روح لـ Settings (في الـ sidebar على اليمين)',
+      step3c: '  - روح لـ Account Info → هناك بتلاقي حقل الـ Webhook URL/HMAC',
+      step4: 'تأكد إن HMAC Secret في الـ admin panel = HMAC في Paymob Dashboard',
+      step5: 'اعمل دفعة اختبار جديدة بعد ما Vercel يخلص deploy — الكود دلوقتي بيبعت notification_url تلقائياً',
+      step6: 'بعد الدفعة، شوف Vercel logs على prefix [webhook:debug] — لو مش موجود، الـ webhook لسه مش بيوصل',
     },
 
     // ── Common issues ──
