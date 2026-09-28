@@ -12,7 +12,13 @@
 export { PaymobAdapter } from './adapter';
 export type { PaymobCredentials, PaymobConfiguration } from './types';
 export { verifyPaymobHmac } from './hmac';
-export { createIntention, getIntention, buildCheckoutUrl } from './client';
+export {
+  getAuthToken,
+  createOrder,
+  getPaymentKey,
+  buildIframeUrl,
+  getTransaction,
+} from './client';
 
 // ─── Register the adapter ───
 import { GatewayRegistry } from '../../registry';

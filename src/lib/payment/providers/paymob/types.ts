@@ -13,11 +13,20 @@
 
 // ─── Credentials (encrypted at rest in payment_gateways.credentials_encrypted) ───
 export interface PaymobCredentials {
-  /** Paymob Secret Key — used for API auth: `Authorization: Token <secretKey>` */
+  /**
+   * Paymob API Key — used for Accept API auth:
+   * POST /api/auth/tokens with {"api_key": "<secretKey>"}
+   * Found in: Paymob Dashboard → Settings → API Keys
+   */
   secretKey: string;
   /** Paymob HMAC Secret — used for webhook callback signature verification */
   hmacSecret: string;
-  /** Optional: integration IDs for specific payment methods (card, wallet, etc.) */
+  /**
+   * Integration IDs — REQUIRED for the Accept API.
+   * Found in: Paymob Dashboard → Payment Channels → Integrations
+   * Used for: POST /api/acceptance/payment_keys (integration_id)
+   *           + iframe redirect URL (/api/acceptance/iframes/{id})
+   */
   integrationIds?: number[];
   /** Optional: public key (not used in backend flows) */
   publicKey?: string;
@@ -40,19 +49,7 @@ export interface PaymobConfiguration {
   gatewayId?: string;
 }
 
-// ─── Paymob API response types (internal) ───
-export interface PaymobIntentionResponse {
-  id: string;                  // intention ID
-  intention_order_id: string;  // Paymob's internal order ID
-  client_secret: string;
-  amount: number;              // in cents
-  currency: string;
-  special_reference?: string;
-  payment_methods?: string[];
-  items?: Array<{ name: string; amount: number; quantity: number }>;
-  status?: string;
-}
-
+// ─── Paymob callback payload (same for both Intention + Accept APIs) ───
 export interface PaymobCallbackPayload {
   type?: string;               // 'transaction' | 'intention' | ...
   obj?: Record<string, unknown>;  // the transaction/intention object
@@ -63,6 +60,8 @@ export interface PaymobCallbackPayload {
 // These are the standard Paymob transaction callback fields.
 // The HMAC is computed over these fields (sorted alphabetically,
 // concatenated) using HMAC-SHA512.
+// SAME for both Intention API and Accept API — the callback format
+// is identical.
 export const PAYMOB_HMAC_FIELDS = [
   'amount_cents',
   'created_at',

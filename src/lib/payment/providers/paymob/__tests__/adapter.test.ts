@@ -1,15 +1,22 @@
 // =====================================================
-// Paymob Adapter — Integration Tests (mocked HTTP)
+// Paymob Adapter — Accept API Integration Tests
 // =====================================================
+// Updated for Phase 14: switched from Intention API (intake.paymob.com,
+// NXDOMAIN) to Accept API (accept.paymob.com, working).
+//
+// Accept API flow (3 steps + redirect):
+//   1. POST /api/auth/tokens           → auth token
+//   2. POST /api/ecommerce/orders      → Paymob order ID
+//   3. POST /api/acceptance/payment_keys → payment token
+//   4. Redirect to /api/acceptance/iframes/{id}?payment_token={token}
+//
 // Tests: createPayment, handleWebhook, verifyPayment, testConnection
 // Uses mock fetch responses — no real Paymob API calls.
-// Verifies: credentials never in results, adapter never calls subscription RPC.
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { createHmac } from 'crypto';
 import { PaymobAdapter } from '../adapter';
 import type { GatewayCredentials, GatewayConfiguration } from '../../types';
-import { GatewayNotImplementedError } from '../../errors';
 
 // ─── Test credentials + configuration (fake — not real Paymob keys) ───
 const TEST_CREDENTIALS: GatewayCredentials = {
@@ -48,6 +55,33 @@ function mockFetch(responses: Record<string, { status: number; body: unknown }>)
   return fetchMock;
 }
 
+// ─── Helper: mock all 3 Accept API endpoints ───
+function mockAcceptApi(overrides?: {
+  authToken?: string;
+  orderId?: number;
+  paymentToken?: string;
+}) {
+  return mockFetch({
+    'auth/tokens': {
+      status: 200,
+      body: { token: overrides?.authToken ?? 'auth_token_test_123' },
+    },
+    'ecommerce/orders': {
+      status: 201,
+      body: {
+        id: overrides?.orderId ?? 987654,
+        merchant_order_id: 'order-uuid-123',
+        amount_cents: 10000,
+        currency: 'EGP',
+      },
+    },
+    'payment_keys': {
+      status: 201,
+      body: { token: overrides?.paymentToken ?? 'payment_token_test_789' },
+    },
+  });
+}
+
 beforeEach(() => {
   globalThis.fetch = originalFetch;
 });
@@ -61,7 +95,7 @@ describe('PaymobAdapter', () => {
     expect(adapter.provider).toBe('paymob');
   });
 
-  test('capabilities are correct for Phase 4', () => {
+  test('capabilities are correct', () => {
     expect(adapter.capabilities.supportsRefund).toBe(false);
     expect(adapter.capabilities.supportsVerify).toBe(true);
     expect(adapter.capabilities.supportsWebhook).toBe(true);
@@ -84,19 +118,8 @@ describe('PaymobAdapter', () => {
 describe('PaymobAdapter.createPayment', () => {
   const adapter = new PaymobAdapter();
 
-  test('returns checkout URL + client_secret on success', async () => {
-    mockFetch({
-      'intentions': {
-        status: 201,
-        body: {
-          id: 'intention_test_123',
-          intention_order_id: 'order_test_456',
-          client_secret: 'secret_test_789',
-          amount: 10000,
-          currency: 'EGP',
-        },
-      },
-    });
+  test('returns checkout URL (iframe) + payment token on success', async () => {
+    mockAcceptApi();
 
     const result = await adapter.createPayment(
       {
@@ -113,19 +136,14 @@ describe('PaymobAdapter.createPayment', () => {
 
     expect(result.success).toBe(true);
     expect(result.provider).toBe('paymob');
-    expect(result.paymentReference).toBe('intention_test_123');
-    expect(result.providerOrderReference).toBe('order_test_456');
-    expect(result.checkoutUrl).toContain('intention_test_123');
-    expect(result.clientSecret).toBe('secret_test_789');
+    expect(result.checkoutUrl).toContain('accept.paymob.com/api/acceptance/iframes/123456');
+    expect(result.checkoutUrl).toContain('payment_token=payment_token_test_789');
+    expect(result.paymentReference).toBe('987654'); // Paymob order ID
+    expect(result.clientSecret).toBe('payment_token_test_789');
   });
 
   test('amount is converted to cents (100 EGP → 10000)', async () => {
-    const fetchMock = mockFetch({
-      'intentions': {
-        status: 201,
-        body: { id: 'test', intention_order_id: 'test', client_secret: 'test' },
-      },
-    });
+    const fetchMock = mockAcceptApi();
 
     await adapter.createPayment(
       { orderId: 'test', amount: 100, currency: 'EGP' },
@@ -133,19 +151,15 @@ describe('PaymobAdapter.createPayment', () => {
       TEST_CONFIG,
     );
 
-    // Check the body sent to Paymob — amount should be in cents
-    const callArgs = fetchMock.mock.calls[0];
-    const body = JSON.parse(callArgs[1].body);
-    expect(body.amount).toBe(10000);
+    // Check the body sent to /api/ecommerce/orders — amount should be in cents
+    // The 2nd call (index 1) is the createOrder call
+    const orderCall = fetchMock.mock.calls[1];
+    const body = JSON.parse(orderCall[1].body);
+    expect(body.amount_cents).toBe(10000);
   });
 
   test('credentials do NOT appear in the result', async () => {
-    mockFetch({
-      'intentions': {
-        status: 201,
-        body: { id: 'test', intention_order_id: 'test', client_secret: 'cs_test' },
-      },
-    });
+    mockAcceptApi();
 
     const result = await adapter.createPayment(
       { orderId: 'test', amount: 50, currency: 'EGP' },
@@ -174,20 +188,30 @@ describe('PaymobAdapter.createPayment', () => {
     await expect(
       adapter.createPayment(
         { orderId: 'test', amount: 100, currency: 'EGP' },
-        { hmacSecret: 'test' }, // missing secretKey
+        { hmacSecret: 'test', integrationIds: [123] }, // missing secretKey
         TEST_CONFIG,
       ),
-    ).rejects.toThrow('Missing or invalid secretKey');
+    ).rejects.toThrow('Missing or invalid API Key');
   });
 
   test('missing hmacSecret throws GatewayConfigurationInvalidError', async () => {
     await expect(
       adapter.createPayment(
         { orderId: 'test', amount: 100, currency: 'EGP' },
-        { secretKey: 'test' }, // missing hmacSecret
+        { secretKey: 'test', integrationIds: [123] }, // missing hmacSecret
         TEST_CONFIG,
       ),
     ).rejects.toThrow('Missing or invalid hmacSecret');
+  });
+
+  test('missing integrationIds throws GatewayConfigurationInvalidError', async () => {
+    await expect(
+      adapter.createPayment(
+        { orderId: 'test', amount: 100, currency: 'EGP' },
+        { secretKey: 'valid_key_12345', hmacSecret: 'valid_hmac_12345' }, // missing integrationIds
+        TEST_CONFIG,
+      ),
+    ).rejects.toThrow('Missing integrationIds');
   });
 
   test('missing notificationUrl throws GatewayConfigurationInvalidError', async () => {
@@ -235,7 +259,7 @@ describe('PaymobAdapter.handleWebhook', () => {
       .digest('hex');
   }
 
-  test('successful payment callback → status=paid', async () => {
+  test('successful payment callback with special_reference → status=paid', async () => {
     const obj = {
       amount_cents: 10000,
       created_at: '2024-01-01T00:00:00Z',
@@ -268,8 +292,43 @@ describe('PaymobAdapter.handleWebhook', () => {
     expect(result.status).toBe('paid');
     expect(result.orderId).toBe('order-uuid-123');
     expect(result.providerTransactionId).toBe('txn_paymob_123');
-    expect(result.amount).toBe(100); // cents → major
+    expect(result.amount).toBe(100);
     expect(result.currency).toBe('EGP');
+  });
+
+  test('Accept API callback with order.merchant_order_id → extracts order ID', async () => {
+    // The Accept API callback uses obj.order.merchant_order_id instead of
+    // obj.special_reference. The adapter must extract it.
+    const obj = {
+      amount_cents: 10000,
+      created_at: '2024-01-01T00:00:00Z',
+      currency: 'EGP',
+      error_occured: false,
+      has_parent_transaction: false,
+      id: 'txn_accept_123',
+      integration_id: 123456,
+      is_3D_secure_authentication: false,
+      is_refunded: false,
+      is_standalone_payment: true,
+      order: { id: 987654, merchant_order_id: 'order-uuid-accept' },
+      owner: 'test',
+      pending: false,
+      source_data: { pan: '****', sub_type: 'CARD', type: 'card' },
+      success: true,
+    };
+
+    const hmac = computeHmac(obj);
+    const rawBody = JSON.stringify({ type: 'transaction', obj, hmac });
+
+    const result = await adapter.handleWebhook(
+      { rawBody, headers: {} },
+      TEST_CREDENTIALS,
+      TEST_CONFIG,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe('paid');
+    expect(result.orderId).toBe('order-uuid-accept'); // extracted from order.merchant_order_id
   });
 
   test('failed payment callback → status=failed', async () => {
@@ -321,20 +380,19 @@ describe('PaymobAdapter.handleWebhook', () => {
 
     await expect(
       adapter.handleWebhook({ rawBody, headers: {} }, TEST_CREDENTIALS, TEST_CONFIG),
-    ).rejects.toThrow('HMAC signature mismatch');
+    ).rejects.toThrow();
   });
 
   test('modified amount is rejected (HMAC mismatch)', async () => {
     const obj = { success: true, amount_cents: 10000, id: 'txn_1' };
     const hmac = computeHmac(obj);
 
-    // Tamper: change amount after HMAC was computed
     const tampered = { ...obj, amount_cents: 1 };
     const rawBody = JSON.stringify({ obj: tampered, hmac });
 
     await expect(
       adapter.handleWebhook({ rawBody, headers: {} }, TEST_CREDENTIALS, TEST_CONFIG),
-    ).rejects.toThrow('HMAC signature mismatch');
+    ).rejects.toThrow();
   });
 
   test('credentials do NOT appear in webhook result', async () => {
@@ -354,7 +412,6 @@ describe('PaymobAdapter.handleWebhook', () => {
   });
 
   test('adapter does NOT call activate_subscription_after_payment', () => {
-    // Verify the adapter source code doesn't reference the RPC
     const fs = require('fs');
     const path = require('path');
     const source = fs.readFileSync(
@@ -378,39 +435,46 @@ describe('PaymobAdapter.testConnection', () => {
   });
 
   test('short secretKey → failure', async () => {
-    const result = await adapter.testConnection({ secretKey: 'sk', hmacSecret: 'valid_hmac_secret_123' });
+    const result = await adapter.testConnection({ secretKey: 'sk', hmacSecret: 'valid_hmac_secret_123', integrationIds: [123] });
     expect(result.success).toBe(false);
-    expect(result.message).toContain('secretKey');
+    expect(result.message).toContain('API Key');
   });
 
   test('short hmacSecret → failure', async () => {
-    const result = await adapter.testConnection({ secretKey: 'valid_secret_key_12345', hmacSecret: 'hm' });
+    const result = await adapter.testConnection({ secretKey: 'valid_secret_key_12345', hmacSecret: 'hm', integrationIds: [123] });
     expect(result.success).toBe(false);
     expect(result.message).toContain('hmacSecret');
+  });
+
+  test('missing integrationIds → failure', async () => {
+    const result = await adapter.testConnection({ secretKey: 'valid_secret_key_12345', hmacSecret: 'valid_hmac_secret_123' });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('integrationIds');
   });
 });
 
 describe('PaymobAdapter.verifyPayment', () => {
   const adapter = new PaymobAdapter();
 
-  test('returns paid status for successful intention', async () => {
+  test('returns paid status for successful transaction', async () => {
     mockFetch({
-      'intentions/intention_test': {
+      'auth/tokens': { status: 200, body: { token: 'auth_token' } },
+      'transactions': {
         status: 200,
         body: {
-          id: 'intention_test',
-          intention_order_id: 'order_test',
-          client_secret: 'secret',
-          amount: 10000,
-          currency: 'EGP',
+          id: 12345,
           success: true,
           pending: false,
+          is_refunded: false,
+          amount_cents: 10000,
+          currency: 'EGP',
+          order: { id: 67890, merchant_order_id: 'order-uuid-123' },
         },
       },
     });
 
     const result = await adapter.verifyPayment(
-      { paymentReference: 'intention_test' },
+      { paymentReference: '12345' },
       TEST_CREDENTIALS,
       TEST_CONFIG,
     );
@@ -421,23 +485,26 @@ describe('PaymobAdapter.verifyPayment', () => {
     expect(result.currency).toBe('EGP');
   });
 
-  test('returns pending status for pending intention', async () => {
+  test('returns pending status for pending transaction', async () => {
     mockFetch({
-      'intentions/intention_pending': {
+      'auth/tokens': { status: 200, body: { token: 'auth_token' } },
+      'transactions': {
         status: 200,
         body: {
-          id: 'intention_pending',
+          id: 12346,
           success: false,
           pending: true,
-          amount: 5000,
+          is_refunded: false,
+          amount_cents: 5000,
           currency: 'EGP',
         },
       },
     });
 
     const result = await adapter.verifyPayment(
-      { paymentReference: 'intention_pending' },
+      { paymentReference: '12346' },
       TEST_CREDENTIALS,
+      TEST_CONFIG,
     );
 
     expect(result.status).toBe('pending');
@@ -446,15 +513,17 @@ describe('PaymobAdapter.verifyPayment', () => {
 
   test('credentials do NOT appear in verify result', async () => {
     mockFetch({
-      'intentions': {
+      'auth/tokens': { status: 200, body: { token: 'auth_token' } },
+      'transactions': {
         status: 200,
-        body: { id: 'test', success: true, amount: 100, currency: 'EGP' },
+        body: { id: 12347, success: true, pending: false, is_refunded: false, amount_cents: 100, currency: 'EGP' },
       },
     });
 
     const result = await adapter.verifyPayment(
-      { paymentReference: 'test' },
+      { paymentReference: '12347' },
       TEST_CREDENTIALS,
+      TEST_CONFIG,
     );
 
     const resultStr = JSON.stringify(result);

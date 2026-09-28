@@ -31,14 +31,14 @@ schemas.set('paymob', {
   provider: 'paymob',
   displayName: 'Paymob',
   credentialFields: [
-    { name: 'secretKey', label: 'Secret Key', type: 'password', required: true, placeholder: 'sk_test_... or sk_live_...' },
-    { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'From Paymob Dashboard → Settings → HMAC' },
-    { name: 'integrationIds', label: 'Integration IDs', type: 'array', required: false, placeholder: '123456, 789012', helpText: 'Comma-separated Paymob integration IDs for specific payment methods' },
+    { name: 'secretKey', label: 'API Key', type: 'password', required: true, placeholder: 'Paymob Dashboard → Settings → API Keys', helpText: 'مفتاح API من لوحة تحكم Paymob' },
+    { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'Paymob Dashboard → Settings → Webhooks → HMAC', helpText: 'سر HMAC من إعدادات Webhooks' },
+    { name: 'integrationIds', label: 'Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: 'معرّف التكامل من Paymob Dashboard → Payment Channels → Integrations (مطلوب)' },
   ],
   configurationFields: [
-    { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob' },
-    { name: 'redirectionUrl', label: 'Redirect URL (after checkout)', type: 'text', required: true, placeholder: 'https://your-domain.com/?payment_callback=success' },
-    { name: 'paymentMethods', label: 'Payment Methods', type: 'array', required: false, placeholder: 'card, wallet', helpText: 'Comma-separated payment methods (leave empty to use integration IDs)' },
+    { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob', helpText: 'رابط استقبال webhook (يجب أن يكون متاحًا للعموم)' },
+    { name: 'redirectionUrl', label: 'Redirect URL (after checkout)', type: 'text', required: true, placeholder: 'https://your-domain.com/?payment_callback=success', helpText: 'رابط تحويل الطالب بعد إتمام الدفع' },
+    { name: 'paymentMethods', label: 'Payment Methods', type: 'array', required: false, placeholder: '', helpText: 'اختياري — يُترك فارغًا عادةً (الـ Integration ID يحدد وسيلة الدفع)' },
   ],
 });
 

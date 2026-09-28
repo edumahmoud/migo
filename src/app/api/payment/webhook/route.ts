@@ -73,15 +73,20 @@ function extractOrderReferenceFromCallback(rawBody: string): string | null {
       return obj.special_reference;
     }
 
-    // Try nested order.special_reference or order.id
+    // Try nested order.special_reference, order.merchant_order_id, or order.id
     const order = obj.order;
     if (order && typeof order === 'object') {
       const orderObj = order as Record<string, unknown>;
+      // Intention API: order.special_reference
       if (typeof orderObj.special_reference === 'string' && orderObj.special_reference.length > 10) {
         return orderObj.special_reference;
       }
+      // Accept API: order.merchant_order_id (our internal UUID)
+      if (typeof orderObj.merchant_order_id === 'string' && orderObj.merchant_order_id.length > 10) {
+        return orderObj.merchant_order_id;
+      }
+      // Fallback: order.id (if it looks like a UUID — not Paymob's numeric ID)
       if (typeof orderObj.id === 'string' && orderObj.id.length > 30) {
-        // Looks like a UUID → use it
         return orderObj.id;
       }
     }

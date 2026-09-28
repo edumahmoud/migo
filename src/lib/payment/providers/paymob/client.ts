@@ -1,185 +1,103 @@
 /**
- * Paymob HTTP Client
+ * Paymob HTTP Client — Accept API
  *
- * Thin wrapper around fetch() for Paymob API calls.
- * Handles authentication, error mapping, and timeout.
+ * Uses the Paymob Accept API (NOT the deprecated Intention API).
  *
- * Uses the Intention API (not legacy token/order flow):
- *   POST https://intake.paymob.com/v1/intentions/  — Create
- *   GET  https://intake.paymob.com/v1/intentions/{id}  — Get status
+ * ROOT CAUSE of previous failure: the Intention API used
+ * `https://intake.paymob.com` which does NOT resolve in DNS (NXDOMAIN
+ * confirmed from Google DNS + Cloudflare DNS + local DNS). The Accept
+ * API uses `https://accept.paymob.com` which resolves correctly and
+ * is the only working Paymob API.
  *
- * ERROR HANDLING (Phase 14 fix):
- *   The previous implementation wrapped fetch + JSON.parse in a single
- *   try/catch and labeled ALL non-PaymentError exceptions as "Failed to
- *   connect to Paymob API". This meant:
- *     - Real network errors (DNS failure, timeout) → "Failed to connect"
- *     - JSON.parse errors (Paymob returned HTML/redirect) → "Failed to connect"
- *     - Redirect responses (302 → fetch follows → HTML) → "Failed to connect"
- *   All three were categorized as PAYMOB_NETWORK_FAILURE, which showed
- *   the user "تعذّر الاتصال ببوابة الدفع" even when the actual issue was
- *   a wrong API key or a non-JSON response.
+ * Accept API flow (3 steps + redirect):
+ *   1. POST /api/auth/tokens           → get auth token
+ *   2. POST /api/ecommerce/orders      → create Paymob order
+ *   3. POST /api/acceptance/payment_keys → get payment token
+ *   4. Redirect to /api/acceptance/iframes/{id}?payment_token={token}
  *
- *   The fix:
- *     1. Set redirect: 'manual' to prevent following redirects. If
- *        Paymob returns a redirect (e.g., 302 to a login page), we
- *        detect it and throw a clear error instead of following it.
- *     2. Separate JSON.parse errors from network errors:
- *        - fetch() throws → "Failed to connect to Paymob API" (real network)
- *        - JSON.parse throws → "Paymob response is not valid JSON" (non-JSON)
- *     3. Check Content-Type header — if not application/json, throw
- *        a clear error (the response might be an HTML error page).
+ * The webhook callback format is the SAME for both APIs — HMAC
+ * verification + the callback object structure are identical.
+ * The only difference: the Accept API callback uses
+ * `obj.order.merchant_order_id` (our UUID) instead of
+ * `obj.special_reference`.
  */
 
 import {
   PaymentCreationFailedError,
   PaymentVerificationFailedError,
 } from '../../errors';
-import type { PaymobIntentionResponse } from './types';
 
-const INTAKE_BASE = 'https://intake.paymob.com';
+const ACCEPT_BASE = 'https://accept.paymob.com';
 const API_TIMEOUT_MS = 15000;
 
-/**
- * Create a Paymob Payment Intention.
- *
- * @param secretKey  Paymob secret key for Authorization header
- * @param body       The intention request body (amount in cents!)
- * @returns          The intention response (id, client_secret, etc.)
- */
-export async function createIntention(
-  secretKey: string,
-  body: Record<string, unknown>,
-): Promise<PaymobIntentionResponse> {
-  let res: Response;
-  try {
-    res = await fetch(`${INTAKE_BASE}/v1/intentions/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${secretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-      redirect: 'manual', // Don't follow redirects — detect them explicitly
-    });
-  } catch (err) {
-    // This catch ONLY covers fetch-level failures (network error, DNS
-    // failure, connection refused, timeout). It does NOT cover JSON
-    // parse errors or non-JSON responses — those are handled below.
-    throw new PaymentCreationFailedError(
-      'paymob',
-      'Failed to connect to Paymob API',
-      err,
-    );
-  }
-
-  // Check for redirect responses (3xx). Paymob should NOT redirect for
-  // API calls — if it does, the API key may be wrong, the account may
-  // lack Intention API access, or the URL may be incorrect.
-  if (res.status >= 300 && res.status < 400) {
-    const location = res.headers.get('location') || '(no location header)';
-    throw new PaymentCreationFailedError(
-      'paymob',
-      `Paymob API returned a redirect (HTTP ${res.status}) — check API key and Intention API access`,
-      { httpStatus: res.status, redirectLocation: location.slice(0, 200) },
-    );
-  }
-
-  const text = await res.text();
-
-  if (!res.ok) {
-    // Map Paymob error to unified PaymentCreationFailedError.
-    // The error MESSAGE is safe (HTTP status only) — does NOT include
-    // raw response body. The full body is kept in `cause` for internal
-    // debugging (stripped by PaymentError.toJSON() before reaching the client).
-    throw new PaymentCreationFailedError(
-      'paymob',
-      `Paymob API request failed (HTTP ${res.status})`,
-      { httpStatus: res.status, body: text.slice(0, 500) },
-    );
-  }
-
-  // Check Content-Type — if not JSON, the response is likely an HTML
-  // error page (Paymob maintenance, captcha, etc.).
-  const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('application/json') && !contentType.includes('text/json')) {
-    throw new PaymentCreationFailedError(
-      'paymob',
-      'Paymob response is not valid JSON — check API key and account configuration',
-      { httpStatus: res.status, contentType, bodyPreview: text.slice(0, 200) },
-    );
-  }
-
-  // Parse JSON — if this fails, the response was not valid JSON even
-  // though the Content-Type said it was.
-  let json: PaymobIntentionResponse;
-  try {
-    json = JSON.parse(text) as PaymobIntentionResponse;
-  } catch (err) {
-    throw new PaymentCreationFailedError(
-      'paymob',
-      'Paymob response is not valid JSON — check API key and account configuration',
-      { httpStatus: res.status, bodyPreview: text.slice(0, 200) },
-    );
-  }
-
-  // Validate the response has the required fields
-  if (!json.id || !json.client_secret) {
-    throw new PaymentCreationFailedError(
-      'paymob',
-      'Paymob response missing required fields (id or client_secret)',
-      { response: text.slice(0, 500) },
-    );
-  }
-
-  return json;
+// ─── Response types ───
+export interface PaymobAuthTokenResponse {
+  token: string;
 }
 
-/**
- * Get a Paymob Intention's status (for verifyPayment).
- *
- * @param secretKey     Paymob secret key
- * @param intentionId   The intention ID (from createIntention response.id)
- * @returns             The intention response (with status, amount, etc.)
- */
-export async function getIntention(
-  secretKey: string,
-  intentionId: string,
-): Promise<PaymobIntentionResponse> {
-  let res: Response;
+export interface PaymobOrderResponse {
+  id: number;               // Paymob's internal order ID
+  merchant_order_id?: string; // our internal order UUID
+  amount_cents?: number;
+  currency?: string;
+}
+
+export interface PaymobPaymentKeyResponse {
+  token: string;            // payment token for the iframe URL
+}
+
+export interface PaymobTransactionResponse {
+  id: number;
+  success: boolean;
+  pending: boolean;
+  is_refunded: boolean;
+  amount_cents?: number;
+  currency?: string;
+  order?: { id: number; merchant_order_id?: string };
+}
+
+// ─── Helper: fetch with error handling ───
+async function paymobFetch(
+  url: string,
+  options: RequestInit,
+  errorPrefix: string,
+): Promise<Response> {
   try {
-    res = await fetch(`${INTAKE_BASE}/v1/intentions/${intentionId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Token ${secretKey}`,
-      },
+    const res = await fetch(url, {
+      ...options,
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
       redirect: 'manual',
     });
+    return res;
   } catch (err) {
-    throw new PaymentVerificationFailedError(
+    throw new PaymentCreationFailedError(
       'paymob',
-      'Failed to connect to Paymob API for verification',
+      `Failed to connect to Paymob API (${errorPrefix})`,
       err,
     );
   }
+}
 
-  // Check for redirect responses
+// ─── Helper: parse JSON response with Content-Type check ───
+async function parseJsonResponse(
+  res: Response,
+  errorPrefix: string,
+): Promise<Record<string, unknown>> {
+  // Check for redirect (3xx)
   if (res.status >= 300 && res.status < 400) {
-    const location = res.headers.get('location') || '(no location header)';
-    throw new PaymentVerificationFailedError(
+    throw new PaymentCreationFailedError(
       'paymob',
       `Paymob API returned a redirect (HTTP ${res.status}) — check API key`,
-      { httpStatus: res.status, redirectLocation: location.slice(0, 200) },
+      { httpStatus: res.status },
     );
   }
 
   const text = await res.text();
 
   if (!res.ok) {
-    throw new PaymentVerificationFailedError(
+    throw new PaymentCreationFailedError(
       'paymob',
-      `Paymob API request failed (HTTP ${res.status})`,
+      `Paymob API request failed (HTTP ${res.status}) — ${errorPrefix}`,
       { httpStatus: res.status, body: text.slice(0, 500) },
     );
   }
@@ -187,35 +105,164 @@ export async function getIntention(
   // Check Content-Type
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json') && !contentType.includes('text/json')) {
-    throw new PaymentVerificationFailedError(
+    throw new PaymentCreationFailedError(
       'paymob',
-      'Paymob response is not valid JSON',
+      `Paymob response is not valid JSON — ${errorPrefix}`,
       { httpStatus: res.status, contentType, bodyPreview: text.slice(0, 200) },
     );
   }
 
-  let json: PaymobIntentionResponse;
   try {
-    json = JSON.parse(text) as PaymobIntentionResponse;
-  } catch (err) {
-    throw new PaymentVerificationFailedError(
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new PaymentCreationFailedError(
       'paymob',
-      'Paymob response is not valid JSON',
+      `Paymob response is not valid JSON — ${errorPrefix}`,
       { httpStatus: res.status, bodyPreview: text.slice(0, 200) },
     );
   }
-
-  return json;
 }
 
-/**
- * Build the Paymob hosted checkout URL.
- * The student is redirected here to complete payment.
- *
- * @param intentionId   The intention ID from createIntention response
- * @param clientSecret   The client_secret from the same response
- * @returns              The hosted checkout URL
- */
-export function buildCheckoutUrl(intentionId: string, clientSecret: string): string {
-  return `${INTAKE_BASE}/v1/intentions/${intentionId}?clientSecret=${clientSecret}`;
+// ─── Step 1: Get Auth Token ───
+export async function getAuthToken(apiKey: string): Promise<string> {
+  const res = await paymobFetch(
+    `${ACCEPT_BASE}/api/auth/tokens`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey }),
+    },
+    'auth token',
+  );
+
+  const json = await parseJsonResponse(res, 'auth token');
+  const token = json.token as string | undefined;
+
+  if (!token) {
+    throw new PaymentCreationFailedError(
+      'paymob',
+      'Paymob auth token response missing "token" field',
+      { response: JSON.stringify(json).slice(0, 500) },
+    );
+  }
+
+  return token;
+}
+
+// ─── Step 2: Create Order ───
+export async function createOrder(
+  authToken: string,
+  body: {
+    amount_cents: number;
+    currency: string;
+    merchant_order_id: string;
+    items: Array<{ name: string; amount: number; quantity: number }>;
+    delivery_needed?: boolean;
+  },
+): Promise<PaymobOrderResponse> {
+  const res = await paymobFetch(
+    `${ACCEPT_BASE}/api/ecommerce/orders`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        auth_token: authToken,
+        delivery_needed: false,
+        ...body,
+      }),
+    },
+    'create order',
+  );
+
+  const json = await parseJsonResponse(res, 'create order');
+  const id = json.id as number | undefined;
+
+  if (id === undefined || id === null) {
+    throw new PaymentCreationFailedError(
+      'paymob',
+      'Paymob order response missing "id" field',
+      { response: JSON.stringify(json).slice(0, 500) },
+    );
+  }
+
+  return {
+    id,
+    merchant_order_id: json.merchant_order_id as string | undefined,
+    amount_cents: json.amount_cents as number | undefined,
+    currency: json.currency as string | undefined,
+  };
+}
+
+// ─── Step 3: Get Payment Key ───
+export async function getPaymentKey(
+  authToken: string,
+  body: {
+    amount_cents: number;
+    order_id: number;
+    currency: string;
+    integration_id: number;
+    billing_data: Record<string, unknown>;
+    expiration?: number;
+  },
+): Promise<PaymobPaymentKeyResponse> {
+  const res = await paymobFetch(
+    `${ACCEPT_BASE}/api/acceptance/payment_keys`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        auth_token: authToken,
+        expiration: 3600, // 1 hour
+        ...body,
+      }),
+    },
+    'payment key',
+  );
+
+  const json = await parseJsonResponse(res, 'payment key');
+  const token = json.token as string | undefined;
+
+  if (!token) {
+    throw new PaymentCreationFailedError(
+      'paymob',
+      'Paymob payment key response missing "token" field',
+      { response: JSON.stringify(json).slice(0, 500) },
+    );
+  }
+
+  return { token };
+}
+
+// ─── Step 4: Build iframe URL ───
+export function buildIframeUrl(integrationId: number, paymentToken: string): string {
+  return `${ACCEPT_BASE}/api/acceptance/iframes/${integrationId}?payment_token=${paymentToken}`;
+}
+
+// ─── Verify: Get transaction status (for verifyPayment) ───
+export async function getTransaction(
+  authToken: string,
+  transactionId: string,
+): Promise<PaymobTransactionResponse> {
+  const res = await paymobFetch(
+    `${ACCEPT_BASE}/api/acceptance/transactions/${transactionId}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    },
+    'get transaction',
+  );
+
+  const json = await parseJsonResponse(res, 'get transaction');
+
+  return {
+    id: json.id as number,
+    success: json.success as boolean,
+    pending: json.pending as boolean,
+    is_refunded: json.is_refunded as boolean,
+    amount_cents: json.amount_cents as number | undefined,
+    currency: json.currency as string | undefined,
+    order: json.order as { id: number; merchant_order_id?: string } | undefined,
+  };
 }
