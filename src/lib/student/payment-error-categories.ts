@@ -142,14 +142,28 @@ export function categorizePaymentError(
       // We can't distinguish API rejection vs network failure here
       // without inspecting the cause — but the cause may contain
       // provider data, so we don't trust it for branching.
-      // Inspect the message: 'Failed to connect to Paymob API' = network
-      //                                  everything else = API rejection
+      // Inspect the message to categorize the specific Paymob failure.
+      // The message is safe (no provider data) — it's set by our own
+      // client.ts, not by the raw Paymob response.
       if (e.message.includes('Failed to connect to Paymob API')) {
         return {
           category: 'PAYMOB_NETWORK_FAILURE',
           userMessageAr:
             'تعذّر الاتصال ببوابة الدفع. تحقق من اتصال الإنترنت وحاول مرة أخرى.',
           httpStatus: 502, // Bad Gateway — upstream network failure
+          underlyingCode: code,
+        };
+      }
+      if (e.message.includes('not valid JSON') || e.message.includes('returned a redirect')) {
+        // Paymob returned a non-JSON response or a redirect — this is
+        // typically caused by a wrong API key, account not having
+        // Intention API access, or a Paymob-side issue. NOT a network
+        // connectivity problem.
+        return {
+          category: 'PAYMOB_RESPONSE_INVALID',
+          userMessageAr:
+            'تعذّر تجهيز عملية الدفع. لم يتم خصم أي مبلغ. تحقق من إعدادات بوابة الدفع وحاول مرة أخرى.',
+          httpStatus: 502,
           underlyingCode: code,
         };
       }

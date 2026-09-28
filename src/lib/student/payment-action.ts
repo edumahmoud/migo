@@ -488,7 +488,9 @@ export function getPaymentActionErrorMessage(
 ): string {
   // Network-level errors (no server response)
   if (err.code === 'NETWORK_ERROR') {
-    return 'تعذّر الاتصال ببوابة الدفع. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
+    // The CLIENT couldn't reach the server (browser → server fetch failed).
+    // This is different from PAYMOB_NETWORK_FAILURE (server → Paymob fetch failed).
+    return 'تعذّر الاتصال بالخادم. تحقق من اتصال الإنترنت وحاول مرة أخرى.';
   }
   if (err.code === 'INVALID_RESPONSE') {
     return 'تعذّر فهم استجابة الخادم. حاول مرة أخرى لاحقًا.';

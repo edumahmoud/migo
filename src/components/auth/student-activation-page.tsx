@@ -39,6 +39,7 @@ interface OrderRow {
   id: string; subject_id: string; amount: number; currency: string;
   provider: string; status: string;
   created_at: string; paid_at: string | null;
+  checkout_session_id?: string | null;
 }
 interface Subscription {
   subject_id: string; status: string; enrollment_method: string;
@@ -278,6 +279,19 @@ export default function StudentActivationPage() {
   const studentCode = data.student.student_code ?? '—';
   const linkedTeachers = data.linked_teachers;
   const pendingOrders = data.recent_orders.filter(o => o.status === 'pending');
+  // Phase 14: Split pending orders into session-grouped + standalone.
+  // Orders WITH a checkout_session_id should NOT show individual "استكمال الدفع"
+  // buttons — they should be paid via the grouped "Complete Payment for All"
+  // button (which uses the existing session_id).
+  const sessionPendingOrders = pendingOrders.filter(o => o.checkout_session_id);
+  const standalonePendingOrders = pendingOrders.filter(o => !o.checkout_session_id);
+  // Group session orders by their checkout_session_id
+  const sessionGroups = new Map<string, OrderRow[]>();
+  for (const o of sessionPendingOrders) {
+    const sid = o.checkout_session_id as string;
+    if (!sessionGroups.has(sid)) sessionGroups.set(sid, []);
+    sessionGroups.get(sid)!.push(o);
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50 p-3 sm:p-6">
@@ -411,35 +425,35 @@ export default function StudentActivationPage() {
               <CardDescription className="text-xs">بانتظار تفعيل المركز بعد إثبات الدفع.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
-              {/* ─── Phase 14.1: consolidated "Complete Payment for All" ─── */}
-              {/* If there are 2+ pending orders in the same currency,
-                  show a single "Complete Payment for All" button that
-                  creates a multi-subject checkout session and opens the
-                  consolidated Payment Summary dialog. This is the
-                  primary call-to-action — the per-order buttons below
-                  are the fallback for individual payment. */}
-              {pendingOrders.length >= 2 && (() => {
-                const sameCurrency = new Set(pendingOrders.map((o) => o.currency)).size === 1;
-                if (!sameCurrency) return null; // can't combine different currencies
-                const total = pendingOrders.reduce((sum, o) => sum + Number(o.amount), 0);
-                const currency = pendingOrders[0].currency;
+              {/* ─── Phase 14: Session-grouped pending orders ─── */}
+              {/* Orders WITH a checkout_session_id are part of a multi-subject
+                  checkout session. They show a SINGLE "Complete Payment for All"
+                  button (using the EXISTING session_id) and do NOT show
+                  individual "استكمال الدفع" buttons — preventing duplicate
+                  payment paths. */}
+              {Array.from(sessionGroups.entries()).map(([sessionId, orders]) => {
+                if (orders.length === 0) return null;
+                const sameCurrency = new Set(orders.map((o) => o.currency)).size === 1;
+                if (!sameCurrency) return null;
+                const total = orders.reduce((sum, o) => sum + Number(o.amount), 0);
+                const currency = orders[0].currency;
                 return (
-                  <div className="mb-2 rounded-md border border-teal-200 dark:border-teal-900/40 bg-teal-50 dark:bg-teal-900/15 p-3 space-y-2">
+                  <div key={sessionId} className="mb-2 rounded-md border border-teal-200 dark:border-teal-900/40 bg-teal-50 dark:bg-teal-900/15 p-3 space-y-2">
                     <div className="text-sm font-medium text-teal-800 dark:text-teal-200">
-                      {t('student.payment.pendingGroupTitle', { count: pendingOrders.length })}
+                      {t('student.payment.pendingGroupTitle', { count: orders.length })}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('student.payment.pendingGroupDesc')}
                     </div>
                     {/* Items preview (course names) */}
                     <div className="text-xs text-muted-foreground space-y-0.5">
-                      {pendingOrders.map((o) => (
+                      {orders.map((o) => (
                         <div key={o.id} className="truncate">
                           • {courseNameById.get(o.subject_id) ?? '—'}
                         </div>
                       ))}
                     </div>
-                    {/* Total + Pay All button */}
+                    {/* Total + Pay All button (uses EXISTING session_id) */}
                     <div className="flex items-center justify-between pt-1 border-t border-teal-200 dark:border-teal-900/40">
                       <div className="text-sm">
                         <span className="text-muted-foreground">{t('student.payment.total')}: </span>
@@ -451,12 +465,75 @@ export default function StudentActivationPage() {
                         size="sm"
                         className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
                         onClick={async () => {
-                          // Create a checkout session from the pending orders
-                          // and open the consolidated Payment Summary dialog.
-                          const orderIds = pendingOrders.map((o) => o.id);
+                          // Use the EXISTING session_id (don't create a new one)
+                          // + fetch the session items to display in the dialog.
+                          try {
+                            // Build the items from the existing pending orders
+                            // (all values are server-authoritative from the DB).
+                            const items = orders.map((o) => ({
+                              order_id: o.id,
+                              subject_id: o.subject_id,
+                              subject_name: courseNameById.get(o.subject_id) ?? '—',
+                              amount: Number(o.amount),
+                              currency: String(o.currency ?? 'EGP'),
+                            }));
+                            setPaymentSummaryOrder(null);
+                            setSessionItems(items);
+                            setSessionId(sessionId);
+                            setPaymentSummaryOpen(true);
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
+                          }
+                        }}
+                      >
+                        <CreditCard className="h-3 w-3 me-1" />
+                        {t('student.payment.completePaymentGroup')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* ─── Phase 14: Standalone pending orders (NOT in a session) ─── */}
+              {/* Orders WITHOUT a checkout_session_id can be paid individually
+                  via "استكمال الدفع" OR grouped if there are 2+ in the same
+                  currency (the "Complete Payment for All" button creates a
+                  NEW session for them). */}
+              {standalonePendingOrders.length >= 2 && (() => {
+                const sameCurrency = new Set(standalonePendingOrders.map((o) => o.currency)).size === 1;
+                if (!sameCurrency) return null;
+                const total = standalonePendingOrders.reduce((sum, o) => sum + Number(o.amount), 0);
+                const currency = standalonePendingOrders[0].currency;
+                return (
+                  <div className="mb-2 rounded-md border border-sky-200 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
+                    <div className="text-sm font-medium text-sky-800 dark:text-sky-200">
+                      {t('student.payment.pendingGroupTitle', { count: standalonePendingOrders.length })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('student.payment.pendingGroupDesc')}
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      {standalonePendingOrders.map((o) => (
+                        <div key={o.id} className="truncate">
+                          • {courseNameById.get(o.subject_id) ?? '—'}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-sky-200 dark:border-sky-900/40">
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">{t('student.payment.total')}: </span>
+                        <span className="font-bold text-sky-700 dark:text-sky-300 font-mono">
+                          {total.toFixed(2)} {currency}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                        onClick={async () => {
+                          const orderIds = standalonePendingOrders.map((o) => o.id);
                           try {
                             const session = await createCheckoutSession(orderIds, await getCachedAuthHeaders());
-                            setPaymentSummaryOrder(null); // single-order mode disabled
+                            setPaymentSummaryOrder(null);
                             setSessionItems(session.items);
                             setSessionId(session.session_id);
                             setPaymentSummaryOpen(true);
@@ -476,8 +553,10 @@ export default function StudentActivationPage() {
                 );
               })()}
 
-              {/* Per-order individual pending orders (always shown — fallback) */}
-              {pendingOrders.map(o => (
+              {/* Standalone pending orders — individual "استكمال الدفع" buttons */}
+              {/* (ONLY for orders NOT in a session — session orders are
+                  covered by the grouped button above) */}
+              {standalonePendingOrders.map(o => (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? '—'}</div>
@@ -486,11 +565,6 @@ export default function StudentActivationPage() {
                   <div className="text-end shrink-0 flex items-center gap-2">
                     <span className="font-mono text-xs">{Number(o.amount).toFixed(2)} {o.currency}</span>
                     <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
-                    {/* Per-order Complete Payment button — opens the
-                        single-order Payment Summary dialog with this
-                        order's ID. Used when the student wants to pay
-                        ONE order individually (not via the consolidated
-                        group button above). */}
                     <Button
                       size="sm"
                       variant="outline"
