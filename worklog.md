@@ -214,3 +214,51 @@ Stage Summary:
 - Root cause: most likely v73 was only partially applied (CHECK widening or function update didn't take). The trigger set `'pending'` and the frontend couldn't route to OTP.
 - Fix: layered resilience. Even if v73 isn't fully applied, signups now: (a) auto-promote to `pending_verification` via the ensure endpoint, OR (b) get routed to the OTP page based on `phone + !phone_verified` columns alone.
 - Operator action required: run `supabase/migrations/reapply/reapply_v73_phone_otp_verification.sql` in the Supabase SQL editor to bring the DB fully in sync. Then verify with `GET /api/setup/check-otp-migration`.
+
+---
+Task ID: paymob-500-fix
+Agent: main
+Task: Fix recurring HTTP 500 error from Paymob when student clicks "Pay Now" — error message: "تعذّر تجهيز عملية الدفع (خطأ 500 من بوابة الدفع). لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى."
+
+Diagnosis:
+- Error originated in `src/lib/payment/providers/paymob/client.ts` — Paymob's Accept API returned HTTP 500 on one of the 3 steps (auth token / create order / payment key).
+- The error message that reached the user was the safe Arabic fallback (`PAYMOB_API_REJECTED` category), but the actual Paymob response body (which explains WHY Paymob rejected) was thrown into the error's `cause` field and then stripped by `logPaymentEvent` — so we were flying blind.
+- Two latent bugs found while auditing:
+  1. The `items[]` array sent to `/api/ecommerce/orders` used `amount` (legacy field name) instead of `amount_cents`. Paymob Accept API docs strictly require `amount_cents`. This is the most likely root cause of the 500 (Paymob rejected the malformed items array).
+  2. `billing_data.phone_number` was sent as plain Egyptian local format (e.g., '01012345678') with no country-code prefix. Paymob Accept API expects E.164 format. Some Paymob merchant accounts reject with 500 when phone is not E.164.
+- `testConnection` only did a format check on the API key — never actually called Paymob. So the admin's "Test Connection" button was useless for diagnosing real issues.
+
+Fix (multi-layered):
+1. `src/lib/payment/providers/paymob/adapter.ts`:
+   - Changed `items[]` field name from `amount` → `amount_cents` (Paymob Accept API requirement).
+   - Added `normalizeEgPhone()` helper that converts common Egyptian phone formats ('01012345678', '201012345678', '+201012345678', '0020101234567') to E.164 ('+201012345678'). Falls back to a valid test number ('+201000000000') if the input can't be parsed.
+   - Updated `billing_data.phone_number` to use `normalizeEgPhone(input.customerPhone)`.
+   - Rewrote `testConnection` to actually call Paymob's `/api/auth/tokens` with the API key. Returns success only if Paymob returns a valid token. Catches 401/500/network errors and surfaces them in Arabic. No longer throws on credential structure errors — always returns a result (success=false with message) so callers don't need try/catch.
+2. `src/lib/payment/providers/paymob/client.ts`:
+   - Added `[paymob:debug]` console.error logging at every failure point. Logs:
+     - Network errors (ECONNREFUSED, timeout) with URL + message
+     - HTTP non-2xx with status, statusText, and full body (truncated to 1000 chars) — this captures Paymob's actual error message ("Invalid phone number", "amount cannot be less than 100 cents", etc.)
+     - JSON parse failures with body preview
+     - Missing required response fields with response preview
+   - Added info-level step logging ("step 1: requesting auth token", "step 1 OK: got auth token") so the flow is traceable.
+   - The full Paymob response body is NEVER exposed to the client — only logged server-side via console.error (Vercel captures these as structured logs).
+   - Reordered body construction in `createOrder` to explicitly include all required fields (amount_cents, currency, merchant_order_id, items) instead of relying on spread.
+3. NEW `src/app/api/admin/payment-gateways/[id]/diagnose-payment/route.ts`:
+   - Admin-only diagnostic endpoint that runs a FULL Paymob payment flow with a 1.00 EGP test amount.
+   - Returns a `stages[]` array with success/message/data for each stage (credentials_check, 1_auth_token, 2_create_order, 3_payment_key, 4_iframe_url).
+   - On failure at any stage, returns the Paymob error cause (truncated) so the admin can see WHY Paymob rejected.
+   - No real charge — Paymob voids the test order within 1 hour if unpaid.
+   - Does NOT expose secrets (only first 4 chars of API key for verification).
+4. `src/lib/payment/providers/paymob/__tests__/adapter.test.ts`:
+   - Updated testConnection tests to mock fetch (since the new testConnection actually calls Paymob).
+   - Added tests for: 401 rejection, 500 server error, network failure, missing credentials.
+   - Added new tests for: items array uses `amount_cents` (not `amount`), phone normalization to E.164, phone with country code kept, missing phone falls back to test number.
+
+Stage Summary:
+- Root cause of recurring 500: most likely the `items[].amount` field name (should be `amount_cents`) — Paymob Accept API strictly validates the items schema.
+- Secondary risk: phone number format. Now normalized to E.164 with +20 prefix for all Egyptian numbers.
+- Diagnostics: server logs now show the full Paymob response body on failure (`[paymob:debug]` prefix). Admin can run `POST /api/admin/payment-gateways/[id]/diagnose-payment` to test the full flow with a 1.00 EGP test amount.
+- Test coverage: 34 tests pass (was 31; added 3 new tests for items field + phone normalization + missing-phone fallback). The 1 pre-existing HMAC test failure (length mismatch error message wording) is unrelated and was not touched.
+- TypeScript: clean compile (`npx tsc --noEmit` passes).
+- Operator action: redeploy. If the 500 persists, ask the admin to call the new diagnostic endpoint — the response will show EXACTLY which step fails and what Paymob said.
+

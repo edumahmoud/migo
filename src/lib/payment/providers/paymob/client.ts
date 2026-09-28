@@ -20,6 +20,15 @@
  * The only difference: the Accept API callback uses
  * `obj.order.merchant_order_id` (our UUID) instead of
  * `obj.special_reference`.
+ *
+ * DEBUG LOGGING:
+ *   On non-2xx responses, the full Paymob response body (truncated to
+ *   1000 chars) is logged server-side via console.error with a
+ *   `[paymob:debug]` prefix. This body contains the Paymob-specific
+ *   error code/message that explains WHY Paymob rejected the request
+ *   (e.g., "Amount is less than minimum", "Invalid phone", etc.).
+ *   The body is NEVER exposed to the client — only the safe,
+ *   categorized Arabic message is returned.
  */
 
 import {
@@ -70,6 +79,11 @@ async function paymobFetch(
     });
     return res;
   } catch (err) {
+    // Network error / timeout / DNS failure / connection refused
+    console.error(`[paymob:debug] network error during ${errorPrefix}:`, {
+      url,
+      message: err instanceof Error ? err.message : String(err),
+    });
     throw new PaymentCreationFailedError(
       'paymob',
       `Failed to connect to Paymob API (${errorPrefix})`,
@@ -79,12 +93,17 @@ async function paymobFetch(
 }
 
 // ─── Helper: parse JSON response with Content-Type check ───
+//
+// On non-2xx: throws PaymentCreationFailedError with a SAFE message
+// (no provider data) AND logs the full Paymob body server-side.
+//
 async function parseJsonResponse(
   res: Response,
   errorPrefix: string,
 ): Promise<Record<string, unknown>> {
   // Check for redirect (3xx)
   if (res.status >= 300 && res.status < 400) {
+    console.error(`[paymob:debug] ${errorPrefix} got HTTP ${res.status} redirect`);
     throw new PaymentCreationFailedError(
       'paymob',
       `Paymob API returned a redirect (HTTP ${res.status}) — check API key`,
@@ -95,6 +114,19 @@ async function parseJsonResponse(
   const text = await res.text();
 
   if (!res.ok) {
+    // ── LOG THE FULL PAYMOB RESPONSE BODY (server-side only) ──
+    // This is the ONLY way to know WHY Paymob rejected the request.
+    // Examples of what Paymob returns here:
+    //   {"detail": "Invalid phone number"}
+    //   {"detail": "amount cannot be less than 100 cents"}
+    //   {"detail": "This integration is not enabled for your account"}
+    //   {"detail": "Currency not supported"}
+    console.error(`[paymob:debug] ${errorPrefix} failed:`, {
+      httpStatus: res.status,
+      statusText: res.statusText,
+      body: text.slice(0, 1000),
+    });
+
     throw new PaymentCreationFailedError(
       'paymob',
       `Paymob API request failed (HTTP ${res.status}) — ${errorPrefix}`,
@@ -105,6 +137,10 @@ async function parseJsonResponse(
   // Check Content-Type
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json') && !contentType.includes('text/json')) {
+    console.error(`[paymob:debug] ${errorPrefix} non-JSON response:`, {
+      contentType,
+      bodyPreview: text.slice(0, 500),
+    });
     throw new PaymentCreationFailedError(
       'paymob',
       `Paymob response is not valid JSON — ${errorPrefix}`,
@@ -115,6 +151,9 @@ async function parseJsonResponse(
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
+    console.error(`[paymob:debug] ${errorPrefix} JSON parse failed:`, {
+      bodyPreview: text.slice(0, 500),
+    });
     throw new PaymentCreationFailedError(
       'paymob',
       `Paymob response is not valid JSON — ${errorPrefix}`,
@@ -125,6 +164,7 @@ async function parseJsonResponse(
 
 // ─── Step 1: Get Auth Token ───
 export async function getAuthToken(apiKey: string): Promise<string> {
+  console.info('[paymob:debug] step 1: requesting auth token');
   const res = await paymobFetch(
     `${ACCEPT_BASE}/api/auth/tokens`,
     {
@@ -139,6 +179,9 @@ export async function getAuthToken(apiKey: string): Promise<string> {
   const token = json.token as string | undefined;
 
   if (!token) {
+    console.error('[paymob:debug] auth token response missing "token":', {
+      response: JSON.stringify(json).slice(0, 500),
+    });
     throw new PaymentCreationFailedError(
       'paymob',
       'Paymob auth token response missing "token" field',
@@ -146,6 +189,7 @@ export async function getAuthToken(apiKey: string): Promise<string> {
     );
   }
 
+  console.info('[paymob:debug] step 1 OK: got auth token');
   return token;
 }
 
@@ -156,10 +200,17 @@ export async function createOrder(
     amount_cents: number;
     currency: string;
     merchant_order_id: string;
-    items: Array<{ name: string; amount: number; quantity: number }>;
+    items: Array<{ name: string; amount_cents: number; quantity: number }>;
     delivery_needed?: boolean;
   },
 ): Promise<PaymobOrderResponse> {
+  console.info('[paymob:debug] step 2: creating order', {
+    amount_cents: body.amount_cents,
+    currency: body.currency,
+    merchant_order_id: body.merchant_order_id,
+    itemCount: body.items.length,
+  });
+
   const res = await paymobFetch(
     `${ACCEPT_BASE}/api/ecommerce/orders`,
     {
@@ -168,7 +219,10 @@ export async function createOrder(
       body: JSON.stringify({
         auth_token: authToken,
         delivery_needed: false,
-        ...body,
+        amount_cents: body.amount_cents,
+        currency: body.currency,
+        merchant_order_id: body.merchant_order_id,
+        items: body.items,
       }),
     },
     'create order',
@@ -178,6 +232,9 @@ export async function createOrder(
   const id = json.id as number | undefined;
 
   if (id === undefined || id === null) {
+    console.error('[paymob:debug] order response missing "id":', {
+      response: JSON.stringify(json).slice(0, 500),
+    });
     throw new PaymentCreationFailedError(
       'paymob',
       'Paymob order response missing "id" field',
@@ -185,6 +242,7 @@ export async function createOrder(
     );
   }
 
+  console.info(`[paymob:debug] step 2 OK: created Paymob order id=${id}`);
   return {
     id,
     merchant_order_id: json.merchant_order_id as string | undefined,
@@ -205,6 +263,13 @@ export async function getPaymentKey(
     expiration?: number;
   },
 ): Promise<PaymobPaymentKeyResponse> {
+  console.info('[paymob:debug] step 3: requesting payment key', {
+    amount_cents: body.amount_cents,
+    order_id: body.order_id,
+    integration_id: body.integration_id,
+    billing_data: body.billing_data,
+  });
+
   const res = await paymobFetch(
     `${ACCEPT_BASE}/api/acceptance/payment_keys`,
     {
@@ -213,7 +278,11 @@ export async function getPaymentKey(
       body: JSON.stringify({
         auth_token: authToken,
         expiration: 3600, // 1 hour
-        ...body,
+        amount_cents: body.amount_cents,
+        currency: body.currency,
+        integration_id: body.integration_id,
+        order_id: body.order_id,
+        billing_data: body.billing_data,
       }),
     },
     'payment key',
@@ -223,6 +292,9 @@ export async function getPaymentKey(
   const token = json.token as string | undefined;
 
   if (!token) {
+    console.error('[paymob:debug] payment key response missing "token":', {
+      response: JSON.stringify(json).slice(0, 500),
+    });
     throw new PaymentCreationFailedError(
       'paymob',
       'Paymob payment key response missing "token" field',
@@ -230,6 +302,7 @@ export async function getPaymentKey(
     );
   }
 
+  console.info('[paymob:debug] step 3 OK: got payment token');
   return { token };
 }
 

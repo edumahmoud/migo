@@ -18,6 +18,24 @@
  * unchanged. The only difference: the Accept API callback uses
  * `obj.order.merchant_order_id` (our UUID) instead of
  * `obj.special_reference`. The adapter now checks both.
+ *
+ * BILLING DATA:
+ *   Paymob's Accept API requires all billing_data fields to be
+ *   present (non-empty). The student doesn't fill these in — we
+ *   provide safe defaults:
+ *     - first_name/last_name: from customerName (or 'Student'/'User')
+ *     - email: from customerEmail (or 'student@attendo.local')
+ *     - phone_number: from customerPhone, normalized to E.164 (+20...)
+ *     - building/floor/apartment/street/shipping_method: 'NA'
+ *     - city: 'Cairo', country: 'EG'
+ *
+ *   The phone number normalization handles the common Egyptian formats:
+ *     - '01012345678'           → '+201012345678'
+ *     - '201012345678'          → '+201012345678'
+ *     - '+201012345678'         → '+201012345678'
+ *     - '0020101234567'         → '+20101234567'
+ *   If the phone can't be parsed, falls back to a valid Egyptian
+ *   test number ('+201000000000').
  */
 
 import {
@@ -56,7 +74,7 @@ const PAYMOB_CAPABILITIES: GatewayCapabilities = {
   supportsRefund: false,
   supportsVerify: true,         // GET transaction endpoint
   supportsWebhook: true,        // HMAC-verified callbacks
-  supportsTestConnection: true, // Minimal: validate key format
+  supportsTestConnection: true, // Validates by actually calling Paymob /api/auth/tokens
   supportsRedirectCheckout: true,  // Hosted iframe checkout
   supportsEmbeddedCheckout: false,
 };
@@ -64,6 +82,48 @@ const PAYMOB_CAPABILITIES: GatewayCapabilities = {
 // ─── Amount conversion: major units → cents ───
 function toCents(amount: number): number {
   return Math.round(amount * 100);
+}
+
+// ─── Normalize phone number to E.164 (Egyptian) ───
+//
+// Paymob's Accept API validates `billing_data.phone_number` strictly.
+// Historically, plain Egyptian numbers like '01012345678' triggered
+// HTTP 500 because Paymob expected the country-code prefix.
+//
+// This function accepts the common Egyptian formats and returns
+// a string in E.164 form starting with '+20'. If the input can't
+// be parsed, it falls back to a valid Egyptian test number.
+//
+function normalizeEgPhone(input: string | undefined | null): string {
+  const fallback = '+201000000000';
+  if (!input || typeof input !== 'string') return fallback;
+
+  // Strip everything except digits and leading +
+  let s = input.trim();
+
+  // Already in E.164 form
+  if (/^\+20\d{9,12}$/.test(s)) return s;
+
+  // Remove spaces, dashes, parens
+  s = s.replace(/[\s\-()]/g, '');
+
+  // Strip leading '00' (international prefix)
+  if (s.startsWith('00')) s = s.slice(2);
+
+  // Now we should have either:
+  //   '20xxxxxxxxxx' (already has country code)
+  //   '0xxxxxxxxxx'  (Egyptian local — leading 0)
+  //   'xxxxxxxxxxx'  (no leading 0)
+
+  if (s.startsWith('20')) return `+${s}`;
+  if (s.startsWith('0')) s = s.slice(1);
+  // Egyptian mobile numbers: 10 digits (01x xxxxxxxx)
+  // Egyptian landline: 9-10 digits without leading 0
+  if (s.length >= 9 && s.length <= 12) {
+    return `+20${s}`;
+  }
+
+  return fallback;
 }
 
 // ─── Cast credentials safely ───
@@ -135,13 +195,14 @@ export class PaymobAdapter implements PaymentGateway {
       : config.notificationUrl;
 
     // Build billing_data (required by Accept API — ALL fields must be present).
-    // Paymob returns HTTP 500 if any required billing_data field is missing.
+    // Paymob returns HTTP 500 if any required billing_data field is missing
+    // OR if the phone number format is invalid (not E.164).
     // We provide defaults for fields the student didn't fill in.
     const billingData: Record<string, string> = {
       first_name: 'Student',
       last_name: 'User',
       email: input.customerEmail || 'student@attendo.local',
-      phone_number: input.customerPhone || '01000000000',
+      phone_number: normalizeEgPhone(input.customerPhone),
       building: 'NA',
       floor: 'NA',
       apartment: 'NA',
@@ -160,6 +221,9 @@ export class PaymobAdapter implements PaymentGateway {
     const authToken = await getAuthToken(creds.secretKey);
 
     // ── Step 2: Create order ──
+    // CRITICAL: Paymob's Accept API expects `amount_cents` (not `amount`)
+    // for each item. Using `amount` here caused HTTP 500 on some merchant
+    // accounts that strictly validate the schema.
     const order = await createOrder(authToken, {
       amount_cents: amountCents,
       currency: input.currency,
@@ -167,7 +231,7 @@ export class PaymobAdapter implements PaymentGateway {
       items: [
         {
           name: input.description || 'Course Subscription',
-          amount: amountCents,
+          amount_cents: amountCents,
           quantity: 1,
         },
       ],
@@ -337,7 +401,20 @@ export class PaymobAdapter implements PaymentGateway {
 
   /**
    * Test the connection to Paymob.
-   * Minimal validation — does NOT create a real payment.
+   *
+   * ACTUAL connection test (not just format check). Calls Paymob's
+   * /api/auth/tokens endpoint with the API key. If Paymob returns a
+   * token, the API key is valid and the account is reachable.
+   *
+   * This is a stronger test than the previous version (which only
+   * checked the format of the credentials). It catches:
+   *   - Invalid API keys
+   *   - Account suspended / disabled
+   *   - Network connectivity issues
+   *   - Paymob API outage
+   *
+   * It does NOT test integration IDs or HMAC (those are validated
+   * only when a real payment is created or a webhook is received).
    */
   async testConnection(
     credentials: GatewayCredentials,
@@ -345,34 +422,36 @@ export class PaymobAdapter implements PaymentGateway {
   ): Promise<GatewayConnectionTestResult> {
     try {
       const creds = castCredentials(credentials);
-      if (creds.secretKey.length < 10) {
+
+      // Try to actually get an auth token from Paymob.
+      // This validates the API key against the live Paymob API.
+      let token: string;
+      try {
+        token = await getAuthToken(creds.secretKey);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'unknown error';
         return {
           success: false,
           provider: 'paymob',
-          message: 'API Key appears too short',
+          message: `فشل الاتصال بـ Paymob: ${msg}`,
           testedAt: new Date().toISOString(),
         };
       }
-      if (creds.hmacSecret.length < 10) {
+
+      if (!token || token.length < 10) {
         return {
           success: false,
           provider: 'paymob',
-          message: 'hmacSecret appears too short',
+          message: 'Paymob returned an invalid auth token',
           testedAt: new Date().toISOString(),
         };
       }
-      if (!creds.integrationIds || creds.integrationIds.length === 0) {
-        return {
-          success: false,
-          provider: 'paymob',
-          message: 'Integration IDs are required for the Accept API',
-          testedAt: new Date().toISOString(),
-        };
-      }
+
+      // All checks passed
       return {
         success: true,
         provider: 'paymob',
-        message: 'Credentials format is valid. To fully test, create a test payment in sandbox mode.',
+        message: 'تم الاتصال بـ Paymob بنجاح. مفتاح API صالح.',
         testedAt: new Date().toISOString(),
       };
     } catch (err) {

@@ -158,6 +158,79 @@ describe('PaymobAdapter.createPayment', () => {
     expect(body.amount_cents).toBe(10000);
   });
 
+  test('items array uses amount_cents (NOT amount) — Paymob Accept API requirement', async () => {
+    const fetchMock = mockAcceptApi();
+
+    await adapter.createPayment(
+      { orderId: 'test', amount: 100, currency: 'EGP', description: 'Test Course' },
+      TEST_CREDENTIALS,
+      TEST_CONFIG,
+    );
+
+    const orderCall = fetchMock.mock.calls[1];
+    const body = JSON.parse(orderCall[1].body);
+    expect(body.items).toBeDefined();
+    expect(Array.isArray(body.items)).toBe(true);
+    expect(body.items[0].amount_cents).toBe(10000);
+    // The legacy `amount` field should NOT be present in items
+    expect(body.items[0].amount).toBeUndefined();
+  });
+
+  test('phone number is normalized to E.164 (+20 prefix) for Egyptian numbers', async () => {
+    const fetchMock = mockAcceptApi();
+
+    // Pass an Egyptian local-format phone
+    await adapter.createPayment(
+      {
+        orderId: 'test',
+        amount: 100,
+        currency: 'EGP',
+        customerPhone: '01012345678',
+        customerEmail: 'test@example.com',
+      },
+      TEST_CREDENTIALS,
+      TEST_CONFIG,
+    );
+
+    // The 3rd call (index 2) is the payment_keys call
+    const paymentKeyCall = fetchMock.mock.calls[2];
+    const body = JSON.parse(paymentKeyCall[1].body);
+    expect(body.billing_data.phone_number).toBe('+201012345678');
+  });
+
+  test('phone with country code already present is kept', async () => {
+    const fetchMock = mockAcceptApi();
+
+    await adapter.createPayment(
+      {
+        orderId: 'test',
+        amount: 100,
+        currency: 'EGP',
+        customerPhone: '+201012345678',
+      },
+      TEST_CREDENTIALS,
+      TEST_CONFIG,
+    );
+
+    const paymentKeyCall = fetchMock.mock.calls[2];
+    const body = JSON.parse(paymentKeyCall[1].body);
+    expect(body.billing_data.phone_number).toBe('+201012345678');
+  });
+
+  test('missing phone falls back to valid Egyptian test number', async () => {
+    const fetchMock = mockAcceptApi();
+
+    await adapter.createPayment(
+      { orderId: 'test', amount: 100, currency: 'EGP' },
+      TEST_CREDENTIALS,
+      TEST_CONFIG,
+    );
+
+    const paymentKeyCall = fetchMock.mock.calls[2];
+    const body = JSON.parse(paymentKeyCall[1].body);
+    expect(body.billing_data.phone_number).toBe('+201000000000');
+  });
+
   test('credentials do NOT appear in the result', async () => {
     mockAcceptApi();
 
@@ -428,28 +501,70 @@ describe('PaymobAdapter.handleWebhook', () => {
 describe('PaymobAdapter.testConnection', () => {
   const adapter = new PaymobAdapter();
 
-  test('valid credentials → success', async () => {
+  // Helper: mock just the /api/auth/tokens endpoint for testConnection
+  function mockAuthTokenResponse(status: number, body: unknown) {
+    return mockFetch({
+      'auth/tokens': { status, body },
+    });
+  }
+
+  test('valid credentials + Paymob returns token → success', async () => {
+    // Mock Paymob returning a valid auth token
+    mockAuthTokenResponse(200, { token: 'auth_token_test_123' });
+
     const result = await adapter.testConnection(TEST_CREDENTIALS);
     expect(result.success).toBe(true);
     expect(result.provider).toBe('paymob');
   });
 
-  test('short secretKey → failure', async () => {
-    const result = await adapter.testConnection({ secretKey: 'sk', hmacSecret: 'valid_hmac_secret_123', integrationIds: [123] });
+  test('Paymob rejects API key (401) → failure with Paymob message', async () => {
+    // Mock Paymob returning 401 Unauthorized
+    mockAuthTokenResponse(401, { detail: 'Invalid API key' });
+
+    const result = await adapter.testConnection(TEST_CREDENTIALS);
     expect(result.success).toBe(false);
-    expect(result.message).toContain('API Key');
+    expect(result.provider).toBe('paymob');
+    // The message should mention the Paymob rejection
+    expect(result.message).toMatch(/Paymob|فشل|HTTP 401/i);
   });
 
-  test('short hmacSecret → failure', async () => {
-    const result = await adapter.testConnection({ secretKey: 'valid_secret_key_12345', hmacSecret: 'hm', integrationIds: [123] });
+  test('Paymob returns 500 (server error) → failure with Paymob message', async () => {
+    // Mock Paymob returning 500
+    mockAuthTokenResponse(500, { detail: 'Internal server error' });
+
+    const result = await adapter.testConnection(TEST_CREDENTIALS);
     expect(result.success).toBe(false);
-    expect(result.message).toContain('hmacSecret');
+    expect(result.provider).toBe('paymob');
   });
 
-  test('missing integrationIds → failure', async () => {
-    const result = await adapter.testConnection({ secretKey: 'valid_secret_key_12345', hmacSecret: 'valid_hmac_secret_123' });
+  test('network failure (fetch throws) → failure with connection error', async () => {
+    // Mock fetch throwing a network error
+    globalThis.fetch = mock(async () => {
+      throw new Error('ECONNREFUSED');
+    }) as any;
+
+    const result = await adapter.testConnection(TEST_CREDENTIALS);
     expect(result.success).toBe(false);
-    expect(result.message).toContain('integrationIds');
+    expect(result.provider).toBe('paymob');
+    expect(result.message).toMatch(/connect|Paymob|فشل/i);
+  });
+
+  test('missing secretKey → failure (not throw)', async () => {
+    const result = await adapter.testConnection({ hmacSecret: 'test', integrationIds: [123] });
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/API Key|secretKey/i);
+  });
+
+  test('missing hmacSecret → failure (not throw)', async () => {
+    const result = await adapter.testConnection({ secretKey: 'test', integrationIds: [123] });
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/hmacSecret/i);
+  });
+
+  test('missing integrationIds → failure (not throw)', async () => {
+    const result = await adapter.testConnection({ secretKey: 'valid_key_12345', hmacSecret: 'valid_hmac_12345' });
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/integrationIds/i);
   });
 });
 
