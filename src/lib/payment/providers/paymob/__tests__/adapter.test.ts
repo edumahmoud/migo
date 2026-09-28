@@ -231,6 +231,37 @@ describe('PaymobAdapter.createPayment', () => {
     expect(body.billing_data.phone_number).toBe('+201000000000');
   });
 
+  test('iframeId is used in iframe URL when set (NOT integrationId)', async () => {
+    mockAcceptApi();
+
+    const result = await adapter.createPayment(
+      { orderId: 'test', amount: 100, currency: 'EGP' },
+      {
+        ...TEST_CREDENTIALS,
+        // Set iframeId to a DIFFERENT number from integrationIds[0] (123456)
+        iframeId: 999888,
+      },
+      TEST_CONFIG,
+    );
+
+    // The iframe URL should use iframeId (999888), not integrationId (123456)
+    expect(result.checkoutUrl).toContain('/iframes/999888');
+    expect(result.checkoutUrl).not.toContain('/iframes/123456');
+  });
+
+  test('falls back to integrationId in iframe URL when iframeId is NOT set', async () => {
+    mockAcceptApi();
+
+    const result = await adapter.createPayment(
+      { orderId: 'test', amount: 100, currency: 'EGP' },
+      TEST_CREDENTIALS, // no iframeId set
+      TEST_CONFIG,
+    );
+
+    // Should fall back to integrationIds[0] (123456)
+    expect(result.checkoutUrl).toContain('/iframes/123456');
+  });
+
   test('credentials do NOT appear in the result', async () => {
     mockAcceptApi();
 

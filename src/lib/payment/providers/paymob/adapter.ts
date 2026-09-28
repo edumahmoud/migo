@@ -188,6 +188,11 @@ export class PaymobAdapter implements PaymentGateway {
 
     const amountCents = toCents(input.amount);
     const integrationId = creds.integrationIds![0]; // first integration ID
+    // The iframe ID is DIFFERENT from the integration ID on most Paymob
+    // accounts. Use the configured `iframeId` if set; otherwise fall
+    // back to integrationId (which works only if the IDs happen to be
+    // the same — most accounts need iframeId set explicitly).
+    const iframeId = creds.iframeId ?? integrationId;
 
     // Build notification_url with gateway_id (for gateway snapshot)
     const notificationUrl = config.gatewayId
@@ -247,7 +252,9 @@ export class PaymobAdapter implements PaymentGateway {
     });
 
     // ── Step 4: Build iframe URL ──
-    const checkoutUrl = buildIframeUrl(integrationId, paymentKey.token);
+    // Use the iframeId (NOT the integration ID) — they are different
+    // values on most Paymob accounts.
+    const checkoutUrl = buildIframeUrl(iframeId, paymentKey.token);
 
     return {
       success: true,
@@ -263,6 +270,7 @@ export class PaymobAdapter implements PaymentGateway {
         merchantOrderId: input.orderId,
         paymobOrderId: order.id,
         integrationId,
+        iframeId,
         notificationUrl,
       },
     };

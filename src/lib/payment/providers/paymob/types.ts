@@ -24,10 +24,26 @@ export interface PaymobCredentials {
   /**
    * Integration IDs — REQUIRED for the Accept API.
    * Found in: Paymob Dashboard → Payment Channels → Integrations
-   * Used for: POST /api/acceptance/payment_keys (integration_id)
-   *           + iframe redirect URL (/api/acceptance/iframes/{id})
+   * Used for: POST /api/acceptance/payment_keys (integration_id).
+   *
+   * NOTE: This is NOT the iframe ID. The iframe ID is a separate
+   * value (see `iframeId` below). Using the integration ID in the
+   * iframe URL causes "IFrame matching query does not exist" errors.
    */
   integrationIds?: number[];
+  /**
+   * Iframe ID — the ID of the hosted checkout iframe.
+   * Found in: Paymob Dashboard → Payment Channels → Iframes (or
+   *   Settings → Hosted Checkout).
+   * Used for: iframe redirect URL (/api/acceptance/iframes/{iframeId}).
+   *
+   * If NOT set, the adapter falls back to integrationIds[0]. This
+   * fallback works for some Paymob accounts where the integration
+   * ID and iframe ID happen to be the same, but most accounts have
+   * DIFFERENT IDs. Set this explicitly to avoid "IFrame matching
+   * query does not exist" errors.
+   */
+  iframeId?: number;
   /** Optional: public key (not used in backend flows) */
   publicKey?: string;
 }

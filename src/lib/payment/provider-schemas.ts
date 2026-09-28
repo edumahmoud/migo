@@ -33,7 +33,8 @@ schemas.set('paymob', {
   credentialFields: [
     { name: 'secretKey', label: 'API Key', type: 'password', required: true, placeholder: 'Paymob Dashboard → Settings → API Keys', helpText: 'مفتاح API من لوحة تحكم Paymob' },
     { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'Paymob Dashboard → Settings → Webhooks → HMAC', helpText: 'سر HMAC من إعدادات Webhooks' },
-    { name: 'integrationIds', label: 'Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: 'معرّف التكامل من Paymob Dashboard → Payment Channels → Integrations (مطلوب)' },
+    { name: 'integrationIds', label: 'Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: 'معرّف التكامل من Paymob Dashboard → Payment Channels → Integrations (يُستخدم في طلب payment_keys)' },
+    { name: 'iframeId', label: 'Iframe ID', type: 'number', required: true, placeholder: '789012', helpText: '⚠️ مختلف عن Integration ID! معرّف صفحة الدفع المستضافة من Paymob Dashboard → Payment Channels → Iframes (بدونه يظهر خطأ "IFrame matching query does not exist")' },
   ],
   configurationFields: [
     { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob', helpText: 'رابط استقبال webhook (يجب أن يكون متاحًا للعموم)' },

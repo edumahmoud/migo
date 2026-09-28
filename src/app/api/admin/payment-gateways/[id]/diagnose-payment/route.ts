@@ -201,27 +201,77 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   // ─── Stage 4: Build iframe URL ───
-  const iframeUrl = buildIframeUrl(integrationId, paymentToken);
+  // IMPORTANT: iframe ID is DIFFERENT from integration ID on most
+  // Paymob accounts. Use the configured iframeId if set; otherwise
+  // fall back to integrationId (which may fail with "IFrame matching
+  // query does not exist").
+  const iframeId = creds.iframeId ?? integrationId;
+  const iframeUrl = buildIframeUrl(iframeId, paymentToken);
+
+  // Try to fetch the iframe URL to verify it resolves (Paymob returns
+  // a 200 OK HTML page on success, or an error message on failure)
+  let iframeCheckResult: { status: number; ok: boolean; bodyPreview: string } | null = null;
+  try {
+    const iframeRes = await fetch(iframeUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000),
+    });
+    const iframeBody = await iframeRes.text();
+    const looksOk = !iframeBody.includes('IFrame matching query does not exist')
+      && !iframeBody.includes('does not exist');
+    iframeCheckResult = {
+      status: iframeRes.status,
+      ok: looksOk,
+      bodyPreview: iframeBody.slice(0, 200),
+    };
+  } catch (err) {
+    iframeCheckResult = {
+      status: 0,
+      ok: false,
+      bodyPreview: err instanceof Error ? err.message : 'fetch failed',
+    };
+  }
+
   stages.push({
     stage: '4_iframe_url',
-    success: true,
-    message: 'Built iframe URL successfully',
-    data: { iframeUrl, integrationId },
+    success: iframeCheckResult.ok,
+    message: iframeCheckResult.ok
+      ? `Iframe URL resolves correctly (HTTP ${iframeCheckResult.status}). iframeId=${iframeId}`
+      : `Iframe URL did NOT resolve correctly (HTTP ${iframeCheckResult.status}). iframeId=${iframeId}. This is likely because the iframeId is wrong — it's different from the integrationId. Get the iframeId from Paymob Dashboard → Payment Channels → Iframes.`,
+    data: {
+      iframeUrl,
+      integrationId,
+      iframeId,
+      iframeIdConfigured: !!creds.iframeId,
+      iframeCheck: iframeCheckResult,
+      hint: !iframeCheckResult.ok
+        ? 'Go to Paymob Dashboard → Payment Channels → Iframes. Find the iframe ID (a different number from the integration ID). Update the gateway credentials with this iframe ID.'
+        : null,
+    },
   });
 
+  // Even if the iframe check fails, we still consider the diagnostic
+  // flow "successful" because the Paymob API call (auth + order + key)
+  // worked. The iframe ID is just a configuration value the admin
+  // needs to fix.
   logPaymentEvent({
-    level: 'info',
+    level: iframeCheckResult.ok ? 'info' : 'warn',
     operation: 'gatewayManagement',
     provider: 'paymob',
     success: true,
-    message: `Diagnostic test payment flow succeeded for gateway ${id}`,
+    message: `Diagnostic test payment flow completed for gateway ${id} (iframe check: ${iframeCheckResult.ok ? 'OK' : 'FAILED'})`,
   });
 
   return NextResponse.json({
     success: true,
-    message: 'Full Paymob payment flow succeeded. The gateway is correctly configured.',
+    message: iframeCheckResult.ok
+      ? 'Full Paymob payment flow succeeded. The gateway is correctly configured.'
+      : 'Paymob API calls succeeded, but the iframe URL is wrong. Update the iframeId in the gateway credentials (Paymob Dashboard → Payment Channels → Iframes).',
     stages,
     iframeUrl,
+    iframeId,
+    integrationId,
     testOrderId,
     paymobOrderId: order.id,
   });
