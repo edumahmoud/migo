@@ -54,6 +54,9 @@ import {
   Pencil,
   Power,
   PowerOff,
+  Trash2,
+  Eye,
+  EyeOff,
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
@@ -360,6 +363,77 @@ export default function TeacherPayoutMethodsSection() {
     }
   };
 
+  // Hard-delete payout method (permanently remove)
+  const handleDelete = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذه الوسيلة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    try {
+      const res = await fetch(`/api/teacher/payout-methods/${id}`, {
+        method: 'DELETE',
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || 'فشل الحذف');
+        return;
+      }
+      toast.success('تم حذف الوسيلة نهائيًا');
+      await fetchMethods();
+    } catch {
+      toast.error('فشل الحذف');
+    }
+  };
+
+  // Show/hide full details toggle
+  const [showDetailsId, setShowDetailsId] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<Record<string, unknown> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const handleToggleDetails = async (id: string) => {
+    if (showDetailsId === id) {
+      // Hide
+      setShowDetailsId(null);
+      setDetailData(null);
+      return;
+    }
+    // Show — fetch full decrypted details
+    setShowDetailsId(id);
+    setDetailLoading(true);
+    setDetailData(null);
+    try {
+      // Use the admin-style resolvePayoutMethod endpoint (teacher self-view)
+      const res = await fetch(`/api/teacher/payout-methods/${id}/details`, {
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setDetailData(json.details);
+      } else {
+        toast.error(json.error || 'تعذّر تحميل التفاصيل');
+        setShowDetailsId(null);
+      }
+    } catch {
+      toast.error('تعذّر تحميل التفاصيل');
+      setShowDetailsId(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Arabic labels for payout detail fields
+  const FIELD_LABELS_AR: Record<string, string> = {
+    wallet_number: 'رقم المحفظة',
+    bank_name: 'اسم البنك',
+    account_number: 'رقم الحساب',
+    iban: 'IBAN',
+    holder_name: 'اسم صاحب الحساب',
+    last4: 'آخر 4 أرقام',
+    card_brand: 'نوع البطاقة',
+    card_number: 'رقم البطاقة',
+    expiry_month: 'شهر الانتهاء',
+    expiry_year: 'سنة الانتهاء',
+    recipient_identifier: 'معرّف المستلم',
+  };
+
   const handleSetDefault = async (id: string) => {
     try {
       const res = await fetch(`/api/teacher/payout-methods/${id}/set-default`, {
@@ -568,12 +642,35 @@ export default function TeacherPayoutMethodsSection() {
                       <Pencil className="h-3.5 w-3.5 me-1" />
                       {t('payoutMethods.actions.edit')}
                     </Button>
+                    {/* Show/Hide details toggle */}
+                    <Button
+                      onClick={() => handleToggleDetails(method.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs"
+                    >
+                      {showDetailsId === method.id ? (
+                        <><EyeOff className="h-3.5 w-3.5 me-1" />إخفاء</>
+                      ) : (
+                        <><Eye className="h-3.5 w-3.5 me-1" />عرض</>
+                      )}
+                    </Button>
+                    {/* Hard-delete button */}
+                    <Button
+                      onClick={() => handleDelete(method.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-rose-600 hover:text-rose-700"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 me-1" />
+                      حذف
+                    </Button>
                     {method.is_active ? (
                       <Button
                         onClick={() => handleDisable(method.id)}
                         variant="ghost"
                         size="sm"
-                        className="h-8 text-xs text-rose-600 hover:text-rose-700"
+                        className="h-8 text-xs text-amber-600 hover:text-amber-700"
                       >
                         <PowerOff className="h-3.5 w-3.5 me-1" />
                         {t('payoutMethods.actions.disable')}
@@ -590,6 +687,27 @@ export default function TeacherPayoutMethodsSection() {
                       </Button>
                     )}
                   </div>
+                  {/* Show/hide full details */}
+                  {showDetailsId === method.id && (
+                    <div className="mt-2 rounded-md border bg-muted/30 p-2 space-y-1">
+                      {detailLoading ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> جارٍ تحميل التفاصيل...
+                        </div>
+                      ) : detailData ? (
+                        Object.entries(detailData)
+                          .filter(([k]) => k !== 'method_type')
+                          .map(([key, val]) => (
+                            <div key={key} className="flex justify-between text-xs gap-2">
+                              <span className="text-muted-foreground">{FIELD_LABELS_AR[key] ?? key}:</span>
+                              <span className="font-semibold text-end" dir="ltr">{String(val)}</span>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="text-xs text-muted-foreground">تعذّر تحميل التفاصيل</div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -688,6 +806,9 @@ export default function TeacherPayoutMethodsSection() {
                       // For card_brand: keep letters/digits/spaces/dashes (free text).
                       if (['wallet_number', 'account_number', 'last4', 'expiry_month', 'expiry_year'].includes(field.name)) {
                         val = val.replace(/\D/g, '');
+                      } else if (field.name === 'card_number') {
+                        // Card number: strip non-digits, allow grouping spaces
+                        val = val.replace(/[^\d ]/g, '');
                       } else if (field.name === 'iban') {
                         val = val.toUpperCase().replace(/\s+/g, '');
                       } else if (field.name === 'recipient_identifier') {

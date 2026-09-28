@@ -247,11 +247,13 @@ describe('Phase 13 Step 1 — B. Bank Card Data Minimization', () => {
   });
 
   // Test 7: bank_card schema has NO forbidden fields declared
-  it('bank_card schema has NO card_number / cvv / provider_token field declared', () => {
+  it('bank_card schema has card_number (optional) + last4, but NO cvv/provider_token', () => {
     const schema = getPayoutMethodSchema('bank_card')!;
     expect(schema).toBeDefined();
     const fieldNames = schema.fields.map((f) => f.name);
-    expect(fieldNames).not.toContain('card_number');
+    // card_number is now ALLOWED (optional — stored encrypted, masked in display)
+    expect(fieldNames).toContain('card_number');
+    // CVV / provider_token are STILL forbidden
     expect(fieldNames).not.toContain('pan');
     expect(fieldNames).not.toContain('cvv');
     expect(fieldNames).not.toContain('cvc');

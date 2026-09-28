@@ -667,3 +667,50 @@ export async function resolvePayoutMethod(
 
   return { ...metadata, details };
 }
+
+/**
+ * Hard-delete a payout method.
+ * Permanently removes the row from teacher_payout_methods.
+ * The encrypted details are also deleted (not recoverable).
+ * Audit log rows (if any) have payout_method_id set to NULL
+ * (ON DELETE SET NULL) — the audit history text is preserved.
+ *
+ * IDOR defense: WHERE clause includes both id AND teacher_id.
+ *
+ * @param id         The payout method ID to delete.
+ * @param teacherId  The teacher who owns the method (from auth).
+ * @param actorId    Who performed the deletion (for audit log).
+ * @returns           { deleted: boolean }
+ */
+export async function hardDeletePayoutMethod(
+  id: string,
+  teacherId: string,
+  actorId: string,
+): Promise<{ deleted: boolean }> {
+  // Write audit log BEFORE deleting (so the log has the method_id FK)
+  try {
+    await supabaseServer.from('teacher_payout_method_audit_log').insert({
+      payout_method_id: id,
+      teacher_id: teacherId,
+      event: 'payout_method.deleted',
+      actor_id: actorId,
+      details: { hard_delete: true },
+    });
+  } catch (err) {
+    console.error('[payout-methods] audit log write failed:', err);
+    // Continue with delete even if audit fails
+  }
+
+  const { error, count } = await supabaseServer
+    .from('teacher_payout_methods')
+    .delete()
+    .eq('id', id)
+    .eq('teacher_id', teacherId);
+
+  if (error) {
+    console.error('[payout-methods] hard delete failed:', error.message);
+    return { deleted: false };
+  }
+
+  return { deleted: true };
+}

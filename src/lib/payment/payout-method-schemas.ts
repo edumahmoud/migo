@@ -287,14 +287,25 @@ schemas.set('bank_card', {
   displayName: 'payoutMethods.providers.bankCard',
   fields: [
     {
+      name: 'card_number',
+      label: 'رقم البطاقة كامل',
+      type: 'text',
+      required: false, // alternative: either card_number OR last4
+      maxLength: 19,
+      placeholder: '4111 1111 1111 1111',
+      helpText: 'رقم البطاقة كامل — يُخزّن مشفّرًا، ويظهر آخر 4 أرقام فقط في العرض',
+      alternativeGroup: 'card_identifier',
+    },
+    {
       name: FIELD_NAMES.last4,
       label: 'آخر 4 أرقام من البطاقة',
       type: 'text',
-      required: true,
+      required: false, // alternative: either card_number OR last4
       pattern: LAST4_REGEX.source,
       maxLength: 4,
       placeholder: '5678',
-      helpText: 'آخر 4 أرقام فقط من رقم البطاقة (لا تخزن البطاقة كاملة)',
+      helpText: 'أدخل آخر 4 أرقام فقط، أو أدخل الرقم كامل أعلاه',
+      alternativeGroup: 'card_identifier',
     },
     {
       name: FIELD_NAMES.cardBrand,

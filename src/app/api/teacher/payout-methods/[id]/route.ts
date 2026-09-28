@@ -3,6 +3,7 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 import {
   updatePayoutMethod,
   softDisablePayoutMethod,
+  hardDeletePayoutMethod,
   getPayoutMethodForTeacher,
 } from '@/lib/payment/payout-methods-repository';
 
@@ -144,10 +145,11 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
 /**
  * DELETE /api/teacher/payout-methods/[id]
  *
- * Soft-disable ONLY — never hard-delete.
- * - Sets is_active = false and is_default = false.
- * - Audit history is preserved (the row remains in the table).
- * - Hard-delete is admin-only via the service role (Phase 13 scope).
+ * Hard-delete (permanently remove) a payout method.
+ * The encrypted details are also deleted (not recoverable).
+ * Audit log is written BEFORE deletion (payout_method.deleted event).
+ *
+ * Query param: ?soft=true → soft-disable instead of hard-delete.
  *
  * IDOR defense: WHERE clause includes both `id` AND `teacher_id`.
  */
@@ -158,23 +160,49 @@ export async function DELETE(request: NextRequest, ctx: RouteContext) {
   const teacherId = authResult.user.id;
   const { id } = await ctx.params;
 
-  try {
-    const result = await softDisablePayoutMethod(id, teacherId, teacherId);
+  // Check ?soft=true query param — if set, soft-disable instead of hard-delete
+  const soft = new URL(request.url).searchParams.get('soft') === 'true';
 
-    if (!result.disabled) {
+  if (soft) {
+    try {
+      const result = await softDisablePayoutMethod(id, teacherId, teacherId);
+      if (!result.disabled) {
+        return NextResponse.json(
+          { success: false, error: 'الوسيلة غير موجودة أو غير مملوكة لك' },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        id,
+        message: 'تم تعطيل الوسيلة. البيانات محفوظة للسجل التاريخي.',
+      });
+    } catch (err) {
       return NextResponse.json(
-        { success: false, error: 'الوسيلة غير موجودة أو غير مملوكة لك' },
-        { status: 404 }
+        { success: false, error: err instanceof Error ? err.message : 'فشل التعطيل' },
+        { status: 500 },
       );
     }
+  }
 
+  // Hard-delete: permanently remove the payout method
+  try {
+    const result = await hardDeletePayoutMethod(id, teacherId, teacherId);
+    if (!result.deleted) {
+      return NextResponse.json(
+        { success: false, error: 'تعذّر حذف الوسيلة. حاول مرة أخرى.' },
+        { status: 500 },
+      );
+    }
     return NextResponse.json({
       success: true,
       id,
-      message: 'تم تعطيل الوسيلة (soft-disable). البيانات محفوظة للسجل التاريخي.',
+      message: 'تم حذف الوسيلة نهائيًا.',
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'فشل التعطيل';
-    return NextResponse.json({ success: false, error: message }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : 'فشل الحذف' },
+      { status: 500 },
+    );
   }
 }

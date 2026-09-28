@@ -393,10 +393,21 @@ function HomeContent() {
     }
 
     if (user) {
-      if (currentPage === 'auth') {
-        const accountStatus = (user as { account_status?: string }).account_status;
-        const userPhone = (user as { phone?: string | null }).phone;
-        const phoneVerified = (user as { phone_verified?: boolean }).phone_verified;
+      const accountStatus = (user as { account_status?: string }).account_status;
+      const userPhone = (user as { phone?: string | null }).phone;
+      const phoneVerified = (user as { phone_verified?: boolean }).phone_verified;
+
+      // ─── ALWAYS check account_status for students, even if currentPage
+      // is already 'student-dashboard' (from localStorage). ───
+      // FIX: After logout + refresh, the stored currentPage='student-dashboard'
+      // was used directly without re-checking account_status. This caused
+      // students with account_status='pending' to see the full StudentDashboard
+      // instead of the StudentActivationPage.
+      if (user.role === 'student' && accountStatus === 'pending') {
+        if (currentPage !== 'student-dashboard') {
+          setCurrentPage('student-dashboard');  // dashboard switch renders ActivationPage
+        }
+      } else if (currentPage === 'auth') {
         // v73 resilient routing: pending_verification OR (pending + phone +
         // !phone_verified) → student dashboard (which renders OtpVerificationPage
         // in the dashboard switch below).
@@ -407,8 +418,6 @@ function HomeContent() {
 
         if (needsOtp) {
           setCurrentPage('student-dashboard');
-        } else if (user.role === 'student' && accountStatus === 'pending') {
-          setCurrentPage('student-dashboard');  // dashboard switch renders ActivationPage
         } else {
           setCurrentPage(
             user.role === 'superadmin' || user.role === 'admin'
