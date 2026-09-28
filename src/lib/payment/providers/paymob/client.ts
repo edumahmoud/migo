@@ -331,6 +331,143 @@ export function buildIframeUrl(integrationId: number, paymentToken: string): str
   return `${ACCEPT_BASE}/api/acceptance/iframes/${integrationId}?payment_token=${paymentToken}`;
 }
 
+// ─── Intention API (NEW — preferred over the 3-step Accept API) ───
+//
+// The Intention API is Paymob's modern API that supports per-transaction
+// `notification_url` and `redirection_url`. This means:
+//   - Paymob POSTs the webhook callback to OUR URL after payment
+//     (no need to configure account-level webhook URL in Dashboard)
+//   - Paymob redirects the student back to OUR app after payment
+//     (no need to configure account-level redirect URL in Dashboard)
+//
+// Authentication: uses the SECRET_KEY directly in the Authorization
+// header (`Authorization: Token <SECRET_KEY>`). No separate
+// `/api/auth/tokens` call needed.
+//
+// Checkout URL: built using the returned `client_secret` + the
+// merchant's `publicKey`:
+//   https://accept.paymob.com/unifiedcheckout/?publicKey={pk}&clientSecret={cs}
+//
+// The Unified Checkout page automatically handles ALL payment methods
+// (card, wallet, kiosk, BNPL) — no need for separate iframe IDs.
+//
+// Reference: https://github.com/PaymobAccept/Paymob-AI-Integration-Skill/blob/main/skills/paymob-integration/references/intention-api.md
+//
+export interface PaymobIntentionResponse {
+  id: string;                       // Intention ID (use as paymentReference)
+  intention_order_id?: number;      // Paymob's internal order ID
+  client_secret: string;            // used to launch Unified Checkout
+  status?: string;                  // e.g. "intended"
+  confirmed?: boolean;
+}
+
+export interface PaymobIntentionRequest {
+  amount: number;                   // in CENTS (not major units)
+  currency: string;                 // ISO 4217
+  payment_methods: number[];        // integration IDs as integers
+  items?: Array<{
+    name: string;
+    amount: number;                 // per-item amount in cents
+    quantity?: number;
+    description?: string;
+  }>;
+  billing_data: Record<string, unknown>;
+  extras?: Record<string, unknown>;
+  special_reference?: string;       // our internal order ID
+  expiration?: number;              // seconds
+  notification_url?: string;        // webhook URL — Paymob POSTs here after payment
+  redirection_url?: string;         // browser redirect URL — student lands here after payment
+}
+
+export async function createIntention(
+  secretKey: string,
+  body: PaymobIntentionRequest,
+): Promise<PaymobIntentionResponse> {
+  console.info('[paymob:debug] intention: creating intention', {
+    amount: body.amount,
+    currency: body.currency,
+    payment_methods: body.payment_methods,
+    special_reference: body.special_reference,
+    notification_url: body.notification_url,
+    redirection_url: body.redirection_url,
+  });
+
+  const res = await paymobFetch(
+    `${ACCEPT_BASE}/v1/intention/`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Intention API uses Token auth (NOT Bearer)
+        'Authorization': `Token ${secretKey}`,
+      },
+      body: JSON.stringify({
+        amount: body.amount,
+        currency: body.currency,
+        payment_methods: body.payment_methods,
+        items: body.items ?? [],
+        billing_data: body.billing_data,
+        extras: body.extras,
+        special_reference: body.special_reference,
+        expiration: body.expiration ?? 3600,
+        notification_url: body.notification_url,
+        redirection_url: body.redirection_url,
+      }),
+    },
+    'create intention',
+  );
+
+  const json = await parseJsonResponse(res, 'create intention');
+
+  // Extract the client_secret (the critical value for launching checkout)
+  const clientSecret = json.client_secret as string | undefined;
+  if (!clientSecret) {
+    console.error('[paymob:debug] intention response missing client_secret:', {
+      response: JSON.stringify(json).slice(0, 500),
+    });
+    throw new PaymentCreationFailedError(
+      'paymob',
+      'Paymob intention response missing "client_secret" field',
+      { response: JSON.stringify(json).slice(0, 500) },
+    );
+  }
+
+  const id = json.id as string | undefined;
+  if (!id) {
+    console.error('[paymob:debug] intention response missing "id":', {
+      response: JSON.stringify(json).slice(0, 500),
+    });
+    throw new PaymentCreationFailedError(
+      'paymob',
+      'Paymob intention response missing "id" field',
+      { response: JSON.stringify(json).slice(0, 500) },
+    );
+  }
+
+  console.info('[paymob:debug] intention OK:', {
+    id,
+    intention_order_id: json.intention_order_id,
+    status: json.status,
+    client_secret_length: clientSecret.length,
+  });
+
+  return {
+    id,
+    intention_order_id: json.intention_order_id as number | undefined,
+    client_secret: clientSecret,
+    status: json.status as string | undefined,
+    confirmed: json.confirmed as boolean | undefined,
+  };
+}
+
+// ─── Build Unified Checkout URL (Intention API flow) ───
+//
+// Returns: https://accept.paymob.com/unifiedcheckout/?publicKey={pk}&clientSecret={cs}
+//
+export function buildUnifiedCheckoutUrl(publicKey: string, clientSecret: string): string {
+  return `${ACCEPT_BASE}/unifiedcheckout/?publicKey=${encodeURIComponent(publicKey)}&clientSecret=${encodeURIComponent(clientSecret)}`;
+}
+
 // ─── Verify: Get transaction status (for verifyPayment) ───
 export async function getTransaction(
   authToken: string,

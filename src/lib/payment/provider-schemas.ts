@@ -31,17 +31,18 @@ schemas.set('paymob', {
   provider: 'paymob',
   displayName: 'Paymob',
   credentialFields: [
-    { name: 'secretKey', label: 'API Key', type: 'password', required: true, placeholder: 'Paymob Dashboard → Settings → API Keys', helpText: 'مفتاح API من لوحة تحكم Paymob' },
-    { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'Paymob Dashboard → Settings → Webhooks → HMAC', helpText: 'سر HMAC من إعدادات Webhooks' },
-    { name: 'integrationIds', label: 'Card Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: '⚠️ معرّف تكامل الكروت (Visa/Mastercard) من Paymob Dashboard → Payment Integrations → Online Card integration (يُستخدم في طلب payment_keys للكروت)' },
-    { name: 'iframeId', label: 'Card Iframe ID', type: 'number', required: true, placeholder: '789012', helpText: '⚠️ مختلف عن Integration ID! معرّف صفحة الدفع بالكروت المستضافة من Paymob Dashboard → Iframes (بدونه يظهر خطأ "IFrame matching query does not exist")' },
-    { name: 'walletIntegrationId', label: 'Wallet Integration ID', type: 'number', required: false, placeholder: '345678', helpText: 'اختياري: معرّف تكامل محفظة الموبايل (Vodafone Cash, Etisalat Cash, إلخ) من Paymob Dashboard → Payment Integrations → Mobile Wallets. اتركه فارغًا لو مش عايز تقبل محافظ. لو مُدخل، الطالب هيقدر يختار الدفع بمحفظة بدل الكارت.' },
-    { name: 'walletIframeId', label: 'Wallet Iframe ID', type: 'number', required: false, placeholder: '789013', helpText: 'اختياري: معرّف صفحة الدفع بمحفظة الموبايل. اتركه فارغًا لو كان نفس معرّف الـ Card Iframe (بعض حسابات Paymob بتشارك الـ iframe).' },
+    { name: 'secretKey', label: 'API Key (Secret Key)', type: 'password', required: true, placeholder: 'ZXlK...', helpText: 'مفتاح API السري من Paymob Dashboard → Settings → Account Info → API Keys (ابحث عن Secret Key)' },
+    { name: 'publicKey', label: 'Public Key', type: 'password', required: true, placeholder: 'pk_test_...', helpText: '⚠️ ضروري عشان الـ Intention API (الموصى به). موجود في Paymob Dashboard → Settings → Account Info → API Keys → Public Key. بدونه، الـ webhook مش هيشتغل تلقائياً بعد الدفع.' },
+    { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'HMAC...', helpText: 'سر HMAC من Paymob Dashboard → Settings → Account Info (للتحقق من webhook)' },
+    { name: 'integrationIds', label: 'Card Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: '⚠️ معرّف تكامل الكروت (Visa/Mastercard) من Paymob Dashboard → Payment Integrations → Online Card integration' },
+    { name: 'iframeId', label: 'Card Iframe ID', type: 'number', required: false, placeholder: '789012', helpText: 'اختياري: معرّف صفحة الدفع بالكروت. دلوقتي بناستخدم Unified Checkout بشكل افتراضي، فالحقل ده بقا اختياري. اتركه فاضي لو مش متأكد.' },
+    { name: 'walletIntegrationId', label: 'Wallet Integration ID', type: 'number', required: false, placeholder: '345678', helpText: 'اختياري: معرّف تكامل محفظة الموبايل. اتركه فارغًا لو مش عايز تقبل محافظ.' },
+    { name: 'walletIframeId', label: 'Wallet Iframe ID', type: 'number', required: false, placeholder: '789013', helpText: 'اختياري: معرّف صفحة الدفع بمحفظة الموبايل' },
   ],
   configurationFields: [
-    { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob', helpText: 'رابط استقبال webhook (يجب أن يكون متاحًا للعموم)' },
-    { name: 'redirectionUrl', label: 'Redirect URL (after checkout)', type: 'text', required: true, placeholder: 'https://your-domain.com/?payment_callback=success', helpText: 'رابط تحويل الطالب بعد إتمام الدفع' },
-    { name: 'paymentMethods', label: 'Payment Methods', type: 'array', required: false, placeholder: '', helpText: 'اختياري — يُترك فارغًا عادةً (الـ Integration ID يحدد وسيلة الدفع)' },
+    { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob', helpText: 'رابط استقبال webhook (يجب أن يكون متاحًا للعموم). الكود بيضيف gateway_id تلقائياً.' },
+    { name: 'redirectionUrl', label: 'Redirect URL (after checkout)', type: 'text', required: true, placeholder: 'https://your-domain.com/?payment_callback=success', helpText: 'رابط تحويل الطالب بعد إتمام الدفع (للـ UX بس — الـ webhook هو المصدر الحقيقي للحالة)' },
+    { name: 'paymentMethods', label: 'Payment Methods', type: 'array', required: false, placeholder: '', helpText: 'اختياري — يُترك فارغًا عادةً' },
   ],
 });
 

@@ -49,6 +49,8 @@ import {
   createOrder,
   getPaymentKey,
   buildIframeUrl,
+  createIntention,
+  buildUnifiedCheckoutUrl,
   getTransaction,
 } from './client';
 import { verifyPaymobHmac } from './hmac';
@@ -220,6 +222,13 @@ export class PaymobAdapter implements PaymentGateway {
       ? appendGatewayIdToUrl(config.notificationUrl, config.gatewayId)
       : config.notificationUrl;
 
+    // Build redirection_url (where Paymob redirects the student's BROWSER
+    // after payment). This is for UX only — the webhook is the source of
+    // truth. The student lands here with `?payment_callback=success`
+    // query param so the frontend knows to refresh + show the activated
+    // subscription.
+    const redirectionUrl = input.redirectUrl ?? config.redirectionUrl;
+
     // Build billing_data (required by Accept API — ALL fields must be present).
     // Paymob returns HTTP 500 if any required billing_data field is missing
     // OR if the phone number format is invalid (not E.164).
@@ -242,6 +251,81 @@ export class PaymobAdapter implements PaymentGateway {
       billingData.first_name = parts[0] || 'Student';
       billingData.last_name = parts.slice(1).join(' ') || 'User';
     }
+
+    // ── NEW PATH: Intention API (preferred) ──
+    //
+    // The Intention API supports per-transaction `notification_url` AND
+    // `redirection_url`. This means:
+    //   - Paymob POSTs the webhook to OUR URL after payment (no need to
+    //     configure account-level webhook URL in Paymob Dashboard)
+    //   - Paymob redirects the student back to OUR app after payment
+    //     (no need to configure account-level redirect URL)
+    //
+    // Requires: publicKey (from Paymob Dashboard → Settings → Account Info
+    // → API Keys → "Public Key"). The publicKey is safe to expose
+    // client-side; it's only used to BUILD the checkout URL, not to
+    // authenticate API calls (those use the secretKey).
+    //
+    if (creds.publicKey) {
+      console.info('[paymob:debug] using Intention API (publicKey is set)');
+
+      const intention = await createIntention(creds.secretKey, {
+        amount: amountCents,
+        currency: input.currency,
+        payment_methods: [integrationId],
+        items: [
+          {
+            name: input.description || 'Course Subscription',
+            amount: amountCents,
+            quantity: 1,
+          },
+        ],
+        billing_data: billingData,
+        extras: {
+          merchant_order_id: input.orderId, // our internal UUID/session_id
+          payment_method: paymentMethod,
+        },
+        special_reference: input.orderId, // CRITICAL: webhook uses this to find the order
+        expiration: 3600,
+        notification_url: notificationUrl, // Paymob POSTs the webhook here
+        redirection_url: redirectionUrl,    // Paymob redirects the student here
+      });
+
+      const checkoutUrl = buildUnifiedCheckoutUrl(creds.publicKey, intention.client_secret);
+
+      return {
+        success: true,
+        provider: 'paymob',
+        paymentReference: intention.id, // Intention ID
+        providerOrderReference: String(intention.intention_order_id ?? intention.id),
+        checkoutUrl,
+        clientSecret: intention.client_secret,
+        expiresAt: undefined,
+        metadata: {
+          amountCents,
+          currency: input.currency,
+          merchantOrderId: input.orderId,
+          intentionId: intention.id,
+          intentionOrderId: intention.intention_order_id,
+          integrationId,
+          paymentMethod,
+          notificationUrl,
+          redirectionUrl,
+          apiFlow: 'intention',
+        },
+      };
+    }
+
+    // ── FALLBACK PATH: Accept API (3-step flow) ──
+    //
+    // Used when publicKey is NOT set. This is the legacy flow.
+    // NOTE: The Accept API does NOT support per-transaction notification_url
+    // for the webhook. The webhook will only fire if the account-level
+    // webhook URL is configured in Paymob Dashboard → Settings →
+    // Account Info. The `notification_url` sent in payment_keys is
+    // ignored by the Accept API for webhook purposes.
+    //
+    console.info('[paymob:debug] using Accept API (no publicKey set — falling back to legacy 3-step flow)');
 
     // ── Step 1: Get auth token ──
     const authToken = await getAuthToken(creds.secretKey);
@@ -270,10 +354,10 @@ export class PaymobAdapter implements PaymentGateway {
       currency: input.currency,
       integration_id: integrationId,
       billing_data: billingData,
-      // Send the notification_url with THIS transaction so Paymob
-      // knows where to POST the webhook callback. This is per-transaction
-      // configuration — works even if the merchant account doesn't have
-      // a global webhook URL set in Paymob Dashboard.
+      // NOTE: The Accept API does NOT honor per-transaction notification_url
+      // for the webhook. The webhook URL must be configured at the account
+      // level in Paymob Dashboard → Settings → Account Info.
+      // We still send it here in case Paymob honors it in the future.
       notification_url: notificationUrl,
     });
 
