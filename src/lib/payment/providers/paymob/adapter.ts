@@ -134,12 +134,21 @@ export class PaymobAdapter implements PaymentGateway {
       ? appendGatewayIdToUrl(config.notificationUrl, config.gatewayId)
       : config.notificationUrl;
 
-    // Build billing_data (required by Accept API — all fields must be present)
+    // Build billing_data (required by Accept API — ALL fields must be present).
+    // Paymob returns HTTP 500 if any required billing_data field is missing.
+    // We provide defaults for fields the student didn't fill in.
     const billingData: Record<string, string> = {
       first_name: 'Student',
       last_name: 'User',
       email: input.customerEmail || 'student@attendo.local',
       phone_number: input.customerPhone || '01000000000',
+      building: 'NA',
+      floor: 'NA',
+      apartment: 'NA',
+      city: 'Cairo',
+      country: 'EG',
+      street: 'NA',
+      shipping_method: 'NA',
     };
     if (input.customerName) {
       const parts = input.customerName.trim().split(/\s+/);
