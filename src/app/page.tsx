@@ -486,6 +486,10 @@ function HomeContent() {
   //   - The Supabase Realtime subscription on the orders table
   //     (already set up in StudentActivationPage) picks up the
   //     status change automatically when the webhook completes.
+  //   - ALSO: call /api/student/orders/verify-after-redirect to
+  //     manually verify the payment via Paymob's transaction API
+  //     and activate the subscription immediately (fallback if the
+  //     webhook didn't fire).
   useEffect(() => {
     const paymentCallback = searchParams.get('payment_callback');
     if (paymentCallback === 'success' || paymentCallback === 'cancelled') {
@@ -510,6 +514,53 @@ function HomeContent() {
       const url = new URL(window.location.href);
       url.searchParams.delete('payment_callback');
       window.history.replaceState({}, '', url.toString());
+
+      // If success → call the verify-after-redirect endpoint to
+      // manually verify the payment via Paymob and activate the
+      // subscription immediately. This is a fallback for when the
+      // webhook doesn't fire (common in sandbox/test mode).
+      if (paymentCallback === 'success') {
+        // Paymob puts the transaction ID in `?id=xxx` query param
+        const paymobTxnId = url.searchParams.get('id') || new URLSearchParams(window.location.search).get('id');
+        // Try also `?txn_id=xxx` or `?transaction_id=xxx` (varies by API)
+        const txnId = paymobTxnId
+          || new URLSearchParams(window.location.search).get('txn_id')
+          || new URLSearchParams(window.location.search).get('transaction_id');
+
+        if (txnId) {
+          console.info('[payment-callback] verifying payment via Paymob transaction API', { txnId });
+          import('@/lib/client-auth').then(async ({ getCachedAuthHeaders }) => {
+            try {
+              const headers = await getCachedAuthHeaders();
+              const res = await fetch('/api/student/orders/verify-after-redirect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: JSON.stringify({ paymobTransactionId: txnId }),
+              });
+              const json = await res.json();
+              if (json.success) {
+                import('sonner').then(({ toast }) => {
+                  toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
+                    duration: 5000,
+                  });
+                });
+                // Force a page refresh after 2 seconds so the
+                // student sees the activated courses
+                setTimeout(() => window.location.reload(), 2000);
+              } else if (res.status !== 404) {
+                // 404 = transaction not found (Paymob might not
+                // have processed it yet — give it a few seconds)
+                // Other errors → show to the user
+                console.warn('[payment-callback] verify-after-redirect failed', json);
+              }
+            } catch (err) {
+              console.error('[payment-callback] failed to call verify-after-redirect', err);
+            }
+          });
+        } else {
+          console.warn('[payment-callback] no transaction ID in URL — skipping verify-after-redirect');
+        }
+      }
     }
   }, [searchParams, t]);
 
