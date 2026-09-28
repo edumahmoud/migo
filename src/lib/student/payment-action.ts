@@ -113,6 +113,9 @@ export class PaymentActionError extends Error {
  *
  * @param orderId  The pending order ID (from POST /api/student/orders).
  * @param headers  Optional extra headers (auth headers injected by caller).
+ * @param paymentMethod  Optional: 'card' (default) or 'wallet'. The
+ *   student picks this in the payment dialog. The backend uses it to
+ *   choose the right Paymob integration ID + iframe ID.
  * @returns        The checkout URL + payment reference.
  *
  * @throws PaymentActionError on any failure.
@@ -120,6 +123,7 @@ export class PaymentActionError extends Error {
 export async function initiatePayment(
   orderId: string,
   headers: Record<string, string> = {},
+  paymentMethod: 'card' | 'wallet' = 'card',
 ): Promise<PaymentActionResult> {
   if (!orderId) {
     throw new PaymentActionError('HTTP_ERROR', 'orderId is required');
@@ -127,7 +131,7 @@ export async function initiatePayment(
 
   let res: Response;
   try {
-    res = await fetch(`/api/student/orders/${encodeURIComponent(orderId)}/pay`, {
+    res = await fetch(`/api/student/orders/${encodeURIComponent(orderId)}/pay?method=${paymentMethod}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -390,6 +394,8 @@ export async function createCheckoutSession(
  *
  * @param sessionId  The session_id returned by createCheckoutSession.
  * @param headers    Auth headers.
+ * @param paymentMethod  Optional: 'card' (default) or 'wallet'. The
+ *   student picks this in the payment dialog.
  * @returns          The checkout URL + payment reference.
  *
  * @throws PaymentActionError on any failure.
@@ -397,6 +403,7 @@ export async function createCheckoutSession(
 export async function initiateSessionPayment(
   sessionId: string,
   headers: Record<string, string> = {},
+  paymentMethod: 'card' | 'wallet' = 'card',
 ): Promise<PaymentActionResult> {
   if (!sessionId) {
     throw new PaymentActionError('HTTP_ERROR', 'sessionId is required');
@@ -404,7 +411,7 @@ export async function initiateSessionPayment(
 
   let res: Response;
   try {
-    res = await fetch(`/api/student/checkout/sessions/${encodeURIComponent(sessionId)}/pay`, {
+    res = await fetch(`/api/student/checkout/sessions/${encodeURIComponent(sessionId)}/pay?method=${paymentMethod}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

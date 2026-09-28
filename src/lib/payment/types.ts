@@ -57,6 +57,19 @@ export interface CreatePaymentInput {
   description?: string;
   redirectUrl?: string;         // post-payment redirect for redirect-checkout gateways
   metadata?: Record<string, unknown>;
+  /**
+   * The payment method the student selected at checkout.
+   * - 'card' (default): Visa/Mastercard via the card integration
+   * - 'wallet': Mobile wallet (Vodafone Cash, Etisalat Cash, etc.)
+   *   via the wallet integration
+   *
+   * The adapter uses this to pick the correct integration ID + iframe ID
+   * for gateways that require a per-method integration ID (e.g., Paymob
+   * Accept API).
+   *
+   * Default: 'card' (backward-compatible with existing callers).
+   */
+  paymentMethod?: 'card' | 'wallet';
 }
 
 export interface CreatePaymentResult {

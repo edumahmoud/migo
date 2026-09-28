@@ -187,12 +187,33 @@ export class PaymobAdapter implements PaymentGateway {
     }
 
     const amountCents = toCents(input.amount);
-    const integrationId = creds.integrationIds![0]; // first integration ID
-    // The iframe ID is DIFFERENT from the integration ID on most Paymob
-    // accounts. Use the configured `iframeId` if set; otherwise fall
-    // back to integrationId (which works only if the IDs happen to be
-    // the same — most accounts need iframeId set explicitly).
-    const iframeId = creds.iframeId ?? integrationId;
+    // Determine the payment method (default: card).
+    // Each payment method in Paymob has its OWN integration ID + iframe ID.
+    // Card: uses `integrationIds[0]` + `iframeId`
+    // Wallet: uses `walletIntegrationId` + `walletIframeId`
+    const paymentMethod = input.paymentMethod ?? 'card';
+
+    let integrationId: number;
+    let iframeId: number;
+
+    if (paymentMethod === 'wallet') {
+      // Wallet payment — require walletIntegrationId
+      if (!creds.walletIntegrationId) {
+        throw new GatewayConfigurationInvalidError(
+          'paymob',
+          'Wallet payment is not configured — set walletIntegrationId in gateway credentials',
+        );
+      }
+      integrationId = creds.walletIntegrationId;
+      // Wallet iframe ID: use the dedicated walletIframeId if set,
+      // otherwise fall back to the card iframeId (some Paymob accounts
+      // share the iframe across integrations).
+      iframeId = creds.walletIframeId ?? creds.iframeId ?? integrationId;
+    } else {
+      // Card payment (default)
+      integrationId = creds.integrationIds![0]; // first card integration ID
+      iframeId = creds.iframeId ?? integrationId;
+    }
 
     // Build notification_url with gateway_id (for gateway snapshot)
     const notificationUrl = config.gatewayId
@@ -271,6 +292,7 @@ export class PaymobAdapter implements PaymentGateway {
         paymobOrderId: order.id,
         integrationId,
         iframeId,
+        paymentMethod,
         notificationUrl,
       },
     };

@@ -134,8 +134,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   //    not the current default).
   //    If order.gateway_id is NULL (first /pay attempt), the resolver
   //    falls back to the default gateway.
+  //
+  //    The student can choose a payment method (card vs wallet) via
+  //    the `paymentMethod` query param. Default: 'card'.
   let checkoutUrl: string | null = null;
   let paymentReference: string | null = null;
+
+  // Parse the requested payment method from the query string
+  // (sent by the client-side payment method picker)
+  const requestedPaymentMethod = request.nextUrl.searchParams.get('method') === 'wallet'
+    ? 'wallet'
+    : 'card';
 
   try {
     const result = await PaymentService.createPayment(
@@ -148,6 +157,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         customerPhone: p?.phone ?? undefined,
         description: subjectName,
         redirectUrl: `${request.nextUrl.origin}/?payment_callback=success`,
+        paymentMethod: requestedPaymentMethod,
       },
       o.gateway_id ?? undefined, // pass the gateway snapshot if set
     );

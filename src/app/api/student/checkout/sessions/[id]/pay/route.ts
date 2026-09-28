@@ -185,6 +185,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   //    re-pay attempt uses the same gateway).
   const firstOrderGatewayId = orders[0].gateway_id;
 
+  // Parse the requested payment method from the query string
+  // (sent by the client-side payment method picker)
+  const requestedPaymentMethod = request.nextUrl.searchParams.get('method') === 'wallet'
+    ? 'wallet'
+    : 'card';
+
   try {
     const result = await PaymentService.createPayment(
       {
@@ -196,6 +202,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         customerPhone: p?.phone ?? undefined,
         description,
         redirectUrl: `${request.nextUrl.origin}/?payment_callback=success`,
+        paymentMethod: requestedPaymentMethod,
         metadata: {
           checkout_session_id: sessionId,
           order_ids: orders.map((o) => o.id),

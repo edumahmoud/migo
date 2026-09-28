@@ -44,6 +44,31 @@ export interface PaymobCredentials {
    * query does not exist" errors.
    */
   iframeId?: number;
+  /**
+   * Wallet Integration ID — REQUIRED if the student can pay via
+   * mobile wallet (Vodafone Cash, Etisalat Cash, Orange Cash, etc.).
+   *
+   * In Paymob, EACH payment method has its OWN integration ID.
+   * The card integration ID (integrationIds[0]) only enables cards.
+   * To enable wallets, get a separate integration ID for wallets
+   * from Paymob Dashboard → Payment Integrations → "Mobile Wallets"
+   * integration.
+   *
+   * If NOT set, the student will only see the card payment option.
+   */
+  walletIntegrationId?: number;
+  /**
+   * Wallet Iframe ID — the iframe ID for the wallet checkout page.
+   *
+   * Each integration in Paymob has its own iframe ID. The card
+   * iframeId above is for the card form. Wallets need a separate
+   * iframe ID.
+   *
+   * If NOT set but walletIntegrationId IS set, the adapter falls
+   * back to iframeId (works for some Paymob accounts where the
+   * iframe ID is shared across integrations).
+   */
+  walletIframeId?: number;
   /** Optional: public key (not used in backend flows) */
   publicKey?: string;
 }

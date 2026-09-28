@@ -50,7 +50,7 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { Loader2, CreditCard, X, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-react';
+import { Loader2, CreditCard, X, AlertCircle, ShieldCheck, ExternalLink, Smartphone } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose,
@@ -111,6 +111,10 @@ export function PaymentSummaryDialog({
   const [state, setState] = useState<PaymentState>('ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [removingOrderId, setRemovingOrderId] = useState<string | null>(null);
+  // The student can pick between card payment and mobile wallet payment.
+  // Default is 'card' (backward compat — works even if wallet is not
+  // configured on the gateway).
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
 
   // Determine mode + items to display
   const isMultiMode = !order && Array.isArray(sessionItems) && sessionItems.length > 0 && !!sessionId;
@@ -135,8 +139,8 @@ export function PaymentSummaryDialog({
     try {
       const headers = await getCachedAuthHeaders();
       const result = isMultiMode
-        ? await initiateSessionPayment(sessionId as string, headers)
-        : await initiatePayment((order as PaymentSummaryOrder).orderId, headers);
+        ? await initiateSessionPayment(sessionId as string, headers, paymentMethod)
+        : await initiatePayment((order as PaymentSummaryOrder).orderId, headers, paymentMethod);
 
       // Successfully received a checkout URL — begin the redirect state.
       // The browser is about to navigate away; the dialog stays open
@@ -161,7 +165,7 @@ export function PaymentSummaryDialog({
       toast.error(message);
       setState('error');
     }
-  }, [state, isMultiMode, sessionId, order, t]);
+  }, [state, isMultiMode, sessionId, order, t, paymentMethod]);
 
   // Reset state when dialog closes
   const handleOpenChange = useCallback((next: boolean) => {
@@ -297,14 +301,55 @@ export function PaymentSummaryDialog({
             </div>
           )}
 
-          {/* Payment method */}
-          <div className="flex items-center justify-between border-b pb-2">
+          {/* Payment method picker — student chooses Card or Mobile Wallet */}
+          <div className="space-y-2 py-2 border-b">
             <span className="text-sm text-muted-foreground">
               {t('student.payment.paymentMethod')}
             </span>
-            <span className="text-sm font-medium text-end">
-              {t('student.payment.paymentMethodValue')}
-            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Card option */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('card')}
+                disabled={state === 'preparing' || state === 'redirecting'}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
+                  paymentMethod === 'card'
+                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
+                    : 'border-muted hover:border-teal-400 hover:bg-muted/30'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <CreditCard className={`h-4 w-4 ${paymentMethod === 'card' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
+                  <span className="text-sm font-medium">
+                    {t('student.payment.payWithCard') || 'كارت'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {t('student.payment.payWithCardDesc') || 'Visa / Mastercard'}
+                </span>
+              </button>
+              {/* Wallet option */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('wallet')}
+                disabled={state === 'preparing' || state === 'redirecting'}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
+                  paymentMethod === 'wallet'
+                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
+                    : 'border-muted hover:border-teal-400 hover:bg-muted/30'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Smartphone className={`h-4 w-4 ${paymentMethod === 'wallet' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
+                  <span className="text-sm font-medium">
+                    {t('student.payment.payWithWallet') || 'محفظة موبايل'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {t('student.payment.payWithWalletDesc') || 'فودافون كاش / اتصالات كاش'}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Total — prominent */}
