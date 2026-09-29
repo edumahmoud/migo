@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, Loader2, Search, User, BookOpen, Wallet, CheckCircle2, XCircle, Ban, BadgeCheck } from 'lucide-react';
+import { Clock, Loader2, Search, User, BookOpen, Wallet, CheckCircle2, XCircle, Ban, BadgeCheck, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { generatePaymentCode } from '@/lib/payment/utils';
 import StudentSubscriptionsLog from '@/components/agent/student-subscriptions-log';
 
 interface StudentResult {
@@ -214,10 +215,31 @@ export default function AgentPortal() {
                   <div className="text-xs font-semibold text-muted-foreground mb-1">طلبات قيد الدفع</div>
                   <div className="space-y-1">
                     {studentResult.pending_orders.map((o) => (
-                      <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-2 py-1.5 bg-amber-50/40 gap-2">
+                      <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-2 py-1.5 bg-amber-50/40 gap-2 flex-wrap">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <Wallet className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                          <span className="truncate">{o.subject?.name ?? '—'}</span>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="truncate">{o.subject?.name ?? '—'}</span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const code = generatePaymentCode(o.id);
+                                try {
+                                  await navigator.clipboard.writeText(code);
+                                  toast.success(`تم نسخ الكود: ${code}`);
+                                } catch {
+                                  toast.error('تعذّر نسخ الكود');
+                                }
+                              }}
+                              className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
+                              title="اضغط للنسخ"
+                            >
+                              <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                                {generatePaymentCode(o.id)}
+                                <Copy className="h-2.5 w-2.5" />
+                              </span>
+                            </button>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-xs font-mono">{Number(o.amount).toFixed(2)} {o.currency}</span>

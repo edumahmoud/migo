@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen } from 'lucide-react';
+import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { generatePaymentCode } from '@/lib/payment/utils';
 import type { UserProfile } from '@/lib/types';
 
 interface PendingOrder {
@@ -207,6 +208,27 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                           </Badge>
                         )}
                       </div>
+                      {/* Payment code — copyable */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const code = generatePaymentCode(o.id);
+                          try {
+                            await navigator.clipboard.writeText(code);
+                            toast.success(`تم نسخ الكود: ${code}`);
+                          } catch {
+                            toast.error('تعذّر نسخ الكود');
+                          }
+                        }}
+                        className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
+                        title="اضغط للنسخ"
+                      >
+                        <span className="font-bold">كود العملية:</span>
+                        <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                          {generatePaymentCode(o.id)}
+                          <Copy className="h-2.5 w-2.5" />
+                        </span>
+                      </button>
                     </div>
                   </div>
 

@@ -97,6 +97,7 @@ import UserLink from '@/components/shared/user-link';
 import SummaryView from '@/components/shared/summary-view';
 import StudentTrackingSection from '@/components/student/student-tracking-section';
 import StudentPendingSubscriptionsSection from '@/components/student/student-pending-subscriptions-section';
+import StudentSubscriptionHistorySection from '@/components/student/student-subscription-history-section';
 
 // -------------------------------------------------------
 // Summary background processing type
@@ -4936,6 +4937,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return (
           <SectionErrorBoundary name="PendingSubscriptions">
             <StudentPendingSubscriptionsSection profile={profile} />
+          </SectionErrorBoundary>
+        );
+      case 'subscriptionHistory':
+        return (
+          <SectionErrorBoundary name="SubscriptionHistory">
+            <StudentSubscriptionHistorySection profile={profile} />
           </SectionErrorBoundary>
         );
       default:

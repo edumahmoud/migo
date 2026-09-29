@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Clock, RefreshCw, Inbox, BookOpen, CreditCard, AlertCircle, Ban } from 'lucide-react';
+import { Loader2, Clock, RefreshCw, Inbox, BookOpen, CreditCard, AlertCircle, Search, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import { generatePaymentCode } from '@/lib/payment/utils';
 import type { UserProfile } from '@/lib/types';
 
 interface PendingOrder {
@@ -85,6 +86,7 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
   }, [fetchOrders]);
 
   // Pay now → redirect to Paymob
+  // Only shown when payment hasn't been initiated yet (no provider_order_ref)
   const payNow = async (orderId: string) => {
     if (actioningOrderId) return;
     setActioningOrderId(orderId);
@@ -109,24 +111,51 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
     }
   };
 
-  // Cancel the pending order
-  const cancelOrder = async (orderId: string) => {
+  // Check payment status → calls verify-after-redirect
+  // Shown when payment was already initiated (provider_order_ref is numeric)
+  // Verifies with Paymob + activates the subscription if paid
+  const checkPaymentStatus = async (orderId: string, providerOrderRef: string) => {
     if (actioningOrderId) return;
-    if (!confirm('تأكيد: إلغاء هذا الطلب؟ يمكنك إنشاء طلب جديد بعدها.')) return;
     setActioningOrderId(orderId);
     try {
-      // Try student cancel endpoint first — if not exists, the order will be
-      // cancelled server-side; otherwise show a hint to contact support
       const headers = await getCachedAuthHeaders();
-      // We don't have a student cancel endpoint, so let's just remove it locally
-      // (the order will remain in DB but we won't show it)
-      // OR: just leave the order in pending state (the teacher can cancel via admin)
-      toast.info('لإلغاء الطلب، تواصل مع المعلم أو وكيل التسجيل');
+      // Use providerOrderRef (Paymob's transaction/order ID) as the
+      // transactionId for the verify-after-redirect endpoint
+      const res = await fetch('/api/student/orders/verify-after-redirect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          transactionId: providerOrderRef,
+          merchantOrderId: orderId,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم تفعيل اشتراكك بنجاح');
+        // Refresh the list (the order should be gone now)
+        await fetchOrders();
+        // Force a page reload after 2s so the student sees the activated course
+        setTimeout(() => window.location.reload(), 2000);
+      } else if (json.pending) {
+        toast.info('العملية لسه قيد المعالجة — حاول تاني بعد 30 ثانية');
+      } else {
+        toast.error(json.error || 'تعذّر التحقق من الدفعة — تأكد إنك خلّصت الدفع على Paymob');
+      }
     } catch (err) {
-      console.error('[pending-subs] cancel failed:', err);
+      console.error('[pending-subs] check status failed:', err);
       toast.error('حدث خطأ غير متوقع');
     } finally {
       setActioningOrderId(null);
+    }
+  };
+
+  // Copy payment code to clipboard
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success(`تم نسخ الكود: ${code}`);
+    } catch {
+      toast.error('تعذّر نسخ الكود');
     }
   };
 
@@ -194,12 +223,14 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
               {orders.map((o) => {
                 // Determine if payment was already initiated (provider_order_ref is set + numeric)
                 const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
+                // Generate the human-readable payment code from the order UUID
+                const paymentCode = generatePaymentCode(o.id);
                 return (
                   <div
                     key={o.id}
                     className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/30 flex-wrap"
                   >
-                    {/* Left: subject info */}
+                    {/* Left: subject info + payment code */}
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <BookOpen className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
                       <div className="flex flex-col gap-1 min-w-0">
@@ -211,12 +242,19 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
                           {o.checkout_session_id && (
                             <Badge variant="outline" className="text-xs">دفعة موحدة</Badge>
                           )}
-                          {paymentInitiated && (
-                            <Badge variant="outline" className="text-xs border-amber-400 text-amber-700">
-                              تم البدء في الدفع
-                            </Badge>
-                          )}
                         </div>
+                        {/* Payment code — copyable */}
+                        <button
+                          type="button"
+                          onClick={() => copyCode(paymentCode)}
+                          className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
+                          title="اضغط للنسخ"
+                        >
+                          <span className="font-bold">كود العملية:</span>
+                          <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded">
+                            {paymentCode}
+                          </span>
+                        </button>
                         <div className="text-xs text-muted-foreground">
                           {new Date(o.created_at).toLocaleString('ar-EG')}
                         </div>
@@ -224,7 +262,7 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
                           <div className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1 mt-1">
                             <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                             <span>
-                              لو كنت قد دفعت بالفعل — اضغط "ادفع دلوقتي" تاني عشان يرجّعك لـ Paymob، أو استنى شوية لو الـ webhook لسه شغال.
+                              تم البدء في الدفع — لو خلّصت الدفع على Paymob، اضغط "تحقق من الدفعة" عشان نفعل اشتراكك.
                             </span>
                           </div>
                         )}
@@ -238,20 +276,40 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
                           {Number(o.amount).toFixed(2)} {o.currency}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        className="h-8 px-3 text-xs gap-1 bg-teal-600 hover:bg-teal-700 text-white"
-                        disabled={actioningOrderId === o.id}
-                        onClick={() => payNow(o.id)}
-                        title="ادفع دلوقتي"
-                      >
-                        {actioningOrderId === o.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <CreditCard className="h-3.5 w-3.5" />
-                        )}
-                        ادفع دلوقتي
-                      </Button>
+                      {paymentInitiated ? (
+                        // Payment was already initiated → show "تحقق من الدفعة"
+                        // (not "Pay Now" — the student was already redirected to Paymob)
+                        <Button
+                          size="sm"
+                          className="h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={actioningOrderId === o.id}
+                          onClick={() => o.provider_order_ref && checkPaymentStatus(o.id, o.provider_order_ref)}
+                          title="تحقق من حالة الدفعة عند Paymob"
+                        >
+                          {actioningOrderId === o.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          تحقق من الدفعة
+                        </Button>
+                      ) : (
+                        // Payment NOT initiated → show "ادفع دلوقتي"
+                        <Button
+                          size="sm"
+                          className="h-8 px-3 text-xs gap-1 bg-teal-600 hover:bg-teal-700 text-white"
+                          disabled={actioningOrderId === o.id}
+                          onClick={() => payNow(o.id)}
+                          title="ادفع دلوقتي"
+                        >
+                          {actioningOrderId === o.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CreditCard className="h-3.5 w-3.5" />
+                          )}
+                          ادفع دلوقتي
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );

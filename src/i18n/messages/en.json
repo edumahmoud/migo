@@ -326,6 +326,7 @@
     "registration": "Supervisors",
     "paymentMethods": "Payment Methods",
     "pendingSubscriptions": "Pending Subscriptions",
+    "subscriptionHistory": "Subscription History",
     "pendingOrders": "Pending Orders",
     "financial": "Financial Revenue",
     "payoutMethods": "Payout Methods",
