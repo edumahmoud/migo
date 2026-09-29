@@ -361,6 +361,7 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
     videos: t('nav.videos'),
     registration: t('nav.registration'),
     paymentMethods: t('nav.paymentMethods'),
+    pendingSubscriptions: t('nav.pendingSubscriptions'),
     pendingOrders: t('nav.pendingOrders'),
   };
 

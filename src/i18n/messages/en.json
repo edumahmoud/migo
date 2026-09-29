@@ -325,6 +325,7 @@
     "scormLibrary": "SCORM Library",
     "registration": "Supervisors",
     "paymentMethods": "Payment Methods",
+    "pendingSubscriptions": "Pending Subscriptions",
     "pendingOrders": "Pending Orders",
     "financial": "Financial Revenue",
     "payoutMethods": "Payout Methods",
