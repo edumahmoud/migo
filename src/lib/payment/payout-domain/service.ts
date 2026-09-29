@@ -295,6 +295,39 @@ export async function executePayout(
       actorId,
       details: { provider_reference: result.providerReference },
     });
+
+    // ── BRIDGE: update linked financial_ledger rows to 'settled' ──
+    // When a payout completes, the linked financial_ledger rows should
+    // transition from 'paid' → 'settled' to reflect that the teacher
+    // actually received the money. Without this, the dashboard shows
+    // "revenue" for money the teacher hasn't received yet.
+    try {
+      const { supabaseServer } = await import('@/lib/supabase-server');
+      // Get linked ledger entry IDs
+      const { data: linkedEntries } = await supabaseServer
+        .from('teacher_payout_ledger_entries')
+        .select('ledger_id')
+        .eq('payout_id', payoutId);
+      if (linkedEntries && linkedEntries.length > 0) {
+        const ledgerIds = linkedEntries.map((e: { ledger_id: string }) => e.ledger_id);
+        // Update financial_ledger status from 'paid' to 'settled'
+        const { error: ledgerUpdateErr } = await supabaseServer
+          .from('financial_ledger')
+          .update({ status: 'settled', updated_at: new Date().toISOString() })
+          .in('id', ledgerIds)
+          .eq('status', 'paid');
+        if (ledgerUpdateErr) {
+          console.error('[payout-domain] failed to settle linked ledger entries', ledgerUpdateErr.message);
+        } else {
+          console.info('[payout-domain] settled linked ledger entries', {
+            payoutId,
+            count: ledgerIds.length,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[payout-domain] bridge settle failed (non-critical)', err);
+    }
   } else if (result.status === 'accepted') {
     if (result.providerReference) {
       await updatePayoutProviderReference(payoutId, result.providerReference);

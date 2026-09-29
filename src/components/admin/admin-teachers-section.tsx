@@ -58,7 +58,10 @@ interface TeacherRow {
   created_at: string;
   subject_count: number;
   student_count: number;
-  total_revenue: number;
+  total_revenue: number;        // backward compat (alias of total_earned)
+  total_earned: number;         // ALL money (paid + settled)
+  total_settled: number;        // actually sent to teacher
+  total_pending: number;        // available for payout (in platform account)
 }
 
 interface Pagination {
@@ -194,7 +197,9 @@ export default function AdminTeachersSection() {
                       <th className="p-3 text-start font-medium">{t('common.status')}</th>
                       <th className="p-3 text-center font-medium">{t('subjects.subjects') || 'المقررات'}</th>
                       <th className="p-3 text-center font-medium">{t('admin.students') || 'الطلاب'}</th>
-                      <th className="p-3 text-end font-medium">{t('admin.totalRevenue') || 'الإيراد'}</th>
+                      <th className="p-3 text-end font-medium text-emerald-600">مُسوّى</th>
+                      <th className="p-3 text-end font-medium text-amber-600">متاح</th>
+                      <th className="p-3 text-end font-medium">الإجمالي</th>
                       <th className="p-3 text-center font-medium"></th>
                     </tr>
                   </thead>
@@ -218,8 +223,14 @@ export default function AdminTeachersSection() {
                         </td>
                         <td className="p-3 text-center text-xs">{teacher.subject_count}</td>
                         <td className="p-3 text-center text-xs">{teacher.student_count}</td>
-                        <td className="p-3 text-end font-mono text-xs font-semibold text-emerald-700">
-                          {Number(teacher.total_revenue).toFixed(2)} EGP
+                        <td className="p-3 text-end font-mono text-xs text-emerald-600">
+                          {Number(teacher.total_settled ?? 0).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-end font-mono text-xs text-amber-600">
+                          {Number(teacher.total_pending ?? teacher.total_revenue).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-end font-mono text-xs font-bold">
+                          {Number(teacher.total_earned ?? teacher.total_revenue).toFixed(2)}
                         </td>
                         <td className="p-3 text-center">
                           <Button size="sm" variant="ghost" className="h-7 text-xs">

@@ -78,27 +78,38 @@ export async function GET(request: NextRequest) {
   }
 
   // Batch: sum teacher_share from financial_ledger per teacher
+  // Fetch BOTH 'paid' and 'settled' to get the COMPLETE picture.
+  // 'paid' = money in platform account (not yet sent to teacher)
+  // 'settled' = money actually sent to teacher
   const { data: revenueData } = await supabaseServer
     .from('financial_ledger')
-    .select('teacher_id, teacher_share')
+    .select('teacher_id, teacher_share, status')
     .in('teacher_id', teacherIds)
-    .eq('status', 'paid');
+    .in('status', ['paid', 'settled']);
 
-  const revenueMap = new Map<string, number>();
-  for (const r of (revenueData ?? []) as Array<{ teacher_id: string; teacher_share: number }>) {
-    revenueMap.set(r.teacher_id, (revenueMap.get(r.teacher_id) ?? 0) + Number(r.teacher_share));
+  // Compute three separate amounts per teacher:
+  // - total_earned: ALL money (paid + settled) — what the teacher earned
+  // - total_settled: only 'settled' — what was actually sent to the teacher
+  // - total_pending: only 'paid' — what's available for payout (in platform account)
+  const earnedMap = new Map<string, number>();
+  const settledMap = new Map<string, number>();
+  const pendingMap = new Map<string, number>();
+  for (const r of (revenueData ?? []) as Array<{ teacher_id: string; teacher_share: number; status: string }>) {
+    const share = Number(r.teacher_share);
+    earnedMap.set(r.teacher_id, (earnedMap.get(r.teacher_id) ?? 0) + share);
+    if (r.status === 'settled') {
+      settledMap.set(r.teacher_id, (settledMap.get(r.teacher_id) ?? 0) + share);
+    } else if (r.status === 'paid') {
+      pendingMap.set(r.teacher_id, (pendingMap.get(r.teacher_id) ?? 0) + share);
+    }
   }
 
-  // Batch: count unique students per teacher (from subject_students joined
-  // with subjects). We can't do a join easily via Supabase client, so we
-  // fetch subject_ids per teacher first, then count students.
-  // For now, we use the financial_ledger's student count as a proxy
-  // (number of unique students who paid this teacher).
+  // Batch: count unique students per teacher
   const { data: studentCounts } = await supabaseServer
     .from('financial_ledger')
     .select('teacher_id, student_id')
     .in('teacher_id', teacherIds)
-    .eq('status', 'paid');
+    .in('status', ['paid', 'settled']);
 
   const studentCountMap = new Map<string, Set<string>>();
   for (const r of (studentCounts ?? []) as Array<{ teacher_id: string; student_id: string }>) {
@@ -106,7 +117,7 @@ export async function GET(request: NextRequest) {
     studentCountMap.get(r.teacher_id)!.add(r.student_id);
   }
 
-  // Build the response
+  // Build the response — 3 separate financial fields
   const data = (teachers ?? []).map((t) => {
     const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string };
     return {
@@ -118,7 +129,12 @@ export async function GET(request: NextRequest) {
       created_at: teacher.created_at,
       subject_count: subjectCountMap.get(teacher.id) ?? 0,
       student_count: studentCountMap.get(teacher.id)?.size ?? 0,
-      total_revenue: Number((revenueMap.get(teacher.id) ?? 0).toFixed(2)),
+      // Renamed from 'total_revenue' to be more accurate:
+      total_earned: Number((earnedMap.get(teacher.id) ?? 0).toFixed(2)),     // paid + settled
+      total_settled: Number((settledMap.get(teacher.id) ?? 0).toFixed(2)),  // actually sent to teacher
+      total_pending: Number((pendingMap.get(teacher.id) ?? 0).toFixed(2)),  // available for payout
+      // Keep backward-compat alias
+      total_revenue: Number((earnedMap.get(teacher.id) ?? 0).toFixed(2)),
     };
   });
 
