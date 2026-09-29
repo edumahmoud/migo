@@ -237,39 +237,63 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                   </div>
 
                   {/* Right: amount + actions */}
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <div className="text-end">
                       <div className="text-sm font-mono font-semibold">
                         {Number(o.amount).toFixed(2)} {o.currency}
                       </div>
                     </div>
-                    <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 px-3 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                      disabled={actioningOrderId === o.id}
-                      onClick={() => activateOrder(o.id)}
-                      title="تفعيل يدوي (تم استلام المبلغ خارج النظام)"
-                    >
-                      {actioningOrderId === o.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <BadgeCheck className="h-3.5 w-3.5" />
-                      )}
-                      تفعيل يدوي
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 px-3 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
-                      disabled={actioningOrderId === o.id}
-                      onClick={() => cancelOrder(o.id)}
-                      title="إلغاء الطلب المعلّق"
-                    >
-                      <Ban className="h-3.5 w-3.5" />
-                      إلغاء
-                    </Button>
+                    {/* If payment was initiated on Paymob (provider_order_ref is numeric),
+                        show a clear "تم الدفع على Paymob" badge so the teacher knows
+                        the student already paid — don't use "Cancel" in this case
+                        (the student paid!). Use "تفعيل يدوي" only if the webhook
+                        didn't fire automatically. */}
+                    {(() => {
+                      const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
+                      return (
+                        <>
+                          <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>
+                          {paymentInitiated && (
+                            <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/15">
+                              تم الدفع على Paymob
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                            disabled={actioningOrderId === o.id}
+                            onClick={() => activateOrder(o.id)}
+                            title={paymentInitiated
+                              ? 'الطالب دفع على Paymob — اضغط هنا لتفعيل الاشتراك يدويًا (الـ webhook لم يصل)'
+                              : 'تفعيل يدوي (تم استلام المبلغ خارج النظام)'}
+                          >
+                            {actioningOrderId === o.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <BadgeCheck className="h-3.5 w-3.5" />
+                            )}
+                            تفعيل يدوي
+                          </Button>
+                          {!paymentInitiated && (
+                            // Only show "Cancel" if the student did NOT pay yet
+                            // (if payment was initiated on Paymob, cancelling would
+                            // be wrong — the student already paid)
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
+                              disabled={actioningOrderId === o.id}
+                              onClick={() => cancelOrder(o.id)}
+                              title="إلغاء الطلب المعلّق"
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                              إلغاء
+                            </Button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

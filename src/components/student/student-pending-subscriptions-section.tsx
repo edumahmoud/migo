@@ -310,7 +310,7 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
                           <div className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1 mt-1">
                             <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                             <span>
-                              تم البدء في الدفع — لو خلّصت الدفع على Paymob، اضغط "تحقق من الدفعة" عشان نفعل اشتراكك.
+                              تم الدفع على Paymob — اضغط "تحقق من الدفعة" عشان نفعل اشتراكك تلقائياً.
                             </span>
                           </div>
                         )}
@@ -325,22 +325,28 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
                         </div>
                       </div>
                       {paymentInitiated ? (
-                        // Payment was already initiated → show "تحقق من الدفعة"
-                        // (not "Pay Now" — the student was already redirected to Paymob)
-                        <Button
-                          size="sm"
-                          className="h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                          disabled={actioningOrderId === o.id}
-                          onClick={() => o.provider_order_ref && checkPaymentStatus(o.id, o.provider_order_ref)}
-                          title="تحقق من حالة الدفعة عند Paymob"
-                        >
-                          {actioningOrderId === o.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          )}
-                          تحقق من الدفعة
-                        </Button>
+                        // Payment was already initiated on Paymob →
+                        // Show a "بانتظار التأكيد" badge (no more "Pay Now")
+                        // + a "تحقق من الدفعة" button that verifies + activates
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/15">
+                            بانتظار التأكيد من Paymob
+                          </Badge>
+                          <Button
+                            size="sm"
+                            className="h-8 px-3 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={actioningOrderId === o.id}
+                            onClick={() => o.provider_order_ref && checkPaymentStatus(o.id, o.provider_order_ref)}
+                            title="تحقق من حالة الدفعة عند Paymob"
+                          >
+                            {actioningOrderId === o.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            تحقق من الدفعة
+                          </Button>
+                        </div>
                       ) : (
                         // Payment NOT initiated → show "ادفع دلوقتي"
                         <Button

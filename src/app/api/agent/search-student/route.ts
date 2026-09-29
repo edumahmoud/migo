@@ -51,9 +51,12 @@ export async function POST(request: NextRequest) {
     .order('current_period_end', { ascending: false, nullsFirst: false });
 
   // 3. Fetch pending orders for this student (for this teacher's courses).
+  //    Include provider_order_ref so the agent can see if the student
+  //    already paid on Paymob (provider_order_ref is numeric when Paymob
+  //    created an order).
   const { data: orders } = await supabaseServer
     .from('orders')
-    .select('id, subject_id, amount, currency, status, created_at, subject:subjects!inner(id, name, teacher_id)')
+    .select('id, subject_id, amount, currency, status, created_at, provider_order_ref, subject:subjects!inner(id, name, teacher_id)')
     .eq('student_id', s.id)
     .eq('subject.teacher_id', sourceTeacherId)
     .order('created_at', { ascending: false })
