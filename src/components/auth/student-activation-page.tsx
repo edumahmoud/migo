@@ -40,6 +40,7 @@ interface OrderRow {
   provider: string; status: string;
   created_at: string; paid_at: string | null;
   checkout_session_id?: string | null;
+  provider_order_ref?: string | null;
 }
 interface Subscription {
   subject_id: string; status: string; enrollment_method: string;
@@ -565,7 +566,12 @@ export default function StudentActivationPage() {
               {/* Standalone pending orders — individual "استكمال الدفع" buttons */}
               {/* (ONLY for orders NOT in a session — session orders are
                   covered by the grouped button above) */}
-              {standalonePendingOrders.map(o => (
+              {standalonePendingOrders.map(o => {
+                // If payment was already initiated on Paymob (provider_order_ref
+                // is numeric), DON'T show "استكمال الدفع" button — the student
+                // already paid. Show "بانتظار التأكيد" badge instead.
+                const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
+                return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? '—'}</div>
@@ -573,29 +579,41 @@ export default function StudentActivationPage() {
                   </div>
                   <div className="text-end shrink-0 flex items-center gap-2">
                     <span className="font-mono text-xs">{Number(o.amount).toFixed(2)} {o.currency}</span>
-                    <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => {
-                        setPaymentSummaryOrder({
-                          orderId: o.id,
-                          subjectName: courseNameById.get(o.subject_id) ?? '—',
-                          amount: Number(o.amount),
-                          currency: String(o.currency ?? 'EGP'),
-                        });
-                        setSessionItems(null);
-                        setSessionId(null);
-                        setPaymentSummaryOpen(true);
-                      }}
-                    >
-                      <CreditCard className="h-3 w-3 me-1" />
-                      {t('student.payment.completePayment')}
-                    </Button>
+                    {paymentInitiated ? (
+                      // Payment was initiated → show "بانتظار التأكيد" badge (no Pay button)
+                      <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 bg-amber-50">
+                        <Clock className="h-3 w-3 me-1" />
+                        بانتظار التأكيد
+                      </Badge>
+                    ) : (
+                      // Payment NOT initiated → show "استكمال الدفع" button
+                      <>
+                        <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setPaymentSummaryOrder({
+                              orderId: o.id,
+                              subjectName: courseNameById.get(o.subject_id) ?? '—',
+                              amount: Number(o.amount),
+                              currency: String(o.currency ?? 'EGP'),
+                            });
+                            setSessionItems(null);
+                            setSessionId(null);
+                            setPaymentSummaryOpen(true);
+                          }}
+                        >
+                          <CreditCard className="h-3 w-3 me-1" />
+                          {t('student.payment.completePayment')}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}

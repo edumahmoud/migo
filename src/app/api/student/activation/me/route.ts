@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
   //    and standalone pending orders (individual "استكمال الدفع" button).
   const { data: orders } = await supabaseServer
     .from('orders')
-    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id')
+    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref')
     .eq('student_id', studentId)
     .order('created_at', { ascending: false })
     .limit(10);

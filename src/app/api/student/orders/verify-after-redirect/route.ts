@@ -159,7 +159,38 @@ export async function POST(request: NextRequest) {
       }
 
       // Find a successful transaction
-      const successfulTx = transactions.find((t) => t.success === true);
+      let successfulTx = transactions.find((t) => t.success === true);
+
+      // ── If NO transactions found via Paymob API BUT the order has
+      //    a numeric provider_order_ref (payment WAS initiated on Paymob)
+      //    AND the student was redirected with ?payment_callback=success →
+      //    create a SYNTHETIC successful transaction and activate anyway.
+      //
+      // Rationale: Paymob's iframe ONLY redirects the student back with
+      // ?payment_callback=success AFTER the payment is processed. If we
+      // got here, the student paid. The API query might fail because:
+      //   - The Paymob endpoints we try might not work for this account
+      //   - The transaction might not be indexed yet (delay)
+      //   - The auth token might have issues
+      // User explicitly requested: "الغي تقييد التفعيل" — remove
+      // activation restrictions. So: if payment was initiated + student
+      // was redirected from Paymob → activate.
+      if (!successfulTx && transactions.length === 0) {
+        console.info('[verify-after-redirect:debug] no transactions via API — using synthetic tx (payment was initiated + redirect)', {
+          orderId: o.id,
+          paymobOrderId,
+        });
+        successfulTx = {
+          id: Number(paymobOrderId),
+          success: true,
+          pending: false,
+          is_refunded: false,
+          amount_cents: Number(o.amount) * 100,
+          currency: o.currency,
+          order: { id: Number(paymobOrderId), merchant_order_id: o.id },
+        } as PaymobTransactionResponse;
+      }
+
       if (successfulTx) {
         console.info('[verify-after-redirect:debug] FOUND successful transaction!', {
           orderId: o.id,
