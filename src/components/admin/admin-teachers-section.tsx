@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Users, Search, ChevronLeft, ChevronRight,
   Wallet, DollarSign, Clock, CheckCircle2, X, Eye, EyeOff,
+  HandCoins, Banknote, History, Copy,
 } from 'lucide-react';
 
 // Arabic labels for payout method detail fields
@@ -85,6 +86,12 @@ export default function AdminTeachersSection() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [teacherDetail, setTeacherDetail] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Settlement + delivery + transactions state
+  const [settlingTeacherId, setSettlingTeacherId] = useState<string | null>(null);
+  const [deliveringTeacherId, setDeliveringTeacherId] = useState<string | null>(null);
+  const [transactionsModal, setTransactionsModal] = useState<{ open: boolean; teacherId: string | null; teacherName: string | null }>({ open: false, teacherId: null, teacherName: null });
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
 
   const fetchTeachers = useCallback(async () => {
     setLoading(true);
@@ -133,6 +140,79 @@ export default function AdminTeachersSection() {
       setDetailLoading(false);
     }
   }, []);
+
+  // ── Settlement handler (manual — admin records money sent outside system) ──
+  const handleSettle = async (teacherId: string, amount: number) => {
+    if (settlingTeacherId) return;
+    if (!confirm(`تأكيد التسوية: ${amount.toFixed(2)} EGP لهذا المعلم؟`)) return;
+    setSettlingTeacherId(teacherId);
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacherId}/settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ amount }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تمت التسوية بنجاح');
+        await fetchTeachers(); // refresh list
+        if (selectedTeacherId === teacherId) await fetchTeacherDetail(teacherId);
+      } else {
+        toast.error(json.error || 'فشلت التسوية');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setSettlingTeacherId(null);
+    }
+  };
+
+  // ── Deliver payment handler (through the payout system) ──
+  const handleDeliverPayment = async (teacherId: string, amount: number, payoutMethodId: string) => {
+    if (deliveringTeacherId) return;
+    if (!confirm(`تأكيد تسليم الدفعة: ${amount.toFixed(2)} EGP عبر وسيلة الاستلام؟`)) return;
+    setDeliveringTeacherId(teacherId);
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacherId}/deliver-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ amount, payout_method_id: payoutMethodId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم إنشاء أمر التسليم');
+        await fetchTeachers();
+      } else {
+        toast.error(json.error || 'فشل تسليم الدفعة');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setDeliveringTeacherId(null);
+    }
+  };
+
+  // ── Fetch transactions log for a teacher ──
+  const fetchTransactions = async (teacherId: string, teacherName: string | null) => {
+    setTransactionsModal({ open: true, teacherId, teacherName });
+    setTransactionsLoading(true);
+    setTransactions([]);
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacherId}/transactions`, {
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setTransactions(json.transactions ?? []);
+      } else {
+        toast.error(json.error || 'تعذّر جلب المعاملات');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6" dir={direction}>
@@ -233,9 +313,50 @@ export default function AdminTeachersSection() {
                           {Number(teacher.total_earned ?? teacher.total_revenue).toFixed(2)}
                         </td>
                         <td className="p-3 text-center">
-                          <Button size="sm" variant="ghost" className="h-7 text-xs">
-                            {t('common.view') || 'عرض'}
-                          </Button>
+                          <div className="flex items-center gap-1 justify-center">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => fetchTeacherDetail(teacher.id)}
+                            >
+                              {t('common.view') || 'عرض'}
+                            </Button>
+                            {/* تسوية — settle (manual) */}
+                            {Number(teacher.total_pending ?? 0) > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                disabled={settlingTeacherId === teacher.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSettle(teacher.id, Number(teacher.total_pending ?? 0));
+                                }}
+                                title="تسوية — تسجيل يدوي أن المعلم استلم"
+                              >
+                                {settlingTeacherId === teacher.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <HandCoins className="h-3 w-3" />
+                                )}
+                                تسوية
+                              </Button>
+                            )}
+                            {/* سجل المعاملات */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs gap-1 text-sky-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                fetchTransactions(teacher.id, teacher.name);
+                              }}
+                              title="سجل المعاملات"
+                            >
+                              <History className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -484,6 +605,118 @@ export default function AdminTeachersSection() {
                   </div>
                 </div>
               ) : null}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Transactions Log Modal ─── */}
+      <AnimatePresence>
+        {transactionsModal.open && transactionsModal.teacherId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setTransactionsModal({ open: false, teacherId: null, teacherName: null })}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl border bg-background shadow-xl"
+              dir={direction}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b p-5">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <History className="h-5 w-5 text-sky-600" />
+                  سجل المعاملات
+                  {transactionsModal.teacherName && (
+                    <span className="text-sm text-muted-foreground">— {transactionsModal.teacherName}</span>
+                  )}
+                </h3>
+                <button
+                  onClick={() => setTransactionsModal({ open: false, teacherId: null, teacherName: null })}
+                  className="h-8 w-8 rounded-md text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {transactionsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : transactions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <History className="h-12 w-12 text-muted-foreground/40 mb-2" />
+                    <p className="text-sm text-muted-foreground">لا توجد معاملات لهذا المعلم.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {transactions.map((tx: any) => (
+                      <div key={tx.id} className="rounded-lg border p-3 space-y-2">
+                        {/* Row 1: code + status + amount */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(tx.transaction_code);
+                              toast.success(`تم نسخ الكود: ${tx.transaction_code}`);
+                            }}
+                            className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1"
+                          >
+                            <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded">
+                              {tx.transaction_code}
+                            </span>
+                            <Copy className="h-2.5 w-2.5" />
+                          </button>
+                          <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                            {tx.status_label}
+                          </Badge>
+                          <span className="text-sm font-mono font-bold">
+                            {Number(tx.amount).toFixed(2)} {tx.currency}
+                          </span>
+                        </div>
+                        {/* Row 2: method + dates */}
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                          <span className="inline-flex items-center gap-1">
+                            <Wallet className="h-3 w-3" />
+                            {tx.method_label} ({tx.method_masked})
+                          </span>
+                          <span>أُنشئ: {new Date(tx.created_at).toLocaleString('ar-EG')}</span>
+                          {tx.executed_at && (
+                            <span className="text-emerald-600">
+                              نُفّذ: {new Date(tx.executed_at).toLocaleString('ar-EG')}
+                            </span>
+                          )}
+                        </div>
+                        {/* Linked entries */}
+                        {tx.linked_entries && tx.linked_entries.length > 0 && (
+                          <div className="text-xs text-muted-foreground border-t pt-2">
+                            <span className="font-medium">العمليات المرتبطة ({tx.linked_entries.length}):</span>
+                            <div className="mt-1 space-y-0.5">
+                              {tx.linked_entries.map((le: any, i: number) => (
+                                <div key={i} className="flex justify-between">
+                                  <span className="font-mono">{le.order_id?.slice(0, 8)}...</span>
+                                  <span className="font-mono">{Number(le.amount_settled).toFixed(2)} {le.currency}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Failure reason */}
+                        {tx.failure_reason && (
+                          <div className="text-xs text-rose-600">{tx.failure_reason}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
