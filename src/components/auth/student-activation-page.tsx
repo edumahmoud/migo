@@ -447,6 +447,8 @@ export default function StudentActivationPage() {
                 if (!sameCurrency) return null;
                 const total = orders.reduce((sum, o) => sum + Number(o.amount), 0);
                 const currency = orders[0].currency;
+                // Check if ANY order in the group has payment initiated
+                const anyPaymentInitiated = orders.some(o => !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref));
                 return (
                   <div key={sessionId} className="mb-2 rounded-md border border-teal-200 dark:border-teal-900/40 bg-teal-50 dark:bg-teal-900/15 p-3 space-y-2">
                     <div className="text-sm font-medium text-teal-800 dark:text-teal-200">
@@ -463,7 +465,7 @@ export default function StudentActivationPage() {
                         </div>
                       ))}
                     </div>
-                    {/* Total + Pay All button (uses EXISTING session_id) */}
+                    {/* Total + Pay All button OR "تم الدفع" badge */}
                     <div className="flex items-center justify-between pt-1 border-t border-teal-200 dark:border-teal-900/40">
                       <div className="text-sm">
                         <span className="text-muted-foreground">{t('student.payment.total')}: </span>
@@ -471,34 +473,39 @@ export default function StudentActivationPage() {
                           {total.toFixed(2)} {currency}
                         </span>
                       </div>
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
-                        onClick={async () => {
-                          // Use the EXISTING session_id (don't create a new one)
-                          // + fetch the session items to display in the dialog.
-                          try {
-                            // Build the items from the existing pending orders
-                            // (all values are server-authoritative from the DB).
-                            const items = orders.map((o) => ({
-                              order_id: o.id,
-                              subject_id: o.subject_id,
-                              subject_name: courseNameById.get(o.subject_id) ?? '—',
-                              amount: Number(o.amount),
-                              currency: String(o.currency ?? 'EGP'),
-                            }));
-                            setPaymentSummaryOrder(null);
-                            setSessionItems(items);
-                            setSessionId(sessionId);
-                            setPaymentSummaryOpen(true);
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
-                          }
-                        }}
-                      >
-                        <CreditCard className="h-3 w-3 me-1" />
-                        {t('student.payment.completePaymentGroup')}
-                      </Button>
+                      {anyPaymentInitiated ? (
+                        // Payment was initiated → show "تم الدفع — جارٍ التفعيل"
+                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
+                          <Loader2 className="h-3 w-3 me-1 animate-spin" />
+                          تم الدفع — جارٍ التفعيل
+                        </Badge>
+                      ) : (
+                        // Payment NOT initiated → show "Complete Payment for All"
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                          onClick={async () => {
+                            try {
+                              const items = orders.map((o) => ({
+                                order_id: o.id,
+                                subject_id: o.subject_id,
+                                subject_name: courseNameById.get(o.subject_id) ?? '—',
+                                amount: Number(o.amount),
+                                currency: String(o.currency ?? 'EGP'),
+                              }));
+                              setPaymentSummaryOrder(null);
+                              setSessionItems(items);
+                              setSessionId(sessionId);
+                              setPaymentSummaryOpen(true);
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
+                            }
+                          }}
+                        >
+                          <CreditCard className="h-3 w-3 me-1" />
+                          {t('student.payment.completePaymentGroup')}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -514,6 +521,8 @@ export default function StudentActivationPage() {
                 if (!sameCurrency) return null;
                 const total = standalonePendingOrders.reduce((sum, o) => sum + Number(o.amount), 0);
                 const currency = standalonePendingOrders[0].currency;
+                // Check if ANY standalone order has payment initiated
+                const anyPaymentInitiated = standalonePendingOrders.some(o => !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref));
                 return (
                   <div className="mb-2 rounded-md border border-sky-200 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
                     <div className="text-sm font-medium text-sky-800 dark:text-sky-200">
@@ -536,28 +545,35 @@ export default function StudentActivationPage() {
                           {total.toFixed(2)} {currency}
                         </span>
                       </div>
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
-                        onClick={async () => {
-                          const orderIds = standalonePendingOrders.map((o) => o.id);
-                          try {
-                            const session = await createCheckoutSession(orderIds, await getCachedAuthHeaders());
-                            setPaymentSummaryOrder(null);
-                            setSessionItems(session.items);
-                            setSessionId(session.session_id);
-                            setPaymentSummaryOpen(true);
-                          } catch (err) {
-                            const message = err instanceof PaymentActionError
-                              ? getPaymentActionErrorMessage(err, t('student.payment.paymentInitFailed'))
-                              : (err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
-                            toast.error(message);
-                          }
-                        }}
-                      >
-                        <CreditCard className="h-3 w-3 me-1" />
-                        {t('student.payment.completePaymentGroup')}
-                      </Button>
+                      {anyPaymentInitiated ? (
+                        <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
+                          <Loader2 className="h-3 w-3 me-1 animate-spin" />
+                          تم الدفع — جارٍ التفعيل
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                          onClick={async () => {
+                            const orderIds = standalonePendingOrders.map((o) => o.id);
+                            try {
+                              const session = await createCheckoutSession(orderIds, await getCachedAuthHeaders());
+                              setPaymentSummaryOrder(null);
+                              setSessionItems(session.items);
+                              setSessionId(session.session_id);
+                              setPaymentSummaryOpen(true);
+                            } catch (err) {
+                              const message = err instanceof PaymentActionError
+                                ? getPaymentActionErrorMessage(err, t('student.payment.paymentInitFailed'))
+                                : (err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
+                              toast.error(message);
+                            }
+                          }}
+                        >
+                          <CreditCard className="h-3 w-3 me-1" />
+                          {t('student.payment.completePaymentGroup')}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );

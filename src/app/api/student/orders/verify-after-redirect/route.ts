@@ -90,18 +90,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 2. Get auth token
-  let authToken: string;
+  // 2. Get auth token (OPTIONAL — if this fails, we fall back to
+  //    the synthetic transaction approach which doesn't need the
+  //    Paymob API. The synthetic approach activates based on:
+  //    - Student was redirected from Paymob with ?payment_callback=success
+  //    - Order has a numeric provider_order_ref (payment was initiated)
+  let authToken: string | null = null;
   try {
     authToken = await getAuthToken(secretKey);
   } catch (err) {
-    console.error('[verify-after-redirect:debug] failed to get auth token', {
+    // Auth token failed — but DON'T return an error. We'll use the
+    // synthetic transaction approach instead (which doesn't need
+    // the Paymob API). This is the "remove activation restrictions"
+    // behavior the user requested.
+    console.warn('[verify-after-redirect:debug] getAuthToken failed — using synthetic fallback (no Paymob API needed)', {
       error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json(
-      { success: false, error: 'تعذّر الاتصال ببوابة الدفع' },
-      { status: 502 },
-    );
   }
 
   // ── Strategy 0 (ROOT): Find the student's pending orders with a
@@ -147,15 +151,21 @@ export async function POST(request: NextRequest) {
       });
 
       let transactions: PaymobTransactionResponse[] = [];
-      try {
-        transactions = await getOrderTransactions(authToken, paymobOrderId);
-      } catch (err) {
-        console.warn('[verify-after-redirect:debug] getOrderTransactions failed', {
+      if (authToken) {
+        try {
+          transactions = await getOrderTransactions(authToken, paymobOrderId);
+        } catch (err) {
+          console.warn('[verify-after-redirect:debug] getOrderTransactions failed', {
+            orderId: o.id,
+            paymobOrderId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // Don't skip — fall through to synthetic transaction below
+        }
+      } else {
+        console.info('[verify-after-redirect:debug] no auth token — skipping Paymob API query, using synthetic', {
           orderId: o.id,
-          paymobOrderId,
-          error: err instanceof Error ? err.message : String(err),
         });
-        continue; // try next order
       }
 
       // Find a successful transaction
@@ -352,7 +362,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Strategy 1: If transactionId is provided → call getTransaction directly ──
-  if (body.transactionId) {
+  if (body.transactionId && authToken) {
     console.info('[verify-after-redirect:debug] strategy 1: transaction ID from URL');
     try {
       const tx = await getTransaction(authToken, body.transactionId);
