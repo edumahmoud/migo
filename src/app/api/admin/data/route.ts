@@ -32,9 +32,13 @@ export async function GET(request: NextRequest) {
             .from('subjects')
             .select('id, teacher_id'),
           // Get all subject-student enrollments (for accurate student/teacher counts)
+          // Filter to status='approved' — only count ACTIVE enrollments
+          // (not pending/blocked). This ensures the count reflects actual
+          // active subscriptions, not stale/pending ones.
           supabaseServer
             .from('subject_students')
-            .select('subject_id, student_id'),
+            .select('subject_id, student_id')
+            .eq('status', 'approved'),
         ]);
 
         // ─── Build maps from subjects ───

@@ -34,11 +34,12 @@ export async function GET(request: NextRequest) {
       teacher = teacherData;
     }
 
-    // Fetch enrolled students
+    // Fetch enrolled students (only approved — not pending/blocked)
     const { data: enrollments } = await supabaseServer
       .from('subject_students')
       .select('student_id')
-      .eq('subject_id', subjectId);
+      .eq('subject_id', subjectId)
+      .eq('status', 'approved');
 
     let students: unknown[] = [];
     if (enrollments && enrollments.length > 0) {

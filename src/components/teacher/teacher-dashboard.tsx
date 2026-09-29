@@ -242,7 +242,16 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // Data fetching
   // -------------------------------------------------------
   const fetchStudents = useCallback(async () => {
-    // Fetch all student links with status if available
+    // ── Fetch students from BOTH sources ──
+    // 1. teacher_student_links (students who linked to this teacher)
+    // 2. subject_students (students who PAID for this teacher's courses)
+    //    — these might not have a teacher_student_links entry
+    //
+    // Merge both sets to get the COMPLETE list of students.
+    // Without subject_students, paid subscriptions wouldn't show
+    // up in the teacher's student count.
+
+    // 1. Fetch from teacher_student_links
     const { data: allLinks, error: linksError } = await supabase
       .from('teacher_student_links')
       .select('student_id, status')
@@ -250,62 +259,67 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
     if (linksError) {
       console.error('Error fetching student links:', linksError);
-      return;
     }
 
-    // Check if status column exists in the results
+    // 2. Fetch from subject_students (students enrolled in this teacher's courses)
+    //    Filter to status='approved' so we only count ACTIVE enrollments
+    //    (not pending/blocked ones).
+    //    Use a nested filter: subject_id in subjects where teacher_id = me
+    const { data: teacherSubjects } = await supabase
+      .from('subjects')
+      .select('id')
+      .eq('teacher_id', profile.id);
+    const teacherSubjectIds = (teacherSubjects ?? []).map((s: { id: string }) => s.id);
+
+    let subjectStudentIds: string[] = [];
+    if (teacherSubjectIds.length > 0) {
+      const { data: ssData, error: ssErr } = await supabase
+        .from('subject_students')
+        .select('student_id')
+        .in('subject_id', teacherSubjectIds)
+        .eq('status', 'approved');
+      if (!ssErr && ssData) {
+        subjectStudentIds = [...new Set(ssData.map((s: { student_id: string }) => s.student_id))];
+      }
+    }
+
+    // 3. Merge: combine student IDs from both sources
+    const linkStudentIds = (allLinks ?? []).map((l: { student_id: string }) => l.student_id);
+    const allStudentIds = [...new Set([...linkStudentIds, ...subjectStudentIds])];
+
+    // 4. Separate approved vs pending (from teacher_student_links)
     const hasStatusColumn = allLinks && allLinks.length > 0 && 'status' in allLinks[0];
+    const approvedLinkIds = hasStatusColumn
+      ? (allLinks as Array<{ student_id: string; status: string }>).filter((l) => l.status === 'approved').map((l) => l.student_id)
+      : linkStudentIds;
+    const pendingLinkIds = hasStatusColumn
+      ? (allLinks as Array<{ student_id: string; status: string }>).filter((l) => l.status === 'pending').map((l) => l.student_id)
+      : [];
 
-    if (hasStatusColumn) {
-      // New schema: separate by status
-      const approvedIds = allLinks.filter((l) => l.status === 'approved').map((l) => l.student_id);
-      const pendingIds = allLinks.filter((l) => l.status === 'pending').map((l) => l.student_id);
+    if (allStudentIds.length > 0) {
+      try {
+        const batchHeaders = await getCachedAuthHeaders();
+        const res = await fetch('/api/users/batch', {
+          method: 'POST',
+          headers: batchHeaders,
+          body: JSON.stringify({ userIds: allStudentIds }),
+        });
+        if (res.ok) {
+          const { users } = await res.json();
+          const userMap = new Map((users as UserProfile[]).map(u => [u.id, u]));
 
-      // Fetch all student profiles through server-side API (bypasses RLS)
-      const allIds = [...approvedIds, ...pendingIds];
-      if (allIds.length > 0) {
-        try {
-          const batchHeaders = await getCachedAuthHeaders();
-          const res = await fetch('/api/users/batch', {
-            method: 'POST',
-            headers: batchHeaders,
-            body: JSON.stringify({ userIds: allIds }),
-          });
-          if (res.ok) {
-            const { users } = await res.json();
-            const userMap = new Map((users as UserProfile[]).map(u => [u.id, u]));
-            setStudents(approvedIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
-            setPendingStudents(pendingIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
-          }
-        } catch {
-          setStudents([]);
-          setPendingStudents([]);
+          // Approved students = approved link IDs + all subject_students IDs
+          // (subject_students with status='approved' ARE approved students)
+          const approvedIds = [...new Set([...approvedLinkIds, ...subjectStudentIds])];
+          setStudents(approvedIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
+          setPendingStudents(pendingLinkIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
         }
-      } else {
+      } catch {
         setStudents([]);
         setPendingStudents([]);
       }
     } else {
-      // Old schema: no status column, treat all as approved
-      if (allLinks && allLinks.length > 0) {
-        const studentIds = allLinks.map((l) => l.student_id);
-        try {
-          const batchHeaders = await getCachedAuthHeaders();
-          const res = await fetch('/api/users/batch', {
-            method: 'POST',
-            headers: batchHeaders,
-            body: JSON.stringify({ userIds: studentIds }),
-          });
-          if (res.ok) {
-            const { users } = await res.json();
-            setStudents((users as UserProfile[]) || []);
-          }
-        } catch {
-          setStudents([]);
-        }
-      } else {
-        setStudents([]);
-      }
+      setStudents([]);
       setPendingStudents([]);
     }
   }, [profile.id]);
@@ -551,6 +565,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'teacher_student_links', filter: `teacher_id=eq.${profile.id}` },
+        () => { fetchStudents(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'subject_students' },
         () => { fetchStudents(); }
       )
       .subscribe();
