@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
+import { generateTransactionCode } from '@/lib/payment/utils';
 
 /**
  * POST /api/admin/teachers/[id]/settle
@@ -103,8 +104,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const settledAmount = selectedEntries.reduce((sum, e) => sum + Number(e.teacher_share), 0);
   const currency = selectedEntries[0].currency;
-  const transactionCode = `STL-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`;
-  const internalReference = `STL-${Date.now()}`;
+  const transactionCode = generateTransactionCode();
+  const internalReference = transactionCode; // Use the same code for both
   const payoutPaymentId = `manual_settle_${randomUUID()}`;
 
   // 3. Get teacher's default payout method (for snapshot)

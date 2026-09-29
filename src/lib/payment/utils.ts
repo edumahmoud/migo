@@ -67,3 +67,50 @@ export function parsePaymentCode(code: string): string | null {
   return cleaned.toLowerCase();
 }
 
+/**
+ * Generate a unique transaction code for a payout/settlement.
+ *
+ * Format: TX-YYYYMMDD-XXXX (e.g., "TX-20260930-A1B2")
+ * - TX prefix (always)
+ * - Date in YYYYMMDD format (compact, sortable)
+ * - 4-char random alphanumeric suffix (uppercase)
+ *
+ * This is used by the settle + deliver-payment endpoints as the
+ * `provider_reference` on the `teacher_payouts` record. It's
+ * searchable via GET /api/admin/transactions/search?code=TX-xxx
+ *
+ * @returns  A transaction code like "TX-20260930-A1B2"
+ */
+export function generateTransactionCode(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `TX-${yyyy}${mm}${dd}-${suffix}`;
+}
+
+/**
+ * Parse a transaction code to get the date prefix for DB search.
+ *
+ * Given "TX-20260930-A1B2", returns "TX-20260930-" which can be
+ * used in an ILIKE query: `ilike('provider_reference', 'TX-20260930-%')`
+ *
+ * If the code doesn't match the TX- format, returns the raw code
+ * (for backward-compat with older STL-/PAY- format codes).
+ *
+ * @param code  The transaction code (e.g., "TX-20260930-A1B2" or "STL-xxx")
+ * @returns     A search pattern for ILIKE, or null if empty
+ */
+export function parseTransactionCode(code: string): string | null {
+  if (!code) return null;
+  const trimmed = code.trim();
+  // Normalize: uppercase, remove spaces
+  const normalized = trimmed.toUpperCase().replace(/\s+/g, '');
+  // Accept any of: TX-*, STL-*, PAY-*, PO-*
+  if (/^(TX-|STL-|PAY-|PO-)/.test(normalized)) {
+    return normalized;
+  }
+  return null;
+}
+

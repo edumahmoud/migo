@@ -136,7 +136,18 @@ export default function AdminPayoutsSection() {
                     {payouts.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('ar-EG')}</TableCell>
-                        <TableCell className="font-mono text-xs">{p.internal_reference}</TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() => {
+                              const code = p.provider_reference || p.internal_reference;
+                              navigator.clipboard.writeText(code);
+                            }}
+                            className="font-mono text-xs text-sky-700 dark:text-sky-300 hover:underline"
+                            title="اضغط للنسخ"
+                          >
+                            {p.provider_reference || p.internal_reference}
+                          </button>
+                        </TableCell>
                         <TableCell className="text-xs">{p.payout_method_masked}</TableCell>
                         <TableCell className="text-xs">{p.payout_method_type}</TableCell>
                         <TableCell className="text-end font-semibold">{Number(p.amount).toFixed(2)} {p.currency}</TableCell>

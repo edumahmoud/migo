@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { initiatePayout } from '@/lib/payment/payout-domain/service';
+import { generateTransactionCode } from '@/lib/payment/utils';
 
 /**
  * POST /api/admin/teachers/[id]/deliver-payment
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const { amount, payout_method_id } = parsed.data;
-  const transactionCode = `PAY-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4).toUpperCase()}`;
+  const transactionCode = generateTransactionCode();
 
   try {
     // Use the existing initiatePayout service

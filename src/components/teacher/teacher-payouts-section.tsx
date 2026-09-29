@@ -100,7 +100,11 @@ export default function TeacherPayoutsSection() {
                     {payouts.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString('ar-EG')}</TableCell>
-                        <TableCell className="font-mono text-xs">{p.internal_reference}</TableCell>
+                        <TableCell>
+                          <span className="font-mono text-xs text-sky-700 dark:text-sky-300">
+                            {p.provider_reference || p.internal_reference}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-xs">{p.payout_method_type} — {p.payout_method_masked}</TableCell>
                         <TableCell className="text-end font-semibold">{Number(p.amount).toFixed(2)} {p.currency}</TableCell>
                         <TableCell><Badge variant="secondary" className={STATUS_COLOR[p.status] ?? ''}>{STATUS_LABELS[p.status] ?? p.status}</Badge></TableCell>
