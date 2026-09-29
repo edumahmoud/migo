@@ -569,7 +569,8 @@ export default function StudentActivationPage() {
               {standalonePendingOrders.map(o => {
                 // If payment was already initiated on Paymob (provider_order_ref
                 // is numeric), DON'T show "استكمال الدفع" button — the student
-                // already paid. Show "بانتظار التأكيد" badge instead.
+                // already paid. The verify-after-redirect fires automatically
+                // and activates the subscription within seconds.
                 const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
                 return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
@@ -580,10 +581,13 @@ export default function StudentActivationPage() {
                   <div className="text-end shrink-0 flex items-center gap-2">
                     <span className="font-mono text-xs">{Number(o.amount).toFixed(2)} {o.currency}</span>
                     {paymentInitiated ? (
-                      // Payment was initiated → show "بانتظار التأكيد" badge (no Pay button)
-                      <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 bg-amber-50">
-                        <Clock className="h-3 w-3 me-1" />
-                        بانتظار التأكيد
+                      // Payment was initiated on Paymob → the student paid.
+                      // verify-after-redirect is firing automatically.
+                      // Show "تم الدفع — جارٍ التفعيل" with a spinner
+                      // (NOT "بانتظار التأكيد" which implies uncertainty).
+                      <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
+                        <Loader2 className="h-3 w-3 me-1 animate-spin" />
+                        تم الدفع — جارٍ التفعيل
                       </Badge>
                     ) : (
                       // Payment NOT initiated → show "استكمال الدفع" button
