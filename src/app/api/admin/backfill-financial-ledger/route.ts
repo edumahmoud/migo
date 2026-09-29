@@ -4,6 +4,16 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { randomUUID } from 'crypto';
 
 /**
+ * GET /api/admin/backfill-financial-ledger
+ *
+ * Same as POST — but accessible via browser URL bar.
+ * Admin can just visit this URL to run the backfill.
+ */
+export async function GET(request: NextRequest) {
+  return POST(request);
+}
+
+/**
  * POST /api/admin/backfill-financial-ledger
  *
  * Backfills missing `payments` + `financial_ledger` rows for orders
