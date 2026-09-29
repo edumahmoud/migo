@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { DollarSign, Wallet, Users, CreditCard, Percent } from 'lucide-react';
+import { DollarSign, Wallet, Users, CreditCard, Percent, Calendar } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,9 +25,10 @@ import AdminPayoutsSection from '@/components/admin/admin-payouts-section';
 import AdminTeachersSection from '@/components/admin/admin-teachers-section';
 import PaymentGatewaysSection from '@/components/admin/payment-gateways-section';
 import AdminCommissionRatesSection from '@/components/admin/admin-commission-rates-section';
+import AdminFinancialBreakdownSection from '@/components/admin/admin-financial-breakdown-section';
 import type { UserProfile } from '@/lib/types';
 
-type FinancialTab = 'dashboard' | 'payouts' | 'teachers' | 'gateways' | 'commission';
+type FinancialTab = 'dashboard' | 'payouts' | 'teachers' | 'gateways' | 'commission' | 'breakdown';
 
 interface Props {
   profile: UserProfile;
@@ -41,13 +42,14 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
   // Restore tab from URL hash on mount
   useEffect(() => {
     const hash = window.location.hash.replace('#financial-', '');
-    if (['dashboard', 'payouts', 'teachers', 'gateways', 'commission'].includes(hash)) {
+    if (['dashboard', 'payouts', 'teachers', 'gateways', 'commission', 'breakdown'].includes(hash)) {
       setActiveTab(hash as FinancialTab);
     }
   }, []);
 
   const tabs: Array<{ id: FinancialTab; label: string; icon: typeof DollarSign; superadminOnly?: boolean }> = [
     { id: 'dashboard', label: 'اللوحة المالية', icon: DollarSign },
+    { id: 'breakdown', label: 'التقسيم الزمني', icon: Calendar },
     { id: 'payouts', label: 'المدفوعات', icon: CreditCard },
     { id: 'teachers', label: 'حسابات المعلمين', icon: Users },
     { id: 'commission', label: 'نسبة العمولة', icon: Percent },
@@ -84,6 +86,7 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
       {/* Active tab content */}
       <div>
         {activeTab === 'dashboard' && <AdminFinancialSection profile={profile} />}
+        {activeTab === 'breakdown' && <AdminFinancialBreakdownSection />}
         {activeTab === 'payouts' && <AdminPayoutsSection />}
         {activeTab === 'teachers' && <AdminTeachersSection />}
         {activeTab === 'commission' && <AdminCommissionRatesSection />}
