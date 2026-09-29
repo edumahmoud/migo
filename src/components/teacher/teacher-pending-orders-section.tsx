@@ -249,7 +249,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                         (the student paid!). Use "تفعيل يدوي" only if the webhook
                         didn't fire automatically. */}
                     {(() => {
-                      const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
+                      const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
                       return (
                         <>
                           <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>

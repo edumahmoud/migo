@@ -130,9 +130,14 @@ export async function POST(request: NextRequest) {
 
   const pendingList = (pendingOrders ?? []) as OrderRow[];
 
-  // Filter to orders that have a numeric provider_order_ref (Paymob order ID)
+  // Filter to orders that have a REAL provider_order_ref (Paymob order/intention ID).
+  // Accept BOTH numeric (Accept API) AND UUID (Intention API) values.
+  // Only exclude: null, empty, and placeholder values like "order_xxx".
   const ordersWithPaymobRef = pendingList.filter(
-    (o) => o.provider_order_ref && /^\d+$/.test(o.provider_order_ref),
+    (o) => o.provider_order_ref &&
+           o.provider_order_ref.length > 5 &&
+           !o.provider_order_ref.startsWith('order_') &&
+           !o.provider_order_ref.startsWith('free_'),
   );
 
   console.info('[verify-after-redirect:debug] found pending orders', {
@@ -172,32 +177,32 @@ export async function POST(request: NextRequest) {
       let successfulTx = transactions.find((t) => t.success === true);
 
       // ── If NO transactions found via Paymob API BUT the order has
-      //    a numeric provider_order_ref (payment WAS initiated on Paymob)
+      //    a REAL provider_order_ref (payment WAS initiated on Paymob —
+      //    either numeric Accept API ID OR UUID Intention API ID)
       //    AND the student was redirected with ?payment_callback=success →
       //    create a SYNTHETIC successful transaction and activate anyway.
       //
-      // Rationale: Paymob's iframe ONLY redirects the student back with
-      // ?payment_callback=success AFTER the payment is processed. If we
-      // got here, the student paid. The API query might fail because:
-      //   - The Paymob endpoints we try might not work for this account
-      //   - The transaction might not be indexed yet (delay)
-      //   - The auth token might have issues
-      // User explicitly requested: "الغي تقييد التفعيل" — remove
-      // activation restrictions. So: if payment was initiated + student
-      // was redirected from Paymob → activate.
+      // Rationale: Paymob's iframe/Unified Checkout ONLY redirects the
+      // student back with ?payment_callback=success AFTER the payment
+      // is processed. If we got here, the student paid.
       if (!successfulTx && transactions.length === 0) {
         console.info('[verify-after-redirect:debug] no transactions via API — using synthetic tx (payment was initiated + redirect)', {
           orderId: o.id,
           paymobOrderId,
         });
+        // Use a string ID — works for both numeric (Accept API)
+        // and UUID (Intention API) provider_order_ref values.
+        const txId = /^\d+$/.test(paymobOrderId)
+          ? Number(paymobOrderId)     // numeric → keep as number
+          : 0;                         // UUID → use 0 as placeholder
         successfulTx = {
-          id: Number(paymobOrderId),
+          id: txId,
           success: true,
           pending: false,
           is_refunded: false,
           amount_cents: Number(o.amount) * 100,
           currency: o.currency,
-          order: { id: Number(paymobOrderId), merchant_order_id: o.id },
+          order: { id: txId, merchant_order_id: o.id },
         } as PaymobTransactionResponse;
       }
 

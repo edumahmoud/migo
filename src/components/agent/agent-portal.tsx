@@ -247,7 +247,7 @@ export default function AgentPortal() {
                           <span className="text-xs font-mono">{Number(o.amount).toFixed(2)} {o.currency}</span>
                           <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>
                           {(() => {
-                            const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
+                            const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
                             return (
                               <>
                                 {paymentInitiated && (

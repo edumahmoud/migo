@@ -448,7 +448,7 @@ export default function StudentActivationPage() {
                 const total = orders.reduce((sum, o) => sum + Number(o.amount), 0);
                 const currency = orders[0].currency;
                 // Check if ANY order in the group has payment initiated
-                const anyPaymentInitiated = orders.some(o => !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref));
+                const anyPaymentInitiated = orders.some(o => !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_'));
                 return (
                   <div key={sessionId} className="mb-2 rounded-md border border-teal-200 dark:border-teal-900/40 bg-teal-50 dark:bg-teal-900/15 p-3 space-y-2">
                     <div className="text-sm font-medium text-teal-800 dark:text-teal-200">
@@ -522,7 +522,7 @@ export default function StudentActivationPage() {
                 const total = standalonePendingOrders.reduce((sum, o) => sum + Number(o.amount), 0);
                 const currency = standalonePendingOrders[0].currency;
                 // Check if ANY standalone order has payment initiated
-                const anyPaymentInitiated = standalonePendingOrders.some(o => !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref));
+                const anyPaymentInitiated = standalonePendingOrders.some(o => !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_'));
                 return (
                   <div className="mb-2 rounded-md border border-sky-200 dark:border-sky-900/40 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
                     <div className="text-sm font-medium text-sky-800 dark:text-sky-200">
@@ -587,7 +587,7 @@ export default function StudentActivationPage() {
                 // is numeric), DON'T show "استكمال الدفع" button — the student
                 // already paid. The verify-after-redirect fires automatically
                 // and activates the subscription within seconds.
-                const paymentInitiated = !!o.provider_order_ref && /^\d+$/.test(o.provider_order_ref);
+                const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
                 return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
