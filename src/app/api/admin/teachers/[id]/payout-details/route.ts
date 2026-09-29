@@ -6,9 +6,18 @@ import { resolvePayoutMethod } from '@/lib/payment/payout-methods-repository';
 /**
  * GET /api/admin/teachers/[id]/payout-details
  *
- * Returns ALL payout methods for a teacher with FULL decrypted details
- * (account_number, IBAN, wallet_number, holder_name, etc.) — for
- * admin use ONLY to facilitate the actual bank/wallet transfer.
+ * Returns the teacher's DEFAULT payout method (only) with FULL
+ * decrypted details (account_number, IBAN, wallet_number,
+ * holder_name, etc.) — for admin use ONLY to facilitate the
+ * actual bank/wallet transfer.
+ *
+ * The user requested: only show the teacher's DEFAULT payout method
+ * in the admin's payout receipt data. Non-default methods are
+ * excluded from this endpoint's response.
+ *
+ * If the teacher has NO default method set:
+ *   - Returns payout_methods: [] (empty array)
+ *   - The admin should ask the teacher to set a default
  *
  * SECURITY:
  *   - requireAdmin (admin or superadmin only)
@@ -32,19 +41,20 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
   const { id: teacherId } = await ctx.params;
 
-  // 1. Fetch all ACTIVE payout method IDs for this teacher
-  //    (disabled methods are not usable for transfers — skip them)
+  // 1. Fetch ONLY the DEFAULT payout method for this teacher
+  //    (user requested: don't show all methods — only the default)
+  //    If no default is set, return empty array.
   const { data: methodRows, error: methodsErr } = await supabaseServer
     .from('teacher_payout_methods')
     .select('id, method_type, display_label, details_masked, is_active, is_default, verified_at')
     .eq('teacher_id', teacherId)
-    .eq('is_active', true)  // Only active methods
-    .order('is_default', { ascending: false })
-    .order('created_at', { ascending: false });
+    .eq('is_active', true)
+    .eq('is_default', true)  // ← Only the default method
+    .limit(1);
 
   if (methodsErr) {
     return NextResponse.json(
-      { success: false, error: 'تعذّر جلب طرق الاستلام' },
+      { success: false, error: 'تعذّر جلب طريقة الاستلام الافتراضية' },
       { status: 500 },
     );
   }
@@ -53,14 +63,12 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({
       success: true,
       payout_methods: [],
+      message: 'لا توجد وسيلة استلام افتراضية لهذا المعلم — اطلب منه تحديد وسيلة افتراضية',
     });
   }
 
-  // 2. For each method, resolve the full decrypted details
-  //    resolvePayoutMethod validates ownership (teacherId match) +
-  //    decrypts the details_encrypted blob.
-  const payoutMethods = [];
-  for (const row of methodRows as Array<{
+  // 2. Resolve the full decrypted details for the default method
+  const row = methodRows[0] as {
     id: string;
     method_type: string;
     display_label: string;
@@ -68,11 +76,14 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     is_active: boolean;
     is_default: boolean;
     verified_at: string | null;
-  }>) {
-    try {
-      const resolved = await resolvePayoutMethod(row.id, teacherId);
-      if (resolved) {
-        payoutMethods.push({
+  };
+
+  try {
+    const resolved = await resolvePayoutMethod(row.id, teacherId);
+    if (resolved) {
+      return NextResponse.json({
+        success: true,
+        payout_methods: [{
           id: row.id,
           method_type: row.method_type,
           display_label: row.display_label,
@@ -81,14 +92,16 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
           is_active: row.is_active,
           is_default: row.is_default,
           verified_at: row.verified_at,
-        });
-      } else {
-        throw new Error('resolvePayoutMethod returned null');
-      }
-    } catch (err) {
-      // If decryption fails (key changed, data corrupt), still return
-      // the masked version + an error flag.
-      payoutMethods.push({
+        }],
+      });
+    } else {
+      throw new Error('resolvePayoutMethod returned null');
+    }
+  } catch (err) {
+    // Decryption failed (key changed, data corrupt) — return masked + error
+    return NextResponse.json({
+      success: true,
+      payout_methods: [{
         id: row.id,
         method_type: row.method_type,
         display_label: row.display_label,
@@ -98,12 +111,8 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
         is_active: row.is_active,
         is_default: row.is_default,
         verified_at: row.verified_at,
-      });
-    }
+      }],
+    });
   }
-
-  return NextResponse.json({
-    success: true,
-    payout_methods: payoutMethods,
-  });
 }
+

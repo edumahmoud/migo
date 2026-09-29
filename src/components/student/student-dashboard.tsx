@@ -2890,6 +2890,34 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setSelectedTeacher(teacher);
     setLoadingTeacherSubjects(true);
     try {
+      // ── Fetch the student's already-selected subject IDs ──
+      // (subjects the student is enrolled in OR has a pending order for)
+      // These should be hidden from the teacher's course list.
+      const [enrollmentsRes, pendingOrdersRes] = await Promise.all([
+        supabase
+          .from('subject_students')
+          .select('subject_id')
+          .eq('student_id', profile.id),
+        supabase
+          .from('orders')
+          .select('subject_id')
+          .eq('student_id', profile.id)
+          .eq('status', 'pending'),
+      ]);
+
+      const studentSelectedSubjectIds = new Set<string>();
+      if (enrollmentsRes.data) {
+        for (const e of enrollmentsRes.data as Array<{ subject_id: string }>) {
+          studentSelectedSubjectIds.add(e.subject_id);
+        }
+      }
+      if (pendingOrdersRes.data) {
+        for (const o of pendingOrdersRes.data as Array<{ subject_id: string }>) {
+          studentSelectedSubjectIds.add(o.subject_id);
+        }
+      }
+
+      // Fetch all subjects owned by this teacher
       const { data, error } = await supabase
         .from('subjects')
         .select('*')
@@ -2899,7 +2927,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         console.error('Error fetching teacher subjects:', error);
         setTeacherSubjects([]);
       } else {
-        setTeacherSubjects((data as Subject[]) || []);
+        // ── Filter out subjects the student has already selected ──
+        // (either enrolled in OR has a pending order for)
+        const filteredSubjects = (data as Subject[]).filter(
+          (s) => !studentSelectedSubjectIds.has(s.id),
+        );
+        setTeacherSubjects(filteredSubjects);
       }
     } catch {
       setTeacherSubjects([]);

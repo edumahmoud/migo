@@ -30,6 +30,8 @@ import {
   ChevronLeft,
   Gift,
   AlertCircle,
+  CheckCircle2,
+  Wallet,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -2016,6 +2018,31 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               )}
                             </div>
                           )}
+
+                          {/* ── Subscription type + price badge (teacher + student) ── */}
+                          {/* Shows "مجاني" (free) OR "مدفوع — X EGP/شهر" (paid) */}
+                          {(() => {
+                            const price = subject.price ?? 0;
+                            const currency = subject.currency || 'EGP';
+                            const isFree = !price || price === 0;
+                            return (
+                              <div className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border">
+                                {isFree ? (
+                                  <>
+                                    <span className="bg-emerald-50 dark:bg-emerald-900/15 border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5">
+                                      <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                      مجاني
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="bg-amber-50 dark:bg-amber-900/15 border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5">
+                                    <Wallet className="h-3 w-3 shrink-0" />
+                                    مدفوع — {Number(price).toFixed(2)} {currency}/شهر
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* ── Subscription info badge (student only) ── */}
                           {role === 'student' && subscriptions[subject.id] && (() => {
