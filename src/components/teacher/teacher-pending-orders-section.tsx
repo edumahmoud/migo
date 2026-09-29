@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { generatePaymentCode } from '@/lib/payment/utils';
+import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
 import type { UserProfile } from '@/lib/types';
 
 interface PendingOrder {
@@ -140,6 +141,9 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
           تحديث
         </Button>
       </header>
+
+      {/* Search box — search by payment code */}
+      <PaymentCodeSearchBox />
 
       {/* Stats card */}
       <Card>

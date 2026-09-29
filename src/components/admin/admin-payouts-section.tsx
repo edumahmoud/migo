@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-700',
@@ -102,6 +103,9 @@ export default function AdminPayoutsSection() {
         <h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="h-6 w-6 text-emerald-600" />مدفوعات المعلمين</h1>
         <p className="text-sm text-muted-foreground mt-1">إدارة عمليات دفع المعلمين</p>
       </div>
+
+      {/* Search by payment code (e.g., SUB-XXXXXXXX) */}
+      <PaymentCodeSearchBox />
 
       <Card>
         <CardHeader className="pb-3">

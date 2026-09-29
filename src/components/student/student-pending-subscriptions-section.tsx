@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 import { generatePaymentCode } from '@/lib/payment/utils';
+import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
 import type { UserProfile } from '@/lib/types';
 
 interface PendingOrder {
@@ -87,21 +88,65 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
 
   // Pay now → redirect to Paymob
   // Only shown when payment hasn't been initiated yet (no provider_order_ref)
-  const payNow = async (orderId: string) => {
+  // Handles TWO cases:
+  //   1. Single-order pay: POST /api/student/orders/[id]/pay
+  //   2. Multi-subject session pay (when order.checkout_session_id is set):
+  //      POST /api/student/checkout/sessions/[sessionId]/pay
+  // The single-order endpoint returns 409 PART_OF_SESSION for session
+  // orders — we detect this and retry via the session endpoint.
+  const payNow = async (orderId: string, checkoutSessionId?: string | null) => {
     if (actioningOrderId) return;
     setActioningOrderId(orderId);
     try {
       const headers = await getCachedAuthHeaders();
+
+      // ── If the order is part of a multi-subject checkout session,
+      // use the session pay endpoint directly (skip the 409 retry dance).
+      if (checkoutSessionId) {
+        const sessionRes = await fetch(`/api/student/checkout/sessions/${checkoutSessionId}/pay`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+        });
+        const sessionJson = await sessionRes.json();
+        if (sessionJson.success && sessionJson.checkout_url) {
+          window.location.href = sessionJson.checkout_url;
+          return;
+        }
+        toast.error(sessionJson.error || 'تعذّر تجهيز الدفعة الموحدة');
+        return;
+      }
+
+      // ── Single-order pay
       const res = await fetch(`/api/student/orders/${orderId}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
       });
       const json = await res.json();
+
+      // ── Handle 409 PART_OF_SESSION — retry via the session endpoint
+      if (res.status === 409 && json.category === 'PART_OF_SESSION' && json.session_id) {
+        console.info('[pending-subs] order is part of session — retrying via session endpoint', {
+          session_id: json.session_id,
+        });
+        const sessionRes = await fetch(`/api/student/checkout/sessions/${json.session_id}/pay`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+        });
+        const sessionJson = await sessionRes.json();
+        if (sessionJson.success && sessionJson.checkout_url) {
+          window.location.href = sessionJson.checkout_url;
+          return;
+        }
+        toast.error(sessionJson.error || 'تعذّر تجهيز الدفعة الموحدة');
+        return;
+      }
+
       if (json.success && json.checkout_url) {
         // Redirect to Paymob
         window.location.href = json.checkout_url;
       } else {
-        toast.error(json.error || 'تعذّر تجهيز الدفعة');
+        // Show the actual server error to the user
+        toast.error(json.error || `تعذّر تجهيز الدفعة (HTTP ${res.status})`);
       }
     } catch (err) {
       console.error('[pending-subs] pay failed:', err);
@@ -187,6 +232,9 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
           تحديث
         </Button>
       </header>
+
+      {/* Search box — search by payment code */}
+      <PaymentCodeSearchBox />
 
       {/* Stats card */}
       <Card>
@@ -299,7 +347,7 @@ export default function StudentPendingSubscriptionsSection({ profile }: StudentP
                           size="sm"
                           className="h-8 px-3 text-xs gap-1 bg-teal-600 hover:bg-teal-700 text-white"
                           disabled={actioningOrderId === o.id}
-                          onClick={() => payNow(o.id)}
+                          onClick={() => payNow(o.id, o.checkout_session_id)}
                           title="ادفع دلوقتي"
                         >
                           {actioningOrderId === o.id ? (

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { generatePaymentCode } from '@/lib/payment/utils';
 import StudentSubscriptionsLog from '@/components/agent/student-subscriptions-log';
+import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
 
 interface StudentResult {
   id: string; email: string; name: string | null; username: string | null;
@@ -280,6 +281,9 @@ export default function AgentPortal() {
           )}
         </CardContent>
       </Card>
+
+      {/* Search by payment code (e.g., SUB-XXXXXXXX) */}
+      <PaymentCodeSearchBox />
 
       {/* Student subscriptions log (active / expired / free) */}
       <StudentSubscriptionsLog />
