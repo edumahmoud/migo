@@ -79,7 +79,6 @@ const studentNavItems: NavItem[] = [
   { id: 'todos', labelKey: 'nav.todos', icon: <ListTodo className="h-5 w-5" /> },
   { id: 'calendar', labelKey: 'nav.calendar', icon: <CalendarIcon className="h-5 w-5" /> },
   { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'pendingSubscriptions', labelKey: 'nav.pendingSubscriptions', icon: <Clock className="h-5 w-5" /> },
   { id: 'subscriptionHistory', labelKey: 'nav.subscriptionHistory', icon: <History className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },

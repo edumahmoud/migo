@@ -96,7 +96,6 @@ import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import SummaryView from '@/components/shared/summary-view';
 import StudentTrackingSection from '@/components/student/student-tracking-section';
-import StudentPendingSubscriptionsSection from '@/components/student/student-pending-subscriptions-section';
 import StudentSubscriptionHistorySection from '@/components/student/student-subscription-history-section';
 
 // -------------------------------------------------------
@@ -4964,12 +4963,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               submissions={submissions}
               assignments={assignments}
             />
-          </SectionErrorBoundary>
-        );
-      case 'pendingSubscriptions':
-        return (
-          <SectionErrorBoundary name="PendingSubscriptions">
-            <StudentPendingSubscriptionsSection profile={profile} />
           </SectionErrorBoundary>
         );
       case 'subscriptionHistory':

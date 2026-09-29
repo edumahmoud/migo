@@ -85,14 +85,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Find the order by UUID prefix (case-insensitive — Postgres ILIKE)
+  // Don't use JOIN for subject/student — fetch separately (RLS issues)
   const { data: orderData, error: orderErr } = await supabaseServer
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
       provider_order_ref, gateway_id, checkout_session_id,
-      created_at, updated_at, paid_at, activated_at,
-      subject:subject_id ( id, name, price, teacher_id, level, sub_level ),
-      student:student_id ( id, name, email, student_code )
+      created_at, updated_at, paid_at, activated_at
     `)
     .ilike('id', `${prefix}%`)
     .maybeSingle();
@@ -112,22 +111,26 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const o = orderData as unknown as {
-    id: string;
-    student_id: string;
-    subject_id: string;
-    amount: number;
-    currency: string;
-    status: string;
-    provider_order_ref: string | null;
-    gateway_id: string | null;
-    checkout_session_id: string | null;
-    created_at: string;
-    updated_at: string;
-    paid_at: string | null;
-    activated_at: string | null;
-    subject: { id: string; name: string; price: number; teacher_id: string; level: string | null; sub_level: string | null } | null;
-    student: { id: string; name: string | null; email: string; student_code: string | null } | null;
+  // Fetch subject + student data SEPARATELY (avoids RLS issues with
+  // nested JOINs on subjects table — students might not have read
+  // access to subjects they're not yet enrolled in)
+  const [subjectRes, studentRes] = await Promise.all([
+    supabaseServer
+      .from('subjects')
+      .select('id, name, price, teacher_id, level, sub_level')
+      .eq('id', (orderData as { subject_id: string }).subject_id)
+      .maybeSingle(),
+    supabaseServer
+      .from('users')
+      .select('id, name, email, student_code')
+      .eq('id', (orderData as { student_id: string }).student_id)
+      .maybeSingle(),
+  ]);
+
+  const o = {
+    ...orderData,
+    subject: subjectRes.data as { id: string; name: string; price: number; teacher_id: string; level: string | null; sub_level: string | null } | null,
+    student: studentRes.data as { id: string; name: string | null; email: string; student_code: string | null } | null,
   };
 
   // ── Authorization filter (RLS-equivalent) ──

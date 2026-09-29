@@ -564,7 +564,7 @@ export type AppPage =
   | 'summary'
   | 'profile';
 
-export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar' | 'pendingSubscriptions' | 'subscriptionHistory';
+export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar' | 'subscriptionHistory';
 export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary' | 'registration' | 'paymentMethods' | 'pendingOrders' | 'financialManagement';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications' | 'performanceTracking' | 'financialManagement';
 

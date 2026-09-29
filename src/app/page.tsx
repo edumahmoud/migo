@@ -584,32 +584,35 @@ function HomeContent() {
             if (json.success) {
               const { toast } = await import('sonner');
               toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
-                duration: 5000,
+                duration: 4000,
               });
-              // Force a page refresh after 2 seconds so the
-              // student sees the activated courses
-              setTimeout(() => window.location.reload(), 2000);
+              // Force IMMEDIATE page refresh (no delay) — the
+              // student needs to see the activated courses right away
+              window.location.reload();
               return true;
             }
 
-            // If pending, retry after 5s (up to 6 attempts = 30s total)
-            if (json.pending && attempt < 6) {
-              console.info(`[payment-callback] transaction still pending — retrying in 5s`);
-              setTimeout(() => callVerify(attempt + 1), 5000);
+            // If pending, retry after 3s (up to 10 attempts = 30s total)
+            if (json.pending && attempt < 10) {
+              console.info(`[payment-callback] transaction still pending — retrying in 3s (attempt ${attempt})`);
+              setTimeout(() => callVerify(attempt + 1), 3000);
               return false;
             }
 
-            // Show error to user
+            // Show error to user — but also try to refresh in case
+            // the webhook arrived in the meantime
             const { toast } = await import('sonner');
-            toast.error(json.error || 'تعذّر تفعيل الاشتراك تلقائياً', {
+            toast.error(json.error || 'تعذّر التحقق التلقائي — انتقل لسجل الاشتراكات لمعرفة الحالة', {
               duration: 8000,
             });
+            // Refresh after 3s so any pending webhook result shows up
+            setTimeout(() => window.location.reload(), 3000);
             return false;
           } catch (err) {
             console.error('[payment-callback] failed to call verify-after-redirect', err);
             // Retry on network error
-            if (attempt < 6) {
-              setTimeout(() => callVerify(attempt + 1), 5000);
+            if (attempt < 10) {
+              setTimeout(() => callVerify(attempt + 1), 3000);
             }
             return false;
           }
