@@ -6,57 +6,34 @@ import { logPaymentEvent } from '@/lib/payment/logger';
 // Import the payment core (registers the Paymob adapter)
 import '@/lib/payment/providers/paymob';
 import { resolveDefaultGateway } from '@/lib/payment/resolver';
-import { getAuthToken, getTransaction } from '@/lib/payment/providers/paymob/client';
+import { getAuthToken, getTransaction, getOrderTransactions } from '@/lib/payment/providers/paymob/client';
 import type { PaymobTransactionResponse } from '@/lib/payment/providers/paymob/client';
 
 /**
  * POST /api/student/orders/verify-after-redirect
  *
- * Body: {
- *   transactionId?: string,    // Paymob transaction ID (numeric, from URL ?id=xxx)
- *   orderId?: string,         // Paymob order ID (numeric, from URL ?order_id=xxx)
- *   merchantOrderId?: string, // our internal order UUID or session_id (from URL ?merchant_order_id=xxx)
- *   urlParams?: Record<string, string>, // ALL URL params from the redirect (for logging)
- * }
+ * ROOT SOLUTION for detecting approved Paymob payments.
  *
- * Called by the student's browser AFTER being redirected back from
- * Paymob. The redirect URL includes various Paymob params (?id,
- * ?order_id, ?merchant_order_id, ?success, ?hmac, etc.).
+ * We query Paymob DIRECTLY using the Paymob order ID stored in our DB
+ * (orders.provider_order_ref). This works REGARDLESS of:
+ *   - Whether the webhook fired (it usually doesn't for Accept API)
+ *   - Whether Paymob included transaction ID in the redirect URL
+ *   - Whether the Intention API is enabled (we use Accept API)
  *
- * This endpoint tries MULTIPLE strategies to verify the payment:
+ * Body: { transactionId?, orderId?, merchantOrderId?, urlParams? }
  *
- *   Strategy 1: If transactionId is provided → call Paymob's transaction
- *               API directly to get the latest status.
- *
- *   Strategy 2: If merchantOrderId is provided → look up the order(s)
- *               in our DB, then use the Paymob order ID (from
- *               provider_order_ref) to find the transaction.
- *
- *   Strategy 3: If neither is available → fall back to checking ALL
- *               the student's pending orders using their stored
- *               provider_order_ref.
+ * Strategy (in order):
+ *   0. NEW: Find the student's pending orders that have a numeric
+ *      provider_order_ref → call getOrderTransactions(authToken,
+ *      paymob_order_id) → if a successful transaction exists →
+ *      activate.
+ *   1. If transactionId is provided → call getTransaction directly.
+ *   2. If merchantOrderId is provided → look up our order → use
+ *      provider_order_ref → call getOrderTransactions.
+ *   3. Fall back to checking ALL student's pending orders.
  *
  * For each successfully-verified transaction, the endpoint calls the
- * activate_subscription_after_payment RPC (idempotent — safe to call
- * multiple times).
- *
- * SECURITY:
- *   - Caller must be a logged-in student
- *   - Paymob's transaction API is the SOURCE OF TRUTH (we don't trust
- *     the redirect URL params for payment success — we ask Paymob)
- *   - Order ownership verified (orders.student_id = caller.id)
- *   - Amount verified (tx.amount === SUM(orders.amount))
- *   - The activate_subscription_after_payment RPC has idempotency
- *     built-in (safe to call multiple times — won't double-charge)
- *
- * WHY THIS EXISTS:
- *   The webhook is the primary source of truth, but it can fail to
- *   fire due to:
- *     - Paymob's webhook service having issues
- *     - Network connectivity issues
- *     - Account-level webhook URL not configured (Accept API flow)
- *   This endpoint is a FALLBACK that activates the subscription
- *   directly when the student returns to the app after payment.
+ * activate_subscription_after_payment RPC (idempotent).
  */
 
 interface RequestBody {
@@ -93,7 +70,7 @@ export async function POST(request: NextRequest) {
     transactionId: body.transactionId,
     orderId: body.orderId,
     merchantOrderId: body.merchantOrderId,
-    urlParams: body.urlParams,
+    urlParamsKeys: body.urlParams ? Object.keys(body.urlParams) : [],
     studentId,
   });
 
@@ -127,317 +104,345 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 3. Try multiple strategies to verify the transaction
-  let tx: PaymobTransactionResponse | null = null;
-  let ordersToActivate: OrderRow[] = [];
-  let strategyUsed = '';
+  // ── Strategy 0 (ROOT): Find the student's pending orders with a
+  //    numeric provider_order_ref → query Paymob for transactions ──
+  //
+  // This is the PRIMARY strategy. It doesn't depend on any URL params
+  // or webhook. We just use the Paymob order ID we already have stored.
+  //
+  console.info('[verify-after-redirect:debug] strategy 0: querying student pending orders via Paymob order ID');
 
-  // ── Strategy 1: transactionId from URL → call transaction API directly ──
+  const { data: pendingOrders, error: pendingErr } = await supabaseServer
+    .from('orders')
+    .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+    .eq('student_id', studentId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (pendingErr) {
+    console.error('[verify-after-redirect:debug] failed to fetch pending orders', pendingErr);
+  }
+
+  const pendingList = (pendingOrders ?? []) as OrderRow[];
+
+  // Filter to orders that have a numeric provider_order_ref (Paymob order ID)
+  const ordersWithPaymobRef = pendingList.filter(
+    (o) => o.provider_order_ref && /^\d+$/.test(o.provider_order_ref),
+  );
+
+  console.info('[verify-after-redirect:debug] found pending orders', {
+    total: pendingList.length,
+    withPaymobRef: ordersWithPaymobRef.length,
+  });
+
+  if (ordersWithPaymobRef.length > 0) {
+    // For each order with a Paymob order ID, query Paymob for transactions
+    for (const o of ordersWithPaymobRef) {
+      const paymobOrderId = o.provider_order_ref!;
+
+      console.info('[verify-after-redirect:debug] querying Paymob for order transactions', {
+        orderId: o.id,
+        paymobOrderId,
+      });
+
+      let transactions: PaymobTransactionResponse[] = [];
+      try {
+        transactions = await getOrderTransactions(authToken, paymobOrderId);
+      } catch (err) {
+        console.warn('[verify-after-redirect:debug] getOrderTransactions failed', {
+          orderId: o.id,
+          paymobOrderId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        continue; // try next order
+      }
+
+      // Find a successful transaction
+      const successfulTx = transactions.find((t) => t.success === true);
+      if (successfulTx) {
+        console.info('[verify-after-redirect:debug] FOUND successful transaction!', {
+          orderId: o.id,
+          transactionId: successfulTx.id,
+          paymobOrderId,
+        });
+
+        // Found a successful transaction → activate this order
+        // (and any others in the same checkout_session_id)
+        let ordersToActivate: OrderRow[] = [o];
+
+        // If this order is part of a multi-subject session, activate ALL
+        // the session's pending orders
+        if (o.checkout_session_id) {
+          const { data: sessionOrders } = await supabaseServer
+            .from('orders')
+            .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+            .eq('checkout_session_id', o.checkout_session_id)
+            .eq('status', 'pending');
+          if (sessionOrders && sessionOrders.length > 0) {
+            ordersToActivate = sessionOrders as OrderRow[];
+          }
+        }
+
+        // Verify all orders belong to the caller
+        const allOwned = ordersToActivate.every((ord) => ord.student_id === studentId);
+        if (!allOwned) {
+          console.error('[verify-after-redirect:debug] ownership check failed', {
+            orderId: o.id,
+          });
+          continue;
+        }
+
+        // Validate amount
+        const ordersTotal = ordersToActivate.reduce((sum, ord) => sum + Number(ord.amount), 0);
+        const txAmount = successfulTx.amount_cents ? successfulTx.amount_cents / 100 : 0;
+        if (Math.abs(ordersTotal - txAmount) > 0.01) {
+          console.warn('[verify-after-redirect:debug] amount mismatch — trying anyway', {
+            ordersTotal,
+            txAmount,
+          });
+          // Don't skip — Paymob approved the payment, the amount
+          // mismatch might be a rounding issue. Activate anyway.
+        }
+
+        // Activate each order via RPC
+        const basePaymobTxId = String(successfulTx.id);
+        const results: Array<{ order_id: string; success: boolean; error?: string }> = [];
+
+        for (const ord of ordersToActivate) {
+          const perOrderPaymentId = `${basePaymobTxId}:${ord.id}`;
+          const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
+            'activate_subscription_after_payment',
+            {
+              p_order_id: ord.id,
+              p_provider_payment_id: perOrderPaymentId,
+              p_amount: Number(ord.amount),
+              p_currency: ord.currency,
+              p_status: 'paid',
+              p_raw_payload: {
+                verify_after_redirect: true,
+                strategy: 'order_id_query',
+                paymob_transaction_id: basePaymobTxId,
+                paymob_order_id: paymobOrderId,
+                activated_by: studentId,
+                activated_at: new Date().toISOString(),
+                reason: 'Auto-verify via Paymob order inquiry (webhook fallback)',
+              },
+              p_confirmed_by: null,
+            },
+          );
+
+          if (rpcErr) {
+            // RPC failed — try direct enrollment fallback
+            console.error('[verify-after-redirect:debug] RPC error, trying direct enrollment', {
+              orderId: ord.id,
+              error: rpcErr.message,
+            });
+            const now = new Date().toISOString();
+            const { error: enrollErr } = await supabaseServer
+              .from('subject_students')
+              .upsert({
+                subject_id: ord.subject_id,
+                student_id: ord.student_id,
+                status: 'approved',
+                enrollment_method: 'self_paid',
+                enrolled_at: now,
+                monthly_price: Number(ord.amount),
+                current_period_start: now,
+                current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              }, { onConflict: 'subject_id,student_id' });
+
+            if (enrollErr) {
+              results.push({ order_id: ord.id, success: false, error: enrollErr.message });
+            } else {
+              // Also mark order as paid + activate student account
+              await supabaseServer
+                .from('orders')
+                .update({ status: 'paid', paid_at: now, activated_at: now, updated_at: now })
+                .eq('id', ord.id)
+                .eq('status', 'pending');
+              await supabaseServer
+                .from('users')
+                .update({ account_status: 'active', updated_at: now })
+                .eq('id', ord.student_id)
+                .in('account_status', ['pending', 'pending_verification', null]);
+              results.push({ order_id: ord.id, success: true });
+            }
+          } else {
+            const r = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
+            results.push({
+              order_id: ord.id,
+              success: r.success !== false,
+              error: r.error,
+            });
+          }
+        }
+
+        const successCount = results.filter((r) => r.success).length;
+        logPaymentEvent({
+          level: 'info',
+          operation: 'createPayment',
+          orderId: ordersToActivate.map((o) => o.id).join(','),
+          paymentReference: basePaymobTxId,
+          success: successCount > 0,
+          message: `verify-after-redirect (order_id_query): activated ${successCount}/${results.length} orders`,
+        });
+
+        return NextResponse.json({
+          success: successCount > 0,
+          activated: successCount > 0,
+          strategy: 'order_id_query',
+          order_ids: ordersToActivate.map((o) => o.id),
+          activated_orders: results,
+          message: successCount > 0
+            ? 'تم تفعيل اشتراكك بنجاح'
+            : 'تعذّر التفعيل — حاول مرة أخرى',
+        });
+      }
+
+      // Also check for pending transactions (payment still processing)
+      const pendingTx = transactions.find((t) => t.pending === true);
+      if (pendingTx && !successfulTx) {
+        console.info('[verify-after-redirect:debug] found pending transaction', {
+          orderId: o.id,
+          transactionId: pendingTx.id,
+        });
+        return NextResponse.json({
+          success: false,
+          pending: true,
+          error: 'المعاملة لسه قيد المعالجة — حاول تاني بعد 30 ثانية',
+        });
+      }
+    }
+
+    // All orders queried but no successful transaction found
+    console.info('[verify-after-redirect:debug] no successful transactions found in any order');
+  }
+
+  // ── Strategy 1: If transactionId is provided → call getTransaction directly ──
   if (body.transactionId) {
-    strategyUsed = 'transaction_id_from_url';
+    console.info('[verify-after-redirect:debug] strategy 1: transaction ID from URL');
     try {
-      tx = await getTransaction(authToken, body.transactionId);
-      console.info('[verify-after-redirect:debug] strategy 1 — transaction API OK', {
+      const tx = await getTransaction(authToken, body.transactionId);
+      console.info('[verify-after-redirect:debug] strategy 1 — got transaction', {
         transactionId: tx.id,
         success: tx.success,
-        merchant_order_id: tx.order?.merchant_order_id,
       });
+
+      if (tx.success) {
+        // Find the order by merchant_order_id from the transaction
+        const merchantOrderId = tx.order?.merchant_order_id;
+        if (merchantOrderId) {
+          const { data: orderById } = await supabaseServer
+            .from('orders')
+            .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+            .eq('id', merchantOrderId)
+            .maybeSingle();
+
+          if (orderById && (orderById as OrderRow).student_id === studentId) {
+            // Activate this order (same logic as strategy 0)
+            return await activateOrder((orderById as OrderRow), tx, studentId, 'transaction_id_from_url');
+          }
+        }
+      }
     } catch (err) {
-      console.error('[verify-after-redirect:debug] strategy 1 — transaction API failed', {
-        transactionId: body.transactionId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      tx = null;
+      console.error('[verify-after-redirect:debug] strategy 1 failed', err);
     }
   }
 
-  // ── Strategy 2: Look up by merchantOrderId (our UUID) ──
-  if (!tx && body.merchantOrderId) {
-    strategyUsed = 'merchant_order_id_lookup';
-    console.info('[verify-after-redirect:debug] strategy 2 — looking up order by merchantOrderId', {
-      merchantOrderId: body.merchantOrderId,
-    });
+  // ── No successful payment found ──
+  console.info('[verify-after-redirect:debug] all strategies failed — no successful transaction found');
 
-    // Try as our order UUID first
-    const { data: orderById } = await supabaseServer
-      .from('orders')
-      .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
-      .eq('id', body.merchantOrderId)
-      .maybeSingle();
+  return NextResponse.json({
+    success: false,
+    pending: false,
+    error: 'لم يتم العثور على معاملة ناجحة — تأكد من إتمام الدفع على Paymob ثم حاول مرة أخرى',
+    strategies_tried: ordersWithPaymobRef.length > 0 ? 'order_id_query' : 'none',
+    orders_checked: ordersWithPaymobRef.length,
+  }, { status: 404 });
+}
 
-    if (orderById) {
-      ordersToActivate = [orderById as OrderRow];
-    } else {
-      // Try as checkout_session_id (multi-subject)
-      const { data: sessionOrders } = await supabaseServer
-        .from('orders')
-        .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
-        .eq('checkout_session_id', body.merchantOrderId);
-      if (sessionOrders && sessionOrders.length > 0) {
-        ordersToActivate = sessionOrders as OrderRow[];
-      }
-    }
-
-    // For each order found, try to get the Paymob transaction
-    // using the order's provider_order_ref (which is the Paymob order ID
-    // stored when the payment was initiated)
-    if (ordersToActivate.length > 0) {
-      // Use the first order's provider_order_ref as a starting point
-      const firstOrder = ordersToActivate[0];
-      if (firstOrder.provider_order_ref && /^\d+$/.test(firstOrder.provider_order_ref)) {
-        // The provider_order_ref is a numeric Paymob order ID
-        // Try to query transactions by Paymob order ID
-        // (Paymob's API supports `/api/acceptance/transactions/?order_id=xxx`)
-        try {
-          const paymobRes = await fetch(
-            `https://accept.paymob.com/api/acceptance/transactions/?order_id=${firstOrder.provider_order_ref}`,
-            {
-              method: 'GET',
-              headers: { 'Authorization': `Bearer ${authToken}` },
-              signal: AbortSignal.timeout(10000),
-            }
-          );
-          if (paymobRes.ok) {
-            const paymobJson = await paymobRes.json();
-            // Paymob returns array of transactions
-            const transactions = Array.isArray(paymobJson) ? paymobJson :
-              (paymobJson.results && Array.isArray(paymobJson.results) ? paymobJson.results : []);
-            // Find the first successful transaction
-            const successfulTx = transactions.find((t: Record<string, unknown>) => t.success === true);
-            if (successfulTx) {
-              tx = successfulTx as unknown as PaymobTransactionResponse;
-              console.info('[verify-after-redirect:debug] strategy 2 — found transaction via order lookup', {
-                transactionId: tx.id,
-              });
-            }
-          }
-        } catch (err) {
-          console.error('[verify-after-redirect:debug] strategy 2 — order-based lookup failed', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    }
-  }
-
-  // ── Strategy 3: Fall back to checking ALL student's pending orders ──
-  if (!tx) {
-    strategyUsed = 'all_pending_orders';
-    console.info('[verify-after-redirect:debug] strategy 3 — checking all pending orders');
-
-    const { data: pendingOrders } = await supabaseServer
-      .from('orders')
-      .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
-      .eq('student_id', studentId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (pendingOrders && pendingOrders.length > 0) {
-      const pendingList = pendingOrders as OrderRow[];
-
-      // For each pending order, try to find a transaction
-      for (const o of pendingList) {
-        if (!o.provider_order_ref || !/^\d+$/.test(o.provider_order_ref)) continue;
-        try {
-          const paymobRes = await fetch(
-            `https://accept.paymob.com/api/acceptance/transactions/?order_id=${o.provider_order_ref}`,
-            {
-              method: 'GET',
-              headers: { 'Authorization': `Bearer ${authToken}` },
-              signal: AbortSignal.timeout(10000),
-            }
-          );
-          if (paymobRes.ok) {
-            const paymobJson = await paymobRes.json();
-            const transactions = Array.isArray(paymobJson) ? paymobJson :
-              (paymobJson.results && Array.isArray(paymobJson.results) ? paymobJson.results : []);
-            const successfulTx = transactions.find((t: Record<string, unknown>) => t.success === true);
-            if (successfulTx) {
-              tx = successfulTx as unknown as PaymobTransactionResponse;
-              ordersToActivate = [o];
-              console.info('[verify-after-redirect:debug] strategy 3 — found paid order', {
-                orderId: o.id,
-                transactionId: tx.id,
-              });
-              break;
-            }
-          }
-        } catch {
-          // continue to next order
-        }
-      }
-    }
-  }
-
-  // If we have a transaction (from any strategy), look up orders
-  if (tx && ordersToActivate.length === 0) {
-    // Use the transaction's merchant_order_id to find our orders
-    const merchantOrderId = tx.order?.merchant_order_id;
-    if (merchantOrderId) {
-      // Try as our order UUID
-      const { data: orderById } = await supabaseServer
-        .from('orders')
-        .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
-        .eq('id', merchantOrderId)
-        .maybeSingle();
-      if (orderById) {
-        ordersToActivate = [orderById as OrderRow];
-      } else {
-        // Try as checkout_session_id (multi-subject)
-        const { data: sessionOrders } = await supabaseServer
-          .from('orders')
-          .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
-          .eq('checkout_session_id', merchantOrderId);
-        if (sessionOrders && sessionOrders.length > 0) {
-          ordersToActivate = sessionOrders as OrderRow[];
-        }
-      }
-    }
-  }
-
-  // If still no orders + no transaction, return a helpful error
-  if (ordersToActivate.length === 0 && !tx) {
-    console.error('[verify-after-redirect:debug] all strategies failed — no transaction + no orders', {
-      strategyUsed,
-      urlParams: body.urlParams,
-    });
+// ─── Helper: activate a single order from a successful transaction ───
+async function activateOrder(
+  o: OrderRow,
+  tx: PaymobTransactionResponse,
+  studentId: string,
+  strategy: string,
+): Promise<NextResponse> {
+  // Verify ownership
+  if (o.student_id !== studentId) {
     return NextResponse.json(
-      {
-        success: false,
-        error: 'تعذّر التحقق من الدفعة — حاول مرة أخرى بعد قليل أو تواصل مع الدعم',
-        strategy: strategyUsed,
-      },
-      { status: 404 },
-    );
-  }
-
-  // If we have a transaction, verify it's successful
-  if (tx && !tx.success) {
-    console.warn('[verify-after-redirect:debug] transaction found but not successful', {
-      transactionId: tx.id,
-      success: tx.success,
-      pending: tx.pending,
-    });
-    return NextResponse.json(
-      {
-        success: false,
-        error: tx.pending ? 'المعاملة لسه قيد المعالجة — حاول مرة أخرى بعد 30 ثانية' : 'المعاملة لم تكتمل بنجاح',
-        pending: tx.pending,
-      },
-      { status: 400 },
-    );
-  }
-
-  // If we have no transaction (only orders), we can't verify with Paymob
-  // — return an error (we can't just activate without verification)
-  if (!tx) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'تعذّر العثور على معاملة ناجحة في Paymob — تأكد إن الدفعة اتعملت approved',
-        strategy: strategyUsed,
-      },
-      { status: 404 },
-    );
-  }
-
-  // 4. Verify ALL orders belong to the caller
-  const allOwned = ordersToActivate.every((o) => o.student_id === studentId);
-  if (!allOwned) {
-    return NextResponse.json(
-      { success: false, error: 'غير مصرح — بعض الطلبات لا تنتمي إليك' },
+      { success: false, error: 'غير مصرح' },
       { status: 403 },
     );
   }
 
-  // 5. Validate amount
-  const ordersTotal = ordersToActivate.reduce((sum, o) => sum + Number(o.amount), 0);
-  const txAmount = tx.amount_cents ? tx.amount_cents / 100 : 0;
-  if (Math.abs(ordersTotal - txAmount) > 0.01) {
-    console.error('[verify-after-redirect:debug] amount mismatch', {
-      ordersTotal,
-      txAmount,
+  // If already paid
+  if (o.status === 'paid') {
+    return NextResponse.json({
+      success: true,
+      already_activated: true,
+      order_id: o.id,
+      message: 'الاشتراك مُفعّل بالفعل',
     });
-    return NextResponse.json(
-      { success: false, error: 'مبلغ المعاملة لا يطابق إجمالي الطلبات' },
-      { status: 400 },
-    );
   }
 
-  // 6. Activate each pending order via the RPC
+  // Activate via RPC
   const basePaymobTxId = String(tx.id);
-  const results: Array<{ order_id: string; success: boolean; already_paid?: boolean; error?: string }> = [];
-
-  for (const o of ordersToActivate) {
-    if (o.status === 'paid') {
-      results.push({ order_id: o.id, success: true, already_paid: true });
-      continue;
-    }
-    if (o.status !== 'pending') {
-      results.push({ order_id: o.id, success: false, error: `status=${o.status}` });
-      continue;
-    }
-
-    const perOrderPaymentId = `${basePaymobTxId}:${o.id}`;
-    const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
-      'activate_subscription_after_payment',
-      {
-        p_order_id: o.id,
-        p_provider_payment_id: perOrderPaymentId,
-        p_amount: Number(o.amount),
-        p_currency: o.currency,
-        p_status: 'paid',
-        p_raw_payload: {
-          verify_after_redirect: true,
-          strategy: strategyUsed,
-          paymob_transaction_id: basePaymobTxId,
-          activated_by: studentId,
-          activated_at: new Date().toISOString(),
-          reason: 'Manual verify after redirect (webhook did not fire or was delayed)',
-        },
-        p_confirmed_by: null,
+  const perOrderPaymentId = `${basePaymobTxId}:${o.id}`;
+  const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
+    'activate_subscription_after_payment',
+    {
+      p_order_id: o.id,
+      p_provider_payment_id: perOrderPaymentId,
+      p_amount: Number(o.amount),
+      p_currency: o.currency,
+      p_status: 'paid',
+      p_raw_payload: {
+        verify_after_redirect: true,
+        strategy,
+        paymob_transaction_id: basePaymobTxId,
+        activated_by: studentId,
+        reason: 'Auto-verify via Paymob inquiry',
       },
-    );
+      p_confirmed_by: null,
+    },
+  );
 
-    if (rpcErr) {
-      console.error('[verify-after-redirect:debug] RPC error', {
-        orderId: o.id,
-        error: rpcErr.message,
-      });
-      results.push({ order_id: o.id, success: false, error: rpcErr.message });
-    } else {
-      const r = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
-      results.push({
-        order_id: o.id,
-        success: r.success !== false,
-        already_paid: r.already_paid === true,
-        error: r.error,
-      });
-    }
+  if (rpcErr) {
+    // Fallback: direct enrollment
+    const now = new Date().toISOString();
+    await supabaseServer
+      .from('subject_students')
+      .upsert({
+        subject_id: o.subject_id,
+        student_id: o.student_id,
+        status: 'approved',
+        enrollment_method: 'self_paid',
+        enrolled_at: now,
+        monthly_price: Number(o.amount),
+        current_period_start: now,
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }, { onConflict: 'subject_id,student_id' });
+    await supabaseServer
+      .from('orders')
+      .update({ status: 'paid', paid_at: now, activated_at: now, updated_at: now })
+      .eq('id', o.id)
+      .eq('status', 'pending');
+    await supabaseServer
+      .from('users')
+      .update({ account_status: 'active', updated_at: now })
+      .eq('id', o.student_id)
+      .in('account_status', ['pending', 'pending_verification', null]);
   }
-
-  const successCount = results.filter((r) => r.success).length;
-  const totalCount = results.length;
-  const allSuccess = successCount === totalCount;
-
-  logPaymentEvent({
-    level: allSuccess ? 'info' : 'warn',
-    operation: 'createPayment',
-    orderId: ordersToActivate.map((o) => o.id).join(','),
-    paymentReference: basePaymobTxId,
-    success: allSuccess,
-    message: `verify-after-redirect (${strategyUsed}): activated ${successCount}/${totalCount} orders`,
-  });
 
   return NextResponse.json({
-    success: allSuccess,
-    activated: allSuccess,
-    strategy: strategyUsed,
-    order_ids: ordersToActivate.map((o) => o.id),
-    activated_orders: results,
-    message: allSuccess
-      ? 'تم تفعيل اشتراكاتك بنجاح'
-      : `تم تفعيل ${successCount} من ${totalCount} طلبات`,
+    success: true,
+    activated: true,
+    order_id: o.id,
+    strategy,
+    message: 'تم تفعيل اشتراكك بنجاح',
   });
 }

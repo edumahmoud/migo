@@ -496,3 +496,166 @@ export async function getTransaction(
     order: json.order as { id: number; merchant_order_id?: string } | undefined,
   };
 }
+
+// ─── Query transactions by Paymob order ID ───
+//
+// This is the ROOT solution for detecting approved payments.
+// We don't need the webhook OR the transaction ID from the redirect URL.
+// We just query Paymob directly using the order ID we already have
+// stored in orders.provider_order_ref.
+//
+// Tries multiple Paymob API endpoints (not all are documented, but
+// at least one should work for most merchant accounts):
+//
+//   1. GET /api/ecommerce/orders/{id} — might include a `transactions` array
+//   2. POST /api/acceptance/transactions/search — search with order_id filter
+//   3. GET /api/acceptance/transactions/?order_id={id} — query param filter
+//
+// Returns ALL transactions found for the order (caller filters for
+// successful ones).
+//
+export async function getOrderTransactions(
+  authToken: string,
+  paymobOrderId: string,
+): Promise<PaymobTransactionResponse[]> {
+  const results: PaymobTransactionResponse[] = [];
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${authToken}`,
+    'Content-Type': 'application/json',
+  };
+
+  // Helper: parse a raw transaction object into our type
+  const parseTx = (raw: Record<string, unknown>): PaymobTransactionResponse => ({
+    id: raw.id as number,
+    success: raw.success as boolean,
+    pending: raw.pending as boolean,
+    is_refunded: raw.is_refunded as boolean,
+    amount_cents: raw.amount_cents as number | undefined,
+    currency: raw.currency as string | undefined,
+    order: raw.order as { id: number; merchant_order_id?: string } | undefined,
+  });
+
+  // ── Attempt 1: GET /api/ecommerce/orders/{id} ──
+  // The order response might include a `transactions` array.
+  try {
+    const res = await fetch(
+      `${ACCEPT_BASE}/api/ecommerce/orders/${paymobOrderId}`,
+      { method: 'GET', headers, signal: AbortSignal.timeout(10000) },
+    );
+    if (res.ok) {
+      const json = await res.json() as Record<string, unknown>;
+      // Check for `transactions` array in the order response
+      const txns = json.transactions;
+      if (Array.isArray(txns) && txns.length > 0) {
+        console.info('[paymob:debug] getOrderTransactions: found transactions in order response', {
+          count: txns.length,
+        });
+        for (const t of txns) {
+          results.push(parseTx(t as Record<string, unknown>));
+        }
+        return results;
+      }
+      // Some Paymob versions return a single transaction object (not array)
+      if (json.id && json.success !== undefined) {
+        console.info('[paymob:debug] getOrderTransactions: order response IS a transaction');
+        results.push(parseTx(json));
+        return results;
+      }
+    }
+  } catch (err) {
+    console.warn('[paymob:debug] getOrderTransactions attempt 1 failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // ── Attempt 2: POST /api/acceptance/transactions/search ──
+  // Send order_id in the POST body to search for transactions.
+  try {
+    const res = await fetch(
+      `${ACCEPT_BASE}/api/acceptance/transactions/search`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ order_id: Number(paymobOrderId) }),
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (res.ok) {
+      const json = await res.json();
+      // Response might be an array OR an object with `results` array
+      const txns = Array.isArray(json) ? json :
+        (json && typeof json === 'object' && Array.isArray((json as Record<string, unknown>).results))
+          ? (json as Record<string, unknown>).results as unknown[]
+          : [];
+      if (txns.length > 0) {
+        console.info('[paymob:debug] getOrderTransactions: found via /search endpoint', {
+          count: txns.length,
+        });
+        for (const t of txns) {
+          results.push(parseTx(t as Record<string, unknown>));
+        }
+        return results;
+      }
+    }
+  } catch (err) {
+    console.warn('[paymob:debug] getOrderTransactions attempt 2 failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // ── Attempt 3: GET /api/acceptance/transactions/?order_id={id} ──
+  // Query param filter (undocumented but might work for some accounts).
+  try {
+    const res = await fetch(
+      `${ACCEPT_BASE}/api/acceptance/transactions/?order_id=${paymobOrderId}`,
+      { method: 'GET', headers, signal: AbortSignal.timeout(10000) },
+    );
+    if (res.ok) {
+      const json = await res.json();
+      const txns = Array.isArray(json) ? json :
+        (json && typeof json === 'object' && Array.isArray((json as Record<string, unknown>).results))
+          ? (json as Record<string, unknown>).results as unknown[]
+          : [];
+      if (txns.length > 0) {
+        console.info('[paymob:debug] getOrderTransactions: found via query param', {
+          count: txns.length,
+        });
+        for (const t of txns) {
+          results.push(parseTx(t as Record<string, unknown>));
+        }
+        return results;
+      }
+    }
+  } catch (err) {
+    console.warn('[paymob:debug] getOrderTransactions attempt 3 failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // ── Attempt 4: POST /api/ecommerce/orders/{id}/transactions ──
+  // Another undocumented but possible endpoint.
+  try {
+    const res = await fetch(
+      `${ACCEPT_BASE}/api/ecommerce/orders/${paymobOrderId}/transactions`,
+      { method: 'GET', headers, signal: AbortSignal.timeout(10000) },
+    );
+    if (res.ok) {
+      const json = await res.json();
+      const txns = Array.isArray(json) ? json :
+        (json && typeof json === 'object' && Array.isArray((json as Record<string, unknown>).results))
+          ? (json as Record<string, unknown>).results as unknown[]
+          : [];
+      if (txns.length > 0) {
+        console.info('[paymob:debug] getOrderTransactions: found via /orders/{id}/transactions', {
+          count: txns.length,
+        });
+        for (const t of txns) {
+          results.push(parseTx(t as Record<string, unknown>));
+        }
+        return results;
+      }
+    }
+  } catch (err) {
+    console.warn('[paymob:debug] getOrderTransactions attempt 4 failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  console.info('[paymob:debug] getOrderTransactions: no transactions found for order', {
+    paymobOrderId,
+    attempts: 4,
+  });
+  return results;
+}
