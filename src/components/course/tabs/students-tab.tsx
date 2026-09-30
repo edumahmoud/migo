@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
+import { escapePostgrestIlike } from '@/lib/api-security';
 import { toast } from 'sonner';
 import type { UserProfile, Subject } from '@/lib/types';
 import StudentProfileModal from '@/components/course/tabs/student-profile-modal';
@@ -320,11 +321,12 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     }
     setAddSearching(true);
     try {
+      const safeQuery = escapePostgrestIlike(query.trim());
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('role', 'student')
-        .or(`name.ilike.%${query.trim()}%,email.ilike.%${query.trim()}%`)
+        .or(`name.ilike.%${safeQuery}%,email.ilike.%${safeQuery}%`)
         .limit(10);
       if (error) {
         console.error('Error searching:', error);

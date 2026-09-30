@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, getUserRole } from '@/lib/auth-helpers';
 import { parseTransactionCode } from '@/lib/payment/utils';
+import { escapePostgrestIlike } from '@/lib/api-security';
 
 /**
  * GET /api/admin/transactions/search?code=TX-20260930-A1B2
@@ -44,8 +45,10 @@ export async function GET(request: NextRequest) {
 
   // Search by provider_reference OR internal_reference (ILIKE)
   // Use structured .ilike() calls instead of raw .or() string to
-  // prevent PostgREST predicate injection.
-  const safePattern = `%${normalized.replace(/[%_]/g, '\\$&')}%`;
+  // prevent PostgREST predicate injection. Escape PostgREST metachars
+  // (`,()` and `.`) too — `,%` style input could otherwise split
+  // into a second predicate.
+  const safePattern = `%${escapePostgrestIlike(normalized)}%`;
   const { data: payoutByProvider, error: err1 } = await supabaseServer
     .from('teacher_payouts')
     .select(`

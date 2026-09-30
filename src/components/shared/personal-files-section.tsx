@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
+import { escapePostgrestIlike } from '@/lib/api-security';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -1732,10 +1733,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             profile.id,
           ]);
 
+          const safeQuery = escapePostgrestIlike(query.trim());
           const { data, error } = await supabase
             .from('users')
             .select('*')
-            .or(`name.ilike.%${query.trim()}%,email.ilike.%${query.trim()}%`)
+            .or(`name.ilike.%${safeQuery}%,email.ilike.%${safeQuery}%`)
             .limit(10);
           if (error) {
             console.error('Error searching users:', error);
@@ -1994,10 +1996,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             ...bulkShareSelectedUsers.map((u) => u.id),
             profile.id,
           ]);
+          const safeQueryBulk = escapePostgrestIlike(query.trim());
           const { data, error } = await supabase
             .from('users')
             .select('*')
-            .or(`name.ilike.%${query.trim()}%,email.ilike.%${query.trim()}%`)
+            .or(`name.ilike.%${safeQueryBulk}%,email.ilike.%${safeQueryBulk}%`)
             .limit(10);
           if (error) {
             setBulkShareSearchResults([]);

@@ -124,3 +124,38 @@ export function safeErrorResponse(message: string, status: number = 500): NextRe
     { status }
   );
 }
+
+// --- PostgREST ILIKE / .or() input escaping ---
+
+/**
+ * Escape a user-supplied string for safe interpolation into a PostgREST
+ * `.or()` / `.ilike()` template string.
+ *
+ * PostgREST parses the `.or()` argument as a comma-separated list of
+ * predicates (e.g. `name.ilike.%X,email.ilike.%X`). To prevent the user
+ * from injecting extra predicates or breaking out of the quoted value,
+ * we escape:
+ *   - `%` and `_`  → SQL LIKE wildcards (could match more than intended)
+ *   - `,`          → PostgREST predicate separator (would split into a
+ *                    new predicate and allow `name.ilike.%X,id.eq.UUID`
+ *                    style injection)
+ *   - `(` and `)`  → PostgREST uses these for nested predicates like
+ *                    `and(...)` / `or(...)`; a stray `(` could break
+ *                    the parser or open an unintended nested predicate
+ *   - `.`          → PostgREST uses `.` to separate `column.op.value`;
+ *                    a `.` in user input could change which column the
+ *                    predicate applies to
+ *   - backslash    → prevents `\%` style escape sequences from being
+ *                    interpreted by the LIKE matcher in unexpected ways
+ *
+ * After escaping, the string is safe to embed inside `%...%` ILIKE
+ * patterns or as the value side of an `eq.` predicate.
+ */
+export function escapePostgrestIlike(input: string): string {
+  if (typeof input !== 'string') return '';
+  // Order matters: escape backslash first so we don't double-escape the
+  // backslashes we add for the other characters.
+  return input
+    .replace(/\\/g, '\\\\')
+    .replace(/[%_(),.]/g, '\\$&');
+}

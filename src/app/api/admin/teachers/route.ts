@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
+import { escapePostgrestIlike } from '@/lib/api-security';
 
 /**
  * GET /api/admin/teachers?page=1&pageSize=20&search=query
@@ -41,9 +42,10 @@ export async function GET(request: NextRequest) {
     .range(from, to);
 
   if (search) {
-    // ILIKE = case-insensitive search — use structured filters
-    // to prevent PostgREST predicate injection.
-    const safeSearch = search.replace(/[%_]/g, '\\$&');
+    // ILIKE = case-insensitive search — escape ALL PostgREST metachars
+    // (not just `%` and `_`) to prevent predicate-injection via
+    // `,()` and `.` which PostgREST uses as predicate/field separators.
+    const safeSearch = escapePostgrestIlike(search);
     query = query.or(`name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
   }
 

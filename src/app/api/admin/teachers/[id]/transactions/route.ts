@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
+import { escapePostgrestIlike } from '@/lib/api-security';
 
 /**
  * GET /api/admin/teachers/[id]/transactions
@@ -31,8 +32,10 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   // Support search by email or teacher_code
   const search = request.nextUrl.searchParams.get('search')?.trim();
   if (search) {
-    // Escape ILIKE special chars to prevent PostgREST injection
-    const safeSearch = search.replace(/[%_]/g, '\\$&');
+    // Escape ALL PostgREST metachars (not just `%` and `_`) to prevent
+    // predicate-injection via `,()` and `.` which PostgREST uses as
+    // predicate/field separators.
+    const safeSearch = escapePostgrestIlike(search);
     const { data: teacher } = await supabaseServer
       .from('users')
       .select('id, email, name, teacher_code')
