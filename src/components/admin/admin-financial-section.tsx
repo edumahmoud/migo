@@ -459,12 +459,6 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             color="bg-gradient-to-br from-violet-500 to-violet-600 text-white"
           />
           <SummaryCard
-            icon={<Receipt className="h-5 w-5" />}
-            label={t('adminFinancial.summary.gatewayFees')}
-            value={formatAmount(summary.total_gateway_fees)}
-            color="bg-gradient-to-br from-amber-400 to-amber-500 text-white"
-          />
-          <SummaryCard
             icon={<DollarSign className="h-5 w-5" />}
             label={t('adminFinancial.summary.netPlatformRevenue')}
             value={formatAmount(summary.net_platform_revenue)}

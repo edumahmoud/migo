@@ -210,7 +210,7 @@ export default function PaymentCodeSearchBox() {
             )}
 
             {/* Paymob reference */}
-            {result.order.provider_order_ref && /^\d+$/.test(result.order.provider_order_ref) && (
+            {result.order.provider_order_ref && result.order.provider_order_ref.length > 5 && !result.order.provider_order_ref.startsWith('order_') && !result.order.provider_order_ref.startsWith('free_') && (
               <div className="text-xs text-muted-foreground font-mono" dir="ltr">
                 Paymob ref: {result.order.provider_order_ref}
               </div>

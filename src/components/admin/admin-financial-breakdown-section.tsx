@@ -14,7 +14,6 @@ interface BreakdownRow {
   gross_amount: number;
   platform_share: number;
   teacher_share: number;
-  gateway_fee: number;
   net_platform: number;
   transaction_count: number;
 }
@@ -78,14 +77,13 @@ export default function AdminFinancialBreakdownSection() {
     try {
       const XLSX = await import('xlsx');
       const headers = [
-        ['الفترة', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'رسوم البوابة', 'صافي المنصة', 'عدد العمليات'],
+        ['الفترة', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'صافي المنصة', 'عدد العمليات'],
       ];
       const rows = breakdown.map(r => [
         r.period,
         r.gross_amount,
         r.platform_share,
         r.teacher_share,
-        r.gateway_fee,
         r.net_platform,
         r.transaction_count,
       ]);
@@ -95,7 +93,6 @@ export default function AdminFinancialBreakdownSection() {
         summary.total_gross,
         summary.total_platform,
         summary.total_teacher,
-        0,
         Number((summary.total_gross - summary.total_teacher).toFixed(2)),
         summary.total_count,
       ]);

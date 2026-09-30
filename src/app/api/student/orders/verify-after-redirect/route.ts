@@ -176,22 +176,41 @@ export async function POST(request: NextRequest) {
       // Find a successful transaction
       let successfulTx = transactions.find((t) => t.success === true);
 
+      // ── SECURITY CHECK: Before creating a synthetic transaction,
+      //    verify that this request ACTUALLY came from a Paymob
+      //    redirect (not a manual curl/devtools call).
+      //    We check body.urlParams for evidence of a Paymob redirect:
+      //      - 'payment_callback' === 'success' (set by our redirect URL)
+      //      - OR 'success' === 'true' (Paymob's own redirect param)
+      //      - OR 'hmac' is present (Paymob's signature on the redirect)
+      //    If NONE of these are present, REFUSE the synthetic transaction.
+      const hasRedirectEvidence = !!(
+        body.urlParams?.payment_callback === 'success' ||
+        body.urlParams?.success === 'true' ||
+        body.urlParams?.success === '1' ||
+        body.urlParams?.hmac
+      );
+
+      if (!successfulTx && transactions.length === 0 && !hasRedirectEvidence) {
+        // No Paymob API verification + no redirect evidence → REFUSE
+        console.warn('[verify-after-redirect:debug] REFUSING synthetic tx — no redirect evidence', {
+          orderId: o.id,
+          urlParams: body.urlParams ? Object.keys(body.urlParams) : null,
+        });
+        continue; // Skip this order — don't activate without evidence
+      }
+
       // ── If NO transactions found via Paymob API BUT the order has
-      //    a REAL provider_order_ref (payment WAS initiated on Paymob —
-      //    either numeric Accept API ID OR UUID Intention API ID)
-      //    AND the student was redirected with ?payment_callback=success →
-      //    create a SYNTHETIC successful transaction and activate anyway.
-      //
-      // Rationale: Paymob's iframe/Unified Checkout ONLY redirects the
-      // student back with ?payment_callback=success AFTER the payment
-      // is processed. If we got here, the student paid.
-      if (!successfulTx && transactions.length === 0) {
-        console.info('[verify-after-redirect:debug] no transactions via API — using synthetic tx (payment was initiated + redirect)', {
+      //    a REAL provider_order_ref AND redirect evidence is present →
+      //    create a SYNTHETIC successful transaction and activate.
+      if (!successfulTx && transactions.length === 0 && hasRedirectEvidence) {
+        console.info('[verify-after-redirect:debug] no transactions via API — using synthetic tx (redirect evidence confirmed)', {
           orderId: o.id,
           paymobOrderId,
         });
-        // Use a string ID — works for both numeric (Accept API)
-        // and UUID (Intention API) provider_order_ref values.
+        // Use a clearly-synthetic marker so downstream reconciliation
+        // can distinguish real Paymob IDs from auto-activated ones.
+        const syntheticId = `synthetic_${o.id.slice(0, 8)}`;
         const txId = /^\d+$/.test(paymobOrderId)
           ? Number(paymobOrderId)     // numeric → keep as number
           : 0;                         // UUID → use 0 as placeholder

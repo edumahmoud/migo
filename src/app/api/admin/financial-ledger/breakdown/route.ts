@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   // Build query
   let query = supabaseServer
     .from('financial_ledger')
-    .select('gross_amount, platform_share, teacher_share, gateway_fee, net_amount, created_at, status');
+    .select('gross_amount, platform_share, teacher_share, net_amount, created_at, status');
 
   // Status filter — include paid + settled (exclude refunded/reversed/failed)
   query = query.in('status', ['paid', 'settled']);
@@ -73,7 +73,6 @@ export async function GET(request: NextRequest) {
     gross: number;
     platform: number;
     teacher: number;
-    gateway_fee: number;
     net_platform: number;
     count: number;
   }>();
@@ -82,7 +81,6 @@ export async function GET(request: NextRequest) {
     gross_amount: number | string;
     platform_share: number | string;
     teacher_share: number | string;
-    gateway_fee: number | string;
     net_amount: number | string;
     created_at: string;
   }>) {
@@ -97,14 +95,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (!groups.has(key)) {
-      groups.set(key, { gross: 0, platform: 0, teacher: 0, gateway_fee: 0, net_platform: 0, count: 0 });
+      groups.set(key, { gross: 0, platform: 0, teacher: 0, net_platform: 0, count: 0 });
     }
     const g = groups.get(key)!;
     g.gross += Number(row.gross_amount);
     g.platform += Number(row.platform_share);
     g.teacher += Number(row.teacher_share);
-    g.gateway_fee += Number(row.gateway_fee);
-    g.net_platform += Number(row.net_amount) - Number(row.teacher_share);
+    g.net_platform += Number(row.platform_share); // net_platform = platform_share (gateway_fee is always 0)
     g.count += 1;
   }
 
@@ -115,7 +112,6 @@ export async function GET(request: NextRequest) {
       gross_amount: Number(v.gross.toFixed(2)),
       platform_share: Number(v.platform.toFixed(2)),
       teacher_share: Number(v.teacher.toFixed(2)),
-      gateway_fee: Number(v.gateway_fee.toFixed(2)),
       net_platform: Number(v.net_platform.toFixed(2)),
       transaction_count: v.count,
     }))

@@ -293,7 +293,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                       <div className="text-sm font-mono font-semibold">
                         {Number(o.amount).toFixed(2)} {o.currency}
                       </div>
-                      {o.provider_order_ref && /^\d+$/.test(o.provider_order_ref) && (
+                      {o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_') && (
                         <div className="text-xs text-muted-foreground font-mono" dir="ltr">
                           Paymob: {o.provider_order_ref}
                         </div>

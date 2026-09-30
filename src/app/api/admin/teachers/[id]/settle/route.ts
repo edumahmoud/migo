@@ -106,7 +106,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const currency = selectedEntries[0].currency;
   const transactionCode = generateTransactionCode();
   const internalReference = transactionCode; // Use the same code for both
-  const payoutPaymentId = `manual_settle_${randomUUID()}`;
 
   // 3. Get teacher's default payout method (for snapshot)
   let methodType = 'bank_account';
@@ -154,7 +153,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       amount: settledAmount,
       currency,
       status: 'completed',
-      idempotency_key: `settle_${teacherId}_${Date.now()}`,
+      idempotency_key: `settle_${teacherId}_${requestedAmount.toFixed(2)}_${selectedEntries.map(e=>e.id).sort().join(',')}`,
       internal_reference: internalReference,
       provider_reference: transactionCode,
       initiated_by: adminId,

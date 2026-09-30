@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { initiatePayout } from '@/lib/payment/payout-domain/service';
@@ -52,7 +51,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       payoutMethodId: payout_method_id,
       amount,
       currency: 'EGP',
-      idempotencyKey: `deliver_${teacherId}_${Date.now()}`,
+      idempotencyKey: `deliver_${teacherId}_${amount.toFixed(2)}_${payout_method_id}`,
       internalReference: transactionCode,
       initiatedBy: adminId,
     });

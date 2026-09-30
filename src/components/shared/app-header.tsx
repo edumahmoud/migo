@@ -360,7 +360,6 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
     questionBank: t('nav.questionBank'),
     videos: t('nav.videos'),
     registration: t('nav.registration'),
-    paymentMethods: t('nav.paymentMethods'),
     subscriptionHistory: t('nav.subscriptionHistory'),
     pendingOrders: t('nav.pendingOrders'),
   };
