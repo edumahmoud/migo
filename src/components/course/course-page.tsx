@@ -95,14 +95,13 @@ const TABS: TabConfig[] = [
   { id: 'files', labelKey: 'course.tabFiles', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'videos', labelKey: 'course.tabVideos', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'exams', labelKey: 'course.tabExams', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'questionBank', labelKey: 'course.tabQuestionBank', icon: <BookMarked className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'assignments', labelKey: 'course.tabAssignments', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', labelKey: 'course.tabChat', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', labelKey: 'course.tabStudents', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
   { id: 'teams', labelKey: 'course.tabTeams', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
   { id: 'polls', labelKey: 'course.tabPolls', icon: <BarChart3 className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'lessons', labelKey: 'course.tabLessons', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'scorm', labelKey: 'course.tabScorm', icon: <Package className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'scorm', labelKey: 'course.tabScorm', icon: <Package className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
 ];
 
 // -------------------------------------------------------

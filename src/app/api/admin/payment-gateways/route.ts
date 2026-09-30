@@ -4,6 +4,7 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import {
   listGateways,
   createGateway,

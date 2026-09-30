@@ -49,7 +49,7 @@
  *   - max-h-[90vh] overflow-y-auto for long item lists.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Loader2, CreditCard, X, AlertCircle, ShieldCheck, ExternalLink, Smartphone } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -97,7 +97,7 @@ interface PaymentSummaryDialogProps {
   onSessionItemsChange?: (items: CheckoutSessionItem[]) => void;
 }
 
-type PaymentState = 'ready' | 'preparing' | 'redirecting' | 'error';
+type PaymentState = 'ready' | 'preparing' | 'redirecting' | 'error' | 'fawry_pending';
 
 export function PaymentSummaryDialog({
   open,
@@ -115,6 +115,9 @@ export function PaymentSummaryDialog({
   // Default is 'card' (backward compat — works even if wallet is not
   // configured on the gateway).
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
+  // v88+ — Fawry Code display: the reference code returned by the adapter
+  const [fawryReferenceCode, setFawryReferenceCode] = useState<string | null>(null);
+  const [fawryPollCount, setFawryPollCount] = useState(0);
 
   // Determine mode + items to display
   const isMultiMode = !order && Array.isArray(sessionItems) && sessionItems.length > 0 && !!sessionId;
@@ -142,7 +145,7 @@ export function PaymentSummaryDialog({
   const currency = items[0]?.currency ?? 'EGP';
 
   const handlePayNow = useCallback(async () => {
-    if (state === 'preparing' || state === 'redirecting') return; // prevent double-click
+    if (state === 'preparing' || state === 'redirecting' || state === 'fawry_pending') return; // prevent double-click
     setState('preparing');
     setErrorMessage(null);
     try {
@@ -150,6 +153,15 @@ export function PaymentSummaryDialog({
       const result = isMultiMode
         ? await initiateSessionPayment(sessionId as string, headers, paymentMethod)
         : await initiatePayment((order as PaymentSummaryOrder).orderId, headers, paymentMethod);
+
+      // v88+ — Fawry Code path: the adapter returns a reference code
+      // (no checkoutUrl). Display it + poll for payment status.
+      if (result.provider === 'fawry' || result.metadata?.referenceCode) {
+        const refCode = result.paymentReference || result.metadata?.referenceCode || '';
+        setFawryReferenceCode(String(refCode));
+        setState('fawry_pending');
+        return; // don't redirect — stay on the dialog
+      }
 
       // Successfully received a checkout URL — begin the redirect state.
       // The browser is about to navigate away; the dialog stays open
@@ -176,6 +188,40 @@ export function PaymentSummaryDialog({
     }
   }, [state, isMultiMode, sessionId, order, t, paymentMethod]);
 
+  // v88+ — Poll the order status while in 'fawry_pending' state.
+  // The student paid at a Fawry machine → Fawry sends a webhook →
+  // the order flips to 'paid' → the polling detects it + closes the
+  // dialog + reloads to show the now-active enrollment.
+  useEffect(() => {
+    if (state !== 'fawry_pending') return;
+    const orderIdToPoll = isMultiMode ? null : (order as PaymentSummaryOrder)?.orderId;
+    if (!orderIdToPoll) return; // multi-session: no per-order polling for now
+
+    const interval = setInterval(async () => {
+      try {
+        const headers = await getCachedAuthHeaders();
+        const res = await fetch(`/api/student/orders/${orderIdToPoll}`, { headers });
+        const json = await res.json();
+        if (json.success && json.order?.status === 'paid') {
+          clearInterval(interval);
+          toast.success('تم الدفع بنجاح! تفعيل الاشتراك...');
+          setState('ready');
+          // Reload the page so the student sees the now-active enrollment
+          if (typeof window !== 'undefined') {
+            setTimeout(() => window.location.reload(), 800);
+          }
+        } else {
+          setFawryPollCount((c) => c + 1);
+        }
+      } catch {
+        // Network blip — keep polling
+        setFawryPollCount((c) => c + 1);
+      }
+    }, 30_000); // 30s
+
+    return () => clearInterval(interval);
+  }, [state, isMultiMode, order]);
+
   // Reset state when dialog closes
   const handleOpenChange = useCallback((next: boolean) => {
     if (!next) {
@@ -185,6 +231,8 @@ export function PaymentSummaryDialog({
       if (state === 'redirecting') return; // can't close mid-redirect
       setState('ready');
       setErrorMessage(null);
+      setFawryReferenceCode(null);
+      setFawryPollCount(0);
     }
     onOpenChange(next);
   }, [state, onOpenChange]);
@@ -232,6 +280,7 @@ export function PaymentSummaryDialog({
   const stateLabel =
     state === 'preparing' ? t('student.payment.initializingPayment')
     : state === 'redirecting' ? t('student.payment.redirecting')
+    : state === 'fawry_pending' ? 'في انتظار الدفع عبر فوري'
     : state === 'error' ? t('student.payment.paymentFailed')
     : t('student.payment.readyToPay');
 
@@ -417,6 +466,51 @@ export function PaymentSummaryDialog({
             <div className="flex items-start gap-2 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/15 border border-rose-200 dark:border-rose-900/30 rounded-md p-2">
               <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+          )}
+
+          {/* v88+ — Fawry Code display */}
+          {state === 'fawry_pending' && fawryReferenceCode && (
+            <div className="space-y-3 border-2 border-amber-300 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/15 rounded-lg p-4">
+              <div className="text-center">
+                <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                  كود الدفع عبر فوري
+                </h4>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                  خذ الكود ده لاقرب ماكينة فوري أو تطبيق فوري وادفع المبلغ خلال 24 ساعة
+                </p>
+                <div className="bg-white dark:bg-amber-950/40 rounded-md py-4 px-2 border-2 border-dashed border-amber-400 dark:border-amber-700">
+                  <code className="text-3xl font-bold font-mono tracking-[0.15em] text-amber-900 dark:text-amber-100 select-all" dir="ltr">
+                    {fawryReferenceCode}
+                  </code>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 gap-1 text-xs"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(fawryReferenceCode);
+                    toast.success('تم نسخ الكود');
+                  }}
+                >
+                  نسخ الكود
+                </Button>
+              </div>
+
+              <div className="text-xs space-y-1 border-t border-amber-200 dark:border-amber-900/40 pt-2">
+                <div className="flex justify-between text-amber-800 dark:text-amber-200">
+                  <span>المبلغ المطلوب:</span>
+                  <span className="font-mono font-bold">{totalAmount.toFixed(2)} {currency}</span>
+                </div>
+                <div className="flex justify-between text-amber-700 dark:text-amber-300">
+                  <span>الحالة:</span>
+                  <span>⏳ في انتظار الدفع — سيتم التفعيل تلقائياً بعد الدفع</span>
+                </div>
+                <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <span>عدد مرات التحقق:</span>
+                  <span>{fawryPollCount}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

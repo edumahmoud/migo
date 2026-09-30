@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 
 // Import the payment core (this also registers the Paymob adapter)
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import { PaymentService, isPaymentError } from '@/lib/payment';
 import { logPaymentEvent } from '@/lib/payment/logger';
 

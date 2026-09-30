@@ -44,6 +44,16 @@ export interface PaymentActionResult {
   checkoutUrl: string;
   /** The Paymob intention ID (we keep it for diagnostics/logging). */
   paymentReference: string | null;
+  /** v88+ — Provider name (e.g. 'paymob', 'fawry'). Used to branch the UI. */
+  provider?: string;
+  /** v88+ — Provider-specific non-secret metadata (e.g. Fawry referenceCode). */
+  metadata?: {
+    referenceCode?: string;
+    paymentMethod?: string;
+    paymentStatus?: string;
+    instructions?: string;
+    [k: string]: unknown;
+  };
 }
 
 export type PaymentActionErrorCode =
@@ -223,10 +233,22 @@ export async function initiatePayment(
     typeof obj.checkout_url === 'string' ? obj.checkout_url : null;
   const paymentReference =
     typeof obj.payment_reference === 'string' ? obj.payment_reference : null;
+  // v88+ — provider + metadata (used by the Fawry Code UI branch)
+  const provider =
+    typeof obj.provider === 'string' ? obj.provider : undefined;
+  const metadata =
+    obj.metadata && typeof obj.metadata === 'object'
+      ? obj.metadata as PaymentActionResult['metadata']
+      : undefined;
 
-  if (!checkoutUrl) {
-    // Backend returned success=true but no checkout_url. Treat as an
-    // error — do NOT redirect anywhere.
+  // v88+ — Fawry Code path: no checkoutUrl (the student doesn't get
+  // redirected — they get a referenceCode). Don't throw if provider
+  // is Fawry or if metadata.referenceCode is present.
+  const isFawry = provider === 'fawry' || !!metadata?.referenceCode;
+
+  if (!checkoutUrl && !isFawry) {
+    // Backend returned success=true but no checkout_url AND it's not a
+    // Fawry reference-code payment. Treat as an error.
     throw new PaymentActionError(
       'MISSING_CHECKOUT_URL',
       'Backend returned success but no checkout_url — cannot redirect',
@@ -234,7 +256,7 @@ export async function initiatePayment(
     );
   }
 
-  return { checkoutUrl, paymentReference };
+  return { checkoutUrl: checkoutUrl ?? '', paymentReference, provider, metadata };
 }
 
 /**
@@ -478,8 +500,19 @@ export async function initiateSessionPayment(
 
   const checkoutUrl = typeof obj.checkout_url === 'string' ? obj.checkout_url : null;
   const paymentReference = typeof obj.payment_reference === 'string' ? obj.payment_reference : null;
+  // v88+ — provider + metadata (used by the Fawry Code UI branch)
+  const provider =
+    typeof obj.provider === 'string' ? obj.provider : undefined;
+  const metadata =
+    obj.metadata && typeof obj.metadata === 'object'
+      ? obj.metadata as PaymentActionResult['metadata']
+      : undefined;
+  // v88+ — Fawry Code path: no checkoutUrl (the student doesn't get
+  // redirected — they get a referenceCode). Don't throw if provider
+  // is Fawry or if metadata.referenceCode is present.
+  const isFawry = provider === 'fawry' || !!metadata?.referenceCode;
 
-  if (!checkoutUrl) {
+  if (!checkoutUrl && !isFawry) {
     throw new PaymentActionError(
       'MISSING_CHECKOUT_URL',
       'Backend returned success but no checkout_url — cannot redirect',
@@ -487,7 +520,7 @@ export async function initiateSessionPayment(
     );
   }
 
-  return { checkoutUrl, paymentReference };
+  return { checkoutUrl: checkoutUrl ?? '', paymentReference, provider, metadata };
 }
 
 // ============================================================

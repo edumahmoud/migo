@@ -46,6 +46,20 @@ schemas.set('paymob', {
   ],
 });
 
+// ─── Fawry schema (Reference Code) ───
+schemas.set('fawry', {
+  provider: 'fawry',
+  displayName: 'Fawry (كود مرجعي)',
+  credentialFields: [
+    { name: 'merchantCode', label: 'Merchant Code', type: 'text', required: true, placeholder: '123456', helpText: 'معرّف التاجر من Fawry Dashboard — Settings → Merchant Info' },
+    { name: 'securityKey', label: 'Security Key', type: 'password', required: true, placeholder: '...', helpText: 'سر HMAC لتوقيع طلبات charge + webhook. سري جداً — لا تشاركه.' },
+  ],
+  configurationFields: [
+    { name: 'webhookUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=fawry', helpText: 'رابط استقبال Fawry callback — علشان تستلم إشعار الدفع لما الطالب يخلص. الكود بيضيف gateway_id تلقائياً.' },
+    { name: 'redirectUrl', label: 'Redirect URL', type: 'text', required: false, placeholder: 'https://your-domain.com/?payment_callback=success', helpText: 'اختياري: رابط تحويل الطالب بعد الدفع (للـ UX فقط — Fawry Code مش بيحوّل الطالب أصلاً)' },
+  ],
+});
+
 export function getProviderSchema(provider: string): ProviderSchema | null {
   return schemas.get(provider) ?? null;
 }

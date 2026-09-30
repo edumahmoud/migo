@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import { getGatewayById, updateGatewayConfig } from '@/lib/payment';
 import { getProviderSchema, validateRequiredCredentialFields } from '@/lib/payment/provider-schemas';
 import { auditGatewayUpdated } from '@/lib/payment/audit';

@@ -3,6 +3,7 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import { PaymentService, isPaymentError } from '@/lib/payment';
 import { auditGatewayConnectionTested } from '@/lib/payment/audit';
 import { logPaymentEvent } from '@/lib/payment/logger';

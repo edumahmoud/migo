@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import { GatewayRegistry } from '@/lib/payment';
 import { listProviderSchemas } from '@/lib/payment/provider-schemas';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';

@@ -6,6 +6,7 @@ import { logPaymentEvent } from '@/lib/payment/logger';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import { verifyPaymobHmac } from '@/lib/payment/providers/paymob/hmac';
 import type { PaymobCallbackPayload } from '@/lib/payment/providers/paymob/types';
 import { PAYMOB_HMAC_FIELDS } from '@/lib/payment/providers/paymob/types';

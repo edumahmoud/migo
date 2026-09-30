@@ -5,6 +5,7 @@ import { logPaymentEvent } from '@/lib/payment/logger';
 
 // Import the payment core (registers the Paymob adapter)
 import '@/lib/payment/providers/paymob';
+import '@/lib/payment/providers/fawry';
 import { PaymentService, isPaymentError } from '@/lib/payment';
 import { categorizePaymentError } from '@/lib/student/payment-error-categories';
 
