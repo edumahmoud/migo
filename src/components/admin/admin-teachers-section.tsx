@@ -26,7 +26,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Users, Search, ChevronLeft, ChevronRight,
   Wallet, DollarSign, Clock, CheckCircle2, X, Eye, EyeOff,
-  HandCoins, Banknote, History, Copy,
+  HandCoins, Banknote, History, Copy, Download, FileSpreadsheet,
 } from 'lucide-react';
 
 // Arabic labels for payout method detail fields
@@ -214,6 +214,146 @@ export default function AdminTeachersSection() {
     }
   };
 
+  // ── Per-teacher Excel export (N2) ──
+  // Generates an Excel workbook with two sheets:
+  //   Sheet 1: Teacher summary (name, email, subject_count, student_count, totals)
+  //   Sheet 2: All financial_ledger entries for this teacher (filtered by status=paid|settled)
+  const [exportingTeacherId, setExportingTeacherId] = useState<string | null>(null);
+  const [exportingAll, setExportingAll] = useState(false);
+
+  const handleExportTeacher = async (teacher: TeacherRow) => {
+    setExportingTeacherId(teacher.id);
+    try {
+      // Fetch all financial_ledger rows for this teacher (paid + settled only)
+      const params = new URLSearchParams({
+        teacher_id: teacher.id,
+        page_size: '100',
+      });
+      const res = await fetch(`/api/admin/financial-ledger?${params}`, {
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || 'تعذّر جلب بيانات المعلم');
+        return;
+      }
+
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Teacher summary
+      const summaryData = [
+        ['الحقل', 'القيمة'],
+        ['الاسم', teacher.name],
+        ['البريد الإلكتروني', teacher.email],
+        ['الهاتف', teacher.phone ?? '—'],
+        ['الحالة', teacher.account_status],
+        ['تاريخ التسجيل', new Date(teacher.created_at).toLocaleDateString('ar-EG')],
+        ['عدد المقررات', teacher.subject_count],
+        ['عدد الطلاب', teacher.student_count],
+        ['الإيراد الكلي (مدفوع + مُسوّى)', Number(teacher.total_earned ?? 0).toFixed(2)],
+        ['المُسوّى (تم تسليمه)', Number(teacher.total_settled ?? 0).toFixed(2)],
+        ['المتاح للصرف', Number(teacher.total_pending ?? 0).toFixed(2)],
+        ['عدد العمليات (من السجل)', json.summary?.transaction_count ?? json.data?.length ?? 0],
+      ];
+      const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+      // Set column widths
+      ws1['!cols'] = [{ wch: 30 }, { wch: 35 }];
+      XLSX.utils.book_append_sheet(wb, ws1, 'ملخص المعلم');
+
+      // Sheet 2: Transactions (financial_ledger rows)
+      const ledgerRows = (json.data ?? []) as Array<Record<string, unknown>>;
+      if (ledgerRows.length > 0) {
+        const headers = ['التاريخ', 'الطالب', 'المقرر', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'العملة', 'الحالة', 'العمولة %'];
+        const rows = ledgerRows.map((r) => [
+          new Date(r.created_at as string).toLocaleDateString('ar-EG'),
+          r.student_name ?? '—',
+          r.subject_name ?? '—',
+          Number(r.gross_amount ?? 0).toFixed(2),
+          Number(r.platform_share ?? 0).toFixed(2),
+          Number(r.teacher_share ?? 0).toFixed(2),
+          r.currency ?? 'EGP',
+          r.status ?? '—',
+          Number(r.commission_rate ?? 0).toFixed(2),
+        ]);
+        const txSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        txSheet['!cols'] = [
+          { wch: 14 }, { wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 10 }
+        ];
+        XLSX.utils.book_append_sheet(wb, txSheet, 'المعاملات');
+      } else {
+        // Empty sheet so user gets visual confirmation
+        const emptySheet = XLSX.utils.aoa_to_sheet([['لا توجد معاملات لهذا المعلم']]);
+        XLSX.utils.book_append_sheet(wb, emptySheet, 'المعاملات');
+      }
+
+      const safeName = (teacher.name || 'teacher').replace(/[\\\/:*?"<>|]/g, '_').slice(0, 50);
+      const fileName = `teacher_${safeName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success(`تم تصدير ${ledgerRows.length} معاملة إلى ${fileName}`);
+    } catch (err) {
+      console.error('[export-teacher] failed', err);
+      toast.error('تعذّر تصدير Excel للمعلم');
+    } finally {
+      setExportingTeacherId(null);
+    }
+  };
+
+  // ── Export ALL teachers (current page) as a single Excel workbook ──
+  // Sheet 1: Teachers list with all financial summary columns
+  // Sheet 2: Totals row (sum of all teachers on this page)
+  const handleExportAllTeachers = async () => {
+    if (teachers.length === 0) {
+      toast.error('لا يوجد معلمون للتصدير');
+      return;
+    }
+    setExportingAll(true);
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Teachers list
+      const headers = [
+        'الاسم', 'البريد', 'الهاتف', 'الحالة',
+        'المقررات', 'الطلاب',
+        'الإيراد الكلي', 'المُسوّى', 'المتاح', 'تاريخ التسجيل',
+      ];
+      const rows = teachers.map((t) => [
+        t.name, t.email, t.phone ?? '—', t.account_status,
+        t.subject_count, t.student_count,
+        Number(t.total_earned ?? 0).toFixed(2),
+        Number(t.total_settled ?? 0).toFixed(2),
+        Number(t.total_pending ?? 0).toFixed(2),
+        new Date(t.created_at).toLocaleDateString('ar-EG'),
+      ]);
+      // Totals row
+      const totalsRow = [
+        'الإجمالي', '', '', '',
+        teachers.reduce((s, t) => s + t.subject_count, 0),
+        teachers.reduce((s, t) => s + t.student_count, 0),
+        teachers.reduce((s, t) => s + Number(t.total_earned ?? 0), 0).toFixed(2),
+        teachers.reduce((s, t) => s + Number(t.total_settled ?? 0), 0).toFixed(2),
+        teachers.reduce((s, t) => s + Number(t.total_pending ?? 0), 0).toFixed(2),
+        '',
+      ];
+      const ws1 = XLSX.utils.aoa_to_sheet([headers, ...rows, totalsRow]);
+      ws1['!cols'] = [
+        { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
+        { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws1, `المعلمون (صفحة ${page})`);
+
+      const fileName = `teachers_page${page}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      toast.success(`تم تصدير ${teachers.length} معلم إلى ${fileName}`);
+    } catch (err) {
+      console.error('[export-all-teachers] failed', err);
+      toast.error('تعذّر تصدير قائمة المعلمين');
+    } finally {
+      setExportingAll(false);
+    }
+  };
+
   return (
     <div className="space-y-6" dir={direction}>
       {/* Header */}
@@ -227,9 +367,9 @@ export default function AdminTeachersSection() {
         </p>
       </div>
 
-      {/* Search bar */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      {/* Search bar + Export all */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute h-4 w-4 text-muted-foreground ms-2 mt-2.5" />
           <Input
             type="text"
@@ -239,6 +379,21 @@ export default function AdminTeachersSection() {
             className="ps-8 h-9"
           />
         </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          onClick={handleExportAllTeachers}
+          disabled={exportingAll || teachers.length === 0}
+          title="تصدير معلمي الصفحة الحالية إلى Excel"
+        >
+          {exportingAll ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <FileSpreadsheet className="h-4 w-4" />
+          )}
+          تصدير الكل (Excel)
+        </Button>
       </div>
 
       {/* Teachers list */}
@@ -355,6 +510,24 @@ export default function AdminTeachersSection() {
                               title="سجل المعاملات"
                             >
                               <History className="h-3 w-3" />
+                            </Button>
+                            {/* تصدير Excel — per-teacher (N2) */}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs gap-1 text-emerald-700 hover:bg-emerald-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportTeacher(teacher);
+                              }}
+                              disabled={exportingTeacherId === teacher.id}
+                              title="تصدير معاملات هذا المعلم إلى Excel"
+                            >
+                              {exportingTeacherId === teacher.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Download className="h-3 w-3" />
+                              )}
                             </Button>
                           </div>
                         </td>
