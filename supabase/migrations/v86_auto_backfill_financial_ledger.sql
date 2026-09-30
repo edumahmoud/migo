@@ -132,4 +132,5 @@ ON CONFLICT (payment_id) DO NOTHING;
 -- SELECT COUNT(*) FROM public.payments WHERE provider_payment_id LIKE 'backfill_%';
 -- SELECT COUNT(*) FROM public.financial_ledger;
 
-COMMENT ON MIGRATION IS 'v86: auto-backfill orphaned paid orders. Idempotent. After running, the manual /api/admin/backfill-financial-ledger endpoint is optional.';
+-- v86: auto-backfill orphaned paid orders. Idempotent. After running,
+-- the manual /api/admin/backfill-financial-ledger endpoint is optional.
