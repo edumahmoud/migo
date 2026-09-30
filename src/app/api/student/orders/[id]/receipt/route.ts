@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 import { buildReceiptPdf } from '@/lib/pdf/receipt';
 
 interface RouteContext { params: Promise<{ id: string }> }
@@ -30,7 +30,8 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
   const { id: orderId } = await ctx.params;
   const callerId = auth.user.id;
-  const callerRole = auth.user.role;
+  // authenticateRequest doesn't preload the role; fetch it from DB.
+  const callerRole = await getUserRole(callerId);
 
   // 1. Fetch the order + verify ownership (or admin override)
   const { data: order, error } = await supabaseServer

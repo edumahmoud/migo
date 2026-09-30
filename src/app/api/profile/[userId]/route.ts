@@ -53,7 +53,11 @@ export async function GET(
         if (fallbackError || !profileNoUsername) {
           return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 });
         }
-        profile = { ...profileNoUsername, username: null };
+        // Spread requires an object type. Cast through `unknown` to
+        // satisfy TypeScript's strict spread check (the .single() data
+        // type is a complex ParserError-typed union that doesn't narrow
+        // cleanly after the !profileNoUsername check).
+        profile = { ...(profileNoUsername as unknown as Record<string, unknown>), username: null };
       } else {
         return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 });
       }
