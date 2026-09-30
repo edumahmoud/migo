@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireEligibleStudent, authErrorResponse } from '@/lib/auth-helpers';
+import { calculateFees, breakdownToJsonb } from '@/lib/fees/calculator';
 
 /**
  * POST /api/student/orders
@@ -157,22 +158,76 @@ export async function POST(request: NextRequest) {
       // activated later ONLY via /api/payment/webhook (called by
       // Paymob after a real successful payment). There is NO manual
       // approval path, NO proof submission, NO admin bypass.
+      //
+      // v88 — fees-on-top model: fetch active fees from fee_catalog,
+      // compute the breakdown, and store the snapshot in order_fees.
+      // The order's `amount` field stays equal to `grand_total`
+      // (= base_amount + fees_total) for backward compatibility with
+      // the existing webhook/RPC code that uses `orders.amount`. The
+      // new `base_amount`, `fees_total`, `grand_total` columns are
+      // the structured source of truth going forward.
+      const { data: activeFees } = await supabaseServer
+        .from('fee_catalog')
+        .select('id, code, name_ar, name_en, fee_kind, value, sort_order')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      const basePrice = Number(subject.price);
+      const feeRows = (activeFees ?? []) as Array<{
+        id: string; code: string; name_ar: string; name_en: string;
+        fee_kind: 'percentage' | 'flat'; value: number; sort_order: number;
+      }>;
+      const breakdown = calculateFees(basePrice, feeRows);
+
       const { data: order } = await supabaseServer
         .from('orders')
         .insert({
           student_id: studentId,
           subject_id: subjectId,
-          amount: subject.price,
+          amount: breakdown.grand_total,         // kept in sync with grand_total for backward compat
+          base_amount: breakdown.base_total,
+          fees_total: breakdown.fees_total,
+          grand_total: breakdown.grand_total,
           currency: subject.currency,
-          provider: 'pending_gateway', // will be set to 'paymob' once integrated
+          provider: 'pending_gateway',
           provider_order_ref: `order_${randomUUID()}`,
           status: 'pending',
         })
-        .select('id, subject_id, amount, currency, provider, status, created_at')
+        .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at')
         .single();
 
       if (order) {
-        createdOrders.push({ ...(order as Record<string, unknown>), subject_name: subject.name });
+        const orderId = (order as { id: string }).id;
+        // Snapshot each fee into order_fees (immutable)
+        if (breakdown.fees.length > 0) {
+          const orderFeesRows = breakdown.fees.map((f) => ({
+            order_id: orderId,
+            fee_catalog_id: f.id,
+            code: f.code,
+            name_ar: f.name_ar,
+            name_en: f.name_en,
+            fee_kind: f.fee_kind,
+            value: f.value,
+            base_amount: f.base_amount,
+            calculated_amount: f.calculated_amount,
+            sort_order: f.sort_order,
+          }));
+          const { error: ofErr } = await supabaseServer
+            .from('order_fees')
+            .insert(orderFeesRows);
+          if (ofErr) {
+            console.error('[student/orders] order_fees insert failed:', ofErr.message);
+            // Don't fail the order creation — the order row is already
+            // created and the snapshot can be backfilled later. But log
+            // loudly so the operator can investigate.
+          }
+        }
+
+        createdOrders.push({
+          ...(order as Record<string, unknown>),
+          subject_name: subject.name,
+          fees_breakdown: breakdownToJsonb(breakdown),
+        });
       }
     }
   }

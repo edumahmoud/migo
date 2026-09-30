@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   // 1. Fetch the order + verify ownership (or admin override)
   const { data: order, error } = await supabaseServer
     .from('orders')
-    .select('id, student_id, subject_id, amount, currency, status, paid_at, created_at, provider_order_ref')
+    .select('id, student_id, subject_id, amount, base_amount, currency, status, paid_at, created_at, provider_order_ref')
     .eq('id', orderId)
     .maybeSingle();
 
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     student_id: string;
     subject_id: string;
     amount: number | string;
+    base_amount: number | string | null;
     currency: string;
     status: string;
     paid_at: string | null;
@@ -79,9 +80,10 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
   // 2. Fetch the linked financial_ledger row (for platform/teacher shares)
   //    + the payment row (for the transaction code)
+  //    v88 — also fetch fees_breakdown for the invoice display.
   const { data: ledger } = await supabaseServer
     .from('financial_ledger')
-    .select('id, teacher_id, provider_payment_id, gross_amount, platform_share, teacher_share, commission_rate, created_at')
+    .select('id, teacher_id, provider_payment_id, gross_amount, platform_share, teacher_share, commission_rate, created_at, subscription_total, tax_amount, other_fees_amount, fees_breakdown')
     .eq('order_id', orderId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -122,11 +124,25 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     teacher_share: number | string;
     commission_rate: number | string;
     created_at: string;
+    subscription_total: number | string | null;
+    tax_amount: number | string | null;
+    other_fees_amount: number | string | null;
+    fees_breakdown: Array<{
+      code: string;
+      name_ar: string;
+      name_en: string;
+      fee_kind: string;
+      value: number;
+      base_amount: number;
+      calculated_amount: number;
+    }> | null;
   } | null;
 
   const gross = l ? Number(l.gross_amount) : Number(o.amount);
   const platform = l ? Number(l.platform_share) : 0;
   const teacherShare = l ? Number(l.teacher_share) : Number(o.amount);
+  const subscriptionTotal = l?.subscription_total ? Number(l.subscription_total) : Number(o.base_amount ?? o.amount);
+  const feesBreakdown = l?.fees_breakdown ?? [];
 
   // 4. Build the PDF
   const pdfBytes = await buildReceiptPdf({
@@ -146,10 +162,16 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       id: teacherId,
     },
     lineItems: [
+      // v88 — show subscription base as the first line
       {
         description: `${subject?.name ?? 'Subject'} — subscription (1 month)`,
-        amount: gross,
+        amount: subscriptionTotal,
       },
+      // v88 — show each fee as a separate line
+      ...feesBreakdown.map((fee) => ({
+        description: `${fee.name_ar} (${fee.fee_kind === 'percentage' ? `${fee.value}% of ${Number(fee.base_amount).toFixed(2)}` : `${fee.value} EGP flat`})`,
+        amount: Number(fee.calculated_amount),
+      })),
     ],
     grossAmount: gross,
     platformShare: platform,

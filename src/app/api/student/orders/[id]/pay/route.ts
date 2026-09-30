@@ -60,9 +60,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const { id: orderId } = await ctx.params;
 
   // 1. Fetch the order + validate ownership + status
+  //    v88 — include base_amount, fees_total, grand_total so we can
+  //    send the grand_total (subscriptions + fees) to Paymob.
   const { data: order, error: orderErr } = await supabaseServer
     .from('orders')
-    .select('id, student_id, subject_id, amount, currency, status, provider_order_ref, gateway_id, checkout_session_id')
+    .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, provider_order_ref, gateway_id, checkout_session_id')
     .eq('id', orderId)
     .maybeSingle();
 
@@ -75,6 +77,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     student_id: string;
     subject_id: string;
     amount: number;
+    base_amount: number | null;
+    fees_total: number | null;
+    grand_total: number | null;
     currency: string;
     status: string;
     provider_order_ref: string | null;
@@ -147,10 +152,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     : 'card';
 
   try {
+    // v88 — send grand_total (= base_amount + fees_total) to Paymob,
+    // NOT orders.amount (kept in sync for backward compat). Fall back
+    // to orders.amount for orders created before v88 migration.
+    const amountToCharge = Number(o.grand_total ?? o.amount);
     const result = await PaymentService.createPayment(
       {
         orderId: o.id,
-        amount: Number(o.amount),
+        amount: amountToCharge,
         currency: o.currency,
         customerEmail: p?.email,
         customerName: p?.name ?? undefined,

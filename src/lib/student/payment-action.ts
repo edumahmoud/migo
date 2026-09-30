@@ -83,6 +83,22 @@ export interface PaymentSummaryOrder {
   amount: number;
   /** Currency code (server-authoritative — from the order's currency). */
   currency: string;
+  /** v88 — base subscription price (before fees). For pre-v88 orders, equals amount. */
+  baseAmount?: number;
+  /** v88 — total fees (commission + tax + other). For pre-v88 orders, 0. */
+  feesTotal?: number;
+  /** v88 — grand total sent to Paymob (base + fees). For pre-v88 orders, equals amount. */
+  grandTotal?: number;
+  /** v88 — per-fee breakdown for the invoice display. */
+  feesBreakdown?: Array<{
+    code: string;
+    name_ar: string;
+    name_en: string;
+    fee_kind: string;
+    value: number;
+    base_amount: number;
+    calculated_amount: number;
+  }>;
 }
 
 export class PaymentActionError extends Error {

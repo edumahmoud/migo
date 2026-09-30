@@ -45,6 +45,9 @@ interface OrderRow {
   student_id: string;
   subject_id: string;
   amount: number;
+  base_amount: number | null;
+  fees_total: number | null;
+  grand_total: number | null;
   currency: string;
   status: string;
   gateway_id: string | null;
@@ -155,7 +158,7 @@ export async function POST(request: NextRequest) {
     if (orderRef) {
       const { data: order } = await supabaseServer
         .from('orders')
-        .select('id, student_id, subject_id, amount, currency, status, gateway_id')
+        .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id')
         .eq('id', orderRef)
         .maybeSingle();
 
@@ -245,7 +248,7 @@ export async function POST(request: NextRequest) {
 
     const { data: order, error: orderErr } = await supabaseServer
       .from('orders')
-      .select('id, student_id, subject_id, amount, currency, status, gateway_id')
+      .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id')
       .eq('id', webhookResult.orderId)
       .maybeSingle();
 
@@ -281,7 +284,7 @@ export async function POST(request: NextRequest) {
       //     idempotency).
       const { data: sessionOrders, error: sessionErr } = await supabaseServer
         .from('orders')
-        .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id')
+        .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id')
         .eq('checkout_session_id', webhookResult.orderId);
 
       if (sessionErr || !sessionOrders || sessionOrders.length === 0) {
@@ -305,16 +308,22 @@ export async function POST(request: NextRequest) {
         student_id: string;
         subject_id: string;
         amount: number;
+        base_amount: number | null;
+        fees_total: number | null;
+        grand_total: number | null;
         currency: string;
         status: string;
         gateway_id: string | null;
         checkout_session_id: string | null;
       }>;
 
-      // Validate SUM(orders.amount) == webhookResult.amount
+      // Validate SUM(orders.grand_total) == webhookResult.amount
       // (Paymob reports the total in major units; convert to cents
       //  for comparison with the per-order amounts).
-      const sessionTotal = sessOrders.reduce((sum, o) => sum + Number(o.amount), 0);
+      // v88 — use grand_total (= base_amount + fees_total) which is
+      // what we sent to Paymob. Fall back to orders.amount for orders
+      // created before v88.
+      const sessionTotal = sessOrders.reduce((sum, o) => sum + Number(o.grand_total ?? o.amount), 0);
       if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - sessionTotal) > 0.01) {
         logPaymentEvent({
           level: 'error',
@@ -469,7 +478,8 @@ export async function POST(request: NextRequest) {
             {
               p_order_id: sessOrder.id,
               p_provider_payment_id: perOrderPaymentId,
-              p_amount: Number(sessOrder.amount),
+              // v88 — pass grand_total (= base + fees) to match what was sent to Paymob
+              p_amount: Number(sessOrder.grand_total ?? sessOrder.amount),
               p_currency: sessOrder.currency,
               p_status: 'paid',
               p_raw_payload: {
@@ -554,7 +564,12 @@ export async function POST(request: NextRequest) {
   }
 
   // 6. Validate amount + currency match the internal order
-  if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - Number(o.amount)) > 0.01) {
+  //    v88 — compare against grand_total (= base_amount + fees_total)
+  //    which is what we sent to Paymob. Fall back to orders.amount for
+  //    orders created before the v88 migration (they have grand_total
+  //    backfilled to = amount, so the fallback is safe).
+  const expectedAmount = Number(o.grand_total ?? o.amount);
+  if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - expectedAmount) > 0.01) {
     logPaymentEvent({
       level: 'error',
       operation: 'handleWebhook',
@@ -562,7 +577,7 @@ export async function POST(request: NextRequest) {
       orderId: o.id,
       success: false,
       errorCode: 'AMOUNT_MISMATCH',
-      message: `Expected ${o.amount} got ${webhookResult.amount}`,
+      message: `Expected grand_total=${expectedAmount} (base=${o.base_amount ?? 'n/a'} fees=${o.fees_total ?? 'n/a'}) got ${webhookResult.amount}`,
       durationMs: Date.now() - startTime,
     });
     return NextResponse.json({ ok: true, ignored: 'amount_mismatch' });
@@ -626,12 +641,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the existing RPC — atomic + idempotent
+    // v88 — pass grand_total as p_amount (= what Paymob charged the student).
+    // The v89 RPC's amount_mismatch check compares against orders.grand_total.
     const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
       'activate_subscription_after_payment',
       {
         p_order_id: o.id,
         p_provider_payment_id: webhookResult.providerTransactionId || `gateway_${randomUUID()}`,
-        p_amount: Number(o.amount),
+        p_amount: Number(o.grand_total ?? o.amount),
         p_currency: o.currency,
         p_status: 'paid',
         p_raw_payload: webhookResult.metadata || {},

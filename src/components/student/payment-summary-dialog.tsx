@@ -124,11 +124,20 @@ export function PaymentSummaryDialog({
         amount: Number(it.amount),
         currency: it.currency,
       }))
-    : (order ? [{ subjectName: order.subjectName, amount: Number(order.amount), currency: order.currency }] : []);
+    : (order ? [{ subjectName: order.subjectName, amount: Number(order.grandTotal ?? order.amount), currency: order.currency }] : []);
+
+  // v88 — fees breakdown (single-order mode only for now)
+  const feesBreakdown = order?.feesBreakdown ?? [];
+  const hasFees = feesBreakdown.length > 0;
+  const baseSubtotal = order?.baseAmount ?? Number(order?.amount ?? 0);
+  const feesTotal = order?.feesTotal ?? 0;
+  const grandTotal = order?.grandTotal ?? Number(order?.amount ?? 0);
 
   const totalAmount = useMemo(
-    () => items.reduce((sum, it) => sum + Number(it.amount), 0),
-    [items],
+    () => isMultiMode
+      ? items.reduce((sum, it) => sum + Number(it.amount), 0)
+      : grandTotal,
+    [items, grandTotal],
   );
   const currency = items[0]?.currency ?? 'EGP';
 
@@ -351,6 +360,31 @@ export function PaymentSummaryDialog({
               </button>
             </div>
           </div>
+
+          {/* v88 — Fees breakdown (single-order mode when fees exist) */}
+          {!isMultiMode && hasFees && (
+            <div className="space-y-1 text-xs border-t border-b border-sky-200 dark:border-sky-900/40 py-2 my-2 bg-sky-50/50 dark:bg-sky-900/10 rounded-md px-3">
+              <div className="flex justify-between text-muted-foreground">
+                <span>إجمالي الاشتراكات</span>
+                <span className="font-mono">{baseSubtotal.toFixed(2)} {currency}</span>
+              </div>
+              {feesBreakdown.map((fee, i) => (
+                <div key={i} className="flex justify-between text-muted-foreground">
+                  <span>
+                    {fee.name_ar}{' '}
+                    <span className="text-[10px] text-muted-foreground/70">
+                      ({fee.fee_kind === 'percentage' ? `${fee.value}%` : `${fee.value} EGP`})
+                    </span>
+                  </span>
+                  <span className="font-mono">+{fee.calculated_amount.toFixed(2)} {currency}</span>
+                </div>
+              ))}
+              <div className="border-t border-sky-200 dark:border-sky-900/40 pt-1 mt-1 flex justify-between font-semibold text-teal-800 dark:text-teal-200">
+                <span>المجموع الكلي (يُرسل لبوابة الدفع)</span>
+                <span className="font-mono">{grandTotal.toFixed(2)} {currency}</span>
+              </div>
+            </div>
+          )}
 
           {/* Total — prominent */}
           <div className="flex items-center justify-between bg-teal-50 dark:bg-teal-900/15 rounded-md p-3 border border-teal-200 dark:border-teal-900/40">
