@@ -288,3 +288,46 @@ Stage Summary:
 - TypeScript: clean compile (NODE_OPTIONS=--max-old-space-size=4096 bun x tsc --noEmit passes with 0 errors)
 - Tests: 432 pass / 34 fail (same as origin baseline — no new test failures introduced by N2 changes)
 - Push to origin failed due to no GitHub auth token in container; commit 394ed7c is local-only and ready for user to push
+
+---
+Task ID: P0-money-recording
+Agent: main
+Task: Fix P0 bug — "الفلوس مش بتتسجل مباشرة في النظام" (money not recorded in financial_ledger)
+
+Diagnosis (verified):
+- v78 RPC `activate_subscription_after_payment` had TWO early-RETURN paths that exited the entire function BEFORE reaching the financial_ledger INSERT:
+  1. Line 154-156: `IF v_order.status = 'paid' THEN RETURN` — early-exit before ledger
+  2. Line 163-167: `EXCEPTION WHEN unique_violation THEN RETURN` — RETURN inside an EXCEPTION block exits the WHOLE function in PL/pgSQL, not just the BEGIN/END
+- The webhook short-circuits on `o.status === 'paid'` — never re-invokes the RPC even when the ledger is missing
+- The force-activate endpoint's docstring claimed it inserts financial_ledger but the code never did
+- The team already had a backfill-financial-ledger endpoint as a manual workaround, but the underlying RPC kept creating new orphans
+
+Fixes applied:
+1. NEW migration v85_fix_financial_ledger_recording.sql:
+   - Replaces `activate_subscription_after_payment` with a version where both idempotency paths fall through to a reconciliation block
+   - "Order already paid" path: sets a flag, does NOT RETURN
+   - "Payment unique_violation" path: fetches the existing payment_id, does NOT RETURN
+   - Ledger INSERT block runs on EVERY invocation with SELECT EXISTS pre-check + ON CONFLICT (payment_id) DO NOTHING — doubly idempotent
+   - Returns `{success, already_paid, already_processed, ledger_reconciled}` for monitoring
+   - Backward compatible — same signature, same GRANT, existing paid orders with ledger rows unaffected
+
+2. force-activate endpoint (admin/orders/[id]/force-activate/route.ts):
+   - Now captures the payment_id (was discarded before)
+   - New "3b" block: checks if financial_ledger row exists for the payment_id; if not, snapshots teacher_id + commission_rate + calculates platform_share/teacher_share and INSERTs the row
+   - Mirrors the backfill-financial-ledger endpoint's logic exactly
+   - actions[] now reports "financial_ledger record inserted" or "already exists"
+
+3. webhook handler (payment/webhook/route.ts):
+   - Single-order path (line 562+): when o.status === 'paid', now checks financial_ledger existence before short-circuiting. If missing, logs PAID_BUT_NO_LEDGER and falls through to re-invoke the RPC (which post-v85 will reconcile the ledger)
+   - Multi-session path (line 356+): same check added — checks ledger before pushing already_paid=true result
+   - Logs PAID_BUT_NO_LEDGER at warn level so admin can audit recovery
+
+Operator action required:
+- Run migration v85 in Supabase SQL editor
+- After migration, hit `POST /api/admin/backfill-financial-ledger` ONCE to retrofit orphaned paid orders from before the fix
+
+Stage Summary:
+- Root cause: PL/pgSQL RETURN-in-EXCEPTION-block semantics + two missing fall-through paths
+- Fix: 3-layer — RPC (always reconcile), webhook (check before short-circuit), force-activate (insert ledger explicitly)
+- TypeScript: clean
+- Tests: same 416 pass / 5 env failures as before (no regression)

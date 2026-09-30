@@ -356,8 +356,31 @@ export async function POST(request: NextRequest) {
         for (const sessOrder of sessOrders) {
           // Idempotency check — skip if already paid
           if (sessOrder.status === 'paid') {
-            activationResults.push({ order_id: sessOrder.id, success: true, already_paid: true });
-            continue;
+            // P0 FIX: even if the order is already marked 'paid', the
+            // financial_ledger row may be missing if the previous RPC run
+            // crashed mid-function. Re-check existence before skipping.
+            const { data: existingLedger } = await supabaseServer
+              .from('financial_ledger')
+              .select('id')
+              .eq('order_id', sessOrder.id)
+              .maybeSingle();
+            if (existingLedger) {
+              activationResults.push({ order_id: sessOrder.id, success: true, already_paid: true });
+              continue;
+            }
+            // No ledger row — fall through to re-invoke the RPC. The
+            // post-v85 RPC is idempotent and will reconcile the ledger
+            // without double-charging.
+            logPaymentEvent({
+              level: 'warn',
+              operation: 'handleWebhook',
+              provider: webhookResult.provider,
+              orderId: sessOrder.id,
+              success: true,
+              errorCode: 'PAID_BUT_NO_LEDGER',
+              message: `Session order is paid but financial_ledger row is missing — re-invoking RPC to reconcile`,
+              durationMs: Date.now() - startTime,
+            });
           }
 
           // C12 — Cancelled-Order Race Recovery
@@ -563,17 +586,43 @@ export async function POST(request: NextRequest) {
   if (webhookResult.status === 'paid') {
     // Check if already paid (idempotency — the RPC handles this too)
     if (o.status === 'paid') {
+      // P0 FIX: even if the order is already marked 'paid', the
+      // financial_ledger row may be missing if the previous RPC run
+      // crashed mid-function (the v78 RPC had RETURN-before-ledger
+      // bugs). Re-invoke the RPC to reconcile the ledger — after the
+      // v85 migration, the RPC is idempotent and will only INSERT the
+      // missing row (ON CONFLICT DO NOTHING), no double-charge.
+      const { data: existingLedger } = await supabaseServer
+        .from('financial_ledger')
+        .select('id')
+        .eq('order_id', o.id)
+        .maybeSingle();
+      if (existingLedger) {
+        // Ledger exists — true idempotent path
+        logPaymentEvent({
+          level: 'info',
+          operation: 'handleWebhook',
+          provider: webhookResult.provider,
+          orderId: o.id,
+          success: true,
+          errorCode: 'ALREADY_PAID',
+          message: 'Order already paid + ledger exists — idempotent success',
+          durationMs: Date.now() - startTime,
+        });
+        return NextResponse.json({ ok: true, already_paid: true });
+      }
+      // No ledger row → fall through to re-invoke the RPC. The RPC
+      // (post-v85) will reconcile the ledger without double-charging.
       logPaymentEvent({
-        level: 'info',
+        level: 'warn',
         operation: 'handleWebhook',
         provider: webhookResult.provider,
         orderId: o.id,
         success: true,
-        errorCode: 'ALREADY_PAID',
-        message: 'Order already paid — idempotent success',
+        errorCode: 'PAID_BUT_NO_LEDGER',
+        message: 'Order is paid but financial_ledger row is missing — re-invoking RPC to reconcile',
         durationMs: Date.now() - startTime,
       });
-      return NextResponse.json({ ok: true, already_paid: true });
     }
 
     // Call the existing RPC — atomic + idempotent

@@ -108,6 +108,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   // 3. Insert payment record (if not exists for this order)
+  let paymentId: string | null = null;
   const { data: existingPayment } = await supabaseServer
     .from('payments')
     .select('id, provider_payment_id')
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .maybeSingle();
 
   if (!existingPayment) {
-    const { error: payErr } = await supabaseServer
+    const { data: newPayment, error: payErr } = await supabaseServer
       .from('payments')
       .insert({
         order_id: orderId,
@@ -130,16 +131,88 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           reason: 'Manual force-activation by admin (bypassing RPC)',
         },
         confirmed_by: adminId,
-      });
+      })
+      .select('id')
+      .single();
     if (payErr) {
       console.error('[force-activate:debug] failed to insert payment record', payErr);
       // Continue — payment record is not critical for the student to see the course
       actions.push(`payment record insert FAILED: ${payErr.message}`);
     } else {
+      paymentId = (newPayment as { id: string }).id;
       actions.push('payment record inserted');
     }
   } else {
+    paymentId = (existingPayment as { id: string }).id;
     actions.push('payment record already exists');
+  }
+
+  // 3b. Insert financial_ledger record (P0 FIX — was missing in v78/v84 force-activate)
+  // The original docstring claimed this step existed (line 16: "Inserts a
+  // financial_ledger record") but the code never did. Every force-activate
+  // produced a paid order with no revenue record. This block mirrors the
+  // backfill-financial-ledger endpoint's logic.
+  if (paymentId) {
+    const { data: existingLedger } = await supabaseServer
+      .from('financial_ledger')
+      .select('id')
+      .eq('payment_id', paymentId)
+      .maybeSingle();
+
+    if (!existingLedger) {
+      // Snapshot teacher_id from subjects table
+      const { data: subjectRow } = await supabaseServer
+        .from('subjects')
+        .select('teacher_id')
+        .eq('id', o.subject_id)
+        .maybeSingle();
+      const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id
+        ?? '00000000-0000-0000-0000-000000000000';
+
+      // Snapshot commission rate (active rate at force-activate time)
+      const { data: commissionRow } = await supabaseServer
+        .from('commission_rates')
+        .select('rate_percentage')
+        .eq('is_active', true)
+        .order('effective_from', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+
+      // Financial calculations (NUMERIC — no floating-point)
+      const grossAmount = Number(o.amount);
+      const platformShare = Math.round(grossAmount * commissionRate) / 100;
+      const teacherShare = grossAmount - platformShare;
+
+      const { error: ledgerErr } = await supabaseServer
+        .from('financial_ledger')
+        .insert({
+          payment_id: paymentId,
+          order_id: orderId,
+          student_id: o.student_id,
+          subject_id: o.subject_id,
+          teacher_id: teacherId,
+          gateway_id: o.gateway_id,
+          provider_payment_id: manualPaymentId,
+          currency: o.currency,
+          gross_amount: grossAmount,
+          platform_share: platformShare,
+          teacher_share: teacherShare,
+          gateway_fee: 0,
+          net_amount: teacherShare,
+          commission_rate: commissionRate,
+          status: 'paid',
+        });
+
+      if (ledgerErr) {
+        console.error('[force-activate:debug] failed to insert financial_ledger', ledgerErr);
+        actions.push(`financial_ledger insert FAILED: ${ledgerErr.message}`);
+      } else {
+        actions.push('financial_ledger record inserted');
+      }
+    } else {
+      actions.push('financial_ledger record already exists');
+    }
   }
 
   // 4. UPSERT subject_students enrollment (status='approved')
