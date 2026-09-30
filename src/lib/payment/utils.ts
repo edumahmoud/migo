@@ -77,7 +77,7 @@ export function parsePaymentCode(code: string): string | null {
  *
  * This is used by the settle + deliver-payment endpoints as the
  * `provider_reference` on the `teacher_payouts` record. It's
- * searchable via GET /api/admin/transactions/search?code=TX-xxx
+ * searchable via GET /api/transactions/search?code=TX-xxx
  *
  * @returns  A transaction code like "TX-20260930-A1B2"
  */

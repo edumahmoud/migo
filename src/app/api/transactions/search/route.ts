@@ -5,12 +5,17 @@ import { parseTransactionCode } from '@/lib/payment/utils';
 import { escapePostgrestIlike } from '@/lib/api-security';
 
 /**
- * GET /api/admin/transactions/search?code=TX-20260930-A1B2
+ * GET /api/transactions/search?code=TX-20260930-A1B2
  *
  * Search for a payout/transaction by its code.
  * Available to ALL authenticated users (student/teacher/agent/admin)
  * — RLS-equivalent filtering ensures users only see transactions
  * they have access to.
+ *
+ * S5 RENAME (v86+): this endpoint used to live under /api/admin/
+ * but was open to all authenticated users, which made the path
+ * misleading. It's now at /api/transactions/search to match its
+ * actual access semantics.
  *
  * The code is stored in `teacher_payouts.provider_reference` OR
  * `teacher_payouts.internal_reference`. This endpoint searches both.

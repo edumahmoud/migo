@@ -220,6 +220,92 @@ export default function AdminTeachersSection() {
   //   Sheet 2: All financial_ledger entries for this teacher (filtered by status=paid|settled)
   const [exportingTeacherId, setExportingTeacherId] = useState<string | null>(null);
   const [exportingAll, setExportingAll] = useState(false);
+  // G3 — bulk settle: per-row checkbox + bulk settle action
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
+  const [bulkSettling, setBulkSettling] = useState(false);
+
+  const toggleTeacherSelection = (teacherId: string) => {
+    setSelectedTeacherIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(teacherId)) {
+        next.delete(teacherId);
+      } else {
+        next.add(teacherId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedTeacherIds((prev) => {
+      // If all currently-visible teachers are already selected, clear.
+      // Otherwise, select all currently-visible teachers.
+      const allVisibleIds = teachers.map((t) => t.id);
+      const allSelected = allVisibleIds.every((id) => prev.has(id));
+      if (allSelected) {
+        const next = new Set(prev);
+        for (const id of allVisibleIds) next.delete(id);
+        return next;
+      } else {
+        const next = new Set(prev);
+        for (const id of allVisibleIds) next.add(id);
+        return next;
+      }
+    });
+  };
+
+  const handleBulkSettle = async () => {
+    if (bulkSettling) return;
+    if (selectedTeacherIds.size === 0) {
+      toast.error('لم يتم اختيار أي معلم');
+      return;
+    }
+
+    // Build the settlements payload — one entry per selected teacher,
+    // settling their full available pending balance.
+    const settlements = teachers
+      .filter((t) => selectedTeacherIds.has(t.id) && Number(t.total_pending ?? 0) > 0)
+      .map((t) => ({
+        teacher_id: t.id,
+        amount: Number(t.total_pending ?? 0),
+      }));
+
+    if (settlements.length === 0) {
+      toast.error('لا توجد مبالغ متاحة للتسوية للمعلمين المحددين');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `تأكيد التسوية الجماعية لـ ${settlements.length} معلم بإجمالي ` +
+      `${settlements.reduce((s, x) => s + x.amount, 0).toFixed(2)} EGP؟`
+    );
+    if (!confirmed) return;
+
+    setBulkSettling(true);
+    try {
+      const res = await fetch(`/api/admin/teachers/bulk-settle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ settlements }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const { succeeded, failed, total_settled } = json.summary;
+        toast.success(
+          `تمت تسوية ${succeeded}/${succeeded + failed} معلم بإجمالي ${Number(total_settled).toFixed(2)} EGP`
+        );
+        setSelectedTeacherIds(new Set()); // clear selection
+        await fetchTeachers(); // refresh list
+      } else {
+        toast.error(json.error || 'فشلت التسوية الجماعية');
+      }
+    } catch (err) {
+      console.error('[bulk-settle] failed', err);
+      toast.error('حدث خطأ غير متوقع أثناء التسوية الجماعية');
+    } finally {
+      setBulkSettling(false);
+    }
+  };
 
   const handleExportTeacher = async (teacher: TeacherRow) => {
     setExportingTeacherId(teacher.id);
@@ -367,7 +453,7 @@ export default function AdminTeachersSection() {
         </p>
       </div>
 
-      {/* Search bar + Export all */}
+      {/* Search bar + Export all + Bulk settle (G3) */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute h-4 w-4 text-muted-foreground ms-2 mt-2.5" />
@@ -393,6 +479,22 @@ export default function AdminTeachersSection() {
             <FileSpreadsheet className="h-4 w-4" />
           )}
           تصدير الكل (Excel)
+        </Button>
+        {/* G3 — bulk settle */}
+        <Button
+          size="sm"
+          variant="default"
+          className="h-9 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+          onClick={handleBulkSettle}
+          disabled={bulkSettling || selectedTeacherIds.size === 0}
+          title="تسوية المبالغ المتاحة لكل المعلمين المحددين"
+        >
+          {bulkSettling ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <HandCoins className="h-4 w-4" />
+          )}
+          تسوية المحدد ({selectedTeacherIds.size})
         </Button>
       </div>
 
@@ -427,6 +529,20 @@ export default function AdminTeachersSection() {
                 <table className="w-full text-sm">
                   <thead className="border-b bg-muted/30">
                     <tr className="text-end">
+                      <th className="p-3 text-center font-medium w-10">
+                        {/* G3 — select-all checkbox */}
+                        <input
+                          type="checkbox"
+                          aria-label="تحديد كل معلمي الصفحة"
+                          checked={
+                            teachers.length > 0 &&
+                            teachers.every((t) => selectedTeacherIds.has(t.id))
+                          }
+                          onChange={toggleSelectAllOnPage}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 cursor-pointer accent-emerald-600"
+                        />
+                      </th>
                       <th className="p-3 text-start font-medium">{t('common.name')}</th>
                       <th className="p-3 text-start font-medium">{t('common.email')}</th>
                       <th className="p-3 text-start font-medium">{t('common.status')}</th>
@@ -442,9 +558,19 @@ export default function AdminTeachersSection() {
                     {teachers.map((teacher) => (
                       <tr
                         key={teacher.id}
-                        className="border-b hover:bg-muted/20 cursor-pointer transition-colors"
+                        className={`border-b hover:bg-muted/20 cursor-pointer transition-colors ${selectedTeacherIds.has(teacher.id) ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}
                         onClick={() => fetchTeacherDetail(teacher.id)}
                       >
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {/* G3 — per-row checkbox */}
+                          <input
+                            type="checkbox"
+                            aria-label={`تحديد ${teacher.name}`}
+                            checked={selectedTeacherIds.has(teacher.id)}
+                            onChange={() => toggleTeacherSelection(teacher.id)}
+                            className="h-4 w-4 cursor-pointer accent-emerald-600"
+                          />
+                        </td>
                         <td className="p-3 text-start font-medium truncate max-w-[150px]">{teacher.name}</td>
                         <td className="p-3 text-start text-xs text-muted-foreground truncate max-w-[180px]">{teacher.email}</td>
                         <td className="p-3 text-center">

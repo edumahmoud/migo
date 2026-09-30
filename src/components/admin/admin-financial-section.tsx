@@ -46,6 +46,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  FileDown,
 } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -769,21 +770,34 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                         <TableCell className="text-center">
                           {/* Refund button (G2) — only for paid/settled rows */}
                           {(row.status === 'paid' || row.status === 'settled') ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 gap-1 text-xs text-rose-600 hover:bg-rose-50"
-                              disabled={refundingId === row.id}
-                              onClick={() => handleRefund(row)}
-                              title="استرداد"
-                            >
-                              {refundingId === row.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <RotateCcw className="h-3 w-3" />
-                              )}
-                              استرداد
-                            </Button>
+                            <div className="flex items-center gap-1 justify-center">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 gap-1 text-xs text-rose-600 hover:bg-rose-50"
+                                disabled={refundingId === row.id}
+                                onClick={() => handleRefund(row)}
+                                title="استرداد"
+                              >
+                                {refundingId === row.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-3 w-3" />
+                                )}
+                                استرداد
+                              </Button>
+                              {/* G5 — download PDF receipt */}
+                              <a
+                                href={`/api/admin/financial-ledger/${row.id}/receipt`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 h-7 px-2 text-xs text-sky-700 hover:bg-sky-50 rounded-md"
+                                title="تحميل إيصال PDF"
+                              >
+                                <FileDown className="h-3 w-3" />
+                                PDF
+                              </a>
+                            </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}

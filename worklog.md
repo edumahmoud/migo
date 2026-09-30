@@ -331,3 +331,84 @@ Stage Summary:
 - Fix: 3-layer — RPC (always reconcile), webhook (check before short-circuit), force-activate (insert ledger explicitly)
 - TypeScript: clean
 - Tests: same 416 pass / 5 env failures as before (no regression)
+
+---
+Task ID: v86+plan-batch
+Agent: main
+Task: Execute remaining plan items + v86 auto-backfill (root fix for the "money not recorded" complaint)
+
+Diagnosis (user feedback):
+- User asked: "Do I have to manually hit /api/admin/backfill-financial-ledger every time?"
+- Answer: NO. v85 fixes the future (new orphans won't be created). The
+  backfill endpoint was only for retrofitting historical orphans. To
+  remove the manual step entirely, this batch adds v86 — an auto-backfill
+  SQL migration that retrofits orphaned paid orders as part of the
+  migration itself. No manual endpoint call needed.
+
+Items implemented in this batch:
+- v86: Auto-backfill SQL migration (2 passes: payments + financial_ledger)
+- G8: 6 missing translation keys in ar.json + en.json (common.of,
+  common.page, common.phone, common.status, subjects.subjects,
+  admin.showTransferDetails)
+- S5: Moved /api/admin/transactions/search → /api/transactions/search
+  (the endpoint is open to all authenticated users, not admin-only —
+  the path was misleading for security reviewers). Updated docstring
+  in route.ts and a comment in payment/utils.ts.
+- G7: New endpoint /api/admin/payment-gateways/[id]/test-webhook-signature
+  Tests the Paymob HMAC verification pipeline end-to-end WITHOUT a
+  real payment. Generates a synthetic Paymob callback, signs it with
+  the gateway's stored HMAC secret, runs verifyPaymobHmac(), and
+  confirms a tampered payload is rejected. No secrets exposed.
+- G3: Bulk settle for multiple teachers.
+  - NEW endpoint POST /api/admin/teachers/bulk-settle (admin-only,
+    idempotent, cap 50 teachers/call, sends payout notifications)
+  - UI: per-row checkbox + select-all-on-page checkbox + "Settle
+    Selected (N)" button in admin-teachers-section.tsx. Confirm
+    dialog shows count + total amount.
+- D3: Grouped analytics endpoint /api/admin/financial-ledger/grouped
+  Supports group_by=teacher|subject|gateway|currency with from/to
+  date filters + status filter. Returns per-group aggregates
+  (gross, platform_share, teacher_share, transaction_count,
+  unique_students, unique_subjects). Updated the deferred test in
+  route.test.ts to verify the endpoint exists.
+- D1: Real Paymob disbursement adapter (replaced the placeholder).
+  - Reads creds from PAYMOB_DISBURSEMENT_API_KEY +
+    PAYMOB_DISBURSEMENT_BASE_URL env vars
+  - Calls Paymob's /v1/disbursements endpoint with Idempotency-Key
+    header
+  - Maps Paymob status strings → PayoutExecutionStatus (completed /
+    accepted / failed)
+  - Implements both executePayout AND queryPayoutStatus (D4)
+  - Logs all operations via logPaymentEvent (no secrets leaked)
+  - If creds are missing → throws PayoutExecutionRejectedError with
+    a clear "not configured" message (no fake success)
+- D4: queryPayoutStatus implemented in the same adapter (above).
+- G5: PDF receipts for students + teachers + admin.
+  - NEW dependency: pdf-lib (added to package.json)
+  - NEW module src/lib/pdf/receipt.ts: buildReceiptPdf() generates
+    an A4 PDF with header band, metadata, parties, line items, and
+    totals.
+  - NEW endpoint GET /api/admin/financial-ledger/[id]/receipt
+    (admin-only; one PDF per ledger row; shows student + teacher +
+    subject + shares)
+  - NEW endpoint GET /api/student/orders/[id]/receipt
+    (student-only ownership check; shows the order + linked ledger
+    data; refuses unpaid orders)
+  - NEW endpoint GET /api/teacher/payouts/[id]/receipt
+    (teacher-only ownership check; shows the payout + linked ledger
+    entries as line items; refuses non-completed payouts)
+  - UI: "PDF" download button added next to the Refund button in
+    admin-financial-section.tsx (each paid/settled row).
+
+Stage Summary:
+- The user's complaint about manual backfill is now solved PERMANENTLY:
+  v86 auto-backfills as part of the migration. No manual endpoint call
+  needed after applying v86.
+- All P2 + P3 plan items implemented. P1 (D4) was implemented as part
+  of D1 since the adapter now exposes both executePayout + queryStatus.
+- Tests: same 416 pass / 5 env failures as before (no regression).
+- TypeScript: clean.
+- New endpoints: 5 (transactions/search moved + test-webhook-signature
+  + bulk-settle + grouped + 3 receipt endpoints)
+- New migrations: 1 (v86)
+- New dependencies: 1 (pdf-lib)

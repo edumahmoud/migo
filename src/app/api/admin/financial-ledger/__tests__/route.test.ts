@@ -347,9 +347,25 @@ describe('Phase 12 — Admin Financial Ledger API invariants', () => {
     expect(true).toBe(true);
   });
 
-  it('no group_by query param — grouped analytics are deferred to a later phase', () => {
-    // Per spec: no group_by=teacher|subject|gateway in Phase 12.
-    expect(true).toBe(true);
+  it('grouped analytics are now available at /api/admin/financial-ledger/grouped', () => {
+    // D3 — grouped analytics were previously deferred. They are now
+    // implemented as a SEPARATE endpoint to keep the main ledger
+    // endpoint focused on paginated row data. The grouped endpoint
+    // supports group_by=teacher|subject|gateway|currency and returns
+    // per-group aggregates (gross, platform_share, teacher_share,
+    // transaction_count, unique_students, unique_subjects).
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', 'grouped', 'route.ts'),
+      'utf8',
+    );
+    // The code maps group_by=teacher → groupBy variable === 'teacher'
+    expect(source).toContain("groupBy === 'teacher'");
+    expect(source).toContain("groupBy === 'subject'");
+    expect(source).toContain("groupBy === 'gateway'");
+    expect(source).toContain("groupBy === 'currency'");
+    expect(source).toContain('requireAdmin');
   });
 
   it('no mutation routes exposed — read-only behavior', () => {

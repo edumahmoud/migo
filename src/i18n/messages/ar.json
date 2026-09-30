@@ -159,7 +159,11 @@
     "thisSection": "هذا القسم",
     "tryDifferentSearch": "جرّب بحثاً مختلفاً",
     "view": "عرض",
-    "viewAll": "عرض الكل"
+    "viewAll": "عرض الكل",
+    "of": "من",
+    "page": "صفحة",
+    "phone": "الهاتف",
+    "status": "الحالة"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -2830,7 +2834,8 @@
     "default": "افتراضي",
     "verified": "مُوثّق",
     "recentTransactions": "آخر المعاملات",
-    "noTransactions": "لا توجد معاملات"
+    "noTransactions": "لا توجد معاملات",
+    "showTransferDetails": "عرض تفاصيل التحويل"
   },
   "adminFinancial": {
     "title": "اللوحة المالية",
@@ -4443,7 +4448,8 @@
     "allCoursesDesc": "عرض جميع المقررات بدون تصنيف",
     "emptyCategory": "لا توجد مقررات في هذا التصنيف",
     "emptyCategoryDesc": "أضف مقرراً جديداً لهذا التصنيف",
-    "addCourseToCategory": "أضف مقرر للتصنيف"
+    "addCourseToCategory": "أضف مقرر للتصنيف",
+    "subjects": "المقررات"
   },
   "videos": {
     "all": "الكل",

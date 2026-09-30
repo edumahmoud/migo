@@ -57,12 +57,19 @@ describe('PaymentService', () => {
       'utf8'
     );
 
+    // Strip comments (/* ... */ and // ...) so the test only checks
+    // executable code. Comments at the top of service.ts mention
+    // "if (provider === 'paymob')" as a safety contract — that's fine.
+    const codeOnly = serviceSource
+      .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
+      .replace(/^\s*\/\/.*$/gm, '');      // line comments
+
     // Check for provider-specific branching patterns
-    expect(serviceSource).not.toContain("=== 'paymob'");
-    expect(serviceSource).not.toContain("=== 'fawry'");
-    expect(serviceSource).not.toContain("=== 'stripe'");
-    expect(serviceSource).not.toContain("provider === '");
-    expect(serviceSource).not.toContain("switch (provider)");
+    expect(codeOnly).not.toContain("=== 'paymob'");
+    expect(codeOnly).not.toContain("=== 'fawry'");
+    expect(codeOnly).not.toContain("=== 'stripe'");
+    expect(codeOnly).not.toContain("provider === '");
+    expect(codeOnly).not.toContain("switch (provider)");
   });
 
   test('PaymentService source does NOT import any provider adapter', () => {
@@ -184,9 +191,17 @@ describe('Adapter isolation', () => {
       'utf8'
     );
 
-    expect(adapterSource).not.toContain('activateSubscription');
-    expect(adapterSource).not.toContain('activate_subscription');
-    expect(adapterSource).not.toContain('subject_students');
-    expect(adapterSource).not.toContain('updateOrderStatus');
+    // Strip comments — the file's header comment mentions
+    // "activate_subscription_after_payment" as a safety contract (what
+    // the adapter must NOT do). That comment should not trigger the
+    // substring check.
+    const codeOnly = adapterSource
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+    expect(codeOnly).not.toContain('activateSubscription');
+    expect(codeOnly).not.toContain('activate_subscription');
+    expect(codeOnly).not.toContain('subject_students');
+    expect(codeOnly).not.toContain('updateOrderStatus');
   });
 });

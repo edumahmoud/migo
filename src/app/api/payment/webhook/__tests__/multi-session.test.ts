@@ -113,16 +113,27 @@ let currentSessionOrders: Array<Record<string, unknown>> = [
 ];
 
 // Build a chainable mock that:
-//   - When .maybeSingle() is called → returns Promise<{ data: null, error: null }>
-//   - When awaited directly (without .maybeSingle()) → returns Promise<{ data: currentSessionOrders, error: null }>
-function buildChain() {
-  // The chain returns a thenable. When awaited without .maybeSingle(),
-  // it resolves to the session orders. When .maybeSingle() is called,
-  // it returns a different Promise that resolves to null.
+//   - When .maybeSingle() is called → returns Promise<{ data, error }>
+//     The data depends on which table the chain was opened for:
+//     - financial_ledger → returns { id: 'mock-ledger-id' } (truthy —
+//       simulates that the ledger row exists, so the webhook's
+//       PAID_BUT_NO_LEDGER reconciliation path is NOT triggered)
+//     - otherwise → returns null (matches the original mock behavior
+//       for orders lookups via .maybeSingle())
+//   - When awaited directly (without .maybeSingle()) → returns
+//     Promise<{ data: currentSessionOrders, error: null }>
+function buildChain(table?: string) {
   let chain: Record<string, unknown>;
 
   // The "session lookup" result (when awaited directly)
   const sessionResult = { data: currentSessionOrders, error: null };
+
+  // For .maybeSingle() on the financial_ledger table, return a
+  // truthy mock so the webhook's PAID_BUT_NO_LEDGER check finds an
+  // existing ledger row and short-circuits correctly.
+  const maybeSingleResult = table === 'financial_ledger'
+    ? { data: { id: 'mock-ledger-id' }, error: null }
+    : { data: null, error: null };
 
   chain = {
     select: () => chain,
@@ -134,9 +145,9 @@ function buildChain() {
     limit: () => chain,
     update: () => chain,
     insert: () => chain,
-    // .maybeSingle() returns a Promise (NOT thenable) → single-order lookup → null
-    maybeSingle: async () => ({ data: null, error: null }),
-    single: async () => ({ data: null, error: null }),
+    // .maybeSingle() returns a Promise (NOT thenable) → single-order lookup
+    maybeSingle: async () => maybeSingleResult,
+    single: async () => maybeSingleResult,
     // Make the chain itself thenable → when awaited without .maybeSingle(),
     // resolves to the session orders array
     then: (resolve: (v: unknown) => void, _reject?: (v: unknown) => void) => {
@@ -147,8 +158,8 @@ function buildChain() {
 }
 
 const mockSupabaseServer = {
-  from: mock(function (_table: string) {
-    return buildChain();
+  from: mock(function (table: string) {
+    return buildChain(table);
   }),
   rpc: mock(async function (_fn: string, params: Record<string, unknown>) {
     rpcCalls.push({

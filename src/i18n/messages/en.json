@@ -159,7 +159,11 @@
     "thisSection": "This Section",
     "tryDifferentSearch": "Try a different search",
     "view": "View",
-    "viewAll": "View All"
+    "viewAll": "View All",
+    "of": "of",
+    "page": "Page",
+    "phone": "Phone",
+    "status": "Status"
   },
   "auth": {
     "login": "Login",
@@ -2829,7 +2833,8 @@
     "default": "Default",
     "verified": "Verified",
     "recentTransactions": "Recent Transactions",
-    "noTransactions": "No transactions"
+    "noTransactions": "No transactions",
+    "showTransferDetails": "Show transfer details"
   },
   "adminFinancial": {
     "title": "Financial Dashboard",
@@ -4442,7 +4447,8 @@
     "allCoursesDesc": "View all courses without filtering",
     "emptyCategory": "No courses in this category",
     "emptyCategoryDesc": "Add a new course to this category",
-    "addCourseToCategory": "Add Course to Category"
+    "addCourseToCategory": "Add Course to Category",
+    "subjects": "Subjects"
   },
   "videos": {
     "all": "All",
