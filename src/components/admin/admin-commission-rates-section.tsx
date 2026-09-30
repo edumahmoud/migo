@@ -178,7 +178,7 @@ export default function AdminCommissionRatesSection() {
               className="text-end pe-8"
               disabled={submitting}
             />
-            <span className="absolute end-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+            <span className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
           </div>
           <Button
             onClick={handleCreate}

@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { DollarSign, Wallet, Users, CreditCard, Percent, Calendar } from 'lucide-react';
+import { DollarSign, Wallet, Users, CreditCard, Percent, Calendar, Receipt } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,9 +26,10 @@ import AdminTeachersSection from '@/components/admin/admin-teachers-section';
 import PaymentGatewaysSection from '@/components/admin/payment-gateways-section';
 import AdminCommissionRatesSection from '@/components/admin/admin-commission-rates-section';
 import AdminFinancialBreakdownSection from '@/components/admin/admin-financial-breakdown-section';
+import AdminFeeCatalogSection from '@/components/admin/admin-fee-catalog-section';
 import type { UserProfile } from '@/lib/types';
 
-type FinancialTab = 'dashboard' | 'payouts' | 'teachers' | 'gateways' | 'commission' | 'breakdown';
+type FinancialTab = 'dashboard' | 'breakdown' | 'payouts' | 'teachers' | 'gateways' | 'commission' | 'breakdown' | 'fees';
 
 interface Props {
   profile: UserProfile;
@@ -42,7 +43,7 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
   // Restore tab from URL hash on mount
   useEffect(() => {
     const hash = window.location.hash.replace('#financial-', '');
-    if (['dashboard', 'payouts', 'teachers', 'gateways', 'commission', 'breakdown'].includes(hash)) {
+    if (['dashboard', 'payouts', 'teachers', 'gateways', 'commission', 'breakdown', 'fees'].includes(hash)) {
       setActiveTab(hash as FinancialTab);
     }
   }, []);
@@ -53,6 +54,7 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
     { id: 'payouts', label: 'المدفوعات', icon: CreditCard },
     { id: 'teachers', label: 'حسابات المعلمين', icon: Users },
     { id: 'commission', label: 'نسبة العمولة', icon: Percent },
+    { id: 'fees', label: 'الرسوم', icon: Receipt },
     { id: 'gateways', label: 'بوابات الدفع', icon: Wallet, superadminOnly: true },
   ];
 
@@ -90,6 +92,7 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
         {activeTab === 'payouts' && <AdminPayoutsSection />}
         {activeTab === 'teachers' && <AdminTeachersSection />}
         {activeTab === 'commission' && <AdminCommissionRatesSection />}
+        {activeTab === 'fees' && <AdminFeeCatalogSection />}
         {activeTab === 'gateways' && isSuperadmin && <PaymentGatewaysSection />}
       </div>
     </div>
