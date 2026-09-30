@@ -1,11 +1,29 @@
 'use client';
 
+/**
+ * Admin Fee Catalog Section — v88 fees-on-top model
+ *
+ * Simple, clean UI for managing the fee catalog. Each fee is one row
+ * in the table — no example calculation preview, no separate create
+ * form modal — the create form is inline at the top.
+ *
+ * Each fee has:
+ *   - code (immutable, lowercase slug — e.g. 'platform_commission', 'tax')
+ *   - name_ar + name_en (display name in both languages)
+ *   - fee_kind ('percentage' | 'flat')
+ *   - value (0-100 for percentage, any positive EGP for flat)
+ *   - is_active (toggle)
+ *   - sort_order (display order)
+ *
+ * Actions per row: edit / activate / deactivate / delete (with guard).
+ */
+
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, Percent, Banknote, Power, PowerOff, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Plus, Percent, Banknote, Power, PowerOff, Trash2, Pencil, Receipt, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
@@ -50,6 +68,7 @@ export default function AdminFeeCatalogSection() {
   const [fees, setFees] = useState<FeeCatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<NewFeeForm>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -74,10 +93,16 @@ export default function AdminFeeCatalogSection() {
 
   useEffect(() => { fetchFees(); }, [fetchFees]);
 
+  const resetForm = () => {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowCreate(false);
+  };
+
   const handleCreate = async () => {
     if (submitting) return;
     if (!form.code || !form.name_ar || !form.name_en || !form.value) {
-      toast.error('الكود + الاسم بالعربي + الاسم بالإنجليزي + القيمة كلها مطلوبة');
+      toast.error('كل الحقول المطلوبة لازم تتملى');
       return;
     }
     setSubmitting(true);
@@ -98,10 +123,44 @@ export default function AdminFeeCatalogSection() {
       const json = await res.json();
       if (json.success) {
         toast.success('تم إنشاء الرسوم بنجاح');
-        setForm(EMPTY_FORM);
+        resetForm();
         await fetchFees();
       } else {
         toast.error(json.error || 'فشل الإنشاء');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingId || submitting) return;
+    if (!form.value) {
+      toast.error('القيمة مطلوبة');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/fee-catalog/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({
+          name_ar: form.name_ar.trim() || undefined,
+          name_en: form.name_en.trim() || undefined,
+          description: form.description.trim() || null,
+          value: Number(form.value),
+          sort_order: Number(form.sort_order) || 0,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('تم التحديث');
+        resetForm();
+        await fetchFees();
+      } else {
+        toast.error(json.error || 'فشل التحديث');
       }
     } catch {
       toast.error('حدث خطأ غير متوقع');
@@ -139,7 +198,7 @@ export default function AdminFeeCatalogSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('تأكيد الحذف؟ لا يمكن التراجع.')) return;
+    if (!confirm('تأكيد الحذف؟ لا يمكن التراجع. الرسوم اللي اتمسحت مينفعش تتعرف على الطلبات القديمة (snapshot بيفضل موجود، لكن الرابط بينالهم ما بيتعدّلش).')) return;
     const res = await fetch(`/api/admin/fee-catalog/${id}`, {
       method: 'DELETE',
       headers: await getCachedAuthHeaders(),
@@ -153,39 +212,10 @@ export default function AdminFeeCatalogSection() {
     }
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingId || !form.value) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch(`/api/admin/fee-catalog/${editingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({
-          name_ar: form.name_ar.trim() || undefined,
-          name_en: form.name_en.trim() || undefined,
-          description: form.description.trim() || null,
-          value: Number(form.value),
-          sort_order: Number(form.sort_order) || 0,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        toast.success('تم التحديث');
-        setEditingId(null);
-        setForm(EMPTY_FORM);
-        await fetchFees();
-      } else {
-        toast.error(json.error || 'فشل التحديث');
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const startEdit = (fee: FeeCatalogRow) => {
     setEditingId(fee.id);
     setForm({
-      code: fee.code, // displayed but immutable
+      code: fee.code,
       name_ar: fee.name_ar,
       name_en: fee.name_en,
       description: fee.description ?? '',
@@ -193,182 +223,192 @@ export default function AdminFeeCatalogSection() {
       value: String(fee.value),
       sort_order: String(fee.sort_order),
     });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
+    setShowCreate(true);
   };
 
   return (
     <div className="space-y-4" dir={direction}>
-      <div>
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Banknote className="h-5 w-5 text-sky-600" />
-          كتالوج الرسوم (Fees-on-top)
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          الرسوم دي بتتضاف على إجمالي الاشتراكات + بتتحسب على الطالب وقت الدفع. المجموع الكلي (الإجمالي) هو اللي بيتعمل بوابة Paymob.
-        </p>
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Receipt className="h-5 w-5 text-sky-600" />
+            الرسوم
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            كل الرسوم المُعرّفة هنا بتتضاف على إجمالي الاشتراكات قبل ما الطالب يدفع.
+          </p>
+        </div>
+        {!showCreate && (
+          <Button
+            size="sm"
+            onClick={() => { resetForm(); setShowCreate(true); }}
+            className="bg-sky-600 hover:bg-sky-700 text-white gap-1"
+          >
+            <Plus className="h-4 w-4" />
+            إضافة رسوم
+          </Button>
+        )}
       </div>
 
-      {/* Create/Edit form */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            {editingId ? 'تعديل رسوم' : 'إضافة رسوم جديدة'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">الكود (إنجليزي، immutable)</label>
-              <Input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder="مثال: tax / processing_fee / custom_fee_1"
-                disabled={!!editingId || submitting}
-                className="text-start font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">الاسم بالعربي</label>
-              <Input
-                value={form.name_ar}
-                onChange={(e) => setForm({ ...form, name_ar: e.target.value })}
-                placeholder="مثال: ضريبة القيمة المضافة"
-                disabled={submitting}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">الاسم بالإنجليزي</label>
-              <Input
-                value={form.name_en}
-                onChange={(e) => setForm({ ...form, name_en: e.target.value })}
-                placeholder="e.g., VAT"
-                disabled={submitting}
-                dir="ltr"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">النوع</label>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={form.fee_kind === 'percentage' ? 'default' : 'outline'}
-                  className="h-9 gap-1"
-                  onClick={() => setForm({ ...form, fee_kind: 'percentage' })}
+      {/* Create/Edit form (collapsible) */}
+      {showCreate && (
+        <Card className="border-sky-200 dark:border-sky-900/40">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-base">
+              {editingId ? 'تعديل رسوم' : 'إضافة رسوم جديدة'}
+            </CardTitle>
+            <Button size="sm" variant="ghost" onClick={resetForm} disabled={submitting} className="h-7">
+              <X className="h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Code (immutable in edit mode) */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">الكود</label>
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  placeholder="tax / processing_fee"
                   disabled={!!editingId || submitting}
-                >
-                  <Percent className="h-3 w-3" />
-                  نسبة %
-                </Button>
-                <Button
-                  size="sm"
-                  variant={form.fee_kind === 'flat' ? 'default' : 'outline'}
-                  className="h-9 gap-1"
-                  onClick={() => setForm({ ...form, fee_kind: 'flat' })}
-                  disabled={!!editingId || submitting}
-                >
-                  <Banknote className="h-3 w-3" />
-                  مبلغ ثابت
-                </Button>
+                  className="text-start font-mono text-xs"
+                />
               </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">
-                القيمة {form.fee_kind === 'percentage' ? '(%)' : '(EGP)'}
-              </label>
-              {/* IMPORTANT: pointer-events-none on the suffix span so it doesn't
-                  intercept clicks on the input field. The previous commission
-                  rates UI had a bug where the % suffix ate clicks → input appeared
-                  to not accept values. */}
-              <div className="relative">
+
+              {/* Name (Arabic) */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">الاسم (عربي)</label>
+                <Input
+                  value={form.name_ar}
+                  onChange={(e) => setForm({ ...form, name_ar: e.target.value })}
+                  placeholder="ضريبة القيمة المضافة"
+                  disabled={submitting}
+                />
+              </div>
+
+              {/* Name (English) */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">الاسم (إنجليزي)</label>
+                <Input
+                  value={form.name_en}
+                  onChange={(e) => setForm({ ...form, name_en: e.target.value })}
+                  placeholder="VAT"
+                  disabled={submitting}
+                  dir="ltr"
+                />
+              </div>
+
+              {/* Fee kind toggle */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">النوع</label>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={form.fee_kind === 'percentage' ? 'default' : 'outline'}
+                    className="h-9 gap-1 flex-1"
+                    onClick={() => setForm({ ...form, fee_kind: 'percentage' })}
+                    disabled={!!editingId || submitting}
+                  >
+                    <Percent className="h-3 w-3" />
+                    نسبة %
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={form.fee_kind === 'flat' ? 'default' : 'outline'}
+                    className="h-9 gap-1 flex-1"
+                    onClick={() => setForm({ ...form, fee_kind: 'flat' })}
+                    disabled={!!editingId || submitting}
+                  >
+                    <Banknote className="h-3 w-3" />
+                    مبلغ
+                  </Button>
+                </div>
+              </div>
+
+              {/* Value */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">
+                  القيمة {form.fee_kind === 'percentage' ? '(%)' : '(EGP)'}
+                </label>
+                {/* IMPORTANT: pointer-events-none on the suffix span so it doesn't
+                    intercept clicks on the input field. */}
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    max={form.fee_kind === 'percentage' ? 100 : undefined}
+                    step="0.5"
+                    value={form.value}
+                    onChange={(e) => setForm({ ...form, value: e.target.value })}
+                    placeholder={form.fee_kind === 'percentage' ? '14' : '5'}
+                    disabled={submitting}
+                    className="text-end pe-10"
+                  />
+                  <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">
+                    {form.fee_kind === 'percentage' ? '%' : 'EGP'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Sort order */}
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">ترتيب العرض</label>
                 <Input
                   type="number"
                   min="0"
-                  max={form.fee_kind === 'percentage' ? 100 : undefined}
-                  step="0.5"
-                  value={form.value}
-                  onChange={(e) => setForm({ ...form, value: e.target.value })}
-                  placeholder={form.fee_kind === 'percentage' ? 'مثال: 14' : 'مثال: 5'}
+                  value={form.sort_order}
+                  onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
+                  placeholder="0"
                   disabled={submitting}
-                  className="text-end pe-8"
                 />
-                <span className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  {form.fee_kind === 'percentage' ? '%' : 'EGP'}
-                </span>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs text-muted-foreground">وصف اختياري</label>
+                <Input
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="ضريبة 14% — تحسب من إجمالي الاشتراكات"
+                  disabled={submitting}
+                />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">ترتيب العرض</label>
-              <Input
-                type="number"
-                min="0"
-                value={form.sort_order}
-                onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
-                placeholder="0"
-                disabled={submitting}
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">وصف اختياري</label>
-            <Input
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="مثال: ضريبة القيمة المضافة 14% — تُحسب من إجمالي الاشتراكات"
-              disabled={submitting}
-            />
-          </div>
-          <div className="flex gap-2">
-            {editingId ? (
-              <>
-                <Button
-                  onClick={handleSaveEdit}
-                  disabled={submitting || !form.value}
-                  className="bg-sky-600 hover:bg-sky-700 text-white gap-1"
-                >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  حفظ التعديل
-                </Button>
-                <Button onClick={cancelEdit} variant="outline" disabled={submitting}>
-                  إلغاء
-                </Button>
-              </>
-            ) : (
-              <Button
-                onClick={handleCreate}
-                disabled={submitting || !form.code || !form.name_ar || !form.name_en || !form.value}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-              >
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                إنشاء
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Fees list */}
+            <div className="flex gap-2 justify-end">
+              <Button onClick={resetForm} variant="outline" disabled={submitting}>
+                إلغاء
+              </Button>
+              <Button
+                onClick={editingId ? handleUpdate : handleCreate}
+                disabled={
+                  submitting ||
+                  (!editingId && (!form.code || !form.name_ar || !form.name_en || !form.value))
+                }
+                className="bg-sky-600 hover:bg-sky-700 text-white gap-1"
+              >
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {editingId ? 'حفظ التعديل' : 'إنشاء'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Fees table */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">الرسوم المُعرّفة</CardTitle>
-          {fees.length > 0 && (
-            <CardDescription className="text-xs">
-              {fees.length} رسوم — {fees.filter(f => f.is_active).length} مفعّلة
-            </CardDescription>
-          )}
-        </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : fees.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Banknote className="h-12 w-12 text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">لا توجد رسوم بعد. أنشئ أول رسوم فوق.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Receipt className="h-12 w-12 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                ما فيش رسوم بعد. اضغط "إضافة رسوم" لإنشاء أول واحدة.
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -386,29 +426,39 @@ export default function AdminFeeCatalogSection() {
                 <tbody>
                   {fees.map((fee) => (
                     <tr key={fee.id} className="border-b hover:bg-muted/20">
-                      <td className="p-3 font-mono text-xs text-sky-700">{fee.code}</td>
+                      <td className="p-3 font-mono text-xs text-sky-700 dark:text-sky-300">
+                        {fee.code}
+                      </td>
                       <td className="p-3">
                         <div className="font-medium">{fee.name_ar}</div>
                         <div className="text-xs text-muted-foreground" dir="ltr">{fee.name_en}</div>
                         {fee.description && (
-                          <div className="text-xs text-muted-foreground mt-0.5">{fee.description}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {fee.description}
+                          </div>
                         )}
                       </td>
                       <td className="p-3">
-                        <Badge variant="secondary" className="text-xs">
-                          {fee.fee_kind === 'percentage' ? '%' : 'EGP'}
-                          {' '}
-                          {fee.fee_kind === 'percentage' ? 'نسبة' : 'ثابت'}
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          {fee.fee_kind === 'percentage' ? <Percent className="h-3 w-3" /> : <Banknote className="h-3 w-3" />}
+                          {fee.fee_kind === 'percentage' ? 'نسبة' : 'مبلغ'}
                         </Badge>
                       </td>
                       <td className="p-3 text-end font-mono font-bold">
                         {Number(fee.value).toFixed(fee.fee_kind === 'percentage' ? 2 : 2)}
-                        {fee.fee_kind === 'percentage' ? '%' : ' EGP'}
+                        <span className="text-xs text-muted-foreground ms-1">
+                          {fee.fee_kind === 'percentage' ? '%' : 'EGP'}
+                        </span>
                       </td>
                       <td className="p-3 text-center">
-                        <Badge variant={fee.is_active ? 'default' : 'outline'} className="text-xs">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                          fee.is_active
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${fee.is_active ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
                           {fee.is_active ? 'مفعّل' : 'معطّل'}
-                        </Badge>
+                        </span>
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex items-center gap-1 justify-center">
@@ -459,32 +509,6 @@ export default function AdminFeeCatalogSection() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Example calculation preview */}
-      <Card className="bg-sky-50/50 dark:bg-sky-900/10">
-        <CardContent className="p-4">
-          <h3 className="text-sm font-semibold mb-2">مثال على الحساب</h3>
-          <p className="text-xs text-muted-foreground mb-2">
-            لو الطالب اشترك في مقرر بـ 100 EGP والرسوم المفعّلة هي:
-          </p>
-          <div className="text-xs font-mono space-y-1" dir="ltr">
-            <div>Subscriptions total:  100.00 EGP</div>
-            {fees.filter(f => f.is_active).map(f => (
-              <div key={f.id}>
-                {f.name_en} ({f.fee_kind === 'percentage' ? `${f.value}%` : `${f.value} EGP flat`}):
-                {' +'}{(f.fee_kind === 'percentage' ? 100 * f.value / 100 : f.value).toFixed(2)} EGP
-              </div>
-            ))}
-            <div className="border-t pt-1 mt-1">
-              Grand total (sent to Paymob):{' '}
-              {(100 + fees
-                .filter(f => f.is_active)
-                .reduce((sum, f) => sum + (f.fee_kind === 'percentage' ? 100 * f.value / 100 : f.value), 0)
-              ).toFixed(2)} EGP
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

@@ -7,63 +7,62 @@
 
 import { describe, test, expect } from 'bun:test';
 
-describe('Phase 9 — Commission Management API', () => {
-  test('commission-rates API has GET (list) + POST (create)', () => {
+describe('Phase 9 — Fee Catalog API (v88, replaces commission-rates)', () => {
+  test('fee-catalog API has GET (list) + POST (create)', () => {
     const fs = require('fs');
     const path = require('path');
     const source = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'commission-rates', 'route.ts'),
+      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'fee-catalog', 'route.ts'),
       'utf8',
     );
     expect(source).toContain('export async function GET');
     expect(source).toContain('export async function POST');
   });
 
-  test('POST creates new rate and deactivates old active one', () => {
+  test('POST creates new fee with code/name/kind/value validation', () => {
     const fs = require('fs');
     const path = require('path');
     const source = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'commission-rates', 'route.ts'),
+      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'fee-catalog', 'route.ts'),
       'utf8',
     );
-    // Must deactivate existing active rate before inserting new one
-    expect(source).toContain('.eq(\'is_active\', true)');
-    expect(source).toContain('is_active: false');
-    // Must insert new rate as active
+    expect(source).toContain('fee_kind');
+    expect(source).toContain('z.enum([\'percentage\', \'flat\'])');
+    expect(source).toContain('z.number().min(0)');
+  });
+
+  test('percentage value is validated server-side (max 100)', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'fee-catalog', 'route.ts'),
+      'utf8',
+    );
+    expect(source).toContain('> 100');
+    expect(source).toContain('fee_kind');
+  });
+
+  test('activate endpoint exists', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(
+      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'fee-catalog', '[id]', 'activate', 'route.ts'),
+      'utf8',
+    );
+    expect(source).toContain('export async function POST');
     expect(source).toContain('is_active: true');
   });
 
-  test('rate is validated server-side (0-100)', () => {
+  test('deactivate endpoint exists (refuses platform_commission)', () => {
     const fs = require('fs');
     const path = require('path');
     const source = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'commission-rates', 'route.ts'),
-      'utf8',
-    );
-    expect(source).toContain('z.number().min(0).max(100)');
-  });
-
-  test('activate endpoint deactivates others first', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'commission-rates', '[id]', 'activate', 'route.ts'),
-      'utf8',
-    );
-    expect(source).toContain('is_active: false');
-    expect(source).toContain('.neq(\'id\', id)');
-    expect(source).toContain('is_active: true');
-  });
-
-  test('deactivate endpoint exists', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'commission-rates', '[id]', 'deactivate', 'route.ts'),
+      path.join(__dirname, '..', '..', '..', 'app', 'api', 'admin', 'fee-catalog', '[id]', 'deactivate', 'route.ts'),
       'utf8',
     );
     expect(source).toContain('export async function POST');
     expect(source).toContain('is_active: false');
+    expect(source).toContain('platform_commission');
   });
 });
 
@@ -287,7 +286,7 @@ describe('Phase 9 — Scope Verification', () => {
     const fs = require('fs');
     const path = require('path');
     const files = [
-      'src/app/api/admin/commission-rates/route.ts',
+      'src/app/api/admin/fee-catalog/route.ts',
       'src/app/api/teacher/revenue/route.ts',
       'src/app/api/admin/financial-ledger/route.ts',
       'src/app/api/admin/financial-ledger/[id]/refund/route.ts',

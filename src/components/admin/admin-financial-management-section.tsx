@@ -11,11 +11,12 @@
  *   - Tab 1: اللوحة المالية (AdminFinancialSection)
  *   - Tab 2: المدفوعات (AdminPayoutsSection)
  *   - Tab 3: المعلمين (AdminTeachersSection)
- *   - Tab 4: بوابات الدفع (PaymentGatewaysSection) — superadmin only
+ *   - Tab 4: الرسوم (AdminFeeCatalogSection) — supersedes the old commission-rates tab
+ *   - Tab 5: بوابات الدفع (PaymentGatewaysSection) — superadmin only
  */
 
 import { useState, useEffect } from 'react';
-import { DollarSign, Wallet, Users, CreditCard, Percent, Calendar, Receipt } from 'lucide-react';
+import { DollarSign, Wallet, Users, CreditCard, Calendar, Receipt } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,12 +25,11 @@ import AdminFinancialSection from '@/components/admin/admin-financial-section';
 import AdminPayoutsSection from '@/components/admin/admin-payouts-section';
 import AdminTeachersSection from '@/components/admin/admin-teachers-section';
 import PaymentGatewaysSection from '@/components/admin/payment-gateways-section';
-import AdminCommissionRatesSection from '@/components/admin/admin-commission-rates-section';
 import AdminFinancialBreakdownSection from '@/components/admin/admin-financial-breakdown-section';
 import AdminFeeCatalogSection from '@/components/admin/admin-fee-catalog-section';
 import type { UserProfile } from '@/lib/types';
 
-type FinancialTab = 'dashboard' | 'breakdown' | 'payouts' | 'teachers' | 'gateways' | 'commission' | 'breakdown' | 'fees';
+type FinancialTab = 'dashboard' | 'breakdown' | 'payouts' | 'teachers' | 'fees' | 'gateways';
 
 interface Props {
   profile: UserProfile;
@@ -43,7 +43,7 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
   // Restore tab from URL hash on mount
   useEffect(() => {
     const hash = window.location.hash.replace('#financial-', '');
-    if (['dashboard', 'payouts', 'teachers', 'gateways', 'commission', 'breakdown', 'fees'].includes(hash)) {
+    if (['dashboard', 'breakdown', 'payouts', 'teachers', 'fees', 'gateways'].includes(hash)) {
       setActiveTab(hash as FinancialTab);
     }
   }, []);
@@ -53,7 +53,6 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
     { id: 'breakdown', label: 'التقسيم الزمني', icon: Calendar },
     { id: 'payouts', label: 'المدفوعات', icon: CreditCard },
     { id: 'teachers', label: 'حسابات المعلمين', icon: Users },
-    { id: 'commission', label: 'نسبة العمولة', icon: Percent },
     { id: 'fees', label: 'الرسوم', icon: Receipt },
     { id: 'gateways', label: 'بوابات الدفع', icon: Wallet, superadminOnly: true },
   ];
@@ -91,7 +90,6 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
         {activeTab === 'breakdown' && <AdminFinancialBreakdownSection />}
         {activeTab === 'payouts' && <AdminPayoutsSection />}
         {activeTab === 'teachers' && <AdminTeachersSection />}
-        {activeTab === 'commission' && <AdminCommissionRatesSection />}
         {activeTab === 'fees' && <AdminFeeCatalogSection />}
         {activeTab === 'gateways' && isSuperadmin && <PaymentGatewaysSection />}
       </div>
