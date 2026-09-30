@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     // Fetch uploader name
     const { data: uploader } = await supabaseServer
       .from('users')
-      .select('id, full_name')
+      .select('id, name')
       .eq('id', packageData.uploaded_by)
       .single();
 
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         ...packageData,
-        uploader_name: uploader?.full_name || 'Unknown',
+        uploader_name: uploader?.name || 'Unknown',
         resources: resources || [],
         tracking_summary: {
           total_students: totalStudents,

@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
 
       const { data: students } = await supabaseServer
         .from('users')
-        .select('id, full_name, email, avatar_url')
+        .select('id, name, email, avatar_url')
         .in('id', studentIds);
 
       // Enrich with resource titles
@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
 
         return {
           ...t,
-          student_name: student?.full_name || 'Unknown',
+          student_name: student?.name || 'Unknown',
           student_email: student?.email || '',
           student_avatar_url: student?.avatar_url || null,
           resource_title: resource?.title || '',

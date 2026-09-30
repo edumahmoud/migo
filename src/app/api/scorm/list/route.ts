@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 
     const { data: uploaders } = await supabaseServer
       .from('users')
-      .select('id, full_name')
+      .select('id, name')
       .in('id', uploaderIds);
 
     // ── Organize resources by package ──
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...pkg,
-        uploader_name: uploader?.full_name || 'Unknown',
+        uploader_name: uploader?.name || 'Unknown',
         resources: organizedResources,
       };
     });
