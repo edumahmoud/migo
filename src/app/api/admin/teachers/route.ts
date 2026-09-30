@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   // Build the query
   let query = supabaseServer
     .from('users')
-    .select('id, name, email, phone, account_status, created_at', { count: 'exact' })
+    .select('id, name, email, phone, account_status, created_at, auto_payout_enabled', { count: 'exact' })
     .eq('role', 'teacher')
     .order('created_at', { ascending: false })
     .range(from, to);
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
 
   // Build the response — 3 separate financial fields
   const data = (teachers ?? []).map((t) => {
-    const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string };
+    const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string; auto_payout_enabled: boolean | null };
     return {
       id: teacher.id,
       name: teacher.name ?? '—',
@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
       phone: teacher.phone ?? null,
       account_status: teacher.account_status,
       created_at: teacher.created_at,
+      auto_payout_enabled: teacher.auto_payout_enabled ?? false,
       subject_count: subjectCountMap.get(teacher.id) ?? 0,
       student_count: studentCountMap.get(teacher.id)?.size ?? 0,
       // Renamed from 'total_revenue' to be more accurate:

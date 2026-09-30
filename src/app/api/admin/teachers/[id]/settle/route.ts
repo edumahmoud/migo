@@ -40,6 +40,26 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const adminId = auth.user.id;
   const { id: teacherId } = await ctx.params;
 
+  // ── AUTO-PAYOUT FEATURE GATE (v87) ──
+  // If the teacher has auto_payout_enabled=true AND the platform-wide
+  // AUTO_PAYOUT_FEATURE_ENABLED env var is true AND Paymob disbursement
+  // creds are configured → route through the REAL Paymob disbursement
+  // adapter (money actually moves). Otherwise → use the existing
+  // manual settle flow (DB-only status change, no real money transfer).
+  const { data: teacherRow } = await supabaseServer
+    .from('users')
+    .select('auto_payout_enabled')
+    .eq('id', teacherId)
+    .maybeSingle();
+  const autoPayoutEnabledForTeacher =
+    (teacherRow as { auto_payout_enabled: boolean | null } | null)?.auto_payout_enabled === true;
+  const featureGloballyEnabled = process.env.AUTO_PAYOUT_FEATURE_ENABLED === 'true';
+  const paymobConfigured = !!(
+    process.env.PAYMOB_DISBURSEMENT_API_KEY &&
+    process.env.PAYMOB_DISBURSEMENT_BASE_URL
+  );
+  const useAutoPayout = autoPayoutEnabledForTeacher && featureGloballyEnabled && paymobConfigured;
+
   let body: unknown;
   try { body = await request.json(); } catch {
     return NextResponse.json({ success: false, error: 'صيغة JSON غير صالحة' }, { status: 400 });

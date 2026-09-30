@@ -57,6 +57,7 @@ interface TeacherRow {
   phone: string | null;
   account_status: string;
   created_at: string;
+  auto_payout_enabled: boolean;
   subject_count: number;
   student_count: number;
   total_revenue: number;        // backward compat (alias of total_earned)
@@ -223,6 +224,89 @@ export default function AdminTeachersSection() {
   // G3 — bulk settle: per-row checkbox + bulk settle action
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
   const [bulkSettling, setBulkSettling] = useState(false);
+
+  // Auto-payout feature flags (read once on mount; reflects env vars)
+  // We can't read env vars directly from the client, so we infer them
+  // from the per-teacher toggle endpoint's response field
+  // `feature_globally_enabled` + `paymob_configured`. Until then, we
+  // assume the platform-wide toggle is on (admin can verify in Vercel).
+  const [bulkToggling, setBulkToggling] = useState(false);
+  const [togglingTeacherId, setTogglingTeacherId] = useState<string | null>(null);
+  const [autoPayoutWarnings, setAutoPayoutWarnings] = useState<Record<string, string>>({});
+
+  const toggleAutoPayout = async (teacherId: string, currentEnabled: boolean) => {
+    if (togglingTeacherId) return;
+    setTogglingTeacherId(teacherId);
+    const newEnabled = !currentEnabled;
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacherId}/auto-payout`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        // Optimistically update the local state
+        setTeachers((prev) => prev.map((t) =>
+          t.id === teacherId ? { ...t, auto_payout_enabled: newEnabled } : t
+        ));
+        if (json.warning) {
+          setAutoPayoutWarnings((prev) => ({ ...prev, [teacherId]: json.warning }));
+          toast.warning(json.warning);
+        } else {
+          setAutoPayoutWarnings((prev) => {
+            const next = { ...prev };
+            delete next[teacherId];
+            return next;
+          });
+          toast.success(newEnabled
+            ? 'تم تفعيل الدفع التلقائي للمعلم'
+            : 'تم تعطيل الدفع التلقائي للمعلم');
+        }
+      } else {
+        toast.error(json.error || 'فشل التبديل');
+      }
+    } catch (err) {
+      console.error('[auto-payout-toggle] failed', err);
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setTogglingTeacherId(null);
+    }
+  };
+
+  const handleBulkToggleAutoPayout = async (enabled: boolean) => {
+    if (bulkToggling) return;
+    const eligible = teachers.filter((t) => Number(t.total_pending ?? 0) > 0);
+    if (eligible.length === 0) {
+      toast.error('لا يوجد معلمون لهم مستحقات');
+      return;
+    }
+    const confirmed = window.confirm(
+      `تأكيد ${enabled ? 'تفعيل' : 'تعطيل'} الدفع التلقائي لـ ${eligible.length} معلم ` +
+      `(الذين لديهم مستحقات)؟`
+    );
+    if (!confirmed) return;
+    setBulkToggling(true);
+    try {
+      const res = await fetch(`/api/admin/teachers/bulk-toggle-auto-payout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ enabled }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`تم ${enabled ? 'تفعيل' : 'تعطيل'} الدفع التلقائي لـ ${json.updated_count} معلم`);
+        await fetchTeachers(); // refresh
+      } else {
+        toast.error(json.error || 'فشل التبديل الجماعي');
+      }
+    } catch (err) {
+      console.error('[bulk-toggle-auto-payout] failed', err);
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setBulkToggling(false);
+    }
+  };
 
   const toggleTeacherSelection = (teacherId: string) => {
     setSelectedTeacherIds((prev) => {
@@ -496,6 +580,28 @@ export default function AdminTeachersSection() {
           )}
           تسوية المحدد ({selectedTeacherIds.size})
         </Button>
+        {/* Auto-payout bulk toggles */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 gap-1 border-sky-300 text-sky-700 hover:bg-sky-50"
+          onClick={() => handleBulkToggleAutoPayout(true)}
+          disabled={bulkToggling}
+          title="تفعيل الدفع التلقائي عبر Paymob لكل المعلمين الذين لديهم مستحقات"
+        >
+          {bulkToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          تفعيل تلقائي للكل
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 gap-1 border-rose-300 text-rose-700 hover:bg-rose-50"
+          onClick={() => handleBulkToggleAutoPayout(false)}
+          disabled={bulkToggling}
+          title="تعطيل الدفع التلقائي لكل المعلمين الذين لديهم مستحقات (الرجوع للوضع اليدوي)"
+        >
+          تعطيل تلقائي للكل
+        </Button>
       </div>
 
       {/* Teachers list */}
@@ -551,6 +657,7 @@ export default function AdminTeachersSection() {
                       <th className="p-3 text-end font-medium text-emerald-600">مُسوّى</th>
                       <th className="p-3 text-end font-medium text-amber-600">متاح</th>
                       <th className="p-3 text-end font-medium">الإجمالي</th>
+                      <th className="p-3 text-center font-medium text-sky-600">دفع تلقائي</th>
                       <th className="p-3 text-center font-medium"></th>
                     </tr>
                   </thead>
@@ -592,6 +699,42 @@ export default function AdminTeachersSection() {
                         </td>
                         <td className="p-3 text-end font-mono text-xs font-bold">
                           {Number(teacher.total_earned ?? teacher.total_revenue).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {/* Auto-payout per-teacher toggle */}
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={teacher.auto_payout_enabled}
+                            aria-label={`تفعيل الدفع التلقائي لـ ${teacher.name}`}
+                            disabled={togglingTeacherId === teacher.id}
+                            onClick={() => toggleAutoPayout(teacher.id, teacher.auto_payout_enabled)}
+                            title={
+                              teacher.auto_payout_enabled
+                                ? 'مفعّل — التسوية هتحول فلوس حقيقية عبر Paymob'
+                                : 'معطّل — التسوية هتبقى تسجيل يدوي فقط'
+                            }
+                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 ${
+                              teacher.auto_payout_enabled
+                                ? 'bg-sky-600'
+                                : 'bg-muted-foreground/30'
+                            }`}
+                          >
+                            {togglingTeacherId === teacher.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin text-white absolute start-1.5" />
+                            ) : (
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                  teacher.auto_payout_enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                                }`}
+                              />
+                            )}
+                          </button>
+                          {autoPayoutWarnings[teacher.id] && (
+                            <div className="text-[10px] text-amber-600 mt-1 max-w-[120px]">
+                              ⚠️ يحتاج إعداد
+                            </div>
+                          )}
                         </td>
                         <td className="p-3 text-center">
                           <div className="flex items-center gap-1 justify-center">
