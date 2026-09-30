@@ -262,3 +262,29 @@ Stage Summary:
 - TypeScript: clean compile (`npx tsc --noEmit` passes).
 - Operator action: redeploy. If the 500 persists, ask the admin to call the new diagnostic endpoint — the response will show EXACTLY which step fails and what Paymob said.
 
+
+---
+Task ID: N2
+Agent: main
+Task: Implement Excel export per teacher (N2 — last deferred feature)
+
+Work Log:
+- Synced local branch with origin/main (pulled 60 commits that included Phases 1-5 + C1/C5/C8/C9/C10/B4/B5 security fixes + N1 commit ea01639)
+- Discovered N1 (unique students + sold courses in breakdown + Excel export) was already shipped in commit ea01639 — no work needed
+- Implemented N2 by extending src/components/admin/admin-teachers-section.tsx:
+  - Added handleExportTeacher(): fetches financial_ledger rows for one teacher via the existing /api/admin/financial-ledger?teacher_id=... endpoint, then exports a 2-sheet workbook:
+    Sheet 1 'ملخص المعلم': name, email, phone, status, dates, subject_count, student_count, total_earned, total_settled, total_pending, transaction_count
+    Sheet 2 'المعاملات': per-ledger-row details (date, student name, subject name, gross, platform share, teacher share, currency, status, commission rate %)
+  - Added handleExportAllTeachers(): exports the current page of teachers as a single sheet with all financial columns + a totals row at the bottom (sum of subject_count, student_count, total_earned, total_settled, total_pending)
+  - Added 'تصدير الكل (Excel)' button next to the search bar (emerald outline, FileSpreadsheet icon)
+  - Added per-row download button (emerald ghost, Download icon) next to the existing transaction-log button
+  - Column widths set on every sheet so the Excel file is readable on first open
+  - All fetches use getCachedAuthHeaders() so admin auth is attached
+
+Stage Summary:
+- N1 was already shipped in commit ea01639 (admin breakdown section + Excel export already include unique_students + unique_subjects columns + summary cards + Excel export with new columns)
+- N2 implemented in local commit 394ed7c — adds per-teacher Excel export + bulk-page export to admin teachers section
+- Reuses existing /api/admin/financial-ledger endpoint (no API changes needed — endpoint already supports teacher_id filtering, returns enriched rows with student_name + subject_name, and returns a server-side summary)
+- TypeScript: clean compile (NODE_OPTIONS=--max-old-space-size=4096 bun x tsc --noEmit passes with 0 errors)
+- Tests: 432 pass / 34 fail (same as origin baseline — no new test failures introduced by N2 changes)
+- Push to origin failed due to no GitHub auth token in container; commit 394ed7c is local-only and ready for user to push
