@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { generateTransactionCode } from '@/lib/payment/utils';
 import { notifyUser } from '@/lib/notifications-service';
+import { logPaymentEvent } from '@/lib/payment/logger';
 
 /**
  * POST /api/admin/teachers/[id]/settle
@@ -71,6 +72,116 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const { amount: requestedAmount, payout_method_id, notes } = parsed.data;
+
+  // ── AUTO-PAYOUT ROUTING (v87 integration) ──
+  // If the teacher has auto_payout_enabled=true AND the platform-wide
+  // feature flag is on AND Paymob disbursement creds are configured,
+  // delegate to the deliver-payment flow which uses initiatePayout() +
+  // executePayout() to call the REAL Paymob adapter (money moves).
+  // The manual flow below is only for when auto-payout is OFF.
+  if (useAutoPayout) {
+    logPaymentEvent({
+      level: 'info',
+      operation: 'createPayment',
+      orderId: teacherId,
+      success: true,
+      message: `Auto-payout enabled for teacher ${teacherId} — routing to deliver-payment flow`,
+    });
+
+    // Resolve the payout method ID — use the explicit one if provided,
+    // otherwise fall back to the teacher's default active method.
+    let methodId = payout_method_id;
+    if (!methodId) {
+      const { data: defaultMethod, error: dmErr } = await supabaseServer
+        .from('teacher_payout_methods')
+        .select('id')
+        .eq('teacher_id', teacherId)
+        .eq('is_default', true)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (dmErr || !defaultMethod) {
+        return NextResponse.json(
+          { success: false, error: 'لا توجد طريقة استلام افتراضية مفعّلة لهذا المعلم. فعّل طريقة استلام أولاً أو حدد payout_method_id صريح.' },
+          { status: 400 },
+        );
+      }
+      methodId = (defaultMethod as { id: string }).id;
+    }
+
+    // Delegate to the deliver-payment flow (initiatePayout → executePayout → adapter)
+    // We do an internal HTTP-less call by importing the function directly.
+    try {
+      const { initiatePayout, executePayout } = await import('@/lib/payment/payout-domain/service');
+      const internalReference = generateTransactionCode();
+      const initResult = await initiatePayout({
+        teacherId,
+        payoutMethodId: methodId,
+        amount: requestedAmount,
+        currency: 'EGP', // adapter only supports EGP for now
+        idempotencyKey: `settle_${teacherId}_${requestedAmount.toFixed(2)}_${Date.now()}`,
+        internalReference,
+        initiatedBy: adminId,
+      });
+      // executePayout will call the Paymob adapter (real money transfer).
+      // If the adapter returns 'completed' → done. If 'accepted' → async
+      // (waits for webhook). If 'failed' → payout status flips to 'failed'
+      // and the linked ledger entries stay 'paid' (admin can retry).
+      const execResult = await executePayout(initResult.payoutId, adminId);
+
+      logPaymentEvent({
+        level: 'info',
+        operation: 'createPayment',
+        orderId: teacherId,
+        success: true,
+        message: `Auto-payout executed via adapter. payoutId=${initResult.payoutId} status=${execResult.status} providerRef=${execResult.providerReference ?? '—'}`,
+      });
+
+      // Notify the teacher (best-effort)
+      try {
+        const { notifyUser } = await import('@/lib/notifications-service');
+        notifyUser(
+          teacherId,
+          'payout',
+          execResult.status === 'completed' ? 'تم تحويل دفعتك' : 'بدأ تحويل دفعتك',
+          execResult.status === 'completed'
+            ? `تم تحويل ${requestedAmount.toFixed(2)} EGP لصالحك عبر Paymob. كود العملية: ${execResult.providerReference ?? '—'}`
+            : `بدأ تحويل ${requestedAmount.toFixed(2)} EGP لصالحك عبر Paymob. الحالة الحالية: قيد المعالجة. سيتم إشعارك عند الاكتمال.`,
+          '/teacher/financial',
+        ).catch(() => {});
+      } catch {}
+
+      return NextResponse.json({
+        success: true,
+        payout_id: initResult.payoutId,
+        transaction_code: execResult.providerReference ?? '—',
+        settled_amount: Number(requestedAmount.toFixed(2)),
+        currency: 'EGP', // adapter only supports EGP for now
+        status: execResult.status,
+        auto_payout: true,
+        message: execResult.status === 'completed'
+          ? `✅ تم تحويل ${requestedAmount.toFixed(2)} EGP فعلياً للمعلم عبر Paymob`
+          : execResult.status === 'accepted'
+          ? `⏳ بدأ تحويل ${requestedAmount.toFixed(2)} EGP عبر Paymob — في انتظار تأكيد الـ webhook`
+          : `❌ فشل التحويل — تحقق من logs Paymob`,
+        notes: notes ?? null,
+      });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'unknown error';
+      logPaymentEvent({
+        level: 'error',
+        operation: 'createPayment',
+        orderId: teacherId,
+        success: false,
+        errorCode: 'AUTO_PAYOUT_FAILED',
+        message: `Auto-payout delegation failed: ${errMsg}`,
+      });
+      return NextResponse.json(
+        { success: false, error: `فشل التحويل التلقائي: ${errMsg}`, auto_payout: true },
+        { status: 500 },
+      );
+    }
+  }
+
   const now = new Date().toISOString();
 
   // 1. Find eligible ledger entries (status='paid', not linked to any payout)
