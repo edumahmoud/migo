@@ -29,10 +29,15 @@ export async function GET(
     const authUser = await getAuthUser(request);
 
     // Fetch user profile - try with username first, fallback without
+    // SECURITY: only expose student_code/teacher_code to the profile owner.
+    // These codes are activation secrets — leaking them lets an attacker
+    // link students to teachers without auth.
     let profile = null;
+    const isOwner = authUser?.id === userId;
+    const codeFields = isOwner ? ', student_code, teacher_code' : '';
     const { data: profileWithUsername, error: profileError } = await supabaseServer
       .from('users')
-      .select('id, name, username, role, avatar_url, title_id, gender, created_at, student_code, teacher_code')
+      .select(`id, name, username, role, avatar_url, title_id, gender, created_at${codeFields}`)
       .eq('id', userId)
       .single();
 
@@ -41,7 +46,7 @@ export async function GET(
       if (profileError.message?.includes('username') || profileError.code === 'PGRST204') {
         const { data: profileNoUsername, error: fallbackError } = await supabaseServer
           .from('users')
-          .select('id, name, role, avatar_url, title_id, gender, created_at, student_code, teacher_code')
+          .select(`id, name, role, avatar_url, title_id, gender, created_at${codeFields}`)
           .eq('id', userId)
           .single();
 

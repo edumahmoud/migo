@@ -88,7 +88,7 @@ describe('Financial Ledger Source Integrity', () => {
     const fs = require('fs');
     const path = require('path');
     const rpcSource = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
+      path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
       'utf8',
     );
 
@@ -118,7 +118,7 @@ describe('Financial Ledger Source Integrity', () => {
     const fs = require('fs');
     const path = require('path');
     const migrationSource = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
+      path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
       'utf8',
     );
 
@@ -131,7 +131,7 @@ describe('Financial Ledger Source Integrity', () => {
     const fs = require('fs');
     const path = require('path');
     const migrationSource = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
+      path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
       'utf8',
     );
 
@@ -142,7 +142,7 @@ describe('Financial Ledger Source Integrity', () => {
     const fs = require('fs');
     const path = require('path');
     const migrationSource = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
+      path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
       'utf8',
     );
 
@@ -156,7 +156,7 @@ describe('Financial Ledger Source Integrity', () => {
     const fs = require('fs');
     const path = require('path');
     const migrationSource = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
+      path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
       'utf8',
     );
 
@@ -172,7 +172,7 @@ describe('Financial Ledger Source Integrity', () => {
     const fs = require('fs');
     const path = require('path');
     const migrationSource = fs.readFileSync(
-      path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
+      path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', 'v78_financial_ledger.sql'),
       'utf8',
     );
 
@@ -209,9 +209,13 @@ describe('Financial Ledger Source Integrity', () => {
     // The helper calculates FROM gross + rate (not from pre-calculated shares)
     expect(helperSource).toContain('grossAmount');
     expect(helperSource).toContain('commissionRate');
-    // It should NOT accept platformShare/teacherShare as inputs
-    expect(helperSource).not.toContain('function calculateFromShares');
-    expect(helperSource).not.toContain('platformShare: number');
+    // It should NOT accept platformShare/teacherShare as INPUTS — only
+    // as OUTPUTS. Check the function signature (the part before the return
+    // type) — not the rest of the file where output fields are defined.
+    const fnSignature = helperSource.match(/function\s+calculateFinancialShares\s*\([^)]*\)/s);
+    expect(fnSignature).toBeTruthy();
+    expect(fnSignature![0]).not.toContain('platformShare');
+    expect(fnSignature![0]).not.toContain('teacherShare');
     // But it CAN return them as outputs
     expect(helperSource).toContain('platformShare');
   });

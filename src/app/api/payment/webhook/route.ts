@@ -359,7 +359,82 @@ export async function POST(request: NextRequest) {
             activationResults.push({ order_id: sessOrder.id, success: true, already_paid: true });
             continue;
           }
-          // Skip non-pending orders (cancelled/failed/refunded)
+
+          // C12 — Cancelled-Order Race Recovery
+          // If the order was cancelled by the teacher BEFORE the webhook
+          // arrived, the student has paid on Paymob but the platform
+          // flipped the order to 'cancelled'. Atomically flip it back
+          // to 'pending' so activation can proceed normally. The RPC
+          // is conservative — it returns FALSE for failed/refunded
+          // statuses, so those orders are still skipped below.
+          if (sessOrder.status === 'cancelled') {
+            const perOrderPaymentIdForUncancel = `${basePaymobTxId}:${sessOrder.id}`;
+            const { data: uncancelOk, error: uncancelErr } = await supabaseServer.rpc(
+              'uncancel_order_if_payment_received',
+              {
+                p_order_id: sessOrder.id,
+                p_provider_payment_id: perOrderPaymentIdForUncancel,
+              },
+            );
+
+            if (uncancelErr || uncancelOk === false) {
+              logPaymentEvent({
+                level: 'warn',
+                operation: 'handleWebhook',
+                provider: webhookResult.provider,
+                orderId: sessOrder.id,
+                success: false,
+                errorCode: 'C12_UNCANCEL_FAILED',
+                message: `Order was cancelled; uncancel RPC returned ${uncancelOk} (err=${uncancelErr?.message ?? 'none'})`,
+                durationMs: Date.now() - startTime,
+              });
+              activationResults.push({ order_id: sessOrder.id, success: false, error: `cancelled+uncancel_failed` });
+              continue;
+            }
+
+            // Uncancel succeeded — flip the local status so the next
+            // check lets us proceed with normal activation.
+            sessOrder.status = 'pending';
+
+            // Notify the admin about the race condition so they can
+            // audit it. Non-blocking, best-effort.
+            try {
+              const { data: adminUsers } = await supabaseServer
+                .from('users')
+                .select('id')
+                .in('role', ['admin', 'superadmin'])
+                .eq('account_status', 'active')
+                .limit(10);
+              const { notifyUsers } = await import('@/lib/notifications-service');
+              const adminIds = (adminUsers ?? []).map((u: { id: string }) => u.id);
+              if (adminIds.length > 0) {
+                notifyUsers(
+                  adminIds,
+                  'system',
+                  'تنبيه: سباق إلغاء الطلب (C12)',
+                  `وصلت webhook دفعة لطلب كان مُلغى (الطالب دفع قبل الإلغاء). تم استعادة الطلب وتفعيل الاشتراك تلقائياً. معرّف الطلب: ${sessOrder.id.slice(0, 8)}…`,
+                  '/admin/financial',
+                ).catch((err) => {
+                  console.warn('[webhook] notifyUsers failed (non-fatal):', err?.message || err);
+                });
+              }
+            } catch (notifyErr) {
+              console.warn('[webhook] admin lookup failed (non-fatal):', notifyErr);
+            }
+
+            logPaymentEvent({
+              level: 'warn',
+              operation: 'handleWebhook',
+              provider: webhookResult.provider,
+              orderId: sessOrder.id,
+              success: true,
+              errorCode: 'C12_UNCANCEL_OK',
+              message: `Order was cancelled but payment confirmed; uncancelled back to pending`,
+              durationMs: Date.now() - startTime,
+            });
+          }
+
+          // Skip non-pending orders (failed/refunded/etc.)
           if (sessOrder.status !== 'pending') {
             activationResults.push({ order_id: sessOrder.id, success: false, error: `status=${sessOrder.status}` });
             continue;

@@ -8,6 +8,7 @@ import { describe, test, expect } from 'bun:test';
 import { createHmac } from 'crypto';
 import { verifyPaymobHmac } from '../hmac';
 import type { PaymobCallbackPayload } from '../types';
+import { WebhookVerificationFailedError } from '@/lib/payment/errors';
 
 const TEST_HMAC_SECRET = 'test_hmac_secret_for_unit_tests_only';
 
@@ -76,7 +77,10 @@ describe('Paymob HMAC Verification', () => {
       obj: { success: true, amount_cents: 10000 },
       hmac: '00000000000000000000000000000000',
     };
-    expect(() => verifyPaymobHmac(payload, TEST_HMAC_SECRET)).toThrow('HMAC signature mismatch');
+    // Match by error TYPE — the verifier may throw either
+    // "length mismatch" or "signature mismatch" depending on input,
+    // both wrapped in WebhookVerificationFailedError.
+    expect(() => verifyPaymobHmac(payload, TEST_HMAC_SECRET)).toThrow(WebhookVerificationFailedError);
   });
 
   test('missing hmac field is rejected', () => {
@@ -119,7 +123,7 @@ describe('Paymob HMAC Verification', () => {
     const tamperedObj = { ...obj, amount_cents: 1 }; // changed!
     const payload: PaymobCallbackPayload = { obj: tamperedObj, hmac };
 
-    expect(() => verifyPaymobHmac(payload, TEST_HMAC_SECRET)).toThrow('HMAC signature mismatch');
+    expect(() => verifyPaymobHmac(payload, TEST_HMAC_SECRET)).toThrow(WebhookVerificationFailedError);
   });
 
   test('wrong secret is rejected', () => {
@@ -127,6 +131,6 @@ describe('Paymob HMAC Verification', () => {
     const hmac = computeValidHmac(obj, TEST_HMAC_SECRET);
     const payload: PaymobCallbackPayload = { obj, hmac };
 
-    expect(() => verifyPaymobHmac(payload, 'wrong_secret')).toThrow('HMAC signature mismatch');
+    expect(() => verifyPaymobHmac(payload, 'wrong_secret')).toThrow(WebhookVerificationFailedError);
   });
 });

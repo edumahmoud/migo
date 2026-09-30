@@ -6,6 +6,7 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { encrypt, decrypt, isEncryptionKeyConfigured } from '../crypto';
+import { EncryptionKeyMissingError } from '../errors';
 
 // Set a test encryption key
 beforeEach(() => {
@@ -66,6 +67,8 @@ describe('Payment Crypto', () => {
 
   test('encrypt with too-short key throws EncryptionKeyMissingError', () => {
     process.env.PAYMENT_CREDENTIALS_ENCRYPTION_KEY = 'short';
-    expect(() => encrypt({ key: 'value' })).toThrow('ENCRYPTION_KEY_MISSING');
+    // Match by error TYPE (the canonical way) rather than message text —
+    // the message text is human-readable and subject to i18n/change.
+    expect(() => encrypt({ key: 'value' })).toThrow(EncryptionKeyMissingError);
   });
 });

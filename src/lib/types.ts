@@ -437,7 +437,7 @@ export interface AttendanceRecord {
 // Notifications
 // =====================================================
 
-export type NotificationType = 'assignment' | 'grade' | 'enrollment' | 'file' | 'file_request' | 'system' | 'attendance' | 'link_request' | 'lecture' | 'chat' | 'report' | 'poll' | 'team_message' | 'quiz';
+export type NotificationType = 'assignment' | 'grade' | 'enrollment' | 'file' | 'file_request' | 'system' | 'attendance' | 'link_request' | 'lecture' | 'chat' | 'report' | 'poll' | 'team_message' | 'quiz' | 'payout';
 
 export interface DBNotification {
   id: string;

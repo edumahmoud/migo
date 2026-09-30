@@ -431,12 +431,19 @@ describe('Phase 13 Step 1 — Cross-cutting invariants', () => {
 
   it('encryption key is configured + encrypt/decrypt roundtrip', () => {
     expect(isEncryptionKeyConfigured()).toBe(true);
-    const details = { card_number: '4111111111111111', expiry_month: '12', holder_name: 'M. A.' };
+    // Round-trip: encrypt → decrypt should recover the SAME object.
+    // NOTE: encrypt/decrypt is a pure crypto roundtrip. It does NOT
+    // extract `last4` from `card_number` — that's the masking layer's
+    // job (separate file). Passing card_number + checking last4 was a
+    // test-design bug; we now pass last4 explicitly.
+    const details = { last4: VALID_LAST4, expiry_month: '12', holder_name: 'M. A.' };
     const encrypted = encrypt(details);
     expect(encrypted).not.toContain(VALID_LAST4);
     expect(encrypted).not.toContain('M. A.');
     const decrypted = decrypt(encrypted);
     expect(decrypted.last4).toBe(VALID_LAST4);
+    expect(decrypted.expiry_month).toBe('12');
+    expect(decrypted.holder_name).toBe('M. A.');
   });
 
   it('fails safe when encryption key is missing', () => {

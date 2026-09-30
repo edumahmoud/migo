@@ -87,11 +87,18 @@ describe('PaymentService', () => {
       'utf8'
     );
 
+    // Strip comments (/* ... */ and // ...) so the test only checks
+    // actual executable code. Comments often mention forbidden APIs
+    // as a safety contract, which is fine.
+    const codeOnly = serviceSource
+      .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments
+      .replace(/^\s*\/\/.*$/gm, '');      // line comments
+
     // Must NOT call the subscription RPC — that's the webhook layer's job
-    expect(serviceSource).not.toContain('activate_subscription_after_payment');
-    expect(serviceSource).not.toContain('subject_students');
-    expect(serviceSource).not.toContain("status: 'paid'");
-    expect(serviceSource).not.toContain("status = 'paid'");
+    expect(codeOnly).not.toContain('activate_subscription_after_payment');
+    expect(codeOnly).not.toContain('subject_students');
+    expect(codeOnly).not.toContain("status: 'paid'");
+    expect(codeOnly).not.toContain("status = 'paid'");
   });
 });
 

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Calendar, Download, DollarSign } from 'lucide-react';
+import { Loader2, Calendar, Download, DollarSign, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
@@ -44,6 +45,8 @@ type Period = 'day' | 'month' | 'year';
 export default function AdminFinancialBreakdownSection() {
   const { t, direction } = useTranslations();
   const [period, setPeriod] = useState<Period>('month');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [breakdown, setBreakdown] = useState<BreakdownRow[]>([]);
   const [summary, setSummary] = useState<Summary>({ total_gross: 0, total_platform: 0, total_teacher: 0, total_count: 0, total_unique_students: 0, total_unique_subjects: 0 });
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,13 @@ export default function AdminFinancialBreakdownSection() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ period });
+      if (from) params.set('from', new Date(from).toISOString());
+      if (to) {
+        // Include the entire calendar day — set to end of day in UTC
+        const endOfDay = new Date(to);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+        params.set('to', endOfDay.toISOString());
+      }
       const res = await fetch(`/api/admin/financial-ledger/breakdown?${params}`, {
         headers: await getCachedAuthHeaders(),
       });
@@ -68,7 +78,7 @@ export default function AdminFinancialBreakdownSection() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, from, to]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -130,13 +140,13 @@ export default function AdminFinancialBreakdownSection() {
 
   return (
     <div className="space-y-4" dir={direction}>
-      {/* Header + period selector */}
+      {/* Header + period selector + date range filter */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <Calendar className="h-5 w-5 text-sky-600" />
           التقسيم الزمني للحسابات
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1">
             {(['day', 'month', 'year'] as Period[]).map(p => (
               <Button
@@ -149,6 +159,35 @@ export default function AdminFinancialBreakdownSection() {
                 {p === 'day' ? 'يومي' : p === 'month' ? 'شهري' : 'سنوي'}
               </Button>
             ))}
+          </div>
+          {/* Date range filter (G4) */}
+          <div className="flex items-center gap-1">
+            <Input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-8 w-[140px] text-xs"
+              aria-label="من تاريخ"
+            />
+            <span className="text-xs text-muted-foreground">—</span>
+            <Input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-8 w-[140px] text-xs"
+              aria-label="إلى تاريخ"
+            />
+            {(from || to) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                onClick={() => { setFrom(''); setTo(''); }}
+                title="مسح الفلتر"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
           <Button
             size="sm"

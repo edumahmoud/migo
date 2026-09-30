@@ -52,6 +52,7 @@ import {
   IdempotencyConflictError,
 } from './errors';
 import { resolvePayoutMethod } from '@/lib/payment/payout-methods-repository';
+import { notifyUser } from '@/lib/notifications-service';
 
 // ─── Initiate Payout ───
 export async function initiatePayout(input: {
@@ -328,6 +329,18 @@ export async function executePayout(
     } catch (err) {
       console.error('[payout-domain] bridge settle failed (non-critical)', err);
     }
+
+    // ── G6: Notify the teacher that their payout completed ──
+    // Non-blocking, best-effort. Failures never affect the payout itself.
+    notifyUser(
+      payout.teacher_id,
+      'payout',
+      'تم تنفيذ دفعتك',
+      `تم تنفيذ دفعتك بنجاح بمبلغ ${Number(payout.amount).toFixed(2)} ${payout.currency}. كود العملية: ${result.providerReference || payout.internal_reference || payoutId.slice(0, 8)}.`,
+      '/teacher/financial',
+    ).catch((err) => {
+      console.warn('[payout-domain] notifyUser failed (non-fatal):', err?.message || err);
+    });
   } else if (result.status === 'accepted') {
     if (result.providerReference) {
       await updatePayoutProviderReference(payoutId, result.providerReference);
@@ -450,6 +463,17 @@ export async function processPayoutWebhook(input: {
       event: 'payout.completed',
       actorId: 'system_webhook',
       details: { provider_reference: input.providerReference },
+    });
+
+    // ── G6: Notify teacher that their async payout completed via webhook ──
+    notifyUser(
+      found.teacher_id,
+      'payout',
+      'تم تنفيذ دفعتك',
+      `تم تنفيذ دفعتك بنجاح بمبلغ ${Number(found.amount).toFixed(2)} ${found.currency}. كود العملية: ${input.providerReference}.`,
+      '/teacher/financial',
+    ).catch((err) => {
+      console.warn('[payout-domain:webhook] notifyUser failed (non-fatal):', err?.message || err);
     });
   } else if (input.status === 'failed') {
     await setPayoutFailure(found.id, input.failureReason ?? 'Webhook reported failure');

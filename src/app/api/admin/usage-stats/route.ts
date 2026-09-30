@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
+  // Auth gate — admin/superadmin only. The endpoint uses the service role
+  // (bypasses RLS) and returns platform-wide KPIs that must not be public.
+  const auth = await requireAdmin(request);
+  if (!auth.success) return authErrorResponse(auth);
+
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || 'month';

@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { generateTransactionCode } from '@/lib/payment/utils';
+import { notifyUser } from '@/lib/notifications-service';
 
 /**
  * POST /api/admin/teachers/[id]/settle
@@ -212,6 +213,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   console.info('[settle] settlement complete', {
     teacherId, payoutId, settledAmount, ledgerCount: selectedEntries.length, transactionCode,
+  });
+
+  // 7. Notify the teacher (G6) — non-blocking, best-effort. Failures are logged
+  //    but never fail the settlement itself.
+  notifyUser(
+    teacherId,
+    'payout',
+    'تمت تسوية دفعتك',
+    `تمت تسوية مبلغ ${settledAmount.toFixed(2)} ${currency} لصالحك. كود العملية: ${transactionCode}. عدد العمليات: ${selectedEntries.length}.`,
+    '/teacher/financial',
+  ).catch((err) => {
+    console.warn('[settle] notifyUser failed (non-fatal):', err?.message || err);
   });
 
   return NextResponse.json({

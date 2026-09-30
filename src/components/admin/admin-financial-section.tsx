@@ -45,6 +45,7 @@ import {
   Inbox,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -67,6 +68,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { toast } from 'sonner';
 import type { UserProfile } from '@/lib/types';
 
 // ─── API response types ───
@@ -340,6 +342,44 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
     const next = { ...appliedFilters, page: 1, page_size: newSize };
     setFilters(next);
     setAppliedFilters(next);
+  };
+
+  // ─── Refund handler (G2) ───
+  // Calls /api/admin/financial-ledger/[id]/refund which changes ONLY the
+  // status to 'refunded' (financial values stay immutable).
+  // NOTE: formatAmount is defined below; using it here is safe because
+  // JS closures resolve at call time, not at definition time.
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const handleRefund = async (row: LedgerRow) => {
+    if (refundingId) return;
+    const confirmed = window.confirm(
+      `تأكيد الاسترداد لهذه العملية؟\n\n` +
+      `الطالب: ${row.student_name}\n` +
+      `المعلم: ${row.teacher_name}\n` +
+      `المقرر: ${row.subject_name}\n` +
+      `الإجمالي: ${formatAmount(row.gross_amount, row.currency)}\n\n` +
+      `سيتم تغيير الحالة فقط إلى "مسترد". القيم المالية التاريخية لن تُعدّل.`
+    );
+    if (!confirmed) return;
+    setRefundingId(row.id);
+    try {
+      const res = await fetch(`/api/admin/financial-ledger/${row.id}/refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('تم تسجيل الاسترداد بنجاح');
+        await fetchData(); // refresh table
+      } else {
+        toast.error(json.error || 'فشل الاسترداد');
+      }
+    } catch (err) {
+      console.error('[refund] failed', err);
+      toast.error('حدث خطأ غير متوقع أثناء الاسترداد');
+    } finally {
+      setRefundingId(null);
+    }
   };
 
   // ─── Format helpers ───
@@ -689,6 +729,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                       <TableHead className="text-end">{t('adminFinancial.table.gatewayFee')}</TableHead>
                       <TableHead className="text-end">{t('adminFinancial.table.net')}</TableHead>
                       <TableHead>{t('adminFinancial.table.status')}</TableHead>
+                      <TableHead className="text-center">إجراء</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -724,6 +765,28 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                           >
                             {t(`adminFinancial.status.${row.status}`)}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {/* Refund button (G2) — only for paid/settled rows */}
+                          {(row.status === 'paid' || row.status === 'settled') ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 gap-1 text-xs text-rose-600 hover:bg-rose-50"
+                              disabled={refundingId === row.id}
+                              onClick={() => handleRefund(row)}
+                              title="استرداد"
+                            >
+                              {refundingId === row.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-3 w-3" />
+                              )}
+                              استرداد
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
