@@ -31,11 +31,12 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   // Support search by email or teacher_code
   const search = request.nextUrl.searchParams.get('search')?.trim();
   if (search) {
-    // Try to find teacher by email or teacher_code
+    // Escape ILIKE special chars to prevent PostgREST injection
+    const safeSearch = search.replace(/[%_]/g, '\\$&');
     const { data: teacher } = await supabaseServer
       .from('users')
       .select('id, email, name, teacher_code')
-      .or(`email.ilike.%${search}%,teacher_code.ilike.%${search}%`)
+      .or(`email.ilike.%${safeSearch}%,teacher_code.ilike.%${safeSearch}%`)
       .eq('role', 'teacher')
       .maybeSingle();
 

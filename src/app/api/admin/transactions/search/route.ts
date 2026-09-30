@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Search by provider_reference OR internal_reference (ILIKE)
-  const { data: payout, error: payoutErr } = await supabaseServer
+  // Use structured .ilike() calls instead of raw .or() string to
+  // prevent PostgREST predicate injection.
+  const safePattern = `%${normalized.replace(/[%_]/g, '\\$&')}%`;
+  const { data: payoutByProvider, error: err1 } = await supabaseServer
     .from('teacher_payouts')
     .select(`
       id, teacher_id, payout_method_type, payout_method_display_label,
@@ -51,8 +54,27 @@ export async function GET(request: NextRequest) {
       internal_reference, provider_reference, failure_reason,
       initiated_by, initiated_at, executed_at, created_at
     `)
-    .or(`provider_reference.ilike.%${normalized}%,internal_reference.ilike.%${normalized}%`)
+    .ilike('provider_reference', safePattern)
     .maybeSingle();
+
+  let payout = payoutByProvider;
+  let payoutErr = err1;
+
+  // If not found by provider_reference, try internal_reference
+  if (!payout && !payoutErr) {
+    const { data: byInternal, error: err2 } = await supabaseServer
+      .from('teacher_payouts')
+      .select(`
+        id, teacher_id, payout_method_type, payout_method_display_label,
+        payout_method_masked, amount, currency, status,
+        internal_reference, provider_reference, failure_reason,
+        initiated_by, initiated_at, executed_at, created_at
+      `)
+      .ilike('internal_reference', safePattern)
+      .maybeSingle();
+    payout = byInternal;
+    payoutErr = err2;
+  }
 
   if (payoutErr) {
     return NextResponse.json({ success: false, error: 'تعذّر البحث' }, { status: 500 });
@@ -84,13 +106,21 @@ export async function GET(request: NextRequest) {
   };
 
   // ── Authorization ──
+  // Check role BEFORE revealing whether the code exists.
+  // Students are denied immediately (no DB lookup needed → no enumeration).
+  if (role !== 'admin' && role !== 'superadmin' && role !== 'teacher' && role !== 'registration_agent') {
+    return NextResponse.json(
+      { success: false, error: 'لا توجد معاملة بالكود المحدد' },
+      { status: 404 }, // Return 404 (not 403) to prevent enumeration
+    );
+  }
+
   let authorized = false;
   if (role === 'admin' || role === 'superadmin') {
     authorized = true;
   } else if (role === 'teacher') {
     authorized = (p.teacher_id === callerId);
   } else if (role === 'registration_agent') {
-    // Agents can see transactions for their teacher's payouts
     const { data: agentRow } = await supabaseServer
       .from('registration_agents')
       .select('teacher_id')
@@ -100,12 +130,12 @@ export async function GET(request: NextRequest) {
     const agentTeacherId = (agentRow as { teacher_id: string | null } | null)?.teacher_id ?? null;
     authorized = !!agentTeacherId && p.teacher_id === agentTeacherId;
   }
-  // Students can't see payout transactions
 
   if (!authorized) {
+    // Return 404 (not 403) to prevent code enumeration
     return NextResponse.json(
-      { success: false, error: 'غير مصرح — لا يمكنك عرض هذه المعاملة' },
-      { status: 403 },
+      { success: false, error: 'لا توجد معاملة بالكود المحدد' },
+      { status: 404 },
     );
   }
 

@@ -570,8 +570,12 @@ async function activateOrder(
   );
 
   if (rpcErr) {
-    // Fallback: direct enrollment
+    // Fallback: direct enrollment + payments + financial_ledger
+    // (matches Strategy 0 fallback — creates ALL financial records)
     const now = new Date().toISOString();
+    const fallbackPaymentId = `fallback_${o.id}`;
+
+    // 1. UPSERT subject_students
     await supabaseServer
       .from('subject_students')
       .upsert({
@@ -585,6 +589,8 @@ async function activateOrder(
         current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       }, { onConflict: 'subject_id,student_id' });
+
+    // 2. Mark order as paid + activate student account
     await supabaseServer
       .from('orders')
       .update({ status: 'paid', paid_at: now, activated_at: now, updated_at: now })
@@ -595,6 +601,73 @@ async function activateOrder(
       .update({ account_status: 'active', updated_at: now })
       .eq('id', o.student_id)
       .in('account_status', ['pending', 'pending_verification', null]);
+
+    // 3. INSERT payment (best effort)
+    await supabaseServer
+      .from('payments')
+      .insert({
+        order_id: o.id,
+        provider_payment_id: fallbackPaymentId,
+        amount: Number(o.amount),
+        currency: o.currency,
+        status: 'paid',
+        raw_payload: { fallback: true, strategy, reason: 'Direct enrollment fallback' },
+        confirmed_by: null,
+      })
+      .then(({ error }) => {
+        if (error) console.warn('[verify-after-redirect] payments insert failed (non-critical)', error.message);
+      });
+
+    // 4. INSERT financial_ledger (best effort)
+    const { data: subjectRow } = await supabaseServer
+      .from('subjects')
+      .select('teacher_id')
+      .eq('id', o.subject_id)
+      .maybeSingle();
+    const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
+    const { data: commissionRow } = await supabaseServer
+      .from('commission_rates')
+      .select('rate_percentage')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+    const grossAmount = Number(o.amount);
+    const platformShare = Math.round(grossAmount * commissionRate) / 100;
+    const teacherShare = grossAmount - platformShare;
+
+    const { data: paymentRow } = await supabaseServer
+      .from('payments')
+      .select('id')
+      .eq('provider_payment_id', fallbackPaymentId)
+      .maybeSingle();
+    const paymentId = (paymentRow as { id: string } | null)?.id;
+    if (paymentId) {
+      await supabaseServer
+        .from('financial_ledger')
+        .insert({
+          payment_id: paymentId,
+          order_id: o.id,
+          student_id: o.student_id,
+          subject_id: o.subject_id,
+          teacher_id: teacherId,
+          gateway_id: o.gateway_id,
+          provider_payment_id: fallbackPaymentId,
+          currency: o.currency,
+          gross_amount: grossAmount,
+          platform_share: platformShare,
+          teacher_share: teacherShare,
+          gateway_fee: 0,
+          net_amount: teacherShare,
+          commission_rate: commissionRate,
+          status: 'paid',
+        })
+        .then(({ error }) => {
+          if (error) console.warn('[verify-after-redirect] financial_ledger insert failed (non-critical)', error.message);
+          else console.info('[verify-after-redirect] financial_ledger created (activateOrder fallback)', { orderId: o.id, paymentId });
+        });
+    }
   }
 
   return NextResponse.json({

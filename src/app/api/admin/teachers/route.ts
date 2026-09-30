@@ -41,8 +41,10 @@ export async function GET(request: NextRequest) {
     .range(from, to);
 
   if (search) {
-    // ILIKE = case-insensitive search
-    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+    // ILIKE = case-insensitive search — use structured filters
+    // to prevent PostgREST predicate injection.
+    const safeSearch = search.replace(/[%_]/g, '\\$&');
+    query = query.or(`name.ilike.%${safeSearch}%,email.ilike.%${safeSearch}%`);
   }
 
   const { data: teachers, count, error } = await query;
