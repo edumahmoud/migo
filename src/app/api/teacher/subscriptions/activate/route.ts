@@ -245,6 +245,75 @@ export async function POST(request: NextRequest) {
       .eq('id', o.student_id)
       .in('account_status', ['pending', 'pending_verification', null]);
 
+    // ── Also create payments + financial_ledger (verify-fallback path) ──
+    // This ensures the teacher's revenue stats include this activation.
+    const verifyPaymentId = `verify_${orderId}`;
+    await supabaseServer
+      .from('payments')
+      .insert({
+        order_id: orderId,
+        provider_payment_id: verifyPaymentId,
+        amount: Number(o.amount),
+        currency: o.currency,
+        status: 'paid',
+        raw_payload: { verify_fallback: true, activated_by: teacherId, reason: 'Verify-fallback after RPC succeeded but enrollment missing' },
+        confirmed_by: teacherId,
+      })
+      .then(({ error }) => {
+        if (error) console.warn('[teacher:activate] verify-fallback payments insert failed (non-critical)', error.message);
+      });
+
+    // Create financial_ledger (best effort)
+    const { data: subjectRow } = await supabaseServer
+      .from('subjects')
+      .select('teacher_id')
+      .eq('id', o.subject_id)
+      .maybeSingle();
+    const ledgerTeacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? teacherId;
+    const { data: commissionRow } = await supabaseServer
+      .from('commission_rates')
+      .select('rate_percentage')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+    const grossAmount = Number(o.amount);
+    const platformShare = Math.round(grossAmount * commissionRate) / 100;
+    const teacherShare = grossAmount - platformShare;
+
+    const { data: paymentRow } = await supabaseServer
+      .from('payments')
+      .select('id')
+      .eq('provider_payment_id', verifyPaymentId)
+      .maybeSingle();
+    const paymentId = (paymentRow as { id: string } | null)?.id;
+    if (paymentId) {
+      await supabaseServer
+        .from('financial_ledger')
+        .insert({
+          payment_id: paymentId,
+          order_id: orderId,
+          student_id: o.student_id,
+          subject_id: o.subject_id,
+          teacher_id: ledgerTeacherId,
+          gateway_id: null,
+          provider_payment_id: verifyPaymentId,
+          currency: o.currency,
+          gross_amount: grossAmount,
+          platform_share: platformShare,
+          teacher_share: teacherShare,
+          gateway_fee: 0,
+          net_amount: teacherShare,
+          commission_rate: commissionRate,
+          status: 'paid',
+        })
+        .then(({ error }) => {
+          if (error) console.warn('[teacher:activate] verify-fallback financial_ledger insert failed (non-critical)', error.message);
+          else console.info('[teacher:activate] financial_ledger created (verify-fallback)', { orderId, paymentId });
+        });
+    }
+
     return NextResponse.json({
       success: true,
       order_id: orderId,
