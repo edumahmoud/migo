@@ -16,6 +16,8 @@ interface BreakdownRow {
   teacher_share: number;
   net_platform: number;
   transaction_count: number;
+  unique_students: number;
+  unique_subjects: number;
 }
 
 interface Summary {
@@ -23,6 +25,8 @@ interface Summary {
   total_platform: number;
   total_teacher: number;
   total_count: number;
+  total_unique_students: number;
+  total_unique_subjects: number;
 }
 
 type Period = 'day' | 'month' | 'year';
@@ -41,7 +45,7 @@ export default function AdminFinancialBreakdownSection() {
   const { t, direction } = useTranslations();
   const [period, setPeriod] = useState<Period>('month');
   const [breakdown, setBreakdown] = useState<BreakdownRow[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total_gross: 0, total_platform: 0, total_teacher: 0, total_count: 0 });
+  const [summary, setSummary] = useState<Summary>({ total_gross: 0, total_platform: 0, total_teacher: 0, total_count: 0, total_unique_students: 0, total_unique_subjects: 0 });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -55,7 +59,7 @@ export default function AdminFinancialBreakdownSection() {
       const json = await res.json();
       if (json.success) {
         setBreakdown(json.breakdown ?? []);
-        setSummary(json.summary ?? { total_gross: 0, total_platform: 0, total_teacher: 0, total_count: 0 });
+        setSummary(json.summary ?? { total_gross: 0, total_platform: 0, total_teacher: 0, total_count: 0, total_unique_students: 0, total_unique_subjects: 0 });
       } else {
         toast.error(json.error || 'تعذّر جلب البيانات');
       }
@@ -77,14 +81,15 @@ export default function AdminFinancialBreakdownSection() {
     try {
       const XLSX = await import('xlsx');
       const headers = [
-        ['الفترة', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'صافي المنصة', 'عدد العمليات'],
+        ['الفترة', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'طلاب فريدون', 'مقررات مباعة', 'عدد العمليات'],
       ];
       const rows = breakdown.map(r => [
         r.period,
         r.gross_amount,
         r.platform_share,
         r.teacher_share,
-        r.net_platform,
+        r.unique_students ?? 0,
+        r.unique_subjects ?? 0,
         r.transaction_count,
       ]);
       // Add summary row at the end
@@ -93,7 +98,8 @@ export default function AdminFinancialBreakdownSection() {
         summary.total_gross,
         summary.total_platform,
         summary.total_teacher,
-        Number((summary.total_gross - summary.total_teacher).toFixed(2)),
+        summary.total_unique_students ?? 0,
+        summary.total_unique_subjects ?? 0,
         summary.total_count,
       ]);
 
@@ -157,8 +163,8 @@ export default function AdminFinancialBreakdownSection() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Summary cards — 6 KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>
           <CardContent className="p-3">
             <div className="text-xs text-muted-foreground">إجمالي المدفوع</div>
@@ -175,6 +181,18 @@ export default function AdminFinancialBreakdownSection() {
           <CardContent className="p-3">
             <div className="text-xs text-muted-foreground">حصة المعلمين</div>
             <div className="text-lg font-bold font-mono text-emerald-600">{summary.total_teacher.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">طلاب فريدون</div>
+            <div className="text-lg font-bold text-indigo-600">{summary.total_unique_students ?? 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs text-muted-foreground">مقررات مباعة</div>
+            <div className="text-lg font-bold text-amber-600">{summary.total_unique_subjects ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -209,6 +227,8 @@ export default function AdminFinancialBreakdownSection() {
                     <th className="p-3 text-end font-medium">الإجمالي</th>
                     <th className="p-3 text-end font-medium text-sky-600">المنصة</th>
                     <th className="p-3 text-end font-medium text-emerald-600">المعلمين</th>
+                    <th className="p-3 text-center font-medium text-indigo-600">طلاب</th>
+                    <th className="p-3 text-center font-medium text-amber-600">مقررات</th>
                     <th className="p-3 text-center font-medium">العمليات</th>
                   </tr>
                 </thead>
@@ -219,6 +239,8 @@ export default function AdminFinancialBreakdownSection() {
                       <td className="p-3 text-end font-mono font-bold">{row.gross_amount.toFixed(2)}</td>
                       <td className="p-3 text-end font-mono text-sky-600">{row.platform_share.toFixed(2)}</td>
                       <td className="p-3 text-end font-mono text-emerald-600">{row.teacher_share.toFixed(2)}</td>
+                      <td className="p-3 text-center text-indigo-600 font-medium">{row.unique_students ?? 0}</td>
+                      <td className="p-3 text-center text-amber-600 font-medium">{row.unique_subjects ?? 0}</td>
                       <td className="p-3 text-center">
                         <Badge variant="secondary" className="text-xs">{row.transaction_count}</Badge>
                       </td>
@@ -230,6 +252,8 @@ export default function AdminFinancialBreakdownSection() {
                     <td className="p-3 text-end font-mono font-bold">{summary.total_gross.toFixed(2)}</td>
                     <td className="p-3 text-end font-mono font-bold text-sky-600">{summary.total_platform.toFixed(2)}</td>
                     <td className="p-3 text-end font-mono font-bold text-emerald-600">{summary.total_teacher.toFixed(2)}</td>
+                    <td className="p-3 text-center font-bold text-indigo-600">{summary.total_unique_students ?? 0}</td>
+                    <td className="p-3 text-center font-bold text-amber-600">{summary.total_unique_subjects ?? 0}</td>
                     <td className="p-3 text-center font-bold">{summary.total_count}</td>
                   </tr>
                 </tbody>
