@@ -214,7 +214,8 @@ export interface LessonUnit {
   description?: string | null;
   order_index: number;
   pass_threshold: number | null;  // 0-100; required to advance to next unit
-  is_published: boolean;
+  is_published: boolean;          // false → invisible to students (draft)
+  is_enabled: boolean;            // v98: false → visible but LOCKED (students can't open)
   created_by: string;
   created_at: string;
   updated_at: string;

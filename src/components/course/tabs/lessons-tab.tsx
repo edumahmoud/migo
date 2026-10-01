@@ -376,7 +376,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   // -------------------------------------------------------
   // Create lesson
   // -------------------------------------------------------
-  const handleCreateLesson = useCallback(async () => {
+  const handleCreateLesson = useCallback(async (unitId?: string | null) => {
     setCreatingLesson(true);
     try {
       const headers = await getAuthHeaders();
@@ -386,6 +386,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         body: JSON.stringify({
           subject_id: subject.id,
           title: t('untitledLesson') || 'Untitled Lesson',
+          // v98: pass unit_id so the new lesson is auto-grouped under the unit
+          unit_id: unitId || null,
         }),
       });
       if (!res.ok) {
@@ -401,7 +403,9 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         setEditorHtml('');
         setHasUnsavedChanges(false);
         setLastSaved(null);
-        toast.success(t('lessonCreated') || 'Lesson created');
+        toast.success(unitId
+          ? (t('lessonCreatedInUnit') || 'تم إنشاء الدرس داخل الوحدة')
+          : (t('lessonCreated') || 'Lesson created'));
       }
     } catch (err) {
       console.error('Error creating lesson:', err);
@@ -965,7 +969,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               {t('manageUnits') || 'Manage Units'}
             </Button>
             <button
-              onClick={handleCreateLesson}
+              onClick={() => handleCreateLesson()}
               disabled={creatingLesson}
               className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
             >
@@ -1004,7 +1008,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </p>
           {role === 'teacher' && (
             <button
-              onClick={handleCreateLesson}
+              onClick={() => handleCreateLesson()}
               disabled={creatingLesson}
               className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
             >
@@ -1017,7 +1021,471 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
             </button>
           )}
         </motion.div>
+      ) : units.length > 0 ? (
+        // v98: hierarchical view — units + their nested lessons + uncategorized lessons at the bottom
+        <div className="space-y-6">
+          {units.map((unit) => {
+            // Filter lessons that belong to this unit
+            // Students see only published lessons; teachers see all
+            const unitLessons = visibleLessons.filter((l) => l.unit_id === unit.id);
+            // v98: skip rendering the unit block if there are no lessons and the
+            // user is a student (teachers always see all units for management)
+            if (unitLessons.length === 0 && role !== 'teacher') return null;
+            // v98: respect is_enabled lock for students — show the unit + locked lessons grayed
+            const isUnitLocked = unit.is_enabled === false && role !== 'teacher';
+            return (
+              <motion.div
+                key={unit.id}
+                variants={itemVariants}
+                initial="hidden"
+                animate="visible"
+                className={`rounded-2xl border bg-card overflow-hidden ${
+                  isUnitLocked ? 'border-amber-200 dark:border-amber-900/40' : ''
+                }`}
+              >
+                {/* Unit header */}
+                <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 flex-wrap ${
+                  isUnitLocked ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'bg-muted/40'
+                }`}>
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <Layers className={`h-5 w-5 shrink-0 ${isUnitLocked ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400'}`} />
+                    <h3 className={`font-bold text-base truncate ${isUnitLocked ? 'text-muted-foreground' : 'text-foreground'}`}>
+                      {unit.title}
+                    </h3>
+                    {!unit.is_published && role === 'teacher' && (
+                      <Badge variant="outline" className="text-xs">{t('unitDraft') || 'Draft'}</Badge>
+                    )}
+                    {isUnitLocked && (
+                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40">
+                        <Lock className="h-3 w-3 me-1" />
+                        {t('unitDisabled') || 'الوحدة متوقفة'}
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      <BookOpen className="h-3 w-3 me-1" />
+                      {unitLessons.length}
+                    </Badge>
+                    {unit.pass_threshold != null && (
+                      <Badge variant="outline" className="text-xs">
+                        {t('passThreshold') || 'Pass'}: {unit.pass_threshold}%
+                      </Badge>
+                    )}
+                  </div>
+                  {role === 'teacher' && (
+                    <button
+                      onClick={() => handleCreateLesson(unit.id)}
+                      disabled={creatingLesson}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                      title={t('createLessonInUnit') || 'إنشاء درس داخل هذه الوحدة'}
+                    >
+                      {creatingLesson ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="h-3.5 w-3.5" />
+                      )}
+                      {t('createLesson') || 'Create Lesson'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Lessons inside the unit */}
+                {unitLessons.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                    {role === 'teacher'
+                      ? (t('noLessonsInUnit') || 'لا توجد دروس في هذه الوحدة بعد. اضغط "Create Lesson" لإضافة درس.')
+                      : (t('noLessonsPublishedInUnit') || 'لا توجد دروس منشورة في هذه الوحدة بعد.')}
+                  </div>
+                ) : (
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {unitLessons.map((lesson) => (
+                      <motion.div
+                        key={lesson.id}
+                        variants={itemVariants}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        layout
+                        className={`rounded-xl border bg-card shadow-sm transition-all overflow-hidden group ${
+                          isUnitLocked
+                            ? 'opacity-60 cursor-not-allowed border-amber-200 dark:border-amber-900/40'
+                            : 'hover:shadow-md cursor-pointer'
+                        }`}
+                        onClick={() => {
+                          if (isUnitLocked) {
+                            toast.error(t('unitLockedToast') || 'الوحدة متوقفة — لا يمكن فتح الدرس');
+                            return;
+                          }
+                          if (role === 'teacher') {
+                            handleEditLesson(lesson);
+                          } else {
+                            handleViewLesson(lesson);
+                          }
+                        }}
+                      >
+                        {/* Top color bar */}
+                        <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
+                        <div className="p-3">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h4 className="text-sm font-bold text-foreground line-clamp-2 flex-1 min-w-0">
+                              {lesson.title}
+                            </h4>
+                            {isUnitLocked && (
+                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40 shrink-0">
+                                <Lock className="h-3 w-3 me-1" />
+                                {t('unitDisabled') || 'الوحدة متوقفة'}
+                              </Badge>
+                            )}
+                            {role === 'teacher' && !isUnitLocked && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
+                                    <Pencil className="h-4 w-4 me-2" />
+                                    {tc('edit') || 'Edit'}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
+                                    <Copy className="h-4 w-4 me-2" />
+                                    {t('duplicate') || 'Duplicate'}
+                                  </DropdownMenuItem>
+                                  {units.length > 0 && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()} className="gap-2">
+                                          <FolderTree className="h-4 w-4 me-2" />
+                                          {t('moveToUnit') || 'Move to Unit'}
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, null); }}>
+                                            <BookOpen className="h-4 w-4 me-2" />
+                                            {t('standalone') || 'Standalone (no unit)'}
+                                            {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
+                                          </DropdownMenuItem>
+                                          {units.map((u) => (
+                                            <DropdownMenuItem key={u.id} onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, u.id); }}>
+                                              <Layers className="h-4 w-4 me-2" />
+                                              <span className="truncate">{u.title}</span>
+                                              {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        </DropdownMenuSubContent>
+                                      </DropdownMenuSub>
+                                    </>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const isUnpublish = lesson.status === 'published';
+                                      try {
+                                        const headers = await getAuthHeaders();
+                                        const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
+                                          method: 'POST',
+                                          headers,
+                                          body: JSON.stringify({ unpublish: isUnpublish }),
+                                        });
+                                        if (!res.ok) {
+                                          const data = await res.json().catch(() => ({}));
+                                          toast.error(data.error || t('publishFailed') || 'Failed to update publish status');
+                                          return;
+                                        }
+                                        const data = await res.json();
+                                        const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
+                                        setLessons((prev) =>
+                                          prev.map((l) =>
+                                            l.id === lesson.id
+                                              ? { ...l, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null }
+                                              : l
+                                          )
+                                        );
+                                        if (editingLesson?.id === lesson.id) {
+                                          setEditingLesson((prev) =>
+                                            prev
+                                              ? { ...prev, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null }
+                                              : prev
+                                          );
+                                        }
+                                        toast.success(newStatus === 'published' ? t('lessonPublished') || 'Lesson published' : t('lessonUnpublished') || 'Lesson unpublished');
+                                      } catch (err) {
+                                        console.error('Error toggling publish:', err);
+                                        toast.error(t('publishFailed') || 'Failed to update publish status');
+                                      }
+                                    }}
+                                  >
+                                    {lesson.status === 'published' ? (
+                                      <><Lock className="h-4 w-4 me-2" />{t('unpublish') || 'Unpublish'}</>
+                                    ) : (
+                                      <><Globe className="h-4 w-4 me-2" />{t('publish') || 'Publish'}</>
+                                    )}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
+                                    <Trash2 className="h-4 w-4 me-2" />
+                                    {tc('delete') || 'Delete'}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+
+                          {/* Status badge + meta */}
+                          <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                            {lesson.status === 'draft' ? (
+                              <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                                <Lock className="h-2.5 w-2.5 me-1" />
+                                {t('draft') || 'Draft'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                                <Globe className="h-2.5 w-2.5 me-1" />
+                                {t('published') || 'Published'}
+                              </Badge>
+                            )}
+                            {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {t('passThreshold') || 'Pass'}: {lesson.pass_threshold}%
+                              </Badge>
+                            )}
+                          </div>
+
+                          {getExcerpt(lesson.content_json) && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                              {getExcerpt(lesson.content_json)}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between pt-2 border-t border-muted/50">
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              <span>
+                                {formatDateRelative(
+                                  lesson.status === 'published'
+                                    ? lesson.published_at || lesson.updated_at
+                                    : lesson.updated_at
+                                )}
+                              </span>
+                            </div>
+                            {getWordCount(lesson.content_json) > 0 && (
+                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <FileText className="h-3 w-3" />
+                                <span>{getWordCount(lesson.content_json)} {t('words') || 'words'}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+
+          {/* Uncategorized lessons (no unit_id) — render as flat grid at the bottom */}
+          {(() => {
+            const standaloneLessons = visibleLessons.filter((l) => !l.unit_id);
+            if (standaloneLessons.length === 0) return null;
+            return (
+              <motion.div
+                variants={itemVariants}
+                initial="hidden"
+                animate="visible"
+                className="rounded-2xl border bg-card overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b bg-muted/40 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-400" />
+                    <h3 className="font-bold text-base">
+                      {t('standaloneLessons') || 'دروس بدون وحدة'}
+                    </h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {standaloneLessons.length}
+                    </Badge>
+                  </div>
+                  {role === 'teacher' && (
+                    <button
+                      onClick={() => handleCreateLesson(null)}
+                      disabled={creatingLesson}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                    >
+                      {creatingLesson ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="h-3.5 w-3.5" />
+                      )}
+                      {t('createLesson') || 'Create Lesson'}
+                    </button>
+                  )}
+                </div>
+                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {standaloneLessons.map((lesson) => (
+                    <motion.div
+                      key={lesson.id}
+                      variants={itemVariants}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      layout
+                      className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer group"
+                      onClick={() =>
+                        role === 'teacher'
+                          ? handleEditLesson(lesson)
+                          : handleViewLesson(lesson)
+                      }
+                    >
+                      <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
+                      <div className="p-3">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h4 className="text-sm font-bold text-foreground line-clamp-2 flex-1 min-w-0">
+                            {lesson.title}
+                          </h4>
+                          {role === 'teacher' && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
+                                  <Pencil className="h-4 w-4 me-2" />
+                                  {tc('edit') || 'Edit'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
+                                  <Copy className="h-4 w-4 me-2" />
+                                  {t('duplicate') || 'Duplicate'}
+                                </DropdownMenuItem>
+                                {units.length > 0 && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()} className="gap-2">
+                                        <FolderTree className="h-4 w-4 me-2" />
+                                        {t('moveToUnit') || 'Move to Unit'}
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent>
+                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, null); }}>
+                                          <BookOpen className="h-4 w-4 me-2" />
+                                          {t('standalone') || 'Standalone (no unit)'}
+                                          {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
+                                        </DropdownMenuItem>
+                                        {units.map((u) => (
+                                          <DropdownMenuItem key={u.id} onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, u.id); }}>
+                                            <Layers className="h-4 w-4 me-2" />
+                                            <span className="truncate">{u.title}</span>
+                                            {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  </>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const isUnpublish = lesson.status === 'published';
+                                    try {
+                                      const headers = await getAuthHeaders();
+                                      const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
+                                        method: 'POST',
+                                        headers,
+                                        body: JSON.stringify({ unpublish: isUnpublish }),
+                                      });
+                                      if (!res.ok) {
+                                        const data = await res.json().catch(() => ({}));
+                                        toast.error(data.error || t('publishFailed') || 'Failed to update publish status');
+                                        return;
+                                      }
+                                      const data = await res.json();
+                                      const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
+                                      setLessons((prev) =>
+                                        prev.map((l) =>
+                                          l.id === lesson.id
+                                            ? { ...l, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null }
+                                            : l
+                                        )
+                                      );
+                                      toast.success(newStatus === 'published' ? t('lessonPublished') || 'Lesson published' : t('lessonUnpublished') || 'Lesson unpublished');
+                                    } catch (err) {
+                                      console.error('Error toggling publish:', err);
+                                      toast.error(t('publishFailed') || 'Failed to update publish status');
+                                    }
+                                  }}
+                                >
+                                  {lesson.status === 'published' ? (
+                                    <><Lock className="h-4 w-4 me-2" />{t('unpublish') || 'Unpublish'}</>
+                                  ) : (
+                                    <><Globe className="h-4 w-4 me-2" />{t('publish') || 'Publish'}</>
+                                  )}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
+                                  <Trash2 className="h-4 w-4 me-2" />
+                                  {tc('delete') || 'Delete'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                        <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                          {lesson.status === 'draft' ? (
+                            <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                              <Lock className="h-2.5 w-2.5 me-1" />
+                              {t('draft') || 'Draft'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                              <Globe className="h-2.5 w-2.5 me-1" />
+                              {t('published') || 'Published'}
+                            </Badge>
+                          )}
+                          {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {t('passThreshold') || 'Pass'}: {lesson.pass_threshold}%
+                            </Badge>
+                          )}
+                        </div>
+                        {getExcerpt(lesson.content_json) && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                            {getExcerpt(lesson.content_json)}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between pt-2 border-t border-muted/50">
+                          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {formatDateRelative(
+                                lesson.status === 'published'
+                                  ? lesson.published_at || lesson.updated_at
+                                  : lesson.updated_at
+                              )}
+                            </span>
+                          </div>
+                          {getWordCount(lesson.content_json) > 0 && (
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <FileText className="h-3 w-3" />
+                              <span>{getWordCount(lesson.content_json)} {t('words') || 'words'}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })()}
+        </div>
       ) : (
+        // v98: fallback flat grid — used when there are NO units at all
+        // (preserves the original behavior before hierarchical view was added)
         <AnimatePresence>
           <motion.div
             variants={containerVariants}
@@ -1039,16 +1507,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                 }
               >
                 {/* Top color bar */}
-                <div
-                  className={`h-1 ${
-                    lesson.status === 'published'
-                      ? 'bg-emerald-500'
-                      : 'bg-amber-400 dark:bg-amber-500'
-                  }`}
-                />
-
+                <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
                 <div className="p-4">
-                  {/* Header row: title + actions */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h4 className="text-sm font-bold text-foreground line-clamp-2 flex-1 min-w-0">
                       {lesson.title}
@@ -1056,144 +1516,21 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                     {role === 'teacher' && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                          >
+                          <button onClick={(e) => e.stopPropagation()} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                             <MoreVertical className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditLesson(lesson);
-                            }}
-                          >
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
                             <Pencil className="h-4 w-4 me-2" />
                             {tc('edit') || 'Edit'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDuplicate(lesson);
-                            }}
-                          >
+                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
                             <Copy className="h-4 w-4 me-2" />
                             {t('duplicate') || 'Duplicate'}
                           </DropdownMenuItem>
-                          {/* v63: Move to unit submenu */}
-                          {units.length > 0 && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="gap-2"
-                                >
-                                  <FolderTree className="h-4 w-4 me-2" />
-                                  {t('moveToUnit') || 'Move to Unit'}
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleMoveToUnit(lesson, null);
-                                    }}
-                                  >
-                                    <BookOpen className="h-4 w-4 me-2" />
-                                    {t('standalone') || 'Standalone (no unit)'}
-                                    {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
-                                  </DropdownMenuItem>
-                                  {units.map((u) => (
-                                    <DropdownMenuItem
-                                      key={u.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleMoveToUnit(lesson, u.id);
-                                      }}
-                                    >
-                                      <Layers className="h-4 w-4 me-2" />
-                                      <span className="truncate">{u.title}</span>
-                                      {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                            </>
-                          )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const isUnpublish = lesson.status === 'published';
-                              try {
-                                const headers = await getAuthHeaders();
-                                const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
-                                  method: 'POST',
-                                  headers,
-                                  body: JSON.stringify({ unpublish: isUnpublish }),
-                                });
-                                if (!res.ok) {
-                                  const data = await res.json().catch(() => ({}));
-                                  toast.error(data.error || t('publishFailed') || 'Failed to update publish status');
-                                  return;
-                                }
-                                const data = await res.json();
-                                const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
-                                setLessons((prev) =>
-                                  prev.map((l) =>
-                                    l.id === lesson.id
-                                      ? {
-                                          ...l,
-                                          status: newStatus,
-                                          published_at: newStatus === 'published' ? new Date().toISOString() : null,
-                                        }
-                                      : l
-                                  )
-                                );
-                                if (editingLesson?.id === lesson.id) {
-                                  setEditingLesson((prev) =>
-                                    prev
-                                      ? {
-                                          ...prev,
-                                          status: newStatus,
-                                          published_at: newStatus === 'published' ? new Date().toISOString() : null,
-                                        }
-                                      : prev
-                                  );
-                                }
-                                toast.success(
-                                  newStatus === 'published'
-                                    ? t('lessonPublished') || 'Lesson published'
-                                    : t('lessonUnpublished') || 'Lesson unpublished'
-                                );
-                              } catch (err) {
-                                console.error('Error toggling publish:', err);
-                                toast.error(t('publishFailed') || 'Failed to update publish status');
-                              }
-                            }}
-                          >
-                            {lesson.status === 'published' ? (
-                              <>
-                                <Lock className="h-4 w-4 me-2" />
-                                {t('unpublish') || 'Unpublish'}
-                              </>
-                            ) : (
-                              <>
-                                <Globe className="h-4 w-4 me-2" />
-                                {t('publish') || 'Publish'}
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmDeleteId(lesson.id);
-                            }}
-                          >
+                          <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
                             <Trash2 className="h-4 w-4 me-2" />
                             {tc('delete') || 'Delete'}
                           </DropdownMenuItem>
@@ -1201,71 +1538,33 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                       </DropdownMenu>
                     )}
                   </div>
-
-                  {/* Status badge */}
                   <div className="mb-2 flex items-center gap-1.5 flex-wrap">
                     {lesson.status === 'draft' ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"
-                      >
+                      <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
                         <Lock className="h-2.5 w-2.5 me-1" />
                         {t('draft') || 'Draft'}
                       </Badge>
                     ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400"
-                      >
+                      <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
                         <Globe className="h-2.5 w-2.5 me-1" />
                         {t('published') || 'Published'}
                       </Badge>
                     )}
-                    {/* v63: Unit badge */}
-                    {lesson.unit_id && (() => {
-                      const u = units.find((un) => un.id === lesson.unit_id);
-                      if (!u) return null;
-                      return (
-                        <Badge variant="secondary" className="text-[10px]">
-                          <Layers className="h-2.5 w-2.5 me-1" />
-                          {u.title}
-                        </Badge>
-                      );
-                    })()}
-                    {/* v63: Pass threshold badge */}
-                    {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {t('passThreshold') || 'Pass'}: {lesson.pass_threshold}%
-                      </Badge>
-                    )}
                   </div>
-
-                  {/* Excerpt */}
                   {getExcerpt(lesson.content_json) && (
                     <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
                       {getExcerpt(lesson.content_json)}
                     </p>
                   )}
-
-                  {/* Footer: date + word count */}
                   <div className="flex items-center justify-between pt-2 border-t border-muted/50">
                     <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      <span>
-                        {formatDateRelative(
-                          lesson.status === 'published'
-                            ? lesson.published_at || lesson.updated_at
-                            : lesson.updated_at
-                        )}
-                      </span>
+                      <span>{formatDateRelative(lesson.status === 'published' ? lesson.published_at || lesson.updated_at : lesson.updated_at)}</span>
                     </div>
                     {getWordCount(lesson.content_json) > 0 && (
                       <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <FileText className="h-3 w-3" />
-                        <span>
-                          {getWordCount(lesson.content_json)}{' '}
-                          {t('words') || 'words'}
-                        </span>
+                        <span>{getWordCount(lesson.content_json)} {t('words') || 'words'}</span>
                       </div>
                     )}
                   </div>
