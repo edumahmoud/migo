@@ -94,7 +94,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  // Return as `units` key (frontend reads data.units) — also alias as `data` for backward compat
+  return NextResponse.json({ units: data, data });
 }
 
 /**
