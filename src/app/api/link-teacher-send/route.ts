@@ -114,43 +114,34 @@ export async function POST(request: Request) {
         );
       }
 
-      // If student already has a pending request to this teacher → auto-approve it
-      if (existingStatus === 'pending') {
-        const { error: approveError } = await supabaseServer
+      // v92 — pending/rejected are upgraded to approved immediately
+      if (existingStatus === 'pending' || existingStatus === 'rejected') {
+        const { error: upgradeErr } = await supabaseServer
           .from('teacher_student_links')
-          .update({ status: 'approved' })
+          .update({ status: 'approved', initiated_by: 'teacher' })
           .eq('id', existingLinks[0].id);
 
-        if (approveError) {
-          console.error('[link-teacher-send] Error auto-approving:', approveError);
+        if (upgradeErr) {
           return NextResponse.json(
-            { error: 'حدث خطأ أثناء قبول الطلب تلقائياً' },
+            { error: 'حدث خطأ أثناء تحديث الارتباط' },
             { status: 500 }
           );
         }
 
-        // Send notification to student about approval (DB + push)
+        // Notify student (informational — not a request)
         await notifyUser(
           student.id,
           'system',
-          'تم قبول طلب الارتباط',
-          `قبل المعلم ${profile.name} طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.`,
+          'تم ربطك بمعلم',
+          `تم ربطك بالمعلم ${profile.name} تلقائياً. يمكنك الآن الوصول إلى مقرراته.`,
           'teachers',
         );
 
         return NextResponse.json({
           success: true,
-          autoApproved: true,
-          message: `كان لدى ${student.name} طلب ارتباط معلق بالفعل. تم قبوله تلقائياً.`,
+          message: `تم ربطك بالطالب ${student.name} بنجاح`,
           studentName: student.name,
         });
-      }
-
-      if (existingStatus === 'rejected') {
-        return NextResponse.json(
-          { error: 'تم رفض طلب الارتباط السابق مع هذا الطالب' },
-          { status: 409 }
-        );
       }
     }
 
@@ -166,34 +157,43 @@ export async function POST(request: Request) {
       });
     }
 
-    // Check if there's already a pending link_request notification from this teacher to this student
-    const { data: existingNotifs } = await supabaseServer
-      .from('notifications')
-      .select('id')
-      .eq('user_id', student.id)
-      .eq('type', 'link_request')
-      .eq('read', false)
-      .like('link', `link_request:${profile.id}`);
+    // LINK MODE (default): v92 — create the link IMMEDIATELY as 'approved'
+    // (no student approval needed — same as the activation-time flow)
+    const { error: insertError } = await supabaseServer
+      .from('teacher_student_links')
+      .upsert({
+        teacher_id: profile.id,
+        student_id: student.id,
+        status: 'approved',
+        initiated_by: 'teacher',
+      }, { onConflict: 'teacher_id,student_id' });
 
-    if (existingNotifs && existingNotifs.length > 0) {
+    if (insertError) {
+      console.error('[link-teacher-send] Error creating link:', insertError);
+      if (insertError.code === '23505') {
+        return NextResponse.json(
+          { error: 'أنت مرتبط بالفعل بهذا الطالب' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { error: 'لقد أرسلت بالفعل طلب ارتباط لهذا الطالب ولم يرد عليه بعد' },
-        { status: 409 }
+        { error: 'حدث خطأ أثناء الربط بالطالب' },
+        { status: 500 }
       );
     }
 
-    // LINK MODE (default): Send a link_request notification to the student (DB + push)
+    // v92 — send informational notification to student (not a request)
     await notifyUser(
       student.id,
-      'link_request',
-      'طلب ارتباط من معلم',
-      `أرسل المعلم ${profile.name} طلب ارتباط بك. يمكنك قبول أو رفض الطلب من قسم المعلمين.`,
-      `link_request:${profile.id}`,
+      'system',
+      'تم ربطك بمعلم',
+      `تم ربطك بالمعلم ${profile.name} تلقائياً. يمكنك الآن الوصول إلى مقرراته.`,
+      'teachers',
     );
 
     return NextResponse.json({
       success: true,
-      message: `تم إرسال طلب الارتباط إلى ${student.name} بنجاح. في انتظار موافقة الطالب.`,
+      message: `تم ربطك بالطالب ${student.name} بنجاح`,
       studentName: student.name,
     });
   } catch (err) {

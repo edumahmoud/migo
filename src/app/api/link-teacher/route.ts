@@ -121,18 +121,38 @@ export async function POST(request: Request) {
         );
       }
 
-      if (existingStatus === 'pending') {
-        return NextResponse.json(
-          { error: 'لديك طلب ارتباط معلقة بالفعل مع هذا المعلم' },
-          { status: 409 }
-        );
-      }
+      // v92 — pending/rejected are upgraded to approved immediately
+      if (existingStatus === 'pending' || existingStatus === 'rejected') {
+        const { data: upgraded, error: upgradeErr } = await supabaseServer
+          .from('teacher_student_links')
+          .update({ status: 'approved' })
+          .eq('teacher_id', teacher.id)
+          .eq('student_id', profile.id)
+          .select()
+          .single();
 
-      if (existingStatus === 'rejected') {
-        return NextResponse.json(
-          { error: 'تم رفض طلب الارتباط السابق مع هذا المعلم. يمكنك إزالة الطلب المرفوض والمحاولة مجدداً' },
-          { status: 409 }
+        if (upgradeErr) {
+          return NextResponse.json(
+            { error: 'حدث خطأ أثناء تحديث الارتباط' },
+            { status: 500 }
+          );
+        }
+
+        // Notify teacher (informational — not a request)
+        await notifyUser(
+          teacher.id,
+          'system',
+          'تم ربط طالب بك',
+          `تم ربط الطالب ${profile.name} بك تلقائياً.`,
+          'students',
         );
+
+        return NextResponse.json({
+          success: true,
+          message: `تم ربطك بالمعلم ${teacher.name} بنجاح`,
+          link: upgraded,
+          teacherName: teacher.name,
+        });
       }
     }
 
@@ -149,46 +169,47 @@ export async function POST(request: Request) {
       });
     }
 
-    // LINK MODE (default): Create the link with 'pending' status
+    // LINK MODE (default): v92 — create the link IMMEDIATELY as 'approved'
+    // (no teacher approval needed — same as the activation-time flow)
     const { data: newLink, error: insertError } = await supabaseServer
       .from('teacher_student_links')
-      .insert({
+      .upsert({
         teacher_id: teacher.id,
         student_id: profile.id,
-        status: 'pending',
-      })
+        status: 'approved',
+        initiated_by: 'student',
+      }, { onConflict: 'teacher_id,student_id' })
       .select()
       .single();
 
     if (insertError) {
       console.error('[link-teacher] Error creating link:', insertError);
 
-      // Handle duplicate key error (race condition)
       if (insertError.code === '23505') {
         return NextResponse.json(
-          { error: 'لديك طلب ارتباط بالفعل مع هذا المعلم' },
+          { error: 'أنت مرتبط بالفعل بهذا المعلم' },
           { status: 409 }
         );
       }
 
       return NextResponse.json(
-        { error: 'حدث خطأ أثناء إرسال طلب الارتباط' },
+        { error: 'حدث خطأ أثناء الربط بالمعلم' },
         { status: 500 }
       );
     }
 
-    // 4. Send notification to the teacher about the new link request (DB + push)
+    // v92 — send informational notification to teacher (not a request)
     await notifyUser(
       teacher.id,
       'system',
-      'طلب ارتباط جديد',
-      `أرسل الطالب ${profile.name} طلب ارتباط بك. اذهب لقسم الطلاب لقبول أو رفض الطلب.`,
+      'تم ربط طالب بك',
+      `تم ربط الطالب ${profile.name} بك تلقائياً.`,
       'students',
     );
 
     return NextResponse.json({
       success: true,
-      message: `تم إرسال طلب الارتباط إلى ${teacher.name} بنجاح. في انتظار موافقة المعلم.`,
+      message: `تم ربطك بالمعلم ${teacher.name} بنجاح`,
       link: newLink,
       teacherName: teacher.name,
     });
