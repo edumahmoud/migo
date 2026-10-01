@@ -125,7 +125,11 @@ export function PaymentSummaryDialog({
         amount: Number(it.amount),
         currency: it.currency,
       }))
-    : (order ? [{ subjectName: order.subjectName, amount: Number(order.grandTotal ?? order.amount), currency: order.currency }] : []);
+    // v88+ — show the BASE price (subscription cost) as the item amount,
+    // NOT the grand_total. The grand_total appears in the breakdown section
+    // below (base + fees = grand_total). Showing grand_total here would
+    // make it look like the total is being added ON TOP of the course price.
+    : (order ? [{ subjectName: order.subjectName, amount: Number(order.baseAmount ?? order.amount), currency: order.currency }] : []);
 
   // v88 — fees breakdown (single-order mode only for now)
   const feesBreakdown = order?.feesBreakdown ?? [];

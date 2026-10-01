@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
           provider_order_ref: `order_${randomUUID()}`,
           status: 'pending',
         })
-        .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at')
+        .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at, fees_breakdown')
         .single();
 
       if (order) {
