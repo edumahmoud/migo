@@ -229,8 +229,12 @@ export default function StudentActivationPage() {
           setPaymentSummaryOrder({
             orderId: String(o.id),
             subjectName: String(o.subject_name ?? '—'),
-            amount: Number(o.amount),
+            amount: Number((o as { grand_total?: number }).grand_total ?? o.amount),
             currency: String(o.currency ?? 'EGP'),
+            baseAmount: Number((o as { base_amount?: number }).base_amount ?? o.amount),
+            feesTotal: Number((o as { fees_total?: number }).fees_total ?? 0),
+            grandTotal: Number((o as { grand_total?: number }).grand_total ?? o.amount),
+            feesBreakdown: (o as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
           });
           setPaymentSummaryOpen(true);
         } else {

@@ -2970,15 +2970,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                         setPaymentSummaryOrder({
                                           orderId: String(created.id),
                                           subjectName: c.name,
-                                          amount: Number(c.price),
-                                          currency: String(c.currency ?? 'EGP'),
+                                          amount: Number(created.grand_total ?? created.amount ?? c.price),
+                                          currency: String(created.currency ?? 'EGP'),
+                                          baseAmount: Number(created.base_amount ?? c.price),
+                                          feesTotal: Number(created.fees_total ?? 0),
+                                          grandTotal: Number(created.grand_total ?? c.price),
+                                          feesBreakdown: (created as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
                                         });
                                         setPaymentSummaryOpen(true);
                                       } else {
-                                        // Order was created but we couldn't find the
-                                        // new row in the response (rare — possibly
-                                        // skipped as duplicate). Show toast and refresh.
-                                        toast.info('تم إنشاء طلب الاشتراك مسبقاً. سيتم تفعيله تلقائياً بعد الدفع عبر بوابة الدفع.');
+                                        // v88+ — check if the order was skipped (existing pending order)
+                                        const skipped = (json.skipped_orders ?? []).find(
+                                          (s: { subject_id?: string; order_id?: string }) => s.subject_id === c.id,
+                                        );
+                                        if (skipped?.order_id) {
+                                          // Open the payment dialog on the EXISTING pending order
+                                          setPaymentSummaryOrder({
+                                            orderId: String(skipped.order_id),
+                                            subjectName: c.name,
+                                            amount: Number(skipped.grand_total ?? skipped.amount ?? c.price),
+                                            currency: String(skipped.currency ?? 'EGP'),
+                                            baseAmount: Number(skipped.base_amount ?? c.price),
+                                            feesTotal: Number(skipped.fees_total ?? 0),
+                                            grandTotal: Number(skipped.grand_total ?? c.price),
+                                          });
+                                          setPaymentSummaryOpen(true);
+                                        } else {
+                                          toast.info('تم إنشاء طلب الاشتراك مسبقاً. سيتم تفعيله تلقائياً بعد الدفع عبر بوابة الدفع.');
+                                        }
                                       }
                                       setAvailableCoursesOpen(false);
                                       fetchSubjects();
@@ -3221,14 +3240,19 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               );
                               if (created?.id) {
                                 // Open the Payment Summary dialog with the
-                                // server-authoritative order info. The user
-                                // must click "Pay Now" to actually initiate
-                                // the Paymob checkout.
+                                // server-authoritative order info (including
+                                // fees breakdown from v88). The user must
+                                // click "Pay Now" to actually initiate the
+                                // payment gateway checkout.
                                 setPaymentSummaryOrder({
                                   orderId: String(created.id),
                                   subjectName: subjectPreview.name,
-                                  amount: Number(subjectPreview.price),
-                                  currency: String(subjectPreview.currency ?? 'EGP'),
+                                  amount: Number(created.grand_total ?? created.amount ?? subjectPreview.price),
+                                  currency: String(created.currency ?? 'EGP'),
+                                  baseAmount: Number(created.base_amount ?? subjectPreview.price),
+                                  feesTotal: Number(created.fees_total ?? 0),
+                                  grandTotal: Number(created.grand_total ?? subjectPreview.price),
+                                  feesBreakdown: (created as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
                                 });
                                 setPaymentSummaryOpen(true);
                                 setJoinCodeOpen(false);
@@ -3236,9 +3260,24 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 setJoinCodeInput('');
                                 fetchSubjects();
                               } else {
-                                // Order was created but we couldn't find the
-                                // new row in the response (rare). Show toast.
-                                toast.info('تم إنشاء طلب اشتراك مسبقاً.');
+                                // v88+ — check if the order was skipped (existing pending order)
+                                const skipped = (json.skipped_orders ?? []).find(
+                                  (s: { subject_id?: string; order_id?: string }) => s.subject_id === subjectPreview.id,
+                                );
+                                if (skipped?.order_id) {
+                                  setPaymentSummaryOrder({
+                                    orderId: String(skipped.order_id),
+                                    subjectName: subjectPreview.name,
+                                    amount: Number(skipped.grand_total ?? skipped.amount ?? subjectPreview.price),
+                                    currency: String(skipped.currency ?? 'EGP'),
+                                    baseAmount: Number(skipped.base_amount ?? subjectPreview.price),
+                                    feesTotal: Number(skipped.fees_total ?? 0),
+                                    grandTotal: Number(skipped.grand_total ?? subjectPreview.price),
+                                  });
+                                  setPaymentSummaryOpen(true);
+                                } else {
+                                  toast.info('تم إنشاء طلب اشتراك مسبقاً.');
+                                }
                                 setJoinCodeOpen(false);
                                 setSubjectPreview(null);
                                 setJoinCodeInput('');

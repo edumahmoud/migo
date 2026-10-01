@@ -83,15 +83,20 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Check for existing pending orders (idempotency — don't create duplicates).
+  //    v88+ — return the existing order IDs so the UI can open the
+  //    payment dialog on them (instead of silently skipping + showing
+  //    a misleading "order created" toast).
   const { data: existingOrders } = await supabaseServer
     .from('orders')
-    .select('id, subject_id')
+    .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency')
     .eq('student_id', studentId)
     .in('subject_id', requestedSubjectIds)
     .eq('status', 'pending');
 
-  const existingBySubject = new Set<string>(
-    ((existingOrders ?? []) as Array<{ subject_id: string }>).map((o) => o.subject_id)
+  // Map: subject_id → existing pending order (full row)
+  const existingBySubject = new Map<string, { id: string; amount: number; base_amount: number | null; fees_total: number | null; grand_total: number | null; currency: string }>(
+    ((existingOrders ?? []) as Array<{ id: string; subject_id: string; amount: number; base_amount: number | null; fees_total: number | null; grand_total: number | null; currency: string }>)
+      .map((o) => [o.subject_id, o])
   );
 
   // 4. Create new orders.
@@ -102,8 +107,24 @@ export async function POST(request: NextRequest) {
   //      after a real successful payment. Until then, the order stays
   //      'pending' and the student sees it in their pending list.
   const createdOrders: Array<Record<string, unknown>> = [];
+  const skippedOrders: Array<{ subject_id: string; order_id: string; amount: number; base_amount: number | null; fees_total: number | null; grand_total: number | null; currency: string }> = [];
   for (const subjectId of requestedSubjectIds) {
-    if (existingBySubject.has(subjectId)) continue;
+    if (existingBySubject.has(subjectId)) {
+      // v88+ — include the existing order's full data so the UI can
+      // open the payment dialog on it (with fees breakdown) instead
+      // of silently skipping + showing a misleading success toast.
+      const existing = existingBySubject.get(subjectId)!;
+      skippedOrders.push({
+        subject_id: subjectId,
+        order_id: existing.id,
+        amount: Number(existing.amount),
+        base_amount: existing.base_amount,
+        fees_total: existing.fees_total,
+        grand_total: existing.grand_total,
+        currency: existing.currency,
+      });
+      continue;
+    }
     const subject = subjectsMap.get(subjectId);
     if (!subject) continue;
 
@@ -235,9 +256,15 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     created_orders: createdOrders,
-    skipped: Array.from(existingBySubject),
-    message: createdOrders.some(o => o.status === 'pending')
-      ? 'تم إنشاء الطلبات. سيتم تفعيل المقررات المدفوعة تلقائياً بعد إتمام الدفع عبر بوابة الدفع.'
-      : 'تم تفعيل المقررات المجانية بنجاح.',
+    // v88+ — skipped now includes the existing order's full data
+    // (order_id, amount, fees) so the UI can open the payment dialog
+    // on the existing pending order instead of silently ignoring it.
+    skipped: skippedOrders.map((s) => s.subject_id),
+    skipped_orders: skippedOrders,
+    message: skippedOrders.length > 0 && createdOrders.length === 0
+      ? 'لديك طلبات قيد الدفع بالفعل — يمكنك إتمام الدفع الآن'
+      : createdOrders.some(o => o.status === 'pending')
+        ? 'تم إنشاء الطلبات. سيتم تفعيل المقررات المدفوعة تلقائياً بعد إتمام الدفع عبر بوابة الدفع.'
+        : 'تم تفعيل المقررات المجانية بنجاح.',
   });
 }
