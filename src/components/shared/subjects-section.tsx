@@ -238,6 +238,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [subscribingCourseId, setSubscribingCourseId] = useState<string | null>(null);
   // v92+ — expanded teacher groups in available courses modal
   const [expandedTeacherIds, setExpandedTeacherIds] = useState<Set<string>>(new Set());
+  // v93+ — multi-select for batch subscription
+  const [selectedAvailableCourseIds, setSelectedAvailableCourseIds] = useState<Set<string>>(new Set());
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectDesc, setNewSubjectDesc] = useState('');
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
@@ -2843,6 +2845,99 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">المقررات المجانية تُفعّل فوراً. المدفوعة تُفعّل بعد الدفع عبر بوابة الدفع.</p>
               </div>
+              {/* v93+ — footer with multi-select subscribe button */}
+              {availableCoursesData && availableCoursesData.available_courses.length > 0 && selectedAvailableCourseIds.size > 0 && (
+                <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
+                  <span className="text-sm font-medium">{selectedAvailableCourseIds.size} مقرر محدد</span>
+                  <Button
+                    size="sm"
+                    disabled={!!subscribingCourseId}
+                    onClick={async () => {
+                      setSubscribingCourseId('multi');
+                      try {
+                        const ids = Array.from(selectedAvailableCourseIds);
+                        const res = await fetch('/api/student/orders', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+                          body: JSON.stringify({ subjectIds: ids }),
+                        });
+                        const json = await res.json();
+                        if (json.success) {
+                          const paidCreated = (json.created_orders ?? []).filter(
+                            (o: { status?: string; free?: boolean; amount?: number }) => o.status === 'pending' && !o.free && Number(o.amount ?? 0) > 0
+                          );
+                          const freeCreated = (json.created_orders ?? []).filter(
+                            (o: { free?: boolean }) => o.free
+                          );
+                          if (freeCreated.length > 0) {
+                            toast.success(`تم الاشتراك في ${freeCreated.length} مقرر مجاني بنجاح.`);
+                          }
+                          if (paidCreated.length === 1) {
+                            const o = paidCreated[0];
+                            setPaymentSummaryOrder({
+                              orderId: String(o.id),
+                              subjectName: String(o.subject_name ?? '—'),
+                              amount: Number(o.grand_total ?? o.amount),
+                              currency: String(o.currency ?? 'EGP'),
+                              baseAmount: Number(o.base_amount ?? o.amount),
+                              feesTotal: Number(o.fees_total ?? 0),
+                              grandTotal: Number(o.grand_total ?? o.amount),
+                              feesBreakdown: (o as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
+                            });
+                            setPaymentSummaryOpen(true);
+                          } else if (paidCreated.length > 1) {
+                            const orderIds = paidCreated.map((o: { id: string }) => String(o.id));
+                            try {
+                              const session = await (await import('@/lib/student/payment-action')).createCheckoutSession(orderIds, await getCachedAuthHeaders());
+                              setPaymentSummaryOrder(null);
+                              setSessionItems(session.items);
+                              setSessionId(session.session_id);
+                              setPaymentSummaryOpen(true);
+                              toast.info(`تم إنشاء ${paidCreated.length} طلبات — ادفع الكل دفعة واحدة`);
+                            } catch {
+                              toast.info(`تم إنشاء ${paidCreated.length} طلبات مدفوعة — اكمل الدفع من القائمة`);
+                            }
+                          } else if (freeCreated.length === 0) {
+                            const skipped = (json.skipped_orders ?? []).filter(
+                              (s: { subject_id?: string }) => selectedAvailableCourseIds.has(s.subject_id ?? '')
+                            );
+                            if (skipped.length === 1 && skipped[0].order_id) {
+                              setPaymentSummaryOrder({
+                                orderId: String(skipped[0].order_id),
+                                subjectName: availableCoursesData.available_courses.find((c) => c.id === skipped[0].subject_id)?.name ?? '—',
+                                amount: Number(skipped[0].grand_total ?? skipped[0].amount),
+                                currency: String(skipped[0].currency ?? 'EGP'),
+                                baseAmount: Number(skipped[0].base_amount ?? skipped[0].amount),
+                                feesTotal: Number(skipped[0].fees_total ?? 0),
+                                grandTotal: Number(skipped[0].grand_total ?? skipped[0].amount),
+                              });
+                              setPaymentSummaryOpen(true);
+                            } else {
+                              const notAvail = (json.not_available ?? []).filter(
+                                (n: { subject_id?: string }) => selectedAvailableCourseIds.has(n.subject_id ?? '')
+                              );
+                              if (notAvail.length > 0) {
+                                toast.error(notAvail[0].reason || 'تعذّر إنشاء بعض الطلبات');
+                              } else {
+                                toast.info('لم يتم إنشاء طلبات جديدة');
+                              }
+                            }
+                          }
+                          setSelectedAvailableCourseIds(new Set());
+                          setAvailableCoursesOpen(false);
+                          fetchSubjects();
+                        } else {
+                          toast.error(json.error || t('common.unexpectedError'));
+                        }
+                      } catch { toast.error(t('common.unexpectedError')); }
+                      finally { setSubscribingCourseId(null); }
+                    }}
+                    className="bg-teal-600 hover:bg-teal-700 text-white gap-1"
+                  >
+                    {subscribingCourseId === 'multi' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    اشترك في المحدد ({selectedAvailableCourseIds.size})
+                  </Button>
+                </div>
+              )}
               <div className="overflow-y-auto p-4 space-y-2 flex-1">
                 {!availableCoursesData ? (
                   <div className="flex items-center justify-center py-10">
@@ -2905,8 +3000,26 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 const sub = availableCoursesData.subscriptions?.find((s) => s.subject_id === c.id);
                                 const isSubActive = sub?.current_period_end && new Date(sub.current_period_end) > new Date();
                                 const isPaying = subscribingCourseId === c.id;
+                                const isSelected = selectedAvailableCourseIds.has(c.id);
                                 return (
-                                  <div key={c.id} className={`flex items-center justify-between gap-3 p-3 ${isSubActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}>
+                                  <div key={c.id} className={`flex items-center justify-between gap-3 p-3 ${isSubActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''} ${isSelected ? 'bg-sky-50/50 dark:bg-sky-900/10' : ''}`}>
+                                    {/* v93+ — checkbox for multi-select */}
+                                    {!isSubActive && (
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {
+                                          setSelectedAvailableCourseIds((prev) => {
+                                            const next = new Set(prev);
+                                            if (next.has(c.id)) next.delete(c.id);
+                                            else next.add(c.id);
+                                            return next;
+                                          });
+                                        }}
+                                        className="h-4 w-4 cursor-pointer accent-teal-600 shrink-0"
+                                      />
+                                    )}
+                                    {isSubActive && <div className="w-4 shrink-0" />}
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2">
                                         <span className="font-semibold truncate">{c.name}</span>
