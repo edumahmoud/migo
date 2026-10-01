@@ -132,11 +132,58 @@ export function PaymentSummaryDialog({
     : (order ? [{ subjectName: order.subjectName, amount: Number(order.baseAmount ?? order.amount), currency: order.currency }] : []);
 
   // v88 — fees breakdown (single-order mode only for now)
-  const feesBreakdown = order?.feesBreakdown ?? [];
+  // These come from the caller's props — but if the caller didn't pass
+  // them (e.g., order created before v88, or caller uses a simplified
+  // flow), we'll fetch them from the server in the useEffect below.
+  const [feesData, setFeesData] = useState<{
+    baseAmount?: number;
+    feesTotal?: number;
+    grandTotal?: number;
+    feesBreakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+  }>({});
+
+  // Fetch the FULL order details (including fees_breakdown) from the
+  // server when the dialog opens in single-order mode. This makes the
+  // dialog self-sufficient — it doesn't depend on the caller passing
+  // the fees fields through props (which was unreliable).
+  useEffect(() => {
+    if (!open || isMultiMode || !order?.orderId) {
+      setFeesData({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getCachedAuthHeaders();
+        const res = await fetch(`/api/student/orders/${order!.orderId}`, { headers });
+        const json = await res.json();
+        if (cancelled || !json.success || !json.order) return;
+        const o = json.order as {
+          amount?: number | string;
+          base_amount?: number | string | null;
+          fees_total?: number | string | null;
+          grand_total?: number | string | null;
+          fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+        };
+        setFeesData({
+          baseAmount: o.base_amount != null ? Number(o.base_amount) : undefined,
+          feesTotal: o.fees_total != null ? Number(o.fees_total) : undefined,
+          grandTotal: o.grand_total != null ? Number(o.grand_total) : undefined,
+          feesBreakdown: o.fees_breakdown ?? [],
+        });
+      } catch {
+        // Network error — fall back to props data
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, isMultiMode, order?.orderId]);
+
+  // Use fetched data if available, otherwise fall back to props
+  const feesBreakdown = feesData.feesBreakdown ?? order?.feesBreakdown ?? [];
   const hasFees = feesBreakdown.length > 0;
-  const baseSubtotal = order?.baseAmount ?? Number(order?.amount ?? 0);
-  const feesTotal = order?.feesTotal ?? 0;
-  const grandTotal = order?.grandTotal ?? Number(order?.amount ?? 0);
+  const baseSubtotal = feesData.baseAmount ?? order?.baseAmount ?? Number(order?.amount ?? 0);
+  const feesTotal = feesData.feesTotal ?? order?.feesTotal ?? 0;
+  const grandTotal = feesData.grandTotal ?? order?.grandTotal ?? Number(order?.amount ?? 0);
 
   const totalAmount = useMemo(
     () => isMultiMode
