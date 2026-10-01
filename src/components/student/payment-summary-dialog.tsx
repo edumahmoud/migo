@@ -50,7 +50,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Loader2, CreditCard, X, AlertCircle, ShieldCheck, ExternalLink, Smartphone } from 'lucide-react';
+import { Loader2, CreditCard, X, AlertCircle, ShieldCheck, ExternalLink, Smartphone, Banknote } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogFooter, DialogClose,
@@ -111,10 +111,8 @@ export function PaymentSummaryDialog({
   const [state, setState] = useState<PaymentState>('ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [removingOrderId, setRemovingOrderId] = useState<string | null>(null);
-  // The student can pick between card payment and mobile wallet payment.
-  // Default is 'card' (backward compat — works even if wallet is not
-  // configured on the gateway).
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet'>('card');
+  // Payment method picker: card | wallet | fawry
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet' | 'fawry'>('card');
   // v88+ — Fawry Code display: the reference code returned by the adapter
   const [fawryReferenceCode, setFawryReferenceCode] = useState<string | null>(null);
   const [fawryPollCount, setFawryPollCount] = useState(0);
@@ -364,12 +362,12 @@ export function PaymentSummaryDialog({
             <span className="text-sm text-muted-foreground">
               {t('student.payment.paymentMethod')}
             </span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {/* Card option */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod('card')}
-                disabled={state === 'preparing' || state === 'redirecting'}
+                disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
                 className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
                   paymentMethod === 'card'
                     ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
@@ -378,19 +376,15 @@ export function PaymentSummaryDialog({
               >
                 <div className="flex items-center gap-1.5">
                   <CreditCard className={`h-4 w-4 ${paymentMethod === 'card' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
-                  <span className="text-sm font-medium">
-                    {t('student.payment.payWithCard') || 'كارت'}
-                  </span>
+                  <span className="text-sm font-medium">كارت</span>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {t('student.payment.payWithCardDesc') || 'Visa / Mastercard'}
-                </span>
+                <span className="text-xs text-muted-foreground">Visa / Mastercard</span>
               </button>
-              {/* Wallet option */}
+              {/* Wallet option — generic name, no specific provider */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod('wallet')}
-                disabled={state === 'preparing' || state === 'redirecting'}
+                disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
                 className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
                   paymentMethod === 'wallet'
                     ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
@@ -399,19 +393,32 @@ export function PaymentSummaryDialog({
               >
                 <div className="flex items-center gap-1.5">
                   <Smartphone className={`h-4 w-4 ${paymentMethod === 'wallet' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
-                  <span className="text-sm font-medium">
-                    {t('student.payment.payWithWallet') || 'محفظة موبايل'}
-                  </span>
+                  <span className="text-sm font-medium">محفظة</span>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {t('student.payment.payWithWalletDesc') || 'فودافون كاش / اتصالات كاش'}
-                </span>
+                <span className="text-xs text-muted-foreground">محفظة إلكترونية</span>
+              </button>
+              {/* Fawry option */}
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('fawry')}
+                disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
+                className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
+                  paymentMethod === 'fawry'
+                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/15 ring-1 ring-amber-500'
+                    : 'border-muted hover:border-amber-400 hover:bg-muted/30'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Banknote className={`h-4 w-4 ${paymentMethod === 'fawry' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`} />
+                  <span className="text-sm font-medium">فوري</span>
+                </div>
+                <span className="text-xs text-muted-foreground">كود دفع — أي ماكينة</span>
               </button>
             </div>
           </div>
 
-          {/* v88 — Fees breakdown (single-order mode when fees exist) */}
-          {!isMultiMode && hasFees && (
+          {/* v88 — Payment details (always show in single-order mode) */}
+          {!isMultiMode && (
             <div className="space-y-1 text-xs border-t border-b border-sky-200 dark:border-sky-900/40 py-2 my-2 bg-sky-50/50 dark:bg-sky-900/10 rounded-md px-3">
               <div className="flex justify-between text-muted-foreground">
                 <span>إجمالي الاشتراكات</span>

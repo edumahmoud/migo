@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Plus, Wallet, Check, X, Clock, Shield, Settings, Zap,
   Globe, Edit, Power, Star, AlertCircle, RefreshCw,
+  CreditCard, Banknote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,18 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+
+// ─── Provider icon helper ───
+function getProviderIcon(provider: string, className?: string) {
+  switch (provider.toLowerCase()) {
+    case 'paymob':
+      return <CreditCard className={className ?? 'h-5 w-5 text-sky-600'} />;
+    case 'fawry':
+      return <Banknote className={className ?? 'h-5 w-5 text-amber-600'} />;
+    default:
+      return <Wallet className={className ?? 'h-5 w-5 text-muted-foreground'} />;
+  }
+}
 
 // ─── Types ───
 interface GatewayMetadata {
@@ -242,18 +255,21 @@ function GatewayCard({
     <Card className={`overflow-hidden ${gateway.isDefault ? 'ring-2 ring-sky-400' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              {gateway.displayName}
-              {gateway.isDefault && (
-                <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-200 text-[10px]">
-                  <Star className="h-2.5 w-2.5 me-1" /> افتراضية
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription className="text-xs mt-1">
-              {gateway.provider} · {gateway.environment === 'sandbox' ? 'تجريبي' : 'إنتاجي'}
-            </CardDescription>
+          <div className="flex items-start gap-2">
+            {getProviderIcon(gateway.provider)}
+            <div>
+              <CardTitle className="text-base">
+                {gateway.displayName}
+                {gateway.isDefault && (
+                  <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-200 text-[10px] ms-1">
+                    <Star className="h-2.5 w-2.5 me-1" /> افتراضية
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs mt-1">
+                {gateway.provider} · {gateway.environment === 'sandbox' ? 'تجريبي' : 'إنتاجي'}
+              </CardDescription>
+            </div>
           </div>
           <Badge variant={gateway.isEnabled ? 'default' : 'secondary'} className="text-[10px]">
             {gateway.isEnabled ? 'مفعّلة' : 'معطّلة'}

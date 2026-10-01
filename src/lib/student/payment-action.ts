@@ -149,7 +149,7 @@ export class PaymentActionError extends Error {
 export async function initiatePayment(
   orderId: string,
   headers: Record<string, string> = {},
-  paymentMethod: 'card' | 'wallet' = 'card',
+  paymentMethod: 'card' | 'wallet' | 'fawry' = 'card',
 ): Promise<PaymentActionResult> {
   if (!orderId) {
     throw new PaymentActionError('HTTP_ERROR', 'orderId is required');
@@ -441,7 +441,7 @@ export async function createCheckoutSession(
 export async function initiateSessionPayment(
   sessionId: string,
   headers: Record<string, string> = {},
-  paymentMethod: 'card' | 'wallet' = 'card',
+  paymentMethod: 'card' | 'wallet' | 'fawry' = 'card',
 ): Promise<PaymentActionResult> {
   if (!sessionId) {
     throw new PaymentActionError('HTTP_ERROR', 'sessionId is required');

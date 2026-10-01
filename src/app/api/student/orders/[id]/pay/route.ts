@@ -148,14 +148,54 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   // Parse the requested payment method from the query string
   // (sent by the client-side payment method picker)
-  const requestedPaymentMethod = request.nextUrl.searchParams.get('method') === 'wallet'
-    ? 'wallet'
-    : 'card';
+  // v88+ — now supports 'fawry' alongside 'card' and 'wallet'
+  const methodParam = request.nextUrl.searchParams.get('method');
+  const requestedPaymentMethod: 'card' | 'wallet' | 'fawry' =
+    methodParam === 'wallet' ? 'wallet' : methodParam === 'fawry' ? 'fawry' : 'card';
 
   try {
-    // v88 — send grand_total (= base_amount + fees_total) to Paymob,
-    // NOT orders.amount (kept in sync for backward compat). Fall back
-    // to orders.amount for orders created before v88 migration.
+    // Clear any previous payment attempt on this order so the student
+    // can retry without stale state. The old provider_order_ref from a
+    // previous Paymob/Fawry attempt is cleared — the new call will
+    // generate a fresh reference. This ensures "cancel saving payment
+    // operation until payment is completed" semantics: the order stays
+    // clean (pending, no provider_order_ref) until the student actually
+    // initiates a new payment.
+    await supabaseServer
+      .from('orders')
+      .update({
+        provider_order_ref: null,
+        gateway_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', o.id)
+      .eq('status', 'pending');
+
+    // Resolve the gateway to use:
+    // - If method=fawry → find a Fawry-enabled gateway
+    // - Otherwise → use the order's gateway_id or the default gateway
+    let gatewayId: string | undefined = o.gateway_id ?? undefined;
+
+    if (requestedPaymentMethod === 'fawry') {
+      const { data: fawryGateway, error: fawryErr } = await supabaseServer
+        .from('payment_gateways')
+        .select('id')
+        .eq('provider', 'fawry')
+        .eq('is_enabled', true)
+        .order('is_default', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fawryErr || !fawryGateway) {
+        return NextResponse.json(
+          { success: false, error: 'بوابة فوري غير مُفعّلة — تواصل مع الإدارة' },
+          { status: 400 },
+        );
+      }
+      gatewayId = (fawryGateway as { id: string }).id;
+    }
+
+    // v88 — send grand_total (= base_amount + fees_total) to the gateway.
     const amountToCharge = Number(o.grand_total ?? o.amount);
     const result = await PaymentService.createPayment(
       {
@@ -169,28 +209,28 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         redirectUrl: `${request.nextUrl.origin}/?payment_callback=success`,
         paymentMethod: requestedPaymentMethod,
       },
-      o.gateway_id ?? undefined, // pass the gateway snapshot if set
+      gatewayId,
     );
 
-    if (result.success && result.checkoutUrl) {
-      checkoutUrl = result.checkoutUrl;
+    if (result.success) {
+      checkoutUrl = result.checkoutUrl ?? null;
       paymentReference = result.paymentReference ?? null;
 
-      // 5. Update the order with:
-      //    - provider_order_ref = Paymob intention ID (for callback linking)
-      //    - gateway_id = the resolved gateway's DB ID (gateway snapshot)
-      //      This ensures the webhook uses the SAME gateway config that
-      //      created the payment — even if the default gateway changes later.
+      // Update the order with the new payment reference + gateway snapshot.
+      // This is only saved AFTER the gateway accepted the request — the
+      // student's order now has a provider_order_ref that the webhook
+      // will match. If the student doesn't complete the payment, the
+      // next pay attempt will CLEAR this (see the clearing block above).
       await supabaseServer
         .from('orders')
         .update({
           provider_order_ref: paymentReference,
-          gateway_id: result.gatewayId ?? null,
+          gateway_id: result.gatewayId ?? gatewayId ?? null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', o.id)
         .eq('student_id', auth.user.id)
-        .eq('status', 'pending'); // defense-in-depth — don't update a non-pending order
+        .eq('status', 'pending');
     } else {
       // PaymentService returned success=false without throwing — rare.
       // Treat as a generic Paymob API rejection.
@@ -238,10 +278,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   // 6. Return the checkout URL for the student to redirect to
+  //    v88+ — also return provider + metadata for the Fawry UI branch
   return NextResponse.json({
     success: true,
     checkout_url: checkoutUrl,
     payment_reference: paymentReference,
-    message: 'تم إنشاء دفعة. سيتم تحويلك لبوابة الدفع.',
+    provider: requestedPaymentMethod === 'fawry' ? 'fawry' : 'paymob',
+    metadata: requestedPaymentMethod === 'fawry' && paymentReference
+      ? { referenceCode: paymentReference, instructions: 'خذ الكود لأقرب ماكينة فوري' }
+      : undefined,
+    message: requestedPaymentMethod === 'fawry'
+      ? 'تم إنشاء كود فوري — خذه لأقرب ماكينة'
+      : 'تم إنشاء دفعة. سيتم تحويلك لبوابة الدفع.',
   });
 }

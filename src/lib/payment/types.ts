@@ -69,7 +69,7 @@ export interface CreatePaymentInput {
    *
    * Default: 'card' (backward-compatible with existing callers).
    */
-  paymentMethod?: 'card' | 'wallet';
+  paymentMethod?: 'card' | 'wallet' | 'fawry';
 }
 
 export interface CreatePaymentResult {
