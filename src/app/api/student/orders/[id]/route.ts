@@ -27,7 +27,8 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     .select(
       'id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at, paid_at, activated_at, fees_breakdown, ' +
         'subject:subjects!inner(id, name, level, sub_level, teacher_id), ' +
-        'payments(id, provider_payment_id, amount, currency, status, created_at, confirmed_by)'
+        'payments(id, provider_payment_id, amount, currency, status, created_at, confirmed_by), ' +
+        'order_fees(id, code, name_ar, name_en, fee_kind, value, base_amount, calculated_amount, sort_order)'
     )
     .eq('id', id)
     .single();
@@ -42,6 +43,23 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       { success: false, error: 'لا تملك صلاحية الوصول لهذا الطلب' },
       { status: 403 }
     );
+  }
+
+  // v93+ — if fees_breakdown is empty (order created before v93), try to
+  // reconstruct it from order_fees rows (the snapshot table from v88).
+  const orderData = order as unknown as Record<string, unknown>;
+  const existingBreakdown = orderData.fees_breakdown as Array<Record<string, unknown>> | null;
+  const orderFees = orderData.order_fees as Array<Record<string, unknown>> | null;
+  if ((!existingBreakdown || existingBreakdown.length === 0) && orderFees && orderFees.length > 0) {
+    orderData.fees_breakdown = orderFees.map((f) => ({
+      code: f.code,
+      name_ar: f.name_ar,
+      name_en: f.name_en,
+      fee_kind: f.fee_kind,
+      value: Number(f.value),
+      base_amount: Number(f.base_amount),
+      calculated_amount: Number(f.calculated_amount),
+    }));
   }
 
   return NextResponse.json({ success: true, order });

@@ -1964,25 +1964,22 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             </div>
                           )}
 
-                          {/* ── Subscription type + price badge (teacher + student) ── */}
-                          {/* Shows "مجاني" (free) OR "مدفوع — X EGP/شهر" (paid) */}
+                          {/* ── Subscription type badge (teacher + student) ── */}
+                          {/* Shows "مجاني" (free) OR "مدفوع" (paid) — NO price/شهر */}
                           {(() => {
                             const price = subject.price ?? 0;
-                            const currency = subject.currency || 'EGP';
                             const isFree = !price || price === 0;
                             return (
-                              <div className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border">
+                              <div className="mt-2 inline-flex items-center gap-1">
                                 {isFree ? (
-                                  <>
-                                    <span className="bg-emerald-50 dark:bg-emerald-900/15 border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5">
-                                      <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                      مجاني
-                                    </span>
-                                  </>
+                                  <span className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+                                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                    مجاني
+                                  </span>
                                 ) : (
-                                  <span className="bg-amber-50 dark:bg-amber-900/15 border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5">
+                                  <span className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                                     <Wallet className="h-3 w-3 shrink-0" />
-                                    مدفوع — {Number(price).toFixed(2)} {currency}/شهر
+                                    مدفوع
                                   </span>
                                 )}
                               </div>
@@ -2012,11 +2009,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                     <Clock className="h-3 w-3 shrink-0 animate-pulse" />
                                     <span className="font-medium">بانتظار اعتماد الدفع</span>
                                   </div>
-                                  {sub.monthly_price !== null && sub.monthly_price > 0 && (
-                                    <div className="text-[10px] opacity-70">
-                                      تم إرسال طلب الاشتراك بـ {Number(sub.monthly_price)} {subject.currency || 'EGP'} —
-                                      سيتم تفعيله بعد مراجعة المشرف للدفع.
-                                    </div>
+                                {sub.monthly_price !== null && sub.monthly_price > 0 && (
+                                  <div className="text-[10px] opacity-70">
+                                    تم إرسال طلب الاشتراك — سيتم تفعيله بعد الدفع.
+                                  </div>
                                   )}
                                 </div>
                               );
@@ -2059,11 +2055,6 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                     </span>
                                   )}
                                 </div>
-                                {sub.monthly_price !== null && sub.monthly_price > 0 && (
-                                  <div className="text-[10px] opacity-70">
-                                    {Number(sub.monthly_price)} {subject.currency || 'EGP'}/شهرياً
-                                  </div>
-                                )}
                               </div>
                             );
                           })()}
