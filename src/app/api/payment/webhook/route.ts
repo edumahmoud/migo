@@ -115,21 +115,27 @@ export async function POST(request: NextRequest) {
   const gatewayIdFromUrl = request.nextUrl.searchParams.get('gateway_id');
 
   // ── Top-level diagnostic log ──
-  // This confirms the webhook endpoint is being reached by Paymob.
-  // If you don't see this log in Vercel after a payment, the webhook
-  // URL is NOT configured in Paymob Dashboard.
-  console.error(`[webhook:debug] received callback`, {
-    provider,
-    gatewayIdFromUrl,
-    url: request.nextUrl.pathname + request.nextUrl.search,
-    method: request.method,
-    hasBody: true,
-    timestamp: new Date().toISOString(),
+  // P2-17+P2-18 FIX: Replace console.error with logPaymentEvent (sanitized,
+  // no PII). Previously this used console.error which polluted production
+  // error monitoring + logged raw URL/headers that could leak webhook
+  // structure + PII.
+  logPaymentEvent({
+    level: 'info',
+    operation: 'handleWebhook',
+    provider: provider || undefined,
+    success: true,
+    message: `Webhook received — provider=${provider} gateway=${gatewayIdFromUrl || 'default'}`,
   });
 
   if (!gatewayIdFromUrl && !provider) {
     // Can't identify the caller — reject
-    console.error('[webhook:debug] rejecting — missing provider or gateway_id');
+    logPaymentEvent({
+      level: 'warn',
+      operation: 'handleWebhook',
+      success: false,
+      errorCode: 'MISSING_PROVIDER',
+      message: 'Webhook rejected — missing provider or gateway_id',
+    });
     return NextResponse.json(
       { success: false, error: 'Missing provider or gateway_id query parameter' },
       { status: 400 },
@@ -192,28 +198,29 @@ export async function POST(request: NextRequest) {
   //      - resolvedGatewayId undefined → resolveDefaultGateway() (Priority 3)
   let webhookResult;
   try {
-    console.error('[webhook:debug] calling PaymentService.handleWebhook', {
-      resolvedGatewayId,
-      rawBodyLength: rawBody.length,
-      rawBodyPreview: rawBody.slice(0, 500),
+    logPaymentEvent({
+      level: 'info',
+      operation: 'handleWebhook',
+      provider: provider || undefined,
+      success: true,
+      message: `Calling PaymentService.handleWebhook — resolvedGatewayId=${resolvedGatewayId}, rawBodyLength=${rawBody.length}`,
     });
     webhookResult = await PaymentService.handleWebhook(
       { rawBody, headers },
       resolvedGatewayId,
     );
-    console.error('[webhook:debug] HMAC verification OK + callback parsed', {
+    // P2-17 FIX: replaced console.error with logPaymentEvent
+    logPaymentEvent({
+      level: 'info',
+      operation: 'handleWebhook',
+      provider: provider || undefined,
       orderId: webhookResult.orderId,
-      status: webhookResult.status,
-      amount: webhookResult.amount,
-      currency: webhookResult.currency,
-      providerTransactionId: webhookResult.providerTransactionId,
+      success: true,
+      message: `HMAC verified — orderId=${webhookResult.orderId} status=${webhookResult.status}`,
     });
   } catch (err) {
     // HMAC failure, gateway not found, gateway disabled, etc.
-    console.error('[webhook:debug] HMAC verification OR adapter error', {
-      error: err instanceof Error ? err.message : String(err),
-      errorCode: isPaymentError(err) ? err.code : 'UNKNOWN',
-    });
+    // P2-17 FIX: replaced console.error with logPaymentEvent
     logPaymentEvent({
       level: 'error',
       operation: 'handleWebhook',

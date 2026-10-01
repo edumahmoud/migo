@@ -226,9 +226,10 @@ export async function getAuthHeaders(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (options.userId) {
-    headers['x-user-id'] = options.userId;
-  }
+  // P2-19 FIX: Removed the x-user-id header — it was dead code.
+  // The server-side auth-helpers.ts explicitly does NOT trust x-user-id
+  // (removed due to impersonation risk). The Bearer token is sufficient
+  // for authentication.
 
   return headers;
 }

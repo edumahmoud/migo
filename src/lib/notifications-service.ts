@@ -175,19 +175,27 @@ export async function notifyUser(
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
     if (link) {
-      // Link-based dedup (more specific) — checks user+type+link
+      // P2-21 FIX: Link-based dedup now also checks message content hash.
+      // Previously only checked user+type+link within 5 min — which meant
+      // two different assignments in the same subject within 5 minutes
+      // would silently drop the second notification. Now we also fetch
+      // the message and only skip if the EXACT same message was sent.
       const { data: existing } = await supabaseServer
         .from('notifications')
-        .select('id')
+        .select('id, message')
         .eq('user_id', userId)
         .eq('type', type)
         .eq('link', link)
         .gte('created_at', fiveMinutesAgo)
-        .limit(1);
+        .limit(10);
 
       if (existing && existing.length > 0) {
-        console.log(`[notify] Dedup (link): skipping duplicate notification for user ${userId}, type=${type}, link=${link}`);
-        return;
+        // Only skip if the EXACT same message content exists (true duplicate)
+        const isTrueDuplicate = existing.some((n: { message: string }) => n.message === message);
+        if (isTrueDuplicate) {
+          console.log(`[notify] Dedup (link+content): skipping true duplicate for user ${userId}, type=${type}, link=${link}`);
+          return;
+        }
       }
     } else {
       // Content-based dedup (for notifications without link) — checks user+type+title+message

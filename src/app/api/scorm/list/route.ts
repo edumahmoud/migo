@@ -19,6 +19,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // P1-6 FIX: Validate subjectId is a UUID to prevent PostgREST injection
+    // via .or() template string interpolation.
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(subjectId)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid subjectId format' },
+        { status: 400 }
+      );
+    }
+
     // ── Fetch all SCORM packages for the subject ──
     // v63: include platform-level packages linked via scorm_package_subjects junction
     const { data: linkedPackageIds } = await supabaseServer
