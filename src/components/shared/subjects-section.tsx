@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAppStore } from '@/stores/app-store';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { UserProfile, Subject, Category } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import {
@@ -1456,93 +1457,33 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           variants={cardVariants}
           className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm"
         >
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground shrink-0 mb-3">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span>{t('common.search')}</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 sm:gap-3">
-            {/* الفرقة filter */}
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-4 w-4 text-muted-foreground shrink-0" />
-              <select
-                value={filterLevel}
-                onChange={(e) => setFilterLevel(e.target.value)}
-                className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
-                dir={direction}
-              >
-                <option value="">{t('common.all')}</option>
-                {LEVEL_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* المستوى filter */}
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-              <select
-                value={filterSubLevel}
-                onChange={(e) => setFilterSubLevel(e.target.value)}
-                className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
-                dir={direction}
-              >
-                <option value="">{t('common.all')}</option>
-                {SUB_LEVEL_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status filter (active/paused) */}
-            <div className="flex items-center gap-2">
-              {filterPaused === 'paused' ? (
-                <Pause className="h-4 w-4 text-amber-500 shrink-0" />
-              ) : filterPaused === 'active' ? (
-                <Play className="h-4 w-4 text-emerald-500 shrink-0" />
-              ) : (
-                <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
-              <select
-                value={filterPaused}
-                onChange={(e) => setFilterPaused(e.target.value as 'all' | 'active' | 'paused')}
-                className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
-                dir={direction}
-              >
-                <option value="all">{t('course.filterAll')}</option>
-                <option value="active">{t('course.filterActive')}</option>
-                <option value="paused">{t('course.filterPaused')}</option>
-              </select>
-            </div>
-
-            {/* Category filter (teacher only) */}
-            {role === 'teacher' && (
-              <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
-                  dir={direction}
-                >
-                  <option value="">{t('course.filterAll')}</option>
-                  <option value="__none__">{t('subjects.withoutCategory')}</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{getCategoryName(cat)}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Clear filters button */}
-            {(filterLevel || filterSubLevel || filterPaused !== 'all' || filterCategory) && (
-              <button
-                onClick={() => { setFilterLevel(''); setFilterSubLevel(''); setFilterPaused('all'); setFilterCategory(''); }}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
-              >
-                <X className="h-3 w-3" />
-                {t('common.reset')}
-              </button>
-            )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant={filterPaused === 'all' ? 'default' : 'outline'}
+              className="h-8 text-xs"
+              onClick={() => setFilterPaused('all')}
+            >
+              {t('course.filterAll') || 'الكل'}
+            </Button>
+            <Button
+              size="sm"
+              variant={filterPaused === 'active' ? 'default' : 'outline'}
+              className={`h-8 text-xs ${filterPaused === 'active' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+              onClick={() => setFilterPaused('active')}
+            >
+              <Play className="h-3 w-3 me-1" />
+              {t('course.filterActive') || 'نشط'}
+            </Button>
+            <Button
+              size="sm"
+              variant={filterPaused === 'paused' ? 'default' : 'outline'}
+              className={`h-8 text-xs ${filterPaused === 'paused' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+              onClick={() => setFilterPaused('paused')}
+            >
+              <Pause className="h-3 w-3 me-1" />
+              {t('course.filterPaused') || 'غير نشط'}
+            </Button>
           </div>
         </motion.div>
       )}

@@ -219,10 +219,11 @@ export async function POST(request: NextRequest) {
         .insert({
           student_id: studentId,
           subject_id: subjectId,
-          amount: breakdown.grand_total,         // kept in sync with grand_total for backward compat
+          amount: breakdown.grand_total,
           base_amount: breakdown.base_total,
           fees_total: breakdown.fees_total,
           grand_total: breakdown.grand_total,
+          fees_breakdown: breakdownToJsonb(breakdown),
           currency: subject.currency,
           provider: 'pending_gateway',
           provider_order_ref: `order_${randomUUID()}`,
