@@ -28,6 +28,7 @@ import {
   Trash2,
   FolderTree,
   ChevronLeft,
+  ChevronRight,
   Gift,
   AlertCircle,
   CheckCircle2,
@@ -38,6 +39,7 @@ import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAppStore } from '@/stores/app-store';
+import { Badge } from '@/components/ui/badge';
 import type { UserProfile, Subject, Category } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import {
@@ -229,10 +231,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // v73: available courses dialog for students (subscribe to teacher's other courses)
   const [availableCoursesOpen, setAvailableCoursesOpen] = useState(false);
   const [availableCoursesData, setAvailableCoursesData] = useState<{
-    available_courses: Array<{ id: string; name: string; price: number; currency: string; level: string | null; sub_level: string | null; teacher_name: string | null }>;
+    available_courses: Array<{ id: string; name: string; price: number; currency: string; level: string | null; sub_level: string | null; teacher_name: string | null; teacher_id?: string | null }>;
     subscriptions: Array<{ subject_id: string; current_period_end: string | null }>;
   } | null>(null);
   const [subscribingCourseId, setSubscribingCourseId] = useState<string | null>(null);
+  // v92+ — expanded teacher groups in available courses modal
+  const [expandedTeacherIds, setExpandedTeacherIds] = useState<Set<string>>(new Set());
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectDesc, setNewSubjectDesc] = useState('');
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
@@ -2905,7 +2909,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   <h3 className="text-lg font-bold">مقررات متاحة للاشتراك</h3>
                   <button onClick={() => !subscribingCourseId && setAvailableCoursesOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">المقررات المجانية تُفعّل فوراً. المدفوعة تذهب للمشرف بعد الدفع.</p>
+                <p className="text-xs text-muted-foreground mt-1">المقررات المجانية تُفعّل فوراً. المدفوعة تُفعّل بعد الدفع عبر بوابة الدفع.</p>
               </div>
               <div className="overflow-y-auto p-4 space-y-2 flex-1">
                 {!availableCoursesData ? (
@@ -2916,106 +2920,160 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 ) : availableCoursesData.available_courses.length === 0 ? (
                   <div className="text-center text-sm text-muted-foreground py-8">لا توجد مقررات متاحة حالياً. تواصل مع معلمك.</div>
                 ) : (
-                  availableCoursesData.available_courses.map((c) => {
-                    const sub = availableCoursesData.subscriptions?.find((s) => s.subject_id === c.id);
-                    const isSubActive = sub?.current_period_end && new Date(sub.current_period_end) > new Date();
-                    const isPaying = subscribingCourseId === c.id;
-                    return (
-                      <div key={c.id} className="flex items-center justify-between gap-3 border rounded-lg p-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold truncate">{c.name}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
-                            {c.teacher_name && <span>· {c.teacher_name}</span>}
-                            {(c.level || c.sub_level) && <span>· {[c.level, c.sub_level].filter(Boolean).join(' / ')}</span>}
-                            {isSubActive && <span className="text-emerald-600 font-medium">· نشط</span>}
-                          </div>
-                        </div>
-                        <div className="text-end shrink-0">
-                          <div className="font-bold text-emerald-700 text-sm">
-                            {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}/شهر`}
-                          </div>
-                          {!isSubActive && (
-                            <button
-                              onClick={async () => {
-                                setSubscribingCourseId(c.id);
-                                try {
-                                  const res = await fetch('/api/student/orders', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-                                    body: JSON.stringify({ subjectIds: [c.id] }),
-                                  });
-                                  const json = await res.json();
-                                  if (json.success) {
-                                    // Check if the free course order had an RPC error.
-                                    const freeOrder = (json.created_orders ?? []).find(
-                                      (o: { subject_id?: string; error?: string; free?: boolean }) => o.subject_id === c.id
-                                    );
-                                    if (c.price === 0) {
-                                      // Free course — check if enrollment was actually created.
-                                      if (freeOrder && freeOrder.error) {
-                                        toast.error('فشل تفعيل المقرر المجاني: ' + freeOrder.error);
-                                      } else {
-                                        toast.success('تم الاشتراك في المقرر المجاني بنجاح.');
-                                        setAvailableCoursesOpen(false);
-                                        fetchSubjects();
-                                      }
-                                    } else {
-                                      // Paid course — order created in 'pending' state.
-                                      // Open the Payment Summary dialog so the student
-                                      // can review the order and explicitly click
-                                      // "Pay Now" to call /api/student/orders/[id]/pay.
-                                      const created = (json.created_orders ?? []).find(
-                                        (o: { subject_id?: string; id?: string }) => o.subject_id === c.id,
-                                      );
-                                      if (created?.id) {
-                                        setPaymentSummaryOrder({
-                                          orderId: String(created.id),
-                                          subjectName: c.name,
-                                          amount: Number(created.grand_total ?? created.amount ?? c.price),
-                                          currency: String(created.currency ?? 'EGP'),
-                                          baseAmount: Number(created.base_amount ?? c.price),
-                                          feesTotal: Number(created.fees_total ?? 0),
-                                          grandTotal: Number(created.grand_total ?? c.price),
-                                          feesBreakdown: (created as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
-                                        });
-                                        setPaymentSummaryOpen(true);
-                                      } else {
-                                        // v88+ — check if the order was skipped (existing pending order)
-                                        const skipped = (json.skipped_orders ?? []).find(
-                                          (s: { subject_id?: string; order_id?: string }) => s.subject_id === c.id,
-                                        );
-                                        if (skipped?.order_id) {
-                                          // Open the payment dialog on the EXISTING pending order
-                                          setPaymentSummaryOrder({
-                                            orderId: String(skipped.order_id),
-                                            subjectName: c.name,
-                                            amount: Number(skipped.grand_total ?? skipped.amount ?? c.price),
-                                            currency: String(skipped.currency ?? 'EGP'),
-                                            baseAmount: Number(skipped.base_amount ?? c.price),
-                                            feesTotal: Number(skipped.fees_total ?? 0),
-                                            grandTotal: Number(skipped.grand_total ?? c.price),
-                                          });
-                                          setPaymentSummaryOpen(true);
-                                        } else {
-                                          toast.info('تم إنشاء طلب الاشتراك مسبقاً. سيتم تفعيله تلقائياً بعد الدفع عبر بوابة الدفع.');
-                                        }
-                                      }
-                                      setAvailableCoursesOpen(false);
-                                      fetchSubjects();
-                                    }
-                                  } else { toast.error(json.error || t('common.unexpectedError')); }
-                                } catch { toast.error(t('common.unexpectedError')); }
-                                finally { setSubscribingCourseId(null); }
-                              }}
-                              disabled={isPaying}
-                              className="mt-1 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
-                            >
-                              {isPaying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'اشترك'}
-                            </button>
+                  // v92+ — group courses by teacher. Show teacher name as
+                  // a clickable header; when expanded, show their courses.
+                  // Active subscriptions are marked with a green badge.
+                  (() => {
+                    // Group courses by teacher_name (fallback to 'غير معروف')
+                    const teacherGroups = new Map<string, { teacherName: string; courses: typeof availableCoursesData.available_courses }>();
+                    for (const c of availableCoursesData.available_courses) {
+                      const key = c.teacher_name || 'غير معروف';
+                      if (!teacherGroups.has(key)) {
+                        teacherGroups.set(key, { teacherName: c.teacher_name || 'غير معروف', courses: [] });
+                      }
+                      teacherGroups.get(key)!.courses.push(c);
+                    }
+
+                    return Array.from(teacherGroups.entries()).map(([key, group]) => {
+                      const isExpanded = expandedTeacherIds.has(key);
+                      // Count active courses in this group
+                      const activeCount = group.courses.filter((c) => {
+                        const sub = availableCoursesData.subscriptions?.find((s) => s.subject_id === c.id);
+                        return sub?.current_period_end && new Date(sub.current_period_end) > new Date();
+                      }).length;
+
+                      return (
+                        <div key={key} className="border rounded-lg overflow-hidden">
+                          {/* Teacher header — clickable */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedTeacherIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              });
+                            }}
+                            className="w-full flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              <span className="font-semibold text-sm">{group.teacherName}</span>
+                              <Badge variant="secondary" className="text-[10px]">{group.courses.length}</Badge>
+                              {activeCount > 0 && (
+                                <Badge className="text-[10px] bg-emerald-100 text-emerald-700">{activeCount} نشط</Badge>
+                              )}
+                            </div>
+                          </button>
+                          {/* Courses list — expanded */}
+                          {isExpanded && (
+                            <div className="divide-y">
+                              {group.courses.map((c) => {
+                                const sub = availableCoursesData.subscriptions?.find((s) => s.subject_id === c.id);
+                                const isSubActive = sub?.current_period_end && new Date(sub.current_period_end) > new Date();
+                                const isPaying = subscribingCourseId === c.id;
+                                return (
+                                  <div key={c.id} className={`flex items-center justify-between gap-3 p-3 ${isSubActive ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''}`}>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold truncate">{c.name}</span>
+                                        {isSubActive && (
+                                          <Badge className="text-[10px] bg-emerald-100 text-emerald-700 shrink-0">نشط</Badge>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                                        {(c.level || c.sub_level) && <span>{[c.level, c.sub_level].filter(Boolean).join(' / ')}</span>}
+                                      </div>
+                                    </div>
+                                    <div className="text-end shrink-0">
+                                      <div className="font-bold text-emerald-700 text-sm">
+                                        {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}/شهر`}
+                                      </div>
+                                      {!isSubActive && (
+                                        <button
+                                          onClick={async () => {
+                                            setSubscribingCourseId(c.id);
+                                            try {
+                                              const res = await fetch('/api/student/orders', {
+                                                method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+                                                body: JSON.stringify({ subjectIds: [c.id] }),
+                                              });
+                                              const json = await res.json();
+                                              if (json.success) {
+                                                const freeOrder = (json.created_orders ?? []).find(
+                                                  (o: { subject_id?: string; error?: string; free?: boolean }) => o.subject_id === c.id
+                                                );
+                                                if (c.price === 0) {
+                                                  if (freeOrder && freeOrder.error) {
+                                                    toast.error('فشل تفعيل المقرر المجاني: ' + freeOrder.error);
+                                                  } else {
+                                                    toast.success('تم الاشتراك في المقرر المجاني بنجاح.');
+                                                    setAvailableCoursesOpen(false);
+                                                    fetchSubjects();
+                                                  }
+                                                } else {
+                                                  // Paid course — order created in 'pending' state.
+                                                  // Open the Payment Summary dialog with fees breakdown.
+                                                  const created = (json.created_orders ?? []).find(
+                                                    (o: { subject_id?: string; id?: string }) => o.subject_id === c.id,
+                                                  );
+                                                  if (created?.id) {
+                                                    setPaymentSummaryOrder({
+                                                      orderId: String(created.id),
+                                                      subjectName: c.name,
+                                                      amount: Number(created.grand_total ?? created.amount ?? c.price),
+                                                      currency: String(created.currency ?? 'EGP'),
+                                                      baseAmount: Number(created.base_amount ?? c.price),
+                                                      feesTotal: Number(created.fees_total ?? 0),
+                                                      grandTotal: Number(created.grand_total ?? c.price),
+                                                      feesBreakdown: (created as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
+                                                    });
+                                                    setPaymentSummaryOpen(true);
+                                                  } else {
+                                                    // v88+ — order was skipped (existing pending order)
+                                                    const skipped = (json.skipped_orders ?? []).find(
+                                                      (s: { subject_id?: string; order_id?: string }) => s.subject_id === c.id,
+                                                    );
+                                                    if (skipped?.order_id) {
+                                                      // Open the payment dialog on the EXISTING pending order
+                                                      setPaymentSummaryOrder({
+                                                        orderId: String(skipped.order_id),
+                                                        subjectName: c.name,
+                                                        amount: Number(skipped.grand_total ?? skipped.amount ?? c.price),
+                                                        currency: String(skipped.currency ?? 'EGP'),
+                                                        baseAmount: Number(skipped.base_amount ?? c.price),
+                                                        feesTotal: Number(skipped.fees_total ?? 0),
+                                                        grandTotal: Number(skipped.grand_total ?? c.price),
+                                                      });
+                                                      setPaymentSummaryOpen(true);
+                                                    } else {
+                                                      toast.info('تم إنشاء طلب الاشتراك مسبقاً.');
+                                                    }
+                                                  }
+                                                  setAvailableCoursesOpen(false);
+                                                  fetchSubjects();
+                                                }
+                                              } else { toast.error(json.error || t('common.unexpectedError')); }
+                                            } catch { toast.error(t('common.unexpectedError')); }
+                                            finally { setSubscribingCourseId(null); }
+                                          }}
+                                          disabled={isPaying}
+                                          className="mt-1 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
+                                        >
+                                          {isPaying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'اشترك'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    });
+                  })()
                 )}
               </div>
             </motion.div>
