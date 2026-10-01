@@ -27,6 +27,7 @@ import {
   FolderTree,
   ChevronDown,
   ChevronUp,
+  Target,
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { supabase } from '@/lib/supabase';
@@ -149,6 +150,11 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   const [showUnitsManager, setShowUnitsManager] = useState(false);
   const [showUnitsView, setShowUnitsView] = useState(false);
   const [collapsedUnits, setCollapsedUnits] = useState<Record<string, boolean>>({});
+
+  // v99: toggle collapse state of a unit (default expanded)
+  const toggleUnitCollapse = useCallback((unitId: string) => {
+    setCollapsedUnits((prev) => ({ ...prev, [unitId]: !prev[unitId] }));
+  }, []);
   const [movingLessonId, setMovingLessonId] = useState<string | null>(null);
 
   // Autosave timer ref
@@ -934,19 +940,34 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
       animate="visible"
       className="space-y-5"
     >
-      {/* Header */}
+      {/* Header — LMS-style compact summary */}
       <motion.div
         variants={itemVariants}
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
       >
-        <div>
+        <div className="min-w-0">
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
             <BookMarked className="h-5 w-5 text-sky-700 dark:text-sky-400" />
-            {t('title') || 'Lessons'}
+            {t('title') || 'محتوى المقرر'}
           </h3>
           <p className="text-muted-foreground text-sm mt-1">
-            {t('lessonCount', { count: visibleLessons.length }) ||
-              `${visibleLessons.length} lesson(s)`}
+            {units.length > 0 ? (
+              <>
+                <Badge variant="secondary" className="text-[10px] me-1 px-1.5 py-0">
+                  <Layers className="h-2.5 w-2.5 me-1" />
+                  {units.length} {t('unitsCountLabel') || 'وحدة'}
+                </Badge>
+                {' '}
+                <BookOpen className="h-3 w-3 inline me-1" />
+                {visibleLessons.length} {t('lessonCount', { count: visibleLessons.length }) || `${visibleLessons.length} درس`}
+              </>
+            ) : (
+              <>
+                <BookOpen className="h-3 w-3 inline me-1" />
+                {t('lessonCount', { count: visibleLessons.length }) ||
+                  `${visibleLessons.length} lesson(s)`}
+              </>
+            )}
           </p>
         </div>
         {role === 'teacher' && (
@@ -954,31 +975,23 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowUnitsView((v) => !v)}
-              className={showUnitsView ? 'bg-primary/10' : ''}
-            >
-              <FolderTree className="h-4 w-4 me-1" />
-              {t('toggleUnitsView') || 'Unit View'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setShowUnitsManager(true)}
+              className="h-8"
             >
               <Layers className="h-4 w-4 me-1" />
-              {t('manageUnits') || 'Manage Units'}
+              {t('manageUnits') || 'إدارة الوحدات'}
             </Button>
             <button
               onClick={() => handleCreateLesson()}
               disabled={creatingLesson}
-              className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
+              className="flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
             >
               {creatingLesson ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              {t('createLesson') || 'Create Lesson'}
+              {t('createLesson') || 'درس جديد'}
             </button>
           </div>
         )}
@@ -989,304 +1002,385 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
-      ) : visibleLessons.length === 0 ? (
-        /* Empty state */
+      ) : visibleLessons.length === 0 && units.length === 0 ? (
+        /* v99: improved empty state — when no units AND no lessons, offer two CTAs */
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-20"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-gradient-to-b from-sky-50/40 dark:from-sky-900/10 to-transparent py-16 px-4"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5 ring-4 ring-sky-50 dark:ring-sky-900/30">
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1">
-            {t('noLessonsYet') || 'No lessons yet'}
+            {t('noLessonsYet') || 'لا يوجد محتوى بعد'}
           </p>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
             {role === 'teacher'
-              ? t('createFirstLesson') || 'Create your first lesson'
-              : t('noLessonsPublished') || 'No lessons published yet'}
+              ? (t('startByCreatingUnit') || 'ابدأ بإنشاء وحدة لتنظيم دروسك. كل وحدة تحتوي على مجموعة من الدروس تظهر للطلاب بشكل تسلسلي.')
+              : (t('noLessonsPublished') || 'لا توجد دروس منشورة في هذا المقرر بعد.')}
           </p>
           {role === 'teacher' && (
-            <button
-              onClick={() => handleCreateLesson()}
-              disabled={creatingLesson}
-              className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
-            >
-              {creatingLesson ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {t('createLesson') || 'Create Lesson'}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setShowUnitsManager(true)}
+                className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
+              >
+                <Layers className="h-4 w-4" />
+                {t('createFirstUnit') || 'إنشاء وحدة أولى'}
+              </button>
+              <button
+                onClick={() => handleCreateLesson()}
+                disabled={creatingLesson}
+                className="flex items-center gap-2 rounded-xl bg-white dark:bg-card border border-sky-200 dark:border-sky-900/60 px-5 py-2.5 text-sm font-semibold text-sky-700 dark:text-sky-400 shadow-sm transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 active:scale-[0.97] disabled:opacity-60"
+              >
+                {creatingLesson ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                {t('createStandaloneLesson') || 'إضافة درس مستقل'}
+              </button>
+            </div>
           )}
         </motion.div>
+      ) : units.length === 0 && visibleLessons.length > 0 && role === 'teacher' ? (
+        /* v99: hint banner — lessons exist but no units, encourage organizing */
+        <motion.div variants={itemVariants} className="space-y-4">
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
+              <span className="text-lg">💡</span>
+              <span>{t('organizeLessonsHint') || 'نظّم دروسك في وحدات لتحسين تجربة الطالب. كل وحدة تظهر كقسم منفصل في المحتوى.'}</span>
+            </div>
+            <button
+              onClick={() => setShowUnitsManager(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              {t('createUnit') || 'إنشاء وحدة'}
+            </button>
+          </div>
+          {/* Flat grid fallback (no units) */}
+          <AnimatePresence>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
+              {visibleLessons.map((lesson) => (
+                <motion.div
+                  key={lesson.id}
+                  variants={itemVariants}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  layout
+                  className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer group"
+                  onClick={() => role === 'teacher' ? handleEditLesson(lesson) : handleViewLesson(lesson)}
+                >
+                  <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
+                  <div className="p-4">
+                    <h4 className="text-sm font-bold text-foreground line-clamp-2 mb-2">{lesson.title}</h4>
+                    <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                      {lesson.status === 'draft' ? (
+                        <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                          <Lock className="h-2.5 w-2.5 me-1" />
+                          {t('draft') || 'مسودة'}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                          <Globe className="h-2.5 w-2.5 me-1" />
+                          {t('published') || 'منشور'}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-muted/50 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatDateRelative(lesson.status === 'published' ? lesson.published_at || lesson.updated_at : lesson.updated_at)}</span>
+                      </div>
+                      {getWordCount(lesson.content_json) > 0 && (
+                        <div className="flex items-center gap-1">
+                          <FileText className="h-3 w-3" />
+                          <span>{getWordCount(lesson.content_json)} {t('words') || 'كلمة'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </AnimatePresence>
+        </motion.div>
       ) : units.length > 0 ? (
-        // v98: hierarchical view — units + their nested lessons + uncategorized lessons at the bottom
-        <div className="space-y-6">
-          {units.map((unit) => {
-            // Filter lessons that belong to this unit
-            // Students see only published lessons; teachers see all
+        // v99: LMS-style hierarchical view — collapsible units + list-style lessons + progress bar
+        <div className="space-y-4">
+          {units.map((unit, unitIdx) => {
             const unitLessons = visibleLessons.filter((l) => l.unit_id === unit.id);
-            // v98: skip rendering the unit block if there are no lessons and the
-            // user is a student (teachers always see all units for management)
+            // Skip empty units for students (teachers see all units for management)
             if (unitLessons.length === 0 && role !== 'teacher') return null;
-            // v98: respect is_enabled lock for students — show the unit + locked lessons grayed
             const isUnitLocked = unit.is_enabled === false && role !== 'teacher';
+            const isCollapsed = !!collapsedUnits[unit.id];
+            // Sequential numbering 1, 2, 3 within unit
+            const unitNumber = unitIdx + 1;
+
             return (
               <motion.div
                 key={unit.id}
                 variants={itemVariants}
                 initial="hidden"
                 animate="visible"
-                className={`rounded-2xl border bg-card overflow-hidden ${
-                  isUnitLocked ? 'border-amber-200 dark:border-amber-900/40' : ''
+                className={`rounded-2xl border bg-card overflow-hidden shadow-sm transition-shadow hover:shadow-md ${
+                  isUnitLocked ? 'border-amber-200 dark:border-amber-900/40' : 'border-sky-100 dark:border-sky-900/40'
                 }`}
               >
-                {/* Unit header */}
-                <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 flex-wrap ${
-                  isUnitLocked ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'bg-muted/40'
-                }`}>
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <Layers className={`h-5 w-5 shrink-0 ${isUnitLocked ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400'}`} />
-                    <h3 className={`font-bold text-base truncate ${isUnitLocked ? 'text-muted-foreground' : 'text-foreground'}`}>
-                      {unit.title}
-                    </h3>
-                    {!unit.is_published && role === 'teacher' && (
-                      <Badge variant="outline" className="text-xs">{t('unitDraft') || 'Draft'}</Badge>
-                    )}
-                    {isUnitLocked && (
-                      <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40">
-                        <Lock className="h-3 w-3 me-1" />
-                        {t('unitDisabled') || 'الوحدة متوقفة'}
-                      </Badge>
-                    )}
-                    <Badge variant="secondary" className="text-xs">
-                      <BookOpen className="h-3 w-3 me-1" />
-                      {unitLessons.length}
-                    </Badge>
-                    {unit.pass_threshold != null && (
-                      <Badge variant="outline" className="text-xs">
-                        {t('passThreshold') || 'Pass'}: {unit.pass_threshold}%
-                      </Badge>
-                    )}
+                {/* Unit header — clickable to collapse/expand */}
+                <button
+                  type="button"
+                  onClick={() => toggleUnitCollapse(unit.id)}
+                  className={`w-full text-start px-4 sm:px-5 py-4 flex items-center gap-3 transition-colors ${
+                    isUnitLocked ? 'bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-50/70 dark:hover:bg-amber-900/20' : 'bg-muted/30 hover:bg-muted/50'
+                  }`}
+                >
+                  {/* Unit number badge */}
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
+                    isUnitLocked
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                      : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400'
+                  }`}>
+                    {isUnitLocked ? <Lock className="h-5 w-5" /> : unitNumber}
                   </div>
-                  {role === 'teacher' && (
-                    <button
-                      onClick={() => handleCreateLesson(unit.id)}
-                      disabled={creatingLesson}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-                      title={t('createLessonInUnit') || 'إنشاء درس داخل هذه الوحدة'}
-                    >
-                      {creatingLesson ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Plus className="h-3.5 w-3.5" />
+
+                  {/* Title + meta */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className={`font-bold text-base sm:text-lg truncate ${isUnitLocked ? 'text-muted-foreground' : 'text-foreground'}`}>
+                        {unit.title}
+                      </h3>
+                      {!unit.is_published && role === 'teacher' && (
+                        <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                          {t('unitDraft') || 'مسودة'}
+                        </Badge>
                       )}
-                      {t('createLesson') || 'Create Lesson'}
-                    </button>
-                  )}
-                </div>
-
-                {/* Lessons inside the unit */}
-                {unitLessons.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    {role === 'teacher'
-                      ? (t('noLessonsInUnit') || 'لا توجد دروس في هذه الوحدة بعد. اضغط "Create Lesson" لإضافة درس.')
-                      : (t('noLessonsPublishedInUnit') || 'لا توجد دروس منشورة في هذه الوحدة بعد.')}
+                      {isUnitLocked && (
+                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40">
+                          <Lock className="h-2.5 w-2.5 me-1" />
+                          {t('unitDisabled') || 'متوقفة'}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <BookOpen className="h-3 w-3" />
+                        {unitLessons.length} {t('lessonsLabel') || 'دروس'}
+                      </span>
+                      {unit.pass_threshold != null && (
+                        <span className="flex items-center gap-1">
+                          <Target className="h-3 w-3" />
+                          {t('passThreshold') || 'نجاح'}: {unit.pass_threshold}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {unitLessons.map((lesson) => (
-                      <motion.div
-                        key={lesson.id}
-                        variants={itemVariants}
-                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                        layout
-                        className={`rounded-xl border bg-card shadow-sm transition-all overflow-hidden group ${
-                          isUnitLocked
-                            ? 'opacity-60 cursor-not-allowed border-amber-200 dark:border-amber-900/40'
-                            : 'hover:shadow-md cursor-pointer'
-                        }`}
-                        onClick={() => {
-                          if (isUnitLocked) {
-                            toast.error(t('unitLockedToast') || 'الوحدة متوقفة — لا يمكن فتح الدرس');
-                            return;
-                          }
-                          if (role === 'teacher') {
-                            handleEditLesson(lesson);
-                          } else {
-                            handleViewLesson(lesson);
-                          }
-                        }}
-                      >
-                        {/* Top color bar */}
-                        <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-                        <div className="p-3">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h4 className="text-sm font-bold text-foreground line-clamp-2 flex-1 min-w-0">
-                              {lesson.title}
-                            </h4>
-                            {isUnitLocked && (
-                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40 shrink-0">
-                                <Lock className="h-3 w-3 me-1" />
-                                {t('unitDisabled') || 'الوحدة متوقفة'}
-                              </Badge>
-                            )}
-                            {role === 'teacher' && !isUnitLocked && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
-                                    <Pencil className="h-4 w-4 me-2" />
-                                    {tc('edit') || 'Edit'}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
-                                    <Copy className="h-4 w-4 me-2" />
-                                    {t('duplicate') || 'Duplicate'}
-                                  </DropdownMenuItem>
-                                  {units.length > 0 && (
-                                    <>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()} className="gap-2">
-                                          <FolderTree className="h-4 w-4 me-2" />
-                                          {t('moveToUnit') || 'Move to Unit'}
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent>
-                                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, null); }}>
-                                            <BookOpen className="h-4 w-4 me-2" />
-                                            {t('standalone') || 'Standalone (no unit)'}
-                                            {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
-                                          </DropdownMenuItem>
-                                          {units.map((u) => (
-                                            <DropdownMenuItem key={u.id} onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, u.id); }}>
-                                              <Layers className="h-4 w-4 me-2" />
-                                              <span className="truncate">{u.title}</span>
-                                              {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
-                                            </DropdownMenuItem>
-                                          ))}
-                                        </DropdownMenuSubContent>
-                                      </DropdownMenuSub>
-                                    </>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      const isUnpublish = lesson.status === 'published';
-                                      try {
-                                        const headers = await getAuthHeaders();
-                                        const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
-                                          method: 'POST',
-                                          headers,
-                                          body: JSON.stringify({ unpublish: isUnpublish }),
-                                        });
-                                        if (!res.ok) {
-                                          const data = await res.json().catch(() => ({}));
-                                          toast.error(data.error || t('publishFailed') || 'Failed to update publish status');
-                                          return;
-                                        }
-                                        const data = await res.json();
-                                        const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
-                                        setLessons((prev) =>
-                                          prev.map((l) =>
-                                            l.id === lesson.id
-                                              ? { ...l, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null }
-                                              : l
-                                          )
-                                        );
-                                        if (editingLesson?.id === lesson.id) {
-                                          setEditingLesson((prev) =>
-                                            prev
-                                              ? { ...prev, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null }
-                                              : prev
-                                          );
-                                        }
-                                        toast.success(newStatus === 'published' ? t('lessonPublished') || 'Lesson published' : t('lessonUnpublished') || 'Lesson unpublished');
-                                      } catch (err) {
-                                        console.error('Error toggling publish:', err);
-                                        toast.error(t('publishFailed') || 'Failed to update publish status');
-                                      }
-                                    }}
-                                  >
-                                    {lesson.status === 'published' ? (
-                                      <><Lock className="h-4 w-4 me-2" />{t('unpublish') || 'Unpublish'}</>
-                                    ) : (
-                                      <><Globe className="h-4 w-4 me-2" />{t('publish') || 'Publish'}</>
-                                    )}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
-                                    <Trash2 className="h-4 w-4 me-2" />
-                                    {tc('delete') || 'Delete'}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
 
-                          {/* Status badge + meta */}
-                          <div className="mb-2 flex items-center gap-1.5 flex-wrap">
-                            {lesson.status === 'draft' ? (
-                              <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
-                                <Lock className="h-2.5 w-2.5 me-1" />
-                                {t('draft') || 'Draft'}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
-                                <Globe className="h-2.5 w-2.5 me-1" />
-                                {t('published') || 'Published'}
-                              </Badge>
-                            )}
-                            {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
-                              <Badge variant="outline" className="text-[10px]">
-                                {t('passThreshold') || 'Pass'}: {lesson.pass_threshold}%
-                              </Badge>
-                            )}
-                          </div>
+                  {/* Collapse chevron */}
+                  <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${isCollapsed ? '' : 'rotate-180'}`} />
+                </button>
 
-                          {getExcerpt(lesson.content_json) && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-                              {getExcerpt(lesson.content_json)}
-                            </p>
-                          )}
-
-                          <div className="flex items-center justify-between pt-2 border-t border-muted/50">
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              <span>
-                                {formatDateRelative(
-                                  lesson.status === 'published'
-                                    ? lesson.published_at || lesson.updated_at
-                                    : lesson.updated_at
-                                )}
-                              </span>
-                            </div>
-                            {getWordCount(lesson.content_json) > 0 && (
-                              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                <FileText className="h-3 w-3" />
-                                <span>{getWordCount(lesson.content_json)} {t('words') || 'words'}</span>
+                {/* Lessons list — visible only when expanded */}
+                {!isCollapsed && (
+                  <div className="border-t border-muted/50">
+                    {unitLessons.length === 0 ? (
+                      <div className="px-5 py-6 text-center text-sm text-muted-foreground">
+                        {role === 'teacher'
+                          ? (t('noLessonsInUnit') || 'لا توجد دروس في هذه الوحدة بعد')
+                          : (t('noLessonsPublishedInUnit') || 'لا توجد دروس منشورة في هذه الوحدة بعد')}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-muted/40">
+                        {unitLessons.map((lesson, lessonIdx) => {
+                          const lessonNumber = lessonIdx + 1;
+                          return (
+                            <div
+                              key={lesson.id}
+                              className={`group px-4 sm:px-5 py-3 flex items-center gap-3 transition-colors ${
+                                isUnitLocked
+                                  ? 'opacity-60 cursor-not-allowed'
+                                  : 'hover:bg-muted/30 cursor-pointer'
+                              }`}
+                              onClick={() => {
+                                if (isUnitLocked) {
+                                  toast.error(t('unitLockedToast') || 'الوحدة متوقفة — لا يمكن فتح الدرس');
+                                  return;
+                                }
+                                if (role === 'teacher') handleEditLesson(lesson);
+                                else handleViewLesson(lesson);
+                              }}
+                            >
+                              {/* Sequential number circle */}
+                              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                                isUnitLocked
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                  : lesson.status === 'published'
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              }`}>
+                                {lessonNumber}
                               </div>
+
+                              {/* Title + excerpt */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="text-sm font-semibold text-foreground line-clamp-1">
+                                    {lesson.title}
+                                  </h4>
+                                  {lesson.status === 'draft' ? (
+                                    <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+                                      {t('draft') || 'مسودة'}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
+                                      <Globe className="h-2.5 w-2.5 me-1" />
+                                      {t('published') || 'منشور'}
+                                    </Badge>
+                                  )}
+                                  {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {t('passThreshold') || 'نجاح'}: {lesson.pass_threshold}%
+                                    </Badge>
+                                  )}
+                                </div>
+                                {getExcerpt(lesson.content_json) && (
+                                  <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                                    {getExcerpt(lesson.content_json)}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    {formatDateRelative(lesson.status === 'published' ? lesson.published_at || lesson.updated_at : lesson.updated_at)}
+                                  </span>
+                                  {getWordCount(lesson.content_json) > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <FileText className="h-2.5 w-2.5" />
+                                      {getWordCount(lesson.content_json)} {t('words') || 'كلمة'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Teacher kebab menu */}
+                              {role === 'teacher' && !isUnitLocked && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
+                                      <Pencil className="h-4 w-4 me-2" />
+                                      {tc('edit') || 'تعديل'}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
+                                      <Copy className="h-4 w-4 me-2" />
+                                      {t('duplicate') || 'تكرار'}
+                                    </DropdownMenuItem>
+                                    {units.length > 0 && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuSub>
+                                          <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()} className="gap-2">
+                                            <FolderTree className="h-4 w-4 me-2" />
+                                            {t('moveToUnit') || 'نقل لوحدة'}
+                                          </DropdownMenuSubTrigger>
+                                          <DropdownMenuSubContent>
+                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, null); }}>
+                                              <BookOpen className="h-4 w-4 me-2" />
+                                              {t('standalone') || 'مستقل'}
+                                              {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
+                                            </DropdownMenuItem>
+                                            {units.map((u) => (
+                                              <DropdownMenuItem key={u.id} onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, u.id); }}>
+                                                <Layers className="h-4 w-4 me-2" />
+                                                <span className="truncate">{u.title}</span>
+                                                {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuSubContent>
+                                        </DropdownMenuSub>
+                                      </>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        const isUnpublish = lesson.status === 'published';
+                                        try {
+                                          const headers = await getAuthHeaders();
+                                          const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
+                                            method: 'POST',
+                                            headers,
+                                            body: JSON.stringify({ unpublish: isUnpublish }),
+                                          });
+                                          if (!res.ok) {
+                                            const data = await res.json().catch(() => ({}));
+                                            toast.error(data.error || t('publishFailed') || 'Failed');
+                                            return;
+                                          }
+                                          const data = await res.json();
+                                          const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
+                                          setLessons((prev) => prev.map((l) => l.id === lesson.id ? { ...l, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null } : l));
+                                          toast.success(newStatus === 'published' ? t('lessonPublished') || 'تم النشر' : t('lessonUnpublished') || 'تم إلغاء النشر');
+                                        } catch (err) {
+                                          console.error('Error toggling publish:', err);
+                                          toast.error(t('publishFailed') || 'Failed');
+                                        }
+                                      }}
+                                    >
+                                      {lesson.status === 'published' ? (
+                                        <><Lock className="h-4 w-4 me-2" />{t('unpublish') || 'إلغاء النشر'}</>
+                                      ) : (
+                                        <><Globe className="h-4 w-4 me-2" />{t('publish') || 'نشر'}</>
+                                      )}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
+                                      <Trash2 className="h-4 w-4 me-2" />
+                                      {tc('delete') || 'حذف'}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Inline "Add lesson to this unit" — teacher only */}
+                        {role === 'teacher' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCreateLesson(unit.id); }}
+                            disabled={creatingLesson}
+                            className="w-full px-5 py-3 flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors border-t-2 border-dashed border-sky-200/60 dark:border-sky-900/30 disabled:opacity-50"
+                          >
+                            {creatingLesson ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4" />
                             )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                            {t('addLessonToUnit') || 'إضافة درس إلى هذه الوحدة'}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
             );
           })}
 
-          {/* Uncategorized lessons (no unit_id) — render as flat grid at the bottom */}
+          {/* Standalone lessons (no unit_id) — render as a list at the bottom */}
           {(() => {
             const standaloneLessons = visibleLessons.filter((l) => !l.unit_id);
             if (standaloneLessons.length === 0) return null;
@@ -1295,9 +1389,9 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                 variants={itemVariants}
                 initial="hidden"
                 animate="visible"
-                className="rounded-2xl border bg-card overflow-hidden"
+                className="rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/40 bg-card overflow-hidden"
               >
-                <div className="px-4 py-3 border-b bg-muted/40 flex items-center justify-between gap-2 flex-wrap">
+                <div className="px-5 py-3 border-b border-muted/50 bg-muted/30 flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                     <h3 className="font-bold text-base">
@@ -1318,262 +1412,124 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                       ) : (
                         <Plus className="h-3.5 w-3.5" />
                       )}
-                      {t('createLesson') || 'Create Lesson'}
+                      {t('createLesson') || 'درس جديد'}
                     </button>
                   )}
                 </div>
-                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {standaloneLessons.map((lesson) => (
-                    <motion.div
+                <div className="divide-y divide-muted/40">
+                  {standaloneLessons.map((lesson, lessonIdx) => (
+                    <div
                       key={lesson.id}
-                      variants={itemVariants}
-                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                      layout
-                      className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer group"
-                      onClick={() =>
-                        role === 'teacher'
-                          ? handleEditLesson(lesson)
-                          : handleViewLesson(lesson)
-                      }
+                      className="group px-5 py-3 flex items-center gap-3 hover:bg-muted/30 cursor-pointer transition-colors"
+                      onClick={() => role === 'teacher' ? handleEditLesson(lesson) : handleViewLesson(lesson)}
                     >
-                      <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-                      <div className="p-3">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <h4 className="text-sm font-bold text-foreground line-clamp-2 flex-1 min-w-0">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                        lesson.status === 'published'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      }`}>
+                        {lessonIdx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-semibold text-foreground line-clamp-1">
                             {lesson.title}
                           </h4>
-                          {role === 'teacher' && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
-                                  <Pencil className="h-4 w-4 me-2" />
-                                  {tc('edit') || 'Edit'}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
-                                  <Copy className="h-4 w-4 me-2" />
-                                  {t('duplicate') || 'Duplicate'}
-                                </DropdownMenuItem>
-                                {units.length > 0 && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuSub>
-                                      <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()} className="gap-2">
-                                        <FolderTree className="h-4 w-4 me-2" />
-                                        {t('moveToUnit') || 'Move to Unit'}
-                                      </DropdownMenuSubTrigger>
-                                      <DropdownMenuSubContent>
-                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, null); }}>
-                                          <BookOpen className="h-4 w-4 me-2" />
-                                          {t('standalone') || 'Standalone (no unit)'}
-                                          {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
-                                        </DropdownMenuItem>
-                                        {units.map((u) => (
-                                          <DropdownMenuItem key={u.id} onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, u.id); }}>
-                                            <Layers className="h-4 w-4 me-2" />
-                                            <span className="truncate">{u.title}</span>
-                                            {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
-                                          </DropdownMenuItem>
-                                        ))}
-                                      </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                  </>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    const isUnpublish = lesson.status === 'published';
-                                    try {
-                                      const headers = await getAuthHeaders();
-                                      const res = await fetch(`/api/lessons/${lesson.id}/publish`, {
-                                        method: 'POST',
-                                        headers,
-                                        body: JSON.stringify({ unpublish: isUnpublish }),
-                                      });
-                                      if (!res.ok) {
-                                        const data = await res.json().catch(() => ({}));
-                                        toast.error(data.error || t('publishFailed') || 'Failed to update publish status');
-                                        return;
-                                      }
-                                      const data = await res.json();
-                                      const newStatus: 'draft' | 'published' = data.status || (isUnpublish ? 'draft' : 'published');
-                                      setLessons((prev) =>
-                                        prev.map((l) =>
-                                          l.id === lesson.id
-                                            ? { ...l, status: newStatus, published_at: newStatus === 'published' ? new Date().toISOString() : null }
-                                            : l
-                                        )
-                                      );
-                                      toast.success(newStatus === 'published' ? t('lessonPublished') || 'Lesson published' : t('lessonUnpublished') || 'Lesson unpublished');
-                                    } catch (err) {
-                                      console.error('Error toggling publish:', err);
-                                      toast.error(t('publishFailed') || 'Failed to update publish status');
-                                    }
-                                  }}
-                                >
-                                  {lesson.status === 'published' ? (
-                                    <><Lock className="h-4 w-4 me-2" />{t('unpublish') || 'Unpublish'}</>
-                                  ) : (
-                                    <><Globe className="h-4 w-4 me-2" />{t('publish') || 'Publish'}</>
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
-                                  <Trash2 className="h-4 w-4 me-2" />
-                                  {tc('delete') || 'Delete'}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
-                        <div className="mb-2 flex items-center gap-1.5 flex-wrap">
                           {lesson.status === 'draft' ? (
                             <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
-                              <Lock className="h-2.5 w-2.5 me-1" />
-                              {t('draft') || 'Draft'}
+                              {t('draft') || 'مسودة'}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
                               <Globe className="h-2.5 w-2.5 me-1" />
-                              {t('published') || 'Published'}
+                              {t('published') || 'منشور'}
                             </Badge>
                           )}
                           {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (
                             <Badge variant="outline" className="text-[10px]">
-                              {t('passThreshold') || 'Pass'}: {lesson.pass_threshold}%
+                              {t('passThreshold') || 'نجاح'}: {lesson.pass_threshold}%
                             </Badge>
                           )}
                         </div>
                         {getExcerpt(lesson.content_json) && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
                             {getExcerpt(lesson.content_json)}
                           </p>
                         )}
-                        <div className="flex items-center justify-between pt-2 border-t border-muted/50">
-                          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>
-                              {formatDateRelative(
-                                lesson.status === 'published'
-                                  ? lesson.published_at || lesson.updated_at
-                                  : lesson.updated_at
-                              )}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-2.5 w-2.5" />
+                            {formatDateRelative(lesson.status === 'published' ? lesson.published_at || lesson.updated_at : lesson.updated_at)}
+                          </span>
                           {getWordCount(lesson.content_json) > 0 && (
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <FileText className="h-3 w-3" />
-                              <span>{getWordCount(lesson.content_json)} {t('words') || 'words'}</span>
-                            </div>
+                            <span className="flex items-center gap-1">
+                              <FileText className="h-2.5 w-2.5" />
+                              {getWordCount(lesson.content_json)} {t('words') || 'كلمة'}
+                            </span>
                           )}
                         </div>
                       </div>
-                    </motion.div>
+                      {role === 'teacher' && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
+                              <Pencil className="h-4 w-4 me-2" />
+                              {tc('edit') || 'تعديل'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
+                              <Copy className="h-4 w-4 me-2" />
+                              {t('duplicate') || 'تكرار'}
+                            </DropdownMenuItem>
+                            {units.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger onClick={(e) => e.stopPropagation()} className="gap-2">
+                                    <FolderTree className="h-4 w-4 me-2" />
+                                    {t('moveToUnit') || 'نقل لوحدة'}
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent>
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, null); }}>
+                                      <BookOpen className="h-4 w-4 me-2" />
+                                      {t('standalone') || 'مستقل'}
+                                      {!lesson.unit_id && <Check className="h-3 w-3 ms-auto" />}
+                                    </DropdownMenuItem>
+                                    {units.map((u) => (
+                                      <DropdownMenuItem key={u.id} onClick={(e) => { e.stopPropagation(); handleMoveToUnit(lesson, u.id); }}>
+                                        <Layers className="h-4 w-4 me-2" />
+                                        <span className="truncate">{u.title}</span>
+                                        {lesson.unit_id === u.id && <Check className="h-3 w-3 ms-auto" />}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
+                              <Trash2 className="h-4 w-4 me-2" />
+                              {tc('delete') || 'حذف'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   ))}
                 </div>
               </motion.div>
             );
           })()}
         </div>
-      ) : (
-        // v98: fallback flat grid — used when there are NO units at all
-        // (preserves the original behavior before hierarchical view was added)
-        <AnimatePresence>
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-          >
-            {visibleLessons.map((lesson) => (
-              <motion.div
-                key={lesson.id}
-                variants={itemVariants}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                layout
-                className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden cursor-pointer group"
-                onClick={() =>
-                  role === 'teacher'
-                    ? handleEditLesson(lesson)
-                    : handleViewLesson(lesson)
-                }
-              >
-                {/* Top color bar */}
-                <div className={`h-1 ${lesson.status === 'published' ? 'bg-emerald-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="text-sm font-bold text-foreground line-clamp-2 flex-1 min-w-0">
-                      {lesson.title}
-                    </h4>
-                    {role === 'teacher' && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button onClick={(e) => e.stopPropagation()} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditLesson(lesson); }}>
-                            <Pencil className="h-4 w-4 me-2" />
-                            {tc('edit') || 'Edit'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(lesson); }}>
-                            <Copy className="h-4 w-4 me-2" />
-                            {t('duplicate') || 'Duplicate'}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(lesson.id); }}>
-                            <Trash2 className="h-4 w-4 me-2" />
-                            {tc('delete') || 'Delete'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                  <div className="mb-2 flex items-center gap-1.5 flex-wrap">
-                    {lesson.status === 'draft' ? (
-                      <Badge variant="outline" className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
-                        <Lock className="h-2.5 w-2.5 me-1" />
-                        {t('draft') || 'Draft'}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
-                        <Globe className="h-2.5 w-2.5 me-1" />
-                        {t('published') || 'Published'}
-                      </Badge>
-                    )}
-                  </div>
-                  {getExcerpt(lesson.content_json) && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
-                      {getExcerpt(lesson.content_json)}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between pt-2 border-t border-muted/50">
-                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>{formatDateRelative(lesson.status === 'published' ? lesson.published_at || lesson.updated_at : lesson.updated_at)}</span>
-                    </div>
-                    {getWordCount(lesson.content_json) > 0 && (
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <FileText className="h-3 w-3" />
-                        <span>{getWordCount(lesson.content_json)} {t('words') || 'words'}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        </AnimatePresence>
-      )}
+      ) : null}
+
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog

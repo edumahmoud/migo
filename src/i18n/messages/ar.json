@@ -1098,7 +1098,7 @@
     "videoTitlePlaceholder": "أدخل عنوان الفيديو",
     "videos": "الفيديوهات",
     "visible": "مرئي",
-    "tabLessons": "الدروس",
+    "tabLessons": "محتوى المقرر",
     "tabScorm": "SCORM"
   },
   "scorm": {
@@ -4846,7 +4846,15 @@
     "moveFailed": "فشل نقل الدرس",
     "lessonMoved": "تم نقل الدرس",
     "lessonUnassigned": "تم نقل الدرس إلى المستقل",
-    "reorderFailed": "فشل إعادة الترتيب"
+    "reorderFailed": "فشل إعادة الترتيب",
+    "unitsCountLabel": "وحدة",
+    "lessonsLabel": "دروس",
+    "startByCreatingUnit": "ابدأ بإنشاء وحدة لتنظيم دروسك. كل وحدة تحتوي على مجموعة من الدروس تظهر للطلاب بشكل تسلسلي.",
+    "createFirstUnit": "إنشاء وحدة أولى",
+    "createStandaloneLesson": "إضافة درس مستقل",
+    "organizeLessonsHint": "نظّم دروسك في وحدات لتحسين تجربة الطالب. كل وحدة تظهر كقسم منفصل في المحتوى.",
+    "createUnit": "إنشاء وحدة",
+    "addLessonToUnit": "إضافة درس إلى هذه الوحدة"
   },
   "scormLibrary": {
     "title": "مكتبة SCORM",

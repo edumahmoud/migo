@@ -1097,7 +1097,7 @@
     "videoTitlePlaceholder": "Enter video title",
     "videos": "Videos",
     "visible": "Visible",
-    "tabLessons": "Lessons",
+    "tabLessons": "Course Content",
     "tabScorm": "SCORM"
   },
   "scorm": {
@@ -4845,7 +4845,15 @@
     "moveFailed": "Failed to move lesson",
     "lessonMoved": "Lesson moved",
     "lessonUnassigned": "Lesson moved to standalone",
-    "reorderFailed": "Failed to reorder"
+    "reorderFailed": "Failed to reorder",
+    "unitsCountLabel": "units",
+    "lessonsLabel": "lessons",
+    "startByCreatingUnit": "Start by creating a unit to organize your lessons. Each unit contains a set of lessons shown to students sequentially.",
+    "createFirstUnit": "Create First Unit",
+    "createStandaloneLesson": "Add Standalone Lesson",
+    "organizeLessonsHint": "Organize your lessons into units to improve student experience. Each unit appears as a separate section in the content.",
+    "createUnit": "Create Unit",
+    "addLessonToUnit": "Add lesson to this unit"
   },
   "scormLibrary": {
     "title": "SCORM Library",
