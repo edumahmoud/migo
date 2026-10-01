@@ -1361,7 +1361,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 ? t('subjects.coursesInCategory')
                 : role === 'teacher'
                   ? t('subjects.allCoursesDesc')
-                  : t('course.enrolledStudents')}
+                  : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -3048,12 +3048,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                                       });
                                                       setPaymentSummaryOpen(true);
                                                     } else {
-                                                      // v92+ — check if the subject was not available (paused/closed)
+                                                      // v92+ — check if the subject was not available (paused/closed/insert-failed)
                                                       const notAvailable = (json.not_available ?? []).find(
                                                         (n: { subject_id?: string; reason?: string }) => n.subject_id === c.id,
                                                       );
                                                       if (notAvailable?.reason) {
                                                         toast.error(notAvailable.reason);
+                                                      } else if (json.message) {
+                                                        toast.error(json.message);
                                                       } else {
                                                         toast.error('تعذّر إنشاء طلب الاشتراك — حاول مرة أخرى');
                                                       }

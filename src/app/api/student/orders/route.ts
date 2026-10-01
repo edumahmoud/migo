@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
       }>;
       const breakdown = calculateFees(basePrice, feeRows);
 
-      const { data: order } = await supabaseServer
+      const { data: order, error: insertError } = await supabaseServer
         .from('orders')
         .insert({
           student_id: studentId,
@@ -231,7 +231,20 @@ export async function POST(request: NextRequest) {
         .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at, fees_breakdown')
         .single();
 
-      if (order) {
+      if (insertError || !order) {
+        // v92+ — DON'T silently skip. Log the error AND add to
+        // not_available so the UI shows a meaningful message.
+        console.error('[student/orders] order INSERT failed:', insertError?.message, {
+          subjectId, studentId, amount: breakdown.grand_total,
+        });
+        notAvailableSubjects.push({
+          subject_id: subjectId,
+          reason: `تعذّر إنشاء الطلب: ${insertError?.message ?? 'خطأ غير معروف'}`,
+        });
+        continue;
+      }
+
+      {
         const orderId = (order as { id: string }).id;
         // Snapshot each fee into order_fees (immutable)
         if (breakdown.fees.length > 0) {
