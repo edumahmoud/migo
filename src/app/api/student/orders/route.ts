@@ -61,6 +61,20 @@ export async function POST(request: NextRequest) {
       .map((s) => [s.id, { id: s.id, name: s.name, teacher_id: s.teacher_id, price: Number(s.price), currency: s.currency }])
   );
 
+  // v92+ — track which requested subjects were NOT available (paused or
+  // subscription closed) so the UI can show a meaningful message instead
+  // of silently returning success:true with no created/skipped orders.
+  const notAvailableSubjects: Array<{ subject_id: string; reason: string }> = [];
+  for (const sid of requestedSubjectIds) {
+    if (!subjectsMap.has(sid)) {
+      const raw = ((subjectsData ?? []) as Array<{ id: string; is_paused: boolean; subscription_open: boolean }>).find((s) => s.id === sid);
+      notAvailableSubjects.push({
+        subject_id: sid,
+        reason: raw?.is_paused ? 'المقرر متوقف مؤقتاً' : 'الاشتراك مغلق لهذا المقرر',
+      });
+    }
+  }
+
   if (subjectsMap.size === 0) {
     return NextResponse.json({ success: false, error: 'لا توجد مقررات متاحة للاشتراك' }, { status: 400 });
   }
@@ -257,10 +271,10 @@ export async function POST(request: NextRequest) {
     success: true,
     created_orders: createdOrders,
     // v88+ — skipped now includes the existing order's full data
-    // (order_id, amount, fees) so the UI can open the payment dialog
-    // on the existing pending order instead of silently ignoring it.
     skipped: skippedOrders.map((s) => s.subject_id),
     skipped_orders: skippedOrders,
+    // v92+ — subjects that were not available (paused or subscription closed)
+    not_available: notAvailableSubjects,
     message: skippedOrders.length > 0 && createdOrders.length === 0
       ? 'لديك طلبات قيد الدفع بالفعل — يمكنك إتمام الدفع الآن'
       : createdOrders.some(o => o.status === 'pending')

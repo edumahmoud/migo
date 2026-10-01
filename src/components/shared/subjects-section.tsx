@@ -3031,7 +3031,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                                     });
                                                     setPaymentSummaryOpen(true);
                                                   } else {
-                                                    // v88+ — order was skipped (existing pending order)
+                                                    // v88+ — check if the order was skipped (existing pending order)
                                                     const skipped = (json.skipped_orders ?? []).find(
                                                       (s: { subject_id?: string; order_id?: string }) => s.subject_id === c.id,
                                                     );
@@ -3048,7 +3048,17 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                                       });
                                                       setPaymentSummaryOpen(true);
                                                     } else {
-                                                      toast.info('تم إنشاء طلب الاشتراك مسبقاً.');
+                                                      // v92+ — check if the subject was not available (paused/closed)
+                                                      const notAvailable = (json.not_available ?? []).find(
+                                                        (n: { subject_id?: string; reason?: string }) => n.subject_id === c.id,
+                                                      );
+                                                      if (notAvailable?.reason) {
+                                                        toast.error(notAvailable.reason);
+                                                      } else {
+                                                        toast.error('تعذّر إنشاء طلب الاشتراك — حاول مرة أخرى');
+                                                      }
+                                                      // DON'T close the modal — let the student see the error
+                                                      // and try another course
                                                     }
                                                   }
                                                   setAvailableCoursesOpen(false);
@@ -3334,7 +3344,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   });
                                   setPaymentSummaryOpen(true);
                                 } else {
-                                  toast.info('تم إنشاء طلب اشتراك مسبقاً.');
+                                  // v92+ — check not_available
+                                  const notAvailable = (json.not_available ?? []).find(
+                                    (n: { subject_id?: string; reason?: string }) => n.subject_id === subjectPreview.id,
+                                  );
+                                  if (notAvailable?.reason) {
+                                    toast.error(notAvailable.reason);
+                                  } else {
+                                    toast.error('تعذّر إنشاء طلب الاشتراك — حاول مرة أخرى');
+                                  }
                                 }
                                 setJoinCodeOpen(false);
                                 setSubjectPreview(null);
