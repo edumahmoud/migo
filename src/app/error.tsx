@@ -1,25 +1,12 @@
 'use client';
 
+// P3-27 FIX: Removed framer-motion import. The error boundary is the
+// LAST RESORT UI — if framer-motion itself crashed, the error page
+// couldn't render. Now uses plain CSS animations via Tailwind.
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { AlertTriangle, RefreshCw, RotateCcw, X, GraduationCap } from 'lucide-react';
+import { AlertTriangle, RefreshCw, RotateCcw, GraduationCap } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 
-/**
- * Root Error Page (error.tsx)
- *
- * CRITICAL FIX: This is the LAST RESORT error boundary for the entire app.
- * It should ONLY be reached if ALL inner error boundaries fail.
- *
- * Previous issue: SocketErrorBoundary was catching errors but re-rendering
- * the same children, causing errors to propagate here and showing "حدث خطأ غير متوقع"
- * even for recoverable dashboard errors.
- *
- * This page now includes:
- * 1. Auto-recovery attempt (tries to remount after 3 seconds)
- * 2. Clear corrupted localStorage state before retry
- * 3. A more informative error UI with recovery options
- */
 export default function ErrorPage({
   error,
   reset,
@@ -27,15 +14,13 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const { t, isRTL, direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const [autoRetrying, setAutoRetrying] = useState(true);
   const [hasActiveSession, setHasActiveSession] = useState(false);
 
   useEffect(() => {
-    // Log error for debugging
     console.error('[RootError] Unhandled error caught by error.tsx:', error);
 
-    // Check if user has an active session (for "Return to App" button)
     try {
       const supabaseKeys = Object.keys(localStorage).filter(k =>
         k.startsWith('sb-') && k.endsWith('-auth-token')
@@ -43,22 +28,18 @@ export default function ErrorPage({
       if (supabaseKeys.length > 0) {
         const sessionData = JSON.parse(localStorage.getItem(supabaseKeys[0]) || '');
         if (sessionData?.access_token || (Array.isArray(sessionData) && sessionData[0]?.access_token)) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- reading from external storage (localStorage) and syncing to React state
           setHasActiveSession(true);
         }
       }
     } catch {}
 
-    // Auto-recovery: Try to clear corrupted state and remount after 3 seconds
     const timer = setTimeout(() => {
       try {
-        // Clear potentially corrupted state that might be causing the error
         localStorage.removeItem('attendo-app-store');
         localStorage.removeItem('_wsr');
         localStorage.removeItem('_sw_reload_pending');
         localStorage.removeItem('_attendo_busy');
       } catch {}
-      // Actually call reset() to remount the page instead of just showing the error UI
       setAutoRetrying(false);
       reset();
     }, 3000);
@@ -68,7 +49,6 @@ export default function ErrorPage({
 
   const handleReload = () => {
     if (typeof window !== 'undefined') {
-      // Clear potentially corrupted state before reloading
       try {
         localStorage.removeItem('attendo-app-store');
         localStorage.removeItem('_wsr');
@@ -82,12 +62,10 @@ export default function ErrorPage({
   const handleFullReset = () => {
     if (typeof window !== 'undefined') {
       try {
-        // Clear ALL app state — this will log the user out but ensures a clean slate
         localStorage.removeItem('attendo-app-store');
         localStorage.removeItem('_wsr');
         localStorage.removeItem('_sw_reload_pending');
         localStorage.removeItem('_attendo_busy');
-        // Clear Supabase auth tokens that might be corrupted
         const keysToRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -101,23 +79,12 @@ export default function ErrorPage({
     }
   };
 
-  const handleExit = () => {
-    try {
-      window.close();
-    } catch {
-      window.location.href = 'about:blank';
-    }
-  };
-
-  // Auto-retry UI
   if (autoRetrying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={direction}>
         <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+            <GraduationCap className="w-9 h-9 text-white" />
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
@@ -130,78 +97,36 @@ export default function ErrorPage({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={direction}>
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/15 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: 'easeOut' as const }}
-        className="relative z-10 w-full max-w-md mx-auto"
-      >
+      <div className="relative z-10 w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
-          {/* Brand icon */}
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
-          >
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30">
             <GraduationCap className="h-7 w-7 text-white" />
-          </motion.div>
+          </div>
 
-          {/* Error icon */}
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
-            className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50"
-          >
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
             <AlertTriangle className="h-10 w-10 text-amber-500" />
-          </motion.div>
+          </div>
 
-          {/* Title */}
-          <motion.h1
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-xl font-bold text-gray-900 dark:text-foreground mb-2"
-          >
+          <h1 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">
             {t('errorBoundary.unexpectedError')}
-          </motion.h1>
+          </h1>
 
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-sm text-gray-500 dark:text-muted-foreground mb-4 leading-relaxed"
-          >
+          <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4 leading-relaxed">
             {t('errorBoundary.unexpectedErrorDesc')}
-          </motion.p>
+          </p>
 
-          {/* Error digest for debugging */}
           {error?.digest && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.55 }}
-              className="text-xs text-gray-400 dark:text-muted-foreground mb-5 font-mono"
-            >
+            <p className="text-xs text-gray-400 dark:text-muted-foreground mb-5 font-mono">
               {t('common.referenceCode')} {error.digest}
-            </motion.p>
+            </p>
           )}
 
-          {/* Action buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-3"
-          >
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={reset}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
@@ -235,19 +160,13 @@ export default function ErrorPage({
               <AlertTriangle className="h-4 w-4" />
               {t('common.resetApp')}
             </button>
-          </motion.div>
+          </div>
         </div>
 
-        {/* Footer branding */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
-        >
+        <p className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4">
           {t('errorBoundary.branding')}
-        </motion.p>
-      </motion.div>
+        </p>
+      </div>
     </div>
   );
 }

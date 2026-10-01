@@ -285,7 +285,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       amount: settledAmount,
       currency,
       status: 'completed',
-      idempotency_key: `settle_${teacherId}_${requestedAmount.toFixed(2)}_${selectedEntries.map(e=>e.id).sort().join(',')}`,
+      idempotency_key: `settle_${teacherId}_${requestedAmount.toFixed(2)}_${selectedEntries.map(e=>e.id).sort().join(',')}_${Date.now()}`,
       internal_reference: internalReference,
       provider_reference: transactionCode,
       initiated_by: adminId,

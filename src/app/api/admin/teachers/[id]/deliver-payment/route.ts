@@ -51,7 +51,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       payoutMethodId: payout_method_id,
       amount,
       currency: 'EGP',
-      idempotencyKey: `deliver_${teacherId}_${amount.toFixed(2)}_${payout_method_id}`,
+      idempotencyKey: `deliver_${teacherId}_${amount.toFixed(2)}_${payout_method_id}_${Date.now()}`,
       internalReference: transactionCode,
       initiatedBy: adminId,
     });
