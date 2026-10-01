@@ -112,12 +112,12 @@ export async function POST(request: NextRequest) {
   const userId = authResult.user.id;
   const role = await getUserRole(userId);
 
-  let body: { subject_id?: string; title?: string; description?: string; pass_threshold?: number; order_index?: number };
+  let body: { subject_id?: string; title?: string; description?: string; pass_threshold?: number; order_index?: number; is_enabled?: boolean };
   try { body = await request.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { subject_id, title, description, pass_threshold, order_index } = body;
+  const { subject_id, title, description, pass_threshold, order_index, is_enabled } = body;
 
   if (!subject_id || !title) {
     return NextResponse.json({ error: 'subject_id + title are required' }, { status: 400 });
@@ -142,6 +142,12 @@ export async function POST(request: NextRequest) {
       pass_threshold: pass_threshold ?? 60,
       order_index: order_index ?? 0,
       is_published: false,
+      // CRITICAL: populate created_by from the authenticated user — the DB
+      // column is NOT NULL. Without this, the INSERT fails with:
+      // "null value in column 'created_by' violates not-null constraint"
+      created_by: userId,
+      // v98: new units are enabled by default — teacher can disable after creation
+      is_enabled: is_enabled !== undefined ? !!is_enabled : true,
     })
     .select()
     .single();
