@@ -1362,11 +1362,11 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         <div className="space-y-4">
           {units.map((unit, unitIdx) => {
             const unitLessons = visibleLessons.filter((l) => l.unit_id === unit.id);
-            // Skip empty units for students (teachers see all units for management)
-            if (unitLessons.length === 0 && role !== 'teacher') return null;
             const isUnitLocked = unit.is_enabled === false && role !== 'teacher';
+            // v104: locked units are ALWAYS visible to students (dimmed + lock icon),
+            // even if they have 0 published lessons. Only skip non-locked empty units.
+            if (unitLessons.length === 0 && role !== 'teacher' && !isUnitLocked) return null;
             const isCollapsed = !!collapsedUnits[unit.id];
-            // Sequential numbering 1, 2, 3 within unit
             const unitNumber = unitIdx + 1;
 
             return (
