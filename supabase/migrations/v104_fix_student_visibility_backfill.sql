@@ -62,7 +62,7 @@ SELECT
   s.id,
   tsl.student_id,
   'approved',
-  'teacher_link',
+  'teacher_add',  -- must match CHECK constraint: self_join, teacher_add, agent_register, self_paid
   now()
 FROM public.teacher_student_links tsl
 JOIN public.subjects s ON s.teacher_id = tsl.teacher_id

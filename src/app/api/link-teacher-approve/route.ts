@@ -109,7 +109,7 @@ export async function POST(request: Request) {
             subject_id: s.id,
             student_id: studentId,
             status: 'approved',
-            enrollment_method: 'teacher_link',
+            enrollment_method: 'teacher_add',
             enrolled_at: new Date().toISOString(),
           }));
 
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
                 subject_id: subj.id,
                 student_id: sid,
                 status: 'approved',
-                enrollment_method: 'teacher_link',
+                enrollment_method: 'teacher_add',
                 enrolled_at: new Date().toISOString(),
               });
             }
