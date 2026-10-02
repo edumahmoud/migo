@@ -28,6 +28,9 @@ import {
   ChevronDown,
   ChevronUp,
   Target,
+  CheckCircle2,
+  Play,
+  X,
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { supabase } from '@/lib/supabase';
@@ -150,6 +153,13 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   const [showUnitsManager, setShowUnitsManager] = useState(false);
   const [showUnitsView, setShowUnitsView] = useState(false);
   const [collapsedUnits, setCollapsedUnits] = useState<Record<string, boolean>>({});
+
+  // v100: student lesson progress state — only used by students
+  // progressMap: { [lesson_id]: { status, completed_at, last_accessed_at } }
+  const [progressMap, setProgressMap] = useState<Record<string, { status: string; completed_at: string | null; last_accessed_at: string | null }>>({});
+  const [lastLessonId, setLastLessonId] = useState<string | null>(null);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [totalLessonsForProgress, setTotalLessonsForProgress] = useState(0);
 
   // v99: toggle collapse state of a unit (default expanded)
   const toggleUnitCollapse = useCallback((unitId: string) => {
@@ -316,6 +326,76 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   useEffect(() => {
     fetchUnits();
   }, [fetchUnits]);
+
+  // v100: Fetch the student's progress for all lessons in this subject.
+  // Teachers/admins get an empty progress map (no progress tracking).
+  const fetchProgress = useCallback(async () => {
+    // Skip progress tracking for non-student roles (teachers don't track
+    // progress on their own lessons)
+    if (role !== 'student') {
+      setProgressMap({});
+      setLastLessonId(null);
+      setCompletedCount(0);
+      setTotalLessonsForProgress(0);
+      return;
+    }
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lessons/progress?subject_id=${subject.id}`, { headers });
+      if (!res.ok) {
+        console.error('Failed to fetch progress:', res.status);
+        return;
+      }
+      const data = await res.json();
+      setProgressMap(data.progress || {});
+      setLastLessonId(data.lastLessonId || null);
+      setCompletedCount(data.completedCount || 0);
+      setTotalLessonsForProgress(data.totalLessons || 0);
+    } catch (err) {
+      console.error('Error fetching progress:', err);
+    }
+  }, [subject.id, role]);
+
+  useEffect(() => {
+    fetchProgress();
+  }, [fetchProgress]);
+
+  // v100: helper — mark a lesson as completed (or reset) — optimistic UI
+  const markLessonProgress = useCallback(async (lessonId: string, action: 'view' | 'complete' | 'reset') => {
+    // Optimistic UI update
+    const prevMap = { ...progressMap };
+    setProgressMap((prev) => ({
+      ...prev,
+      [lessonId]: {
+        status: action === 'complete' ? 'completed' : action === 'reset' ? 'not_started' : 'in_progress',
+        completed_at: action === 'complete' ? new Date().toISOString() : null,
+        last_accessed_at: new Date().toISOString(),
+      },
+    }));
+    // Update completed count
+    if (action === 'complete' && prevMap[lessonId]?.status !== 'completed') {
+      setCompletedCount((c) => c + 1);
+    } else if (action === 'reset' && prevMap[lessonId]?.status === 'completed') {
+      setCompletedCount((c) => Math.max(0, c - 1));
+    }
+    try {
+      const headers = await getAuthHeaders();
+      await fetch(`/api/lessons/${lessonId}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ action }),
+      });
+    } catch (err) {
+      console.error('Error marking progress:', err);
+      // Revert on failure
+      setProgressMap(prevMap);
+    }
+  }, [progressMap]);
+
+  // v100: helper — is lesson completed?
+  const isLessonCompleted = useCallback((lessonId: string) => {
+    return progressMap[lessonId]?.status === 'completed';
+  }, [progressMap]);
 
   // -------------------------------------------------------
   // v63: Move lesson to a different unit (or unassign)
@@ -640,7 +720,13 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
     setViewingLesson(lesson);
     setEditorContent(lesson.published_json || lesson.content_json || null);
     setEditorHtml(lesson.content_html || '');
-  }, []);
+    // v100: record this view in lesson_progress (student only, fire-and-forget)
+    if (role === 'student') {
+      markLessonProgress(lesson.id, 'view').catch((err) => {
+        console.error('[handleViewLesson] Failed to record progress:', err);
+      });
+    }
+  }, [markLessonProgress, role]);
 
   // -------------------------------------------------------
   // Handle editor content change
@@ -744,6 +830,62 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
             editable={false}
             dir={direction === 'rtl' ? 'rtl' : 'ltr'}
           />
+        </motion.div>
+
+        {/* v100: Mark as complete / Reset progress — student only */}
+        <motion.div variants={itemVariants} className="rounded-2xl border bg-card p-5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              isLessonCompleted(viewingLesson.id)
+                ? 'bg-emerald-500 text-white'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+            }`}>
+              {isLessonCompleted(viewingLesson.id)
+                ? <CheckCircle2 className="h-5 w-5" />
+                : <BookOpen className="h-5 w-5" />}
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-sm">
+                {isLessonCompleted(viewingLesson.id)
+                  ? (t('lessonCompleted') || 'تم إكمال هذا الدرس')
+                  : (t('markLessonComplete') || 'هل أكملت هذا الدرس؟')}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isLessonCompleted(viewingLesson.id)
+                  ? (t('canUnmarkHint') || 'يمكنك إلغاء التحديد لمراجعته مرة أخرى')
+                  : (t('markCompleteHint') || 'حدّده كمكتمل لمتابعة تقدمك في المقرر')}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const newAction = isLessonCompleted(viewingLesson.id) ? 'reset' : 'complete';
+              markLessonProgress(viewingLesson.id, newAction).then(() => {
+                toast.success(newAction === 'complete'
+                  ? (t('markedComplete') || 'تم تحديد الدرس كمكتمل')
+                  : (t('markedIncomplete') || 'تم إلغاء التحديد'));
+              }).catch(() => {
+                toast.error(t('progressUpdateFailed') || 'فشل تحديث التقدم');
+              });
+            }}
+            className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all active:scale-[0.97] ${
+              isLessonCompleted(viewingLesson.id)
+                ? 'bg-amber-600 hover:bg-amber-700'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
+          >
+            {isLessonCompleted(viewingLesson.id) ? (
+              <>
+                <X className="h-4 w-4" />
+                {t('unmarkAsComplete') || 'إلغاء التحديد'}
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                {t('markAsComplete') || 'تحديد كمكتمل'}
+              </>
+            )}
+          </button>
         </motion.div>
       </motion.div>
     );
@@ -950,12 +1092,27 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         variants={itemVariants}
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
             <BookMarked className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             {t('title') || 'محتوى المقرر'}
+            {/* v100: "Resume last lesson" button — students only, when a lastLessonId exists */}
+            {role === 'student' && lastLessonId && (() => {
+              const lastLesson = visibleLessons.find((l) => l.id === lastLessonId);
+              if (!lastLesson) return null;
+              return (
+                <button
+                  onClick={() => handleViewLesson(lastLesson)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors ms-2"
+                  title={t('resumeLastLesson') || 'استئناف من آخر درس'}
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  {t('resumeLastLesson') || 'استئناف'}
+                </button>
+              );
+            })()}
           </h3>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 flex-wrap">
             {units.length > 0 ? (
               <>
                 <Badge variant="secondary" className="text-[10px] me-1 px-1.5 py-0">
@@ -973,7 +1130,29 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                   `${visibleLessons.length} lesson(s)`}
               </>
             )}
+            {/* v100: show progress percent for students when there are visible lessons */}
+            {role === 'student' && visibleLessons.length > 0 && (
+              <>
+                <span className="text-muted-foreground/40 mx-1">•</span>
+                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {completedCount} / {visibleLessons.length} {t('completedLabel') || 'مكتمل'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({Math.round((completedCount / Math.max(visibleLessons.length, 1)) * 100)}%)
+                </span>
+              </>
+            )}
           </p>
+          {/* v100: overall progress bar for students */}
+          {role === 'student' && visibleLessons.length > 0 && (
+            <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden max-w-md">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
+                style={{ width: `${Math.round((completedCount / Math.max(visibleLessons.length, 1)) * 100)}%` }}
+              />
+            </div>
+          )}
         </div>
         {role === 'teacher' && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -1199,21 +1378,23 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                                 else handleViewLesson(lesson);
                               }}
                             >
-                              {/* Sequential number circle */}
+                              {/* Sequential number circle (or ✓ if completed) */}
                               <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                                 isUnitLocked
                                   ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                  : lesson.status === 'published'
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                  : isLessonCompleted(lesson.id)
+                                    ? 'bg-emerald-500 text-white'
+                                    : lesson.status === 'published'
+                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                               }`}>
-                                {lessonNumber}
+                                {isLessonCompleted(lesson.id) ? <CheckCircle2 className="h-4 w-4" /> : lessonNumber}
                               </div>
 
                               {/* Title + excerpt */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="text-sm font-semibold text-foreground line-clamp-1">
+                                  <h4 className={`text-sm font-semibold line-clamp-1 ${isLessonCompleted(lesson.id) ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
                                     {lesson.title}
                                   </h4>
                                   {lesson.status === 'draft' ? (
@@ -1224,6 +1405,12 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                                     <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
                                       <Globe className="h-2.5 w-2.5 me-1" />
                                       {t('published') || 'منشور'}
+                                    </Badge>
+                                  )}
+                                  {isLessonCompleted(lesson.id) && (
+                                    <Badge variant="outline" className="text-[10px] border-emerald-400 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                                      <CheckCircle2 className="h-2.5 w-2.5 me-1" />
+                                      {t('completedLabel') || 'مكتمل'}
                                     </Badge>
                                   )}
                                   {lesson.pass_threshold != null && lesson.pass_threshold > 0 && (

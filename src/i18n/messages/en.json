@@ -4855,7 +4855,18 @@
     "createUnit": "Create Unit",
     "addLessonToUnit": "Add lesson to this unit",
     "createLessonRequiresUnit": "You must create a unit first, then add the lesson inside the unit",
-    "moveToUnitHint": "Move these lessons to units to organize the content"
+    "moveToUnitHint": "Move these lessons to units to organize the content",
+    "resumeLastLesson": "Resume",
+    "completedLabel": "completed",
+    "markAsComplete": "Mark as Complete",
+    "unmarkAsComplete": "Unmark",
+    "markLessonComplete": "Have you completed this lesson?",
+    "markCompleteHint": "Mark it complete to track your progress in this course",
+    "lessonCompleted": "This lesson is completed",
+    "canUnmarkHint": "You can unmark it to revisit it again",
+    "markedComplete": "Lesson marked as complete",
+    "markedIncomplete": "Marking cleared",
+    "progressUpdateFailed": "Failed to update progress"
   },
   "scormLibrary": {
     "title": "SCORM Library",

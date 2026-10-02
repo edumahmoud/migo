@@ -4856,7 +4856,18 @@
     "createUnit": "إنشاء وحدة",
     "addLessonToUnit": "إضافة درس إلى هذه الوحدة",
     "createLessonRequiresUnit": "يجب إنشاء وحدة أولاً، ثم إضافة الدرس داخل الوحدة",
-    "moveToUnitHint": "انقل هذه الدروس إلى وحدات لتنظيم المحتوى"
+    "moveToUnitHint": "انقل هذه الدروس إلى وحدات لتنظيم المحتوى",
+    "resumeLastLesson": "استئناف",
+    "completedLabel": "مكتمل",
+    "markAsComplete": "تحديد كمكتمل",
+    "unmarkAsComplete": "إلغاء التحديد",
+    "markLessonComplete": "هل أكملت هذا الدرس؟",
+    "markCompleteHint": "حدّده كمكتمل لمتابعة تقدمك في المقرر",
+    "lessonCompleted": "تم إكمال هذا الدرس",
+    "canUnmarkHint": "يمكنك إلغاء التحديد لمراجعته مرة أخرى",
+    "markedComplete": "تم تحديد الدرس كمكتمل",
+    "markedIncomplete": "تم إلغاء التحديد",
+    "progressUpdateFailed": "فشل تحديث التقدم"
   },
   "scormLibrary": {
     "title": "مكتبة SCORM",
