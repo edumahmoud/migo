@@ -78,13 +78,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Delete the user from the users (profiles) table
+    // Delete the user from the users (profiles) table.
+    // NOTE: auth.admin.deleteUser above may have already cascaded and
+    // deleted the profile row. In that case, this DELETE finds 0 rows
+    // and Supabase returns a "no rows" message. We treat that as SUCCESS
+    // (the user is already gone) — NOT an error.
     const { error } = await supabaseServer
       .from('users')
       .delete()
       .eq('id', userId);
 
-    if (error) {
+    if (error && !error.message.includes('no rows') && error.code !== 'PGRST116') {
       console.error('Error deleting user:', error);
       return NextResponse.json(
         { success: false, error: 'حدث خطأ أثناء حذف المستخدم' },
@@ -92,24 +96,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add the user's email to banned_users to prevent re-registration
+    // If we reach here, deletion succeeded (either explicit or cascade).
+    // Add the user's email to banned_users to prevent re-registration.
     if (userEmail) {
-      const { error: banError } = await supabaseServer
-        .from('banned_users')
-        .upsert(
-          {
-            email: userEmail,
-            reason: 'تم الحذف بواسطة المشرف',
-            banned_by: authUserId,
-          },
-          { onConflict: 'email' }
-        );
-
-      if (banError) {
-        console.error('Error adding to banned_users:', banError);
-        // Critical: If ban insert fails, the user could re-register.
-        // Log prominently so admins can manually add the ban.
-        console.error(`[SECURITY] Failed to ban deleted user email: ${userEmail}. Manual ban required!`);
+      try {
+        await supabaseServer
+          .from('banned_users')
+          .upsert(
+            {
+              email: userEmail,
+              reason: 'تم الحذف بواسطة المشرف',
+              banned_by: authUserId,
+            },
+            { onConflict: 'email' }
+          );
+      } catch (banErr) {
+        console.error('[delete-user] Ban upsert error (non-fatal):', banErr);
       }
     }
 
