@@ -94,6 +94,38 @@ export async function POST(request: Request) {
         );
       }
 
+      // v104: Auto-enroll the student in ALL the teacher's subjects.
+      // This is the missing piece — without it, the student is linked
+      // to the teacher but has no subject_students rows, so they can't
+      // see any course content (lessons/units return 403).
+      try {
+        const { data: teacherSubjects } = await supabaseServer
+          .from('subjects')
+          .select('id')
+          .eq('teacher_id', profile.id);
+
+        if (teacherSubjects && teacherSubjects.length > 0) {
+          const enrollmentsToInsert = teacherSubjects.map((s: { id: string }) => ({
+            subject_id: s.id,
+            student_id: studentId,
+            status: 'approved',
+            enrollment_method: 'teacher_link',
+            enrolled_at: new Date().toISOString(),
+          }));
+
+          // ON CONFLICT DO NOTHING — idempotent
+          await supabaseServer
+            .from('subject_students')
+            .upsert(enrollmentsToInsert, { onConflict: 'subject_id,student_id', ignoreDuplicates: true });
+
+          console.info(`[link-teacher-approve] Auto-enrolled student ${studentId} in ${teacherSubjects.length} subjects`);
+        }
+      } catch (enrollErr) {
+        // Non-fatal — the link is approved; enrollment can be backfilled
+        // by the v104 migration later. Log and continue.
+        console.error('[link-teacher-approve] Auto-enrollment error (non-fatal):', enrollErr);
+      }
+
       // Send notification to the student about approval (DB + push)
       await notifyUser(
         studentId,
@@ -176,6 +208,36 @@ export async function POST(request: Request) {
         'قبل المعلم طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.',
         'teachers',
       );
+
+      // v104: Auto-enroll ALL approved students in ALL the teacher's subjects
+      try {
+        const { data: teacherSubjects } = await supabaseServer
+          .from('subjects')
+          .select('id')
+          .eq('teacher_id', profile.id);
+
+        if (teacherSubjects && teacherSubjects.length > 0 && approvedStudentIds.length > 0) {
+          const enrollmentsToInsert: Array<{ subject_id: string; student_id: string; status: string; enrollment_method: string; enrolled_at: string }> = [];
+          for (const sid of approvedStudentIds) {
+            for (const subj of teacherSubjects) {
+              enrollmentsToInsert.push({
+                subject_id: subj.id,
+                student_id: sid,
+                status: 'approved',
+                enrollment_method: 'teacher_link',
+                enrolled_at: new Date().toISOString(),
+              });
+            }
+          }
+          await supabaseServer
+            .from('subject_students')
+            .upsert(enrollmentsToInsert, { onConflict: 'subject_id,student_id', ignoreDuplicates: true });
+
+          console.info(`[link-teacher-approve] Auto-enrolled ${approvedStudentIds.length} students in ${teacherSubjects.length} subjects`);
+        }
+      } catch (enrollErr) {
+        console.error('[link-teacher-approve] Bulk auto-enrollment error (non-fatal):', enrollErr);
+      }
 
       return NextResponse.json({
         success: true,

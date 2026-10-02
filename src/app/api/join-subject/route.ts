@@ -196,13 +196,17 @@ export async function POST(request: Request) {
       });
     }
 
-    // JOIN MODE (default): Create the enrollment with 'pending' status
+    // v104: JOIN MODE — Create the enrollment with 'approved' status
+    // (was 'pending' which blocked students from seeing content until manual approval).
+    // v92 deprecated the approval flow, so all new joins are immediate.
     const { data: newEnrollment, error: insertError } = await supabaseServer
       .from('subject_students')
       .insert({
         subject_id: subject.id,
         student_id: profile.id,
-        status: 'pending',
+        status: 'approved',
+        enrollment_method: 'self_join',
+        enrolled_at: new Date().toISOString(),
       })
       .select()
       .single();

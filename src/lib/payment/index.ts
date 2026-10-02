@@ -98,6 +98,7 @@ export {
   type ProviderSchema,
   type ProviderFieldSchema,
 } from './provider-schemas';
+<<<<<<< HEAD
 
 // ─── Financial Ledger (Phase 8) ───
 export {
@@ -107,3 +108,5 @@ export {
   type LedgerRow,
   type LedgerMetadata,
 } from './financial';
+=======
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)

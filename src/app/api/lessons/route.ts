@@ -80,17 +80,17 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({ lessons: lessons as Lesson[] });
     } else {
-      // Student: check enrollment
+      // Student: check enrollment — use maybeSingle() (returns null if no row, not an error)
       const { data: enrollment } = await supabaseServer
         .from('subject_students')
         .select('status')
         .eq('subject_id', subjectId)
         .eq('student_id', userId)
-        .single();
+        .maybeSingle();
 
       if (!enrollment || enrollment.status !== 'approved') {
         return NextResponse.json(
-          { error: 'You do not have access to this subject' },
+          { error: 'You do not have access to this subject — your enrollment is missing or not approved. Run v104 migration to backfill missing enrollments.' },
           { status: 403 },
         );
       }

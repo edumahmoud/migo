@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import '@/lib/payment/providers/paymob';
+<<<<<<< HEAD
 import '@/lib/payment/providers/fawry';
+=======
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 import { getGatewayById, updateGatewayConfig } from '@/lib/payment';
 import { getProviderSchema, validateRequiredCredentialFields } from '@/lib/payment/provider-schemas';
 import { auditGatewayUpdated } from '@/lib/payment/audit';

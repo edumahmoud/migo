@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
+<<<<<<< HEAD
 import '@/lib/payment/providers/fawry';
+=======
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 import { GatewayRegistry } from '@/lib/payment';
 import { listProviderSchemas } from '@/lib/payment/provider-schemas';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';

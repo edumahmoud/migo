@@ -31,32 +31,14 @@ schemas.set('paymob', {
   provider: 'paymob',
   displayName: 'Paymob',
   credentialFields: [
-    { name: 'secretKey', label: 'API Key (Secret Key)', type: 'password', required: true, placeholder: 'ZXlK...', helpText: 'مفتاح API السري من Paymob Dashboard → Settings → Account Info → API Keys (ابحث عن Secret Key)' },
-    { name: 'publicKey', label: 'Public Key', type: 'password', required: true, placeholder: 'pk_test_...', helpText: '⚠️ ضروري عشان الـ Intention API (الموصى به). موجود في Paymob Dashboard → Settings → Account Info → API Keys → Public Key. بدونه، الـ webhook مش هيشتغل تلقائياً بعد الدفع.' },
-    { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'HMAC...', helpText: 'سر HMAC من Paymob Dashboard → Settings → Account Info (للتحقق من webhook)' },
-    { name: 'integrationIds', label: 'Card Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: '⚠️ معرّف تكامل الكروت (Visa/Mastercard) من Paymob Dashboard → Payment Integrations → Online Card integration' },
-    { name: 'iframeId', label: 'Card Iframe ID', type: 'number', required: false, placeholder: '789012', helpText: 'اختياري: معرّف صفحة الدفع بالكروت. دلوقتي بناستخدم Unified Checkout بشكل افتراضي، فالحقل ده بقا اختياري. اتركه فاضي لو مش متأكد.' },
-    { name: 'walletIntegrationId', label: 'Wallet Integration ID', type: 'number', required: false, placeholder: '345678', helpText: 'اختياري: معرّف تكامل محفظة الموبايل. اتركه فارغًا لو مش عايز تقبل محافظ.' },
-    { name: 'walletIframeId', label: 'Wallet Iframe ID', type: 'number', required: false, placeholder: '789013', helpText: 'اختياري: معرّف صفحة الدفع بمحفظة الموبايل' },
+    { name: 'secretKey', label: 'Secret Key', type: 'password', required: true, placeholder: 'sk_test_... or sk_live_...' },
+    { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'From Paymob Dashboard → Settings → HMAC' },
+    { name: 'integrationIds', label: 'Integration IDs', type: 'array', required: false, placeholder: '123456, 789012', helpText: 'Comma-separated Paymob integration IDs for specific payment methods' },
   ],
   configurationFields: [
-    { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob', helpText: 'رابط استقبال webhook (يجب أن يكون متاحًا للعموم). الكود بيضيف gateway_id تلقائياً.' },
-    { name: 'redirectionUrl', label: 'Redirect URL (after checkout)', type: 'text', required: true, placeholder: 'https://your-domain.com/?payment_callback=success', helpText: 'رابط تحويل الطالب بعد إتمام الدفع (للـ UX بس — الـ webhook هو المصدر الحقيقي للحالة)' },
-    { name: 'paymentMethods', label: 'Payment Methods', type: 'array', required: false, placeholder: '', helpText: 'اختياري — يُترك فارغًا عادةً' },
-  ],
-});
-
-// ─── Fawry schema (Reference Code) ───
-schemas.set('fawry', {
-  provider: 'fawry',
-  displayName: 'Fawry (كود مرجعي)',
-  credentialFields: [
-    { name: 'merchantCode', label: 'Merchant Code', type: 'text', required: true, placeholder: '123456', helpText: 'معرّف التاجر من Fawry Dashboard — Settings → Merchant Info' },
-    { name: 'securityKey', label: 'Security Key', type: 'password', required: true, placeholder: '...', helpText: 'سر HMAC لتوقيع طلبات charge + webhook. سري جداً — لا تشاركه.' },
-  ],
-  configurationFields: [
-    { name: 'webhookUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=fawry', helpText: 'رابط استقبال Fawry callback — علشان تستلم إشعار الدفع لما الطالب يخلص. الكود بيضيف gateway_id تلقائياً.' },
-    { name: 'redirectUrl', label: 'Redirect URL', type: 'text', required: false, placeholder: 'https://your-domain.com/?payment_callback=success', helpText: 'اختياري: رابط تحويل الطالب بعد الدفع (للـ UX فقط — Fawry Code مش بيحوّل الطالب أصلاً)' },
+    { name: 'notificationUrl', label: 'Webhook URL', type: 'text', required: true, placeholder: 'https://your-domain.com/api/payment/webhook?provider=paymob' },
+    { name: 'redirectionUrl', label: 'Redirect URL (after checkout)', type: 'text', required: true, placeholder: 'https://your-domain.com/?payment_callback=success' },
+    { name: 'paymentMethods', label: 'Payment Methods', type: 'array', required: false, placeholder: 'card, wallet', helpText: 'Comma-separated payment methods (leave empty to use integration IDs)' },
   ],
 });
 

@@ -46,9 +46,12 @@ interface OrderRow {
   student_id: string;
   subject_id: string;
   amount: number;
+<<<<<<< HEAD
   base_amount: number | null;
   fees_total: number | null;
   grand_total: number | null;
+=======
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   currency: string;
   status: string;
   gateway_id: string | null;
@@ -77,6 +80,7 @@ function extractOrderReferenceFromCallback(rawBody: string): string | null {
       return obj.special_reference;
     }
 
+<<<<<<< HEAD
     // Try nested order.special_reference, order.merchant_order_id, or order.id
     const order = obj.order;
     if (order && typeof order === 'object') {
@@ -91,6 +95,17 @@ function extractOrderReferenceFromCallback(rawBody: string): string | null {
       }
       // Fallback: order.id (if it looks like a UUID — not Paymob's numeric ID)
       if (typeof orderObj.id === 'string' && orderObj.id.length > 30) {
+=======
+    // Try nested order.special_reference or order.id
+    const order = obj.order;
+    if (order && typeof order === 'object') {
+      const orderObj = order as Record<string, unknown>;
+      if (typeof orderObj.special_reference === 'string' && orderObj.special_reference.length > 10) {
+        return orderObj.special_reference;
+      }
+      if (typeof orderObj.id === 'string' && orderObj.id.length > 30) {
+        // Looks like a UUID → use it
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
         return orderObj.id;
       }
     }
@@ -114,6 +129,7 @@ export async function POST(request: NextRequest) {
   const provider = request.nextUrl.searchParams.get('provider');
   const gatewayIdFromUrl = request.nextUrl.searchParams.get('gateway_id');
 
+<<<<<<< HEAD
   // ── Top-level diagnostic log ──
   // P2-17+P2-18 FIX: Replace console.error with logPaymentEvent (sanitized,
   // no PII). Previously this used console.error which polluted production
@@ -127,6 +143,8 @@ export async function POST(request: NextRequest) {
     message: `Webhook received — provider=${provider} gateway=${gatewayIdFromUrl || 'default'}`,
   });
 
+=======
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   if (!gatewayIdFromUrl && !provider) {
     // Can't identify the caller — reject
     logPaymentEvent({
@@ -165,7 +183,11 @@ export async function POST(request: NextRequest) {
     if (orderRef) {
       const { data: order } = await supabaseServer
         .from('orders')
+<<<<<<< HEAD
         .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id')
+=======
+        .select('id, student_id, subject_id, amount, currency, status, gateway_id')
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
         .eq('id', orderRef)
         .maybeSingle();
 
@@ -256,11 +278,16 @@ export async function POST(request: NextRequest) {
 
     const { data: order, error: orderErr } = await supabaseServer
       .from('orders')
+<<<<<<< HEAD
       .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id')
+=======
+      .select('id, student_id, subject_id, amount, currency, status, gateway_id')
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
       .eq('id', webhookResult.orderId)
       .maybeSingle();
 
     if (orderErr || !order) {
+<<<<<<< HEAD
       // ── Multi-subject checkout session fallback (Phase 14) ──
       //
       // The webhookResult.orderId didn't match any order by `id`.
@@ -566,18 +593,35 @@ export async function POST(request: NextRequest) {
 
       // Pending or other — no action
       return NextResponse.json({ ok: true, status: webhookResult.status });
+=======
+      logPaymentEvent({
+        level: 'warn',
+        operation: 'handleWebhook',
+        provider: webhookResult.provider,
+        orderId: webhookResult.orderId,
+        success: false,
+        errorCode: 'ORDER_NOT_FOUND',
+        message: `Order not found: ${webhookResult.orderId}`,
+        durationMs: Date.now() - startTime,
+      });
+      return NextResponse.json({ ok: true, ignored: 'order_not_found' });
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
     }
 
     o = order as OrderRow;
   }
 
   // 6. Validate amount + currency match the internal order
+<<<<<<< HEAD
   //    v88 — compare against grand_total (= base_amount + fees_total)
   //    which is what we sent to Paymob. Fall back to orders.amount for
   //    orders created before the v88 migration (they have grand_total
   //    backfilled to = amount, so the fallback is safe).
   const expectedAmount = Number(o.grand_total ?? o.amount);
   if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - expectedAmount) > 0.01) {
+=======
+  if (webhookResult.amount !== undefined && Math.abs(webhookResult.amount - Number(o.amount)) > 0.01) {
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
     logPaymentEvent({
       level: 'error',
       operation: 'handleWebhook',
@@ -649,14 +693,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the existing RPC — atomic + idempotent
+<<<<<<< HEAD
     // v88 — pass grand_total as p_amount (= what Paymob charged the student).
     // The v89 RPC's amount_mismatch check compares against orders.grand_total.
+=======
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
     const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
       'activate_subscription_after_payment',
       {
         p_order_id: o.id,
         p_provider_payment_id: webhookResult.providerTransactionId || `gateway_${randomUUID()}`,
+<<<<<<< HEAD
         p_amount: Number(o.grand_total ?? o.amount),
+=======
+        p_amount: Number(o.amount),
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
         p_currency: o.currency,
         p_status: 'paid',
         p_raw_payload: webhookResult.metadata || {},

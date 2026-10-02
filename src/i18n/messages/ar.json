@@ -4847,6 +4847,7 @@
     "lessonMoved": "تم نقل الدرس",
     "lessonUnassigned": "تم نقل الدرس إلى المستقل",
     "reorderFailed": "فشل إعادة الترتيب",
+<<<<<<< HEAD
     "unitsCountLabel": "وحدة",
     "lessonsLabel": "دروس",
     "startByCreatingUnit": "ابدأ بإنشاء وحدة لتنظيم دروسك. كل وحدة تحتوي على مجموعة من الدروس تظهر للطلاب بشكل تسلسلي.",
@@ -4876,6 +4877,9 @@
     "notesSaveFailed": "فشل الحفظ",
     "expandNotes": "فتح الملاحظات",
     "collapseNotes": "إغلاق"
+=======
+    "enrollmentMissing": "لا يمكنك الوصول إلى محتوى هذا المقرر — تأكد من تفعيل اشتراكك"
+>>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   },
   "scormLibrary": {
     "title": "مكتبة SCORM",

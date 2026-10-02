@@ -304,6 +304,10 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
       });
       if (!res.ok) {
         console.error('Failed to fetch lessons:', res.status);
+        // v104: show user-facing toast on 403 (enrollment issue) instead of silent failure
+        if (res.status === 403 && role === 'student') {
+          toast.error(t('enrollmentMissing') || 'لا يمكنك الوصول إلى محتوى هذا المقرر — تأكد من تفعيل اشتراكك');
+        }
         setLessons([]);
         return;
       }
@@ -315,7 +319,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
     } finally {
       setLoading(false);
     }
-  }, [subject.id]);
+  }, [subject.id, role, t]);
 
   useEffect(() => {
     fetchLessons();
@@ -330,6 +334,10 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
       const res = await fetch(`/api/lesson-units?subject_id=${subject.id}`, { headers });
       if (!res.ok) {
         console.error('Failed to fetch units:', res.status);
+        // v104: show toast on 403 for students
+        if (res.status === 403 && role === 'student') {
+          toast.error(t('enrollmentMissing') || 'لا يمكنك الوصول إلى محتوى هذا المقرر — تأكد من تفعيل اشتراكك');
+        }
         setUnits([]);
         return;
       }
@@ -339,7 +347,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
       console.error('Error fetching units:', err);
       setUnits([]);
     }
-  }, [subject.id]);
+  }, [subject.id, role, t]);
 
   useEffect(() => {
     fetchUnits();
