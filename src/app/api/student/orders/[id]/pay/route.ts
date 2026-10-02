@@ -216,28 +216,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       checkoutUrl = result.checkoutUrl ?? null;
       paymentReference = result.paymentReference ?? null;
 
-<<<<<<< HEAD
       // Update the order with the new payment reference + gateway snapshot.
       // This is only saved AFTER the gateway accepted the request — the
       // student's order now has a provider_order_ref that the webhook
       // will match. If the student doesn't complete the payment, the
       // next pay attempt will CLEAR this (see the clearing block above).
-=======
-      // 5. Update the order with:
-      //    - provider_order_ref = Paymob intention ID (for callback linking)
-      //    - gateway_id = the resolved gateway's DB ID (gateway snapshot)
-      //      This ensures the webhook uses the SAME gateway config that
-      //      created the payment — even if the default gateway changes later.
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
       await supabaseServer
         .from('orders')
         .update({
           provider_order_ref: paymentReference,
-<<<<<<< HEAD
           gateway_id: result.gatewayId ?? gatewayId ?? null,
-=======
-          gateway_id: result.gatewayId ?? null,
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
           updated_at: new Date().toISOString(),
         })
         .eq('id', o.id)

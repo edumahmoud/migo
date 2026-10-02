@@ -4846,7 +4846,6 @@
     "lessonMoved": "Lesson moved",
     "lessonUnassigned": "Lesson moved to standalone",
     "reorderFailed": "Failed to reorder",
-<<<<<<< HEAD
     "unitsCountLabel": "units",
     "lessonsLabel": "lessons",
     "startByCreatingUnit": "Start by creating a unit to organize your lessons. Each unit contains a set of lessons shown to students sequentially.",
@@ -4876,9 +4875,6 @@
     "notesSaveFailed": "Failed to save",
     "expandNotes": "Open notes",
     "collapseNotes": "Close"
-=======
-    "enrollmentMissing": "You cannot access this course content — make sure your subscription is active"
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   },
   "scormLibrary": {
     "title": "SCORM Library",

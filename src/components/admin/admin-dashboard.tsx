@@ -50,10 +50,7 @@ import {
   PartyPopper,
   Bell,
   Wallet,
-<<<<<<< HEAD
   DollarSign,
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -79,10 +76,7 @@ import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import InstitutionSection from '@/components/admin/institution-section';
 import PaymentGatewaysSection from '@/components/admin/payment-gateways-section';
-<<<<<<< HEAD
 import AdminFinancialManagementSection from '@/components/admin/admin-financial-management-section';
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 import ReportsSection from '@/components/reports/reports-section';
 import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
@@ -144,11 +138,7 @@ const adminNavItemDefs = [
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
-<<<<<<< HEAD
   { id: 'financialManagement', labelKey: 'nav.financialManagement', icon: <DollarSign className="h-5 w-5" /> },
-=======
-  { id: 'paymentGateways', labelKey: 'nav.paymentGateways', icon: <Wallet className="h-5 w-5" />, superadminOnly: true },
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
 
@@ -4029,15 +4019,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <InstitutionSection profile={profile} />
                 </motion.div>
               )}
-<<<<<<< HEAD
               {activeSection === 'financialManagement' && (
                 <motion.div key="financialManagement" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   <AdminFinancialManagementSection profile={profile} />
-=======
-              {activeSection === 'paymentGateways' && (
-                <motion.div key="paymentGateways" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  <PaymentGatewaysSection />
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
                 </motion.div>
               )}
             </AnimatePresence>

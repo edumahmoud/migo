@@ -4,18 +4,12 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
-<<<<<<< HEAD
 import '@/lib/payment/providers/fawry';
 import {
   listGateways,
   createGateway,
   getDefaultGateway,
   setGatewayEnabled,
-=======
-import {
-  listGateways,
-  createGateway,
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   type CreateGatewayInput,
 } from '@/lib/payment';
 import { GatewayRegistry } from '@/lib/payment';
@@ -79,7 +73,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-<<<<<<< HEAD
   // Auto-default + auto-enable logic (Fix: gateway "not configured" error
   // even after admin configured Paymob in sandbox mode).
   //
@@ -108,8 +101,6 @@ export async function POST(request: NextRequest) {
     resolvedSetAsDefault = existingDefault === null;
   }
 
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   const input: CreateGatewayInput = {
     provider,
     displayName,
@@ -117,24 +108,17 @@ export async function POST(request: NextRequest) {
     credentials: credentials || undefined,
     configuration: configuration || undefined,
     capabilities: GatewayRegistry.getCapabilities(provider),
-<<<<<<< HEAD
     setAsDefault: resolvedSetAsDefault,
-=======
-    setAsDefault: setAsDefault || false,
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   };
 
   try {
     const gatewayId = await createGateway(input);
-<<<<<<< HEAD
 
     // Auto-enable the gateway on creation (the admin can disable later).
     // The createGateway function sets `is_enabled: false` by default —
     // we override it here so the admin doesn't need a separate "Enable" click.
     await setGatewayEnabled(gatewayId, true);
 
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
     await auditGatewayCreated(gatewayId, provider, authResult.user.id);
 
     logPaymentEvent({
@@ -142,7 +126,6 @@ export async function POST(request: NextRequest) {
       operation: 'gatewayManagement',
       provider,
       success: true,
-<<<<<<< HEAD
       message: `Gateway created: ${displayName} (${environment}) — auto-enabled${resolvedSetAsDefault ? ' + set as default' : ''}`,
     });
 
@@ -151,12 +134,6 @@ export async function POST(request: NextRequest) {
       gatewayId,
       message: `تم إنشاء بوابة الدفع بنجاح${resolvedSetAsDefault ? ' وتعيينها كافتراضية' : ''} وتفعيلها تلقائيًا`,
     });
-=======
-      message: `Gateway created: ${displayName} (${environment})`,
-    });
-
-    return NextResponse.json({ success: true, gatewayId, message: 'تم إنشاء بوابة الدفع بنجاح' });
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'فشل إنشاء البوابة';
     logPaymentEvent({

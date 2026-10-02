@@ -3,10 +3,7 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // Import payment core (registers Paymob adapter)
 import '@/lib/payment/providers/paymob';
-<<<<<<< HEAD
 import '@/lib/payment/providers/fawry';
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 import { PaymentService, isPaymentError } from '@/lib/payment';
 import { auditGatewayConnectionTested } from '@/lib/payment/audit';
 import { logPaymentEvent } from '@/lib/payment/logger';
