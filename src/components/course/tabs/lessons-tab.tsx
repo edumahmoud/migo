@@ -1205,7 +1205,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                 </Badge>
                 {' '}
                 <BookOpen className="h-3 w-3 inline me-1" />
-                {visibleLessons.length} {t('lessonCount', { count: visibleLessons.length }) || `${visibleLessons.length} درس`}
+                {t('lessonCount', { count: visibleLessons.length }) || `${visibleLessons.length} درس`}
               </>
             ) : (
               <>
