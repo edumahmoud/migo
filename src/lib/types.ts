@@ -201,6 +201,22 @@ export interface Lesson {
   unit_id?: string | null;          // Optional link to a LessonUnit
   order_within_unit?: number;       // Order within the unit (0 if no unit)
   pass_threshold?: number | null;   // 0-100 percentage required to "pass" this lesson; null = no gate
+  // v100: estimated time
+  estimated_minutes?: number | null;
+  // v102: full LMS feature parity
+  video_url?: string | null;            // External video URL (YouTube/Vimeo/MP4)
+  video_id?: string | null;             // FK to subject_videos
+  summary?: string | null;              // Short abstract
+  objectives?: string[] | Record<string, unknown>[];  // Learning objectives
+  due_date?: string | null;
+  available_from?: string | null;
+  available_until?: string | null;
+  prerequisite_lesson_id?: string | null;
+  duration_seconds?: number | null;
+  tags?: string[];
+  is_free_preview?: boolean;
+  instructor_notes?: string | null;
+  transcript?: string | null;
 }
 
 // =====================================================

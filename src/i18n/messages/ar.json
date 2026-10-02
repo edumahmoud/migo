@@ -4867,7 +4867,15 @@
     "canUnmarkHint": "يمكنك إلغاء التحديد لمراجعته مرة أخرى",
     "markedComplete": "تم تحديد الدرس كمكتمل",
     "markedIncomplete": "تم إلغاء التحديد",
-    "progressUpdateFailed": "فشل تحديث التقدم"
+    "progressUpdateFailed": "فشل تحديث التقدم",
+    "summaryLabel": "ملخص الدرس",
+    "objectivesLabel": "أهداف التعلم",
+    "myNotesLabel": "ملاحظاتي على هذا الدرس",
+    "notesPlaceholder": "اكتب ملاحظاتك هنا... (تُحفظ تلقائياً)",
+    "notesSaved": "تم الحفظ",
+    "notesSaveFailed": "فشل الحفظ",
+    "expandNotes": "فتح الملاحظات",
+    "collapseNotes": "إغلاق"
   },
   "scormLibrary": {
     "title": "مكتبة SCORM",

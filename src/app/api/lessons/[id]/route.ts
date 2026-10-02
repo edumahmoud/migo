@@ -127,6 +127,95 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.pass_threshold = body.pass_threshold;
     }
 
+    // v102: video fields
+    if (body.video_url !== undefined) {
+      updateData.video_url = body.video_url === null ? null : String(body.video_url);
+    }
+    if (body.video_id !== undefined) {
+      updateData.video_id = body.video_id === null ? null : String(body.video_id);
+    }
+
+    // v102: summary + objectives
+    if (body.summary !== undefined) {
+      updateData.summary = body.summary === null ? null : String(body.summary);
+    }
+    if (body.objectives !== undefined) {
+      // objectives is a JSONB array of strings
+      if (!Array.isArray(body.objectives)) {
+        return NextResponse.json(
+          { error: 'objectives must be an array of strings' },
+          { status: 400 },
+        );
+      }
+      updateData.objectives = body.objectives;
+    }
+
+    // v102: scheduling fields
+    if (body.due_date !== undefined) {
+      updateData.due_date = body.due_date;  // ISO string or null
+    }
+    if (body.available_from !== undefined) {
+      updateData.available_from = body.available_from;
+    }
+    if (body.available_until !== undefined) {
+      updateData.available_until = body.available_until;
+    }
+
+    // v102: prerequisite
+    if (body.prerequisite_lesson_id !== undefined) {
+      updateData.prerequisite_lesson_id = body.prerequisite_lesson_id === null
+        ? null
+        : String(body.prerequisite_lesson_id);
+    }
+
+    // v102: duration
+    if (body.duration_seconds !== undefined) {
+      if (body.duration_seconds !== null && typeof body.duration_seconds !== 'number') {
+        return NextResponse.json(
+          { error: 'duration_seconds must be a number (or null)' },
+          { status: 400 },
+        );
+      }
+      updateData.duration_seconds = body.duration_seconds;
+    }
+
+    // v102: tags (array of strings)
+    if (body.tags !== undefined) {
+      if (!Array.isArray(body.tags)) {
+        return NextResponse.json(
+          { error: 'tags must be an array of strings' },
+          { status: 400 },
+        );
+      }
+      updateData.tags = body.tags.filter((t: unknown) => typeof t === 'string');
+    }
+
+    // v102: free preview flag
+    if (body.is_free_preview !== undefined) {
+      updateData.is_free_preview = !!body.is_free_preview;
+    }
+
+    // v102: instructor notes
+    if (body.instructor_notes !== undefined) {
+      updateData.instructor_notes = body.instructor_notes === null ? null : String(body.instructor_notes);
+    }
+
+    // v102: transcript
+    if (body.transcript !== undefined) {
+      updateData.transcript = body.transcript === null ? null : String(body.transcript);
+    }
+
+    // v100: estimated_minutes
+    if (body.estimated_minutes !== undefined) {
+      if (body.estimated_minutes !== null && typeof body.estimated_minutes !== 'number') {
+        return NextResponse.json(
+          { error: 'estimated_minutes must be a number (or null)' },
+          { status: 400 },
+        );
+      }
+      updateData.estimated_minutes = body.estimated_minutes;
+    }
+
     // If the lesson is already published and content_json is being updated,
     // also update published_json so students see the latest content
     if (body.content_json !== undefined && existingLesson.status === 'published') {

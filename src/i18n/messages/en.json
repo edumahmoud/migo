@@ -4866,7 +4866,15 @@
     "canUnmarkHint": "You can unmark it to revisit it again",
     "markedComplete": "Lesson marked as complete",
     "markedIncomplete": "Marking cleared",
-    "progressUpdateFailed": "Failed to update progress"
+    "progressUpdateFailed": "Failed to update progress",
+    "summaryLabel": "Lesson Summary",
+    "objectivesLabel": "Learning Objectives",
+    "myNotesLabel": "My notes for this lesson",
+    "notesPlaceholder": "Write your notes here... (auto-saved)",
+    "notesSaved": "Saved",
+    "notesSaveFailed": "Failed to save",
+    "expandNotes": "Open notes",
+    "collapseNotes": "Close"
   },
   "scormLibrary": {
     "title": "SCORM Library",

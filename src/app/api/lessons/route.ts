@@ -251,10 +251,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the lesson (v63: include unit_id, order_within_unit, pass_threshold)
+    // v101: auto-publish new lessons so students can see them immediately.
+    // Teachers can unpublish via the kebab menu → 'إلغاء النشر' if they want a draft.
     const insertPayload: Record<string, unknown> = {
       subject_id,
       title: title.trim(),
-      status: 'draft',
+      status: 'published',
+      published_at: new Date().toISOString(),
       order_index: nextOrderIndex,
       created_by: userId,
     };

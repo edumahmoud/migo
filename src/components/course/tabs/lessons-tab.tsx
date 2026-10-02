@@ -77,6 +77,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 // -------------------------------------------------------
 // Lesson Type
 // -------------------------------------------------------
+// v102: Local Lesson interface — keep in sync with src/lib/types.ts Lesson.
+// Local interface is kept for `any` content_json compatibility with TipTap editor.
 interface Lesson {
   id: string;
   subject_id: string;
@@ -93,6 +95,22 @@ interface Lesson {
   unit_id?: string | null;
   order_within_unit?: number;
   pass_threshold?: number | null;
+  // v100
+  estimated_minutes?: number | null;
+  // v102: full LMS feature parity
+  video_url?: string | null;
+  video_id?: string | null;
+  summary?: string | null;
+  objectives?: any;  // JSONB array (string[] or {text: string}[])
+  due_date?: string | null;
+  available_from?: string | null;
+  available_until?: string | null;
+  prerequisite_lesson_id?: string | null;
+  duration_seconds?: number | null;
+  tags?: string[];
+  is_free_preview?: boolean;
+  instructor_notes?: string | null;
+  transcript?: string | null;
 }
 
 // -------------------------------------------------------
@@ -821,6 +839,50 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </div>
         </motion.div>
 
+        {/* v102: Lesson summary (if set) */}
+        {viewingLesson.summary && (
+          <motion.div variants={itemVariants} className="rounded-2xl border bg-sky-50/40 dark:bg-sky-900/10 p-4">
+            <h3 className="text-sm font-bold text-sky-700 dark:text-sky-400 mb-2 flex items-center gap-2">
+              <BookMarked className="h-4 w-4" />
+              {t('summaryLabel') || 'ملخص الدرس'}
+            </h3>
+            <p className="text-sm text-foreground leading-relaxed">{viewingLesson.summary}</p>
+          </motion.div>
+        )}
+
+        {/* v102: Learning objectives (if set) */}
+        {Array.isArray(viewingLesson.objectives) && viewingLesson.objectives.length > 0 && (
+          <motion.div variants={itemVariants} className="rounded-2xl border bg-emerald-50/40 dark:bg-emerald-900/10 p-4">
+            <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              {t('objectivesLabel') || 'أهداف التعلم'}
+            </h3>
+            <ul className="space-y-1.5">
+              {viewingLesson.objectives.map((obj: unknown, idx: number) => {
+                const text = typeof obj === 'string' ? obj : (obj as { text?: string })?.text || '';
+                return (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.div>
+        )}
+
+        {/* v102: Video (if video_url or video_id is set) */}
+        {viewingLesson.video_url && (
+          <motion.div variants={itemVariants} className="rounded-2xl border bg-card p-2 overflow-hidden">
+            <video
+              src={viewingLesson.video_url}
+              controls
+              className="w-full max-h-[480px] rounded-xl"
+              preload="metadata"
+            />
+          </motion.div>
+        )}
+
         {/* Lesson content */}
         <motion.div variants={itemVariants}>
           <RichTextEditor
@@ -887,6 +949,20 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
             )}
           </button>
         </motion.div>
+
+        {/* v102: Student notes panel — collapsible, saved per-lesson */}
+        <StudentNotesPanel
+          lessonId={viewingLesson.id}
+          dir={direction === 'rtl' ? 'rtl' : 'ltr'}
+          labels={{
+            title: t('myNotesLabel') || 'ملاحظاتي على هذا الدرس',
+            placeholder: t('notesPlaceholder') || 'اكتب ملاحظاتك هنا... (تُحفظ تلقائياً)',
+            saved: t('notesSaved') || 'تم الحفظ',
+            saveFailed: t('notesSaveFailed') || 'فشل الحفظ',
+            expand: t('expandNotes') || 'فتح الملاحظات',
+            collapse: t('collapseNotes') || 'إغلاق',
+          }}
+        />
       </motion.div>
     );
   }
@@ -2002,4 +2078,148 @@ function UnitsInlineManager({ subject, onChanged }: { subject: Subject; onChange
 // Helper: get a localized "Cancel" string
 function tc_cancel(t: (k: string) => string) {
   return t('cancel') || 'Cancel';
+}
+
+// =====================================================
+// v102: StudentNotesPanel — collapsible notes panel for student lessons
+// One note per (lesson, student) — uses lesson_notes table.
+// Auto-saves with debounce (1.5s after last keystroke).
+// =====================================================
+
+interface StudentNotesPanelProps {
+  lessonId: string;
+  dir: 'rtl' | 'ltr';
+  labels: {
+    title: string;
+    placeholder: string;
+    saved: string;
+    saveFailed: string;
+    expand: string;
+    collapse: string;
+  };
+}
+
+function StudentNotesPanel({ lessonId, dir, labels }: StudentNotesPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [content, setContent] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveTimer, setSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load existing note when lessonId changes
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    setContent('');
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/lessons/${lessonId}/notes`, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.note?.content) {
+          setContent(data.note.content);
+        }
+      } catch (err) {
+        console.error('[StudentNotesPanel] load error:', err);
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [lessonId]);
+
+  // Auto-save with 1.5s debounce
+  const saveNote = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lessons/${lessonId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ content: text }),
+      });
+      if (res.ok) {
+        toast.success(labels.saved);
+      } else {
+        toast.error(labels.saveFailed);
+      }
+    } catch (err) {
+      console.error('[StudentNotesPanel] save error:', err);
+      toast.error(labels.saveFailed);
+    } finally {
+      setSaving(false);
+    }
+  }, [lessonId, labels.saved, labels.saveFailed]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setContent(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      saveNote(text);
+    }, 1500);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="rounded-2xl border bg-card overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full px-5 py-3 flex items-center justify-between gap-2 bg-muted/30 hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+          <span className="font-semibold text-sm">{labels.title}</span>
+          {content.trim() && (
+            <Badge variant="secondary" className="text-[10px] ms-1">✓</Badge>
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="p-4 border-t border-muted/50">
+          {!loaded ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>...</span>
+            </div>
+          ) : (
+            <>
+              <Textarea
+                value={content}
+                onChange={handleChange}
+                placeholder={labels.placeholder}
+                rows={6}
+                dir={dir}
+                className="resize-y min-h-[120px]"
+                disabled={saving}
+              />
+              <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                <span>{saving ? '...' : (content.trim() ? labels.saved : '')}</span>
+                <button
+                  type="button"
+                  onClick={() => saveNote(content)}
+                  disabled={saving || !content.trim()}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/40 disabled:opacity-50 transition-colors"
+                >
+                  <Save className="h-3 w-3" />
+                  {labels.saved}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
 }

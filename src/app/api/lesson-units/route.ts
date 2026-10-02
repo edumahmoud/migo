@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       description: description?.trim() || null,
       pass_threshold: pass_threshold ?? 60,
       order_index: order_index ?? 0,
-      is_published: false,
+      is_published: true, // v101: auto-publish so students see new units immediately
       // CRITICAL: populate created_by from the authenticated user — the DB
       // column is NOT NULL. Without this, the INSERT fails with:
       // "null value in column 'created_by' violates not-null constraint"
