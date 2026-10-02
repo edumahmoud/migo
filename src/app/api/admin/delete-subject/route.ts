@@ -17,17 +17,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch subject name before deleting (for logging)
+    const { data: subjectRecord } = await supabaseServer
+      .from('subjects')
+      .select('id, name')
+      .eq('id', subjectId)
+      .maybeSingle();
+
+    if (!subjectRecord) {
+      return NextResponse.json(
+        { success: false, error: 'المقرر غير موجود' },
+        { status: 404 }
+      );
+    }
+
+    // Delete the subject — cascades to subject_students, lectures, notes,
+    // assignments, subject_files, subject_videos, etc.
+    // Note: this can be SLOW for subjects with many related rows.
+    // The cascade happens at the DB level (FK ON DELETE CASCADE).
     const { error } = await supabaseServer
       .from('subjects')
       .delete()
       .eq('id', subjectId);
 
-    if (error) {
+    if (error && !error.message.includes('no rows') && error.code !== 'PGRST116') {
       console.error('Error deleting subject:', error);
       return NextResponse.json(
         { success: false, error: 'حدث خطأ أثناء حذف المقرر' },
         { status: 500 }
       );
+    }
+
+    // Log the deletion (best-effort)
+    try {
+      await supabaseServer
+        .from('platform_announcements')
+        .insert({
+          title: `تم حذف المقرر: ${subjectRecord.name}`,
+          content: `قام ${authResult.user.id} بحذف المقرر ${subjectId} (${subjectRecord.name})`,
+          type: 'system',
+          created_by: authResult.user.id,
+          is_pinned: false,
+        });
+    } catch {
+      // Non-fatal — just logging
     }
 
     return NextResponse.json({ success: true });
