@@ -4854,7 +4854,9 @@
     "createStandaloneLesson": "إضافة درس مستقل",
     "organizeLessonsHint": "نظّم دروسك في وحدات لتحسين تجربة الطالب. كل وحدة تظهر كقسم منفصل في المحتوى.",
     "createUnit": "إنشاء وحدة",
-    "addLessonToUnit": "إضافة درس إلى هذه الوحدة"
+    "addLessonToUnit": "إضافة درس إلى هذه الوحدة",
+    "createLessonRequiresUnit": "يجب إنشاء وحدة أولاً، ثم إضافة الدرس داخل الوحدة",
+    "moveToUnitHint": "انقل هذه الدروس إلى وحدات لتنظيم المحتوى"
   },
   "scormLibrary": {
     "title": "مكتبة SCORM",

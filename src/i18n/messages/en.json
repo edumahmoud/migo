@@ -4853,7 +4853,9 @@
     "createStandaloneLesson": "Add Standalone Lesson",
     "organizeLessonsHint": "Organize your lessons into units to improve student experience. Each unit appears as a separate section in the content.",
     "createUnit": "Create Unit",
-    "addLessonToUnit": "Add lesson to this unit"
+    "addLessonToUnit": "Add lesson to this unit",
+    "createLessonRequiresUnit": "You must create a unit first, then add the lesson inside the unit",
+    "moveToUnitHint": "Move these lessons to units to organize the content"
   },
   "scormLibrary": {
     "title": "SCORM Library",

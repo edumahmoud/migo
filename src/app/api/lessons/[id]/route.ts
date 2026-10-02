@@ -152,8 +152,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (updateError) {
       console.error('[Lessons API] Update error:', updateError.message);
+      // v99: friendlier error message that hints at the likely root cause
+      // (missing v63 columns: unit_id, order_within_unit, pass_threshold).
+      // If the migration v99 (or v63) hasn't been applied, UPDATE on these
+      // columns fails with a PostgREST error mentioning the missing column.
+      const hintMessage = updateError.message?.includes('column')
+        ? `Failed to update lesson — schema mismatch. Run migration v99_lessons_v63_columns.sql to add the missing columns. Detail: ${updateError.message}`
+        : 'Failed to update lesson';
       return NextResponse.json(
-        { error: 'Failed to update lesson' },
+        { error: hintMessage },
         { status: 500 },
       );
     }

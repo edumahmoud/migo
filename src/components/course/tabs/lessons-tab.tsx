@@ -382,7 +382,14 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   // -------------------------------------------------------
   // Create lesson
   // -------------------------------------------------------
+  // v99: handleCreateLesson now REQUIRES a unitId — lessons can only be created
+  // inside a unit. If called with null/undefined, it shows a clear error toast
+  // instructing the teacher to create a unit first.
   const handleCreateLesson = useCallback(async (unitId?: string | null) => {
+    if (!unitId) {
+      toast.error(t('createLessonRequiresUnit') || 'يجب إنشاء وحدة أولاً، ثم إضافة الدرس داخل الوحدة');
+      return;
+    }
     setCreatingLesson(true);
     try {
       const headers = await getAuthHeaders();
@@ -393,7 +400,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           subject_id: subject.id,
           title: t('untitledLesson') || 'Untitled Lesson',
           // v98: pass unit_id so the new lesson is auto-grouped under the unit
-          unit_id: unitId || null,
+          unit_id: unitId,
         }),
       });
       if (!res.ok) {
@@ -409,9 +416,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         setEditorHtml('');
         setHasUnsavedChanges(false);
         setLastSaved(null);
-        toast.success(unitId
-          ? (t('lessonCreatedInUnit') || 'تم إنشاء الدرس داخل الوحدة')
-          : (t('lessonCreated') || 'Lesson created'));
+        toast.success(t('lessonCreatedInUnit') || 'تم إنشاء الدرس داخل الوحدة');
       }
     } catch (err) {
       console.error('Error creating lesson:', err);
@@ -979,20 +984,13 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               className="h-8"
             >
               <Layers className="h-4 w-4 me-1" />
-              {t('manageUnits') || 'إدارة الوحدات'}
+              {units.length > 0
+                ? (t('manageUnits') || 'إدارة الوحدات')
+                : (t('createFirstUnit') || 'إنشاء وحدة أولى')}
             </Button>
-            <button
-              onClick={() => handleCreateLesson()}
-              disabled={creatingLesson}
-              className="flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97] disabled:opacity-60"
-            >
-              {creatingLesson ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {t('createLesson') || 'درس جديد'}
-            </button>
+            {/* v99: removed the standalone "Create Lesson" button — lessons now
+                REQUIRE a unit. Teachers add lessons via the inline "+ إضافة درس إلى
+                هذه الوحدة" button inside each unit card. */}
           </div>
         )}
       </motion.div>
@@ -1003,7 +1001,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : visibleLessons.length === 0 && units.length === 0 ? (
-        /* v99: improved empty state — when no units AND no lessons, offer two CTAs */
+        /* v99: improved empty state — when no units AND no lessons, ONLY offer to create a unit */
         <motion.div
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-gradient-to-b from-sky-50/40 dark:from-sky-900/10 to-transparent py-16 px-4"
@@ -1016,31 +1014,17 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </p>
           <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
             {role === 'teacher'
-              ? (t('startByCreatingUnit') || 'ابدأ بإنشاء وحدة لتنظيم دروسك. كل وحدة تحتوي على مجموعة من الدروس تظهر للطلاب بشكل تسلسلي.')
+              ? (t('startByCreatingUnit') || 'ابدأ بإنشاء وحدة لتنظيم دروسك. كل وحدة تحتوي على مجموعة من الدروس تظهر للطلاب بشكل تسلسلي. لا يمكن إنشاء درس بدون وحدة.')
               : (t('noLessonsPublished') || 'لا توجد دروس منشورة في هذا المقرر بعد.')}
           </p>
           {role === 'teacher' && (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setShowUnitsManager(true)}
-                className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
-              >
-                <Layers className="h-4 w-4" />
-                {t('createFirstUnit') || 'إنشاء وحدة أولى'}
-              </button>
-              <button
-                onClick={() => handleCreateLesson()}
-                disabled={creatingLesson}
-                className="flex items-center gap-2 rounded-xl bg-white dark:bg-card border border-sky-200 dark:border-sky-900/60 px-5 py-2.5 text-sm font-semibold text-sky-700 dark:text-sky-400 shadow-sm transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 active:scale-[0.97] disabled:opacity-60"
-              >
-                {creatingLesson ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-                {t('createStandaloneLesson') || 'إضافة درس مستقل'}
-              </button>
-            </div>
+            <button
+              onClick={() => setShowUnitsManager(true)}
+              className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
+            >
+              <Layers className="h-4 w-4" />
+              {t('createFirstUnit') || 'إنشاء وحدة أولى'}
+            </button>
           )}
         </motion.div>
       ) : units.length === 0 && visibleLessons.length > 0 && role === 'teacher' ? (
@@ -1402,18 +1386,10 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                     </Badge>
                   </div>
                   {role === 'teacher' && (
-                    <button
-                      onClick={() => handleCreateLesson(null)}
-                      disabled={creatingLesson}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-60 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-                    >
-                      {creatingLesson ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Plus className="h-3.5 w-3.5" />
-                      )}
-                      {t('createLesson') || 'درس جديد'}
-                    </button>
+                    <span className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <span className="text-base">💡</span>
+                      {t('moveToUnitHint') || 'انقل هذه الدروس إلى وحدات لتنظيم المحتوى'}
+                    </span>
                   )}
                 </div>
                 <div className="divide-y divide-muted/40">
