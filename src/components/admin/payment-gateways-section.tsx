@@ -5,10 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2, Plus, Wallet, Check, X, Clock, Shield, Settings, Zap,
   Globe, Edit, Power, Star, AlertCircle, RefreshCw,
-<<<<<<< HEAD
   CreditCard, Banknote,
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +18,6 @@ import {
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 
-<<<<<<< HEAD
 // ─── Provider icon helper ───
 function getProviderIcon(provider: string, className?: string) {
   switch (provider.toLowerCase()) {
@@ -34,8 +30,6 @@ function getProviderIcon(provider: string, className?: string) {
   }
 }
 
-=======
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
 // ─── Types ───
 interface GatewayMetadata {
   id: string;
@@ -261,7 +255,6 @@ function GatewayCard({
     <Card className={`overflow-hidden ${gateway.isDefault ? 'ring-2 ring-sky-400' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
-<<<<<<< HEAD
           <div className="flex items-start gap-2">
             {getProviderIcon(gateway.provider)}
             <div>
@@ -277,20 +270,6 @@ function GatewayCard({
                 {gateway.provider} · {gateway.environment === 'sandbox' ? 'تجريبي' : 'إنتاجي'}
               </CardDescription>
             </div>
-=======
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              {gateway.displayName}
-              {gateway.isDefault && (
-                <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-200 text-[10px]">
-                  <Star className="h-2.5 w-2.5 me-1" /> افتراضية
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription className="text-xs mt-1">
-              {gateway.provider} · {gateway.environment === 'sandbox' ? 'تجريبي' : 'إنتاجي'}
-            </CardDescription>
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
           </div>
           <Badge variant={gateway.isEnabled ? 'default' : 'secondary'} className="text-[10px]">
             {gateway.isEnabled ? 'مفعّلة' : 'معطّلة'}
@@ -366,7 +345,6 @@ function AddGatewayDialog({
       const processedCreds: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(credentials)) {
         if (selectedSchema?.credentialFields.find(f => f.name === k)?.type === 'array') {
-<<<<<<< HEAD
           // Convert each comma-separated value to Number if it parses as
           // a valid number, otherwise keep it as String. (Paymob integration
           // IDs are numbers; payment method names are strings.)
@@ -374,9 +352,6 @@ function AddGatewayDialog({
             const n = Number(s);
             return Number.isNaN(n) ? s : n;
           });
-=======
-          processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map(Number.isNaN ? String : Number);
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
         } else {
           processedCreds[k] = v;
         }
@@ -545,14 +520,10 @@ function EditGatewayDialog({
         for (const [k, v] of Object.entries(credentials)) {
           if (!v.trim()) continue;
           if (schema?.credentialFields.find(f => f.name === k)?.type === 'array') {
-<<<<<<< HEAD
             processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map((s) => {
               const n = Number(s);
               return Number.isNaN(n) ? s : n;
             });
-=======
-            processedCreds[k] = v.split(',').map(s => s.trim()).filter(Boolean).map(Number.isNaN ? String : Number);
->>>>>>> 6ba2835 (fix(v104): student visibility — backfill enrollments + relax v72 + auto-enroll on approval)
           } else {
             processedCreds[k] = v;
           }

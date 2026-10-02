@@ -139,7 +139,6 @@ const adminNavItemDefs = [
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
   { id: 'financialManagement', labelKey: 'nav.financialManagement', icon: <DollarSign className="h-5 w-5" /> },
-  { id: 'paymentGateways', labelKey: 'nav.paymentGateways', icon: <Wallet className="h-5 w-5" />, superadminOnly: true },
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
 
@@ -970,14 +969,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ subjectId }),
-      }, 30000); // 30s timeout — subject deletion cascades to many tables
-      // v105: guard res.json() — if API returns HTML (500 page), .json() throws
-      let result;
-      try {
-        result = await res.json();
-      } catch {
-        throw new Error(res.ok ? t('common.unexpectedError') : `HTTP ${res.status}`);
-      }
+      });
+      const result = await res.json();
       if (result.success) {
         toast.success(t('course.subjectDeleted'));
         setSubjectDetailOpen(false);
@@ -2545,29 +2538,64 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const fetchFlaggedComments = useCallback(async () => {
     setFlaggedLoading(true);
     try {
-      // v105: use server-side API endpoint with admin auth (was using client-side
-      // supabase directly — relied on RLS, could expose data to non-admins)
-      const token = await getAuthToken();
-      const res = await fetchWithTimeout('/api/admin/flagged-comments', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        console.error('Failed to fetch flagged comments:', res.status);
+      // Two separate queries to avoid PostgREST JOIN errors (PGRST200)
+      // when FK relationship between video_comments and subject_videos is missing
+      const { data, error } = await supabase
+        .from('video_comments')
+        .select('*')
+        .eq('is_flagged', true)
+        .order('flagged_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching flagged comments:', error.message || error);
         setFlaggedComments([]);
-        return;
-      }
-      const result = await res.json();
-      if (result.success && result.comments) {
-        // Enrich user_name using formatNameWithTitle for display
-        const enriched = result.comments.map((c: Record<string, unknown>) => ({
-          ...c,
-          user_name: c.user_name
-            ? formatNameWithTitle(c.user_name as string, c.user_role as string, c.user_title_id as string | null, c.user_gender as string | null, t)
-            : t('common.user'),
-        }));
-        setFlaggedComments(enriched);
       } else {
-        setFlaggedComments([]);
+        // Enrich with user names and video titles
+        const comments = (data || []) as any[];
+        if (comments.length > 0) {
+          // Fetch video titles separately if there are video_ids
+          const videoIds = [...new Set(comments.map((c: any) => c.video_id).filter(Boolean))] as string[];
+          const videoMap = new Map<string, { id: string; title: string }>();
+          if (videoIds.length > 0) {
+            const { data: videoData } = await supabase
+              .from('subject_videos')
+              .select('id, title')
+              .in('id', videoIds);
+            if (videoData) {
+              for (const v of videoData as any[]) {
+                videoMap.set(v.id, v);
+              }
+            }
+          }
+
+          // Fetch user names
+          const userIds = [...new Set(comments.map((c: any) => c.user_id).filter(Boolean))] as string[];
+          const userMap = new Map<string, any>();
+          if (userIds.length > 0) {
+            const { data: users } = await supabase
+              .from('users')
+              .select('id, name, title_id, gender, role')
+              .in('id', userIds);
+            if (users) {
+              for (const u of users as any[]) {
+                userMap.set(u.id, u);
+              }
+            }
+          }
+
+          const enriched = comments.map((c: any) => {
+            const user = userMap.get(c.user_id);
+            const video = videoMap.get(c.video_id);
+            return {
+              ...c,
+              video: video || null,
+              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : t('common.user'),
+            };
+          });
+          setFlaggedComments(enriched);
+        } else {
+          setFlaggedComments([]);
+        }
       }
     } catch (err) {
       console.error('Fetch flagged comments error:', err);
@@ -2575,24 +2603,23 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     } finally {
       setFlaggedLoading(false);
     }
-  }, [fetchWithTimeout, getAuthToken, t]);
+  }, []);
 
   // -------------------------------------------------------
   // Unflag a comment
   // -------------------------------------------------------
   const handleUnflagComment = async (commentId: string) => {
     try {
-      const token = await getAuthToken();
-      const res = await fetchWithTimeout('/api/admin/flagged-comments', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ comment_id: commentId, action: 'unflag' }),
-      });
-      if (res.ok) {
-        toast.success(t('admin.toastReportDismissed'));
-        setFlaggedComments((prev) => prev.filter((c) => c.id !== commentId));
-      } else {
+      const { error } = await supabase
+        .from('video_comments')
+        .update({ is_flagged: false, flagged_at: null, flagged_by: null })
+        .eq('id', commentId);
+
+      if (error) {
         toast.error(t('admin.toastDismissReportFailed'));
+      } else {
+        toast.success(t('admin.toastReportDismissed'));
+        setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
       }
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -2600,21 +2627,20 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   };
 
   // -------------------------------------------------------
-  // Delete a flagged comment (admin) — uses API with admin auth
+  // Delete a flagged comment (admin)
   // -------------------------------------------------------
   const handleDeleteFlaggedComment = async (commentId: string) => {
     try {
-      const token = await getAuthToken();
-      const res = await fetchWithTimeout(`/api/admin/flagged-comments?comment_id=${commentId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (res.ok) {
-        toast.success(t('admin.toastCommentDeleted'));
-        setFlaggedComments((prev) => prev.filter((c) => c.id !== commentId));
+      const { error } = await supabase
+        .from('video_comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) {
+        toast.error(t('admin.toastDeleteCommentFailed'));
       } else {
-        const result = await res.json().catch(() => ({}));
-        toast.error(result.error || t('admin.toastDeleteCommentFailed'));
+        toast.success(t('admin.toastCommentDeleted'));
+        setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
       }
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -3996,11 +4022,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'financialManagement' && (
                 <motion.div key="financialManagement" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   <AdminFinancialManagementSection profile={profile} />
-                </motion.div>
-              )}
-              {activeSection === 'paymentGateways' && (
-                <motion.div key="paymentGateways" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  <PaymentGatewaysSection />
                 </motion.div>
               )}
             </AnimatePresence>
