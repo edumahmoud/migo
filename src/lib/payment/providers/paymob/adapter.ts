@@ -1,30 +1,58 @@
 /**
- * Paymob Adapter
+ * Paymob Adapter — Accept API
  *
- * Implements the PaymentGateway interface for Paymob's Intention API.
+ * Implements the PaymentGateway interface for Paymob's Accept API.
  *
- * Responsibilities (adapter only):
- *   - Create Payment Intention via Paymob API
- *   - Verify Payment Intention status
- *   - Verify webhook callback HMAC + parse the callback
- *   - Test connection (limited — see testConnection implementation)
+ * ROOT CAUSE of previous failure: the adapter used the Intention API
+ * (`intake.paymob.com`) which does NOT resolve in DNS (NXDOMAIN).
+ * Switched to the Accept API (`accept.paymob.com`) which is the
+ * only working Paymob API.
  *
- * Does NOT:
- *   - Call activate_subscription_after_payment RPC
- *   - Modify orders/payments/subject_students tables
- *   - Branch on other providers
- *   - Trust frontend/redirect as payment truth
+ * Accept API flow (3 steps + redirect):
+ *   1. POST /api/auth/tokens           → auth token
+ *   2. POST /api/ecommerce/orders      → Paymob order ID
+ *   3. POST /api/acceptance/payment_keys → payment token
+ *   4. Redirect to /api/acceptance/iframes/{id}?payment_token={token}
+ *
+ * Webhook callback: SAME format as before — HMAC verification is
+ * unchanged. The only difference: the Accept API callback uses
+ * `obj.order.merchant_order_id` (our UUID) instead of
+ * `obj.special_reference`. The adapter now checks both.
+ *
+ * BILLING DATA:
+ *   Paymob's Accept API requires all billing_data fields to be
+ *   present (non-empty). The student doesn't fill these in — we
+ *   provide safe defaults:
+ *     - first_name/last_name: from customerName (or 'Student'/'User')
+ *     - email: from customerEmail (or 'student@attendo.local')
+ *     - phone_number: from customerPhone, normalized to E.164 (+20...)
+ *     - building/floor/apartment/street/shipping_method: 'NA'
+ *     - city: 'Cairo', country: 'EG'
+ *
+ *   The phone number normalization handles the common Egyptian formats:
+ *     - '01012345678'           → '+201012345678'
+ *     - '201012345678'          → '+201012345678'
+ *     - '+201012345678'         → '+201012345678'
+ *     - '0020101234567'         → '+20101234567'
+ *   If the phone can't be parsed, falls back to a valid Egyptian
+ *   test number ('+201000000000').
  */
 
-import { createHmac, timingSafeEqual } from 'crypto';
 import {
   PaymentCreationFailedError,
   PaymentVerificationFailedError,
   WebhookVerificationFailedError,
   GatewayConfigurationInvalidError,
-  UnsupportedCapabilityError,
 } from '../../errors';
-import { createIntention, getIntention, buildCheckoutUrl } from './client';
+import {
+  getAuthToken,
+  createOrder,
+  getPaymentKey,
+  buildIframeUrl,
+  createIntention,
+  buildUnifiedCheckoutUrl,
+  getTransaction,
+} from './client';
 import { verifyPaymobHmac } from './hmac';
 import { appendGatewayIdToUrl } from '../../utils';
 import type {
@@ -45,29 +73,72 @@ import type { PaymobCredentials, PaymobConfiguration, PaymobCallbackPayload } fr
 
 // ─── Paymob capabilities ───
 const PAYMOB_CAPABILITIES: GatewayCapabilities = {
-  supportsRefund: false,        // Not implemented in Phase 4
-  supportsVerify: true,         // GET intention endpoint
+  supportsRefund: false,
+  supportsVerify: true,         // GET transaction endpoint
   supportsWebhook: true,        // HMAC-verified callbacks
-  supportsTestConnection: true, // Minimal: validate secret key format
-  supportsRedirectCheckout: true,  // Hosted checkout via Paymob
-  supportsEmbeddedCheckout: false, // Not implemented
+  supportsTestConnection: true, // Validates by actually calling Paymob /api/auth/tokens
+  supportsRedirectCheckout: true,  // Hosted iframe checkout
+  supportsEmbeddedCheckout: false,
 };
 
 // ─── Amount conversion: major units → cents ───
-// Paymob requires amounts in the smallest currency unit (e.g., piasters for EGP).
-// 100.00 EGP → 10000 (cents/piasters)
 function toCents(amount: number): number {
   return Math.round(amount * 100);
+}
+
+// ─── Normalize phone number to E.164 (Egyptian) ───
+//
+// Paymob's Accept API validates `billing_data.phone_number` strictly.
+// Historically, plain Egyptian numbers like '01012345678' triggered
+// HTTP 500 because Paymob expected the country-code prefix.
+//
+// This function accepts the common Egyptian formats and returns
+// a string in E.164 form starting with '+20'. If the input can't
+// be parsed, it falls back to a valid Egyptian test number.
+//
+function normalizeEgPhone(input: string | undefined | null): string {
+  const fallback = '+201000000000';
+  if (!input || typeof input !== 'string') return fallback;
+
+  // Strip everything except digits and leading +
+  let s = input.trim();
+
+  // Already in E.164 form
+  if (/^\+20\d{9,12}$/.test(s)) return s;
+
+  // Remove spaces, dashes, parens
+  s = s.replace(/[\s\-()]/g, '');
+
+  // Strip leading '00' (international prefix)
+  if (s.startsWith('00')) s = s.slice(2);
+
+  // Now we should have either:
+  //   '20xxxxxxxxxx' (already has country code)
+  //   '0xxxxxxxxxx'  (Egyptian local — leading 0)
+  //   'xxxxxxxxxxx'  (no leading 0)
+
+  if (s.startsWith('20')) return `+${s}`;
+  if (s.startsWith('0')) s = s.slice(1);
+  // Egyptian mobile numbers: 10 digits (01x xxxxxxxx)
+  // Egyptian landline: 9-10 digits without leading 0
+  if (s.length >= 9 && s.length <= 12) {
+    return `+20${s}`;
+  }
+
+  return fallback;
 }
 
 // ─── Cast credentials safely ───
 function castCredentials(creds: GatewayCredentials): PaymobCredentials {
   const c = creds as unknown as PaymobCredentials;
   if (!c.secretKey || typeof c.secretKey !== 'string') {
-    throw new GatewayConfigurationInvalidError('paymob', 'Missing or invalid secretKey');
+    throw new GatewayConfigurationInvalidError('paymob', 'Missing or invalid API Key (secretKey)');
   }
   if (!c.hmacSecret || typeof c.hmacSecret !== 'string') {
     throw new GatewayConfigurationInvalidError('paymob', 'Missing or invalid hmacSecret');
+  }
+  if (!c.integrationIds || !Array.isArray(c.integrationIds) || c.integrationIds.length === 0) {
+    throw new GatewayConfigurationInvalidError('paymob', 'Missing integrationIds — required for Accept API (found in Paymob Dashboard → Payment Channels → Integrations)');
   }
   return c;
 }
@@ -93,19 +164,13 @@ export class PaymobAdapter implements PaymentGateway {
   readonly capabilities = PAYMOB_CAPABILITIES;
 
   /**
-   * Create a Paymob Payment Intention.
+   * Create a Paymob payment via the Accept API.
    *
-   * The adapter:
-   *   1. Converts the amount to cents (smallest currency unit).
-   *   2. Builds the Intention API request body.
-   *   3. Sets special_reference = internal order ID (for callback linking).
-   *   4. Sets notification_url from the gateway configuration.
-   *   5. Calls Paymob's Intention API.
-   *   6. Returns the checkout URL + client_secret.
-   *
-   * The adapter does NOT store anything in the database — the caller
-   * (PaymentService + payment API) is responsible for updating the order
-   * with the provider_order_ref (intention ID) + gateway_id.
+   * Flow:
+   *   1. Get auth token (POST /api/auth/tokens with API key)
+   *   2. Create order (POST /api/ecommerce/orders with merchant_order_id = our UUID)
+   *   3. Get payment key (POST /api/acceptance/payment_keys with integration_id)
+   *   4. Build iframe URL (redirect student to hosted checkout)
    */
   async createPayment(
     input: CreatePaymentInput,
@@ -123,86 +188,211 @@ export class PaymobAdapter implements PaymentGateway {
       throw new PaymentCreationFailedError('paymob', `Invalid currency: ${input.currency}`);
     }
 
-    // Build the Intention API request body
     const amountCents = toCents(input.amount);
+    // Determine the payment method (default: card).
+    // Each payment method in Paymob has its OWN integration ID + iframe ID.
+    // Card: uses `integrationIds[0]` + `iframeId`
+    // Wallet: uses `walletIntegrationId` + `walletIframeId`
+    const paymentMethod = input.paymentMethod ?? 'card';
 
-    // Build the notification_url with gateway_id appended — so the
-    // webhook can resolve the EXACT gateway config used at payment
-    // creation (gateway snapshot). This is GENERIC — any adapter
-    // should do this. The helper handles URL separators (? vs &).
+    let integrationId: number;
+    let iframeId: number;
+
+    if (paymentMethod === 'wallet') {
+      // Wallet payment — require walletIntegrationId
+      if (!creds.walletIntegrationId) {
+        throw new GatewayConfigurationInvalidError(
+          'paymob',
+          'Wallet payment is not configured — set walletIntegrationId in gateway credentials',
+        );
+      }
+      integrationId = creds.walletIntegrationId;
+      // Wallet iframe ID: use the dedicated walletIframeId if set,
+      // otherwise fall back to the card iframeId (some Paymob accounts
+      // share the iframe across integrations).
+      iframeId = creds.walletIframeId ?? creds.iframeId ?? integrationId;
+    } else {
+      // Card payment (default)
+      integrationId = creds.integrationIds![0]; // first card integration ID
+      iframeId = creds.iframeId ?? integrationId;
+    }
+
+    // Build notification_url with gateway_id (for gateway snapshot)
     const notificationUrl = config.gatewayId
       ? appendGatewayIdToUrl(config.notificationUrl, config.gatewayId)
       : config.notificationUrl;
 
-    const body: Record<string, unknown> = {
-      amount: amountCents,
+    // Build redirection_url (where Paymob redirects the student's BROWSER
+    // after payment). This is for UX only — the webhook is the source of
+    // truth. The student lands here with `?payment_callback=success`
+    // query param so the frontend knows to refresh + show the activated
+    // subscription.
+    const redirectionUrl = input.redirectUrl ?? config.redirectionUrl;
+
+    // Build billing_data (required by Accept API — ALL fields must be present).
+    // Paymob returns HTTP 500 if any required billing_data field is missing
+    // OR if the phone number format is invalid (not E.164).
+    // We provide defaults for fields the student didn't fill in.
+    const billingData: Record<string, string> = {
+      first_name: 'Student',
+      last_name: 'User',
+      email: input.customerEmail || 'student@attendo.local',
+      phone_number: normalizeEgPhone(input.customerPhone),
+      building: 'NA',
+      floor: 'NA',
+      apartment: 'NA',
+      city: 'Cairo',
+      country: 'EG',
+      street: 'NA',
+      shipping_method: 'NA',
+    };
+    if (input.customerName) {
+      const parts = input.customerName.trim().split(/\s+/);
+      billingData.first_name = parts[0] || 'Student';
+      billingData.last_name = parts.slice(1).join(' ') || 'User';
+    }
+
+    // ── NEW PATH: Intention API (preferred) ──
+    //
+    // The Intention API supports per-transaction `notification_url` AND
+    // `redirection_url`. This means:
+    //   - Paymob POSTs the webhook to OUR URL after payment (no need to
+    //     configure account-level webhook URL in Paymob Dashboard)
+    //   - Paymob redirects the student back to OUR app after payment
+    //     (no need to configure account-level redirect URL)
+    //
+    // Requires: publicKey (from Paymob Dashboard → Settings → Account Info
+    // → API Keys → "Public Key"). The publicKey is safe to expose
+    // client-side; it's only used to BUILD the checkout URL, not to
+    // authenticate API calls (those use the secretKey).
+    //
+    if (creds.publicKey) {
+      console.info('[paymob:debug] using Intention API (publicKey is set)');
+
+      const intention = await createIntention(creds.secretKey, {
+        amount: amountCents,
+        currency: input.currency,
+        payment_methods: [integrationId],
+        items: [
+          {
+            name: input.description || 'Course Subscription',
+            amount: amountCents,
+            quantity: 1,
+          },
+        ],
+        billing_data: billingData,
+        extras: {
+          merchant_order_id: input.orderId, // our internal UUID/session_id
+          payment_method: paymentMethod,
+        },
+        special_reference: input.orderId, // CRITICAL: webhook uses this to find the order
+        expiration: 3600,
+        notification_url: notificationUrl, // Paymob POSTs the webhook here
+        redirection_url: redirectionUrl,    // Paymob redirects the student here
+      });
+
+      const checkoutUrl = buildUnifiedCheckoutUrl(creds.publicKey, intention.client_secret);
+
+      return {
+        success: true,
+        provider: 'paymob',
+        paymentReference: intention.id, // Intention ID
+        providerOrderReference: String(intention.intention_order_id ?? intention.id),
+        checkoutUrl,
+        clientSecret: intention.client_secret,
+        expiresAt: undefined,
+        metadata: {
+          amountCents,
+          currency: input.currency,
+          merchantOrderId: input.orderId,
+          intentionId: intention.id,
+          intentionOrderId: intention.intention_order_id,
+          integrationId,
+          paymentMethod,
+          notificationUrl,
+          redirectionUrl,
+          apiFlow: 'intention',
+        },
+      };
+    }
+
+    // ── FALLBACK PATH: Accept API (3-step flow) ──
+    //
+    // Used when publicKey is NOT set. This is the legacy flow.
+    // NOTE: The Accept API does NOT support per-transaction notification_url
+    // for the webhook. The webhook will only fire if the account-level
+    // webhook URL is configured in Paymob Dashboard → Settings →
+    // Account Info. The `notification_url` sent in payment_keys is
+    // ignored by the Accept API for webhook purposes.
+    //
+    console.info('[paymob:debug] using Accept API (no publicKey set — falling back to legacy 3-step flow)');
+
+    // ── Step 1: Get auth token ──
+    const authToken = await getAuthToken(creds.secretKey);
+
+    // ── Step 2: Create order ──
+    // CRITICAL: Paymob's Accept API expects `amount_cents` (not `amount`)
+    // for each item. Using `amount` here caused HTTP 500 on some merchant
+    // accounts that strictly validate the schema.
+    const order = await createOrder(authToken, {
+      amount_cents: amountCents,
       currency: input.currency,
-      special_reference: input.orderId,  // internal order UUID — for callback linking
-      notification_url: notificationUrl,
-      redirection_url: config.redirectionUrl,
+      merchant_order_id: input.orderId, // our internal UUID or session_id
       items: [
         {
           name: input.description || 'Course Subscription',
-          amount: amountCents,
+          amount_cents: amountCents,
           quantity: 1,
         },
       ],
-    };
+    });
 
-    // Add payment methods (from config or credentials)
-    if (config.paymentMethods && config.paymentMethods.length > 0) {
-      body.payment_methods = config.paymentMethods;
-    } else if (creds.integrationIds && creds.integrationIds.length > 0) {
-      body.payment_methods = creds.integrationIds;
-    }
+    // ── Step 3: Get payment key ──
+    const paymentKey = await getPaymentKey(authToken, {
+      amount_cents: amountCents,
+      order_id: order.id,
+      currency: input.currency,
+      integration_id: integrationId,
+      billing_data: billingData,
+      // NOTE: The Accept API does NOT honor per-transaction notification_url
+      // for the webhook. The webhook URL must be configured at the account
+      // level in Paymob Dashboard → Settings → Account Info.
+      // We still send it here in case Paymob honors it in the future.
+      notification_url: notificationUrl,
+    });
 
-    // Add billing data if provided
-    const billingData: Record<string, unknown> = {};
-    if (input.customerEmail) billingData.email = input.customerEmail;
-    if (input.customerName) {
-      const parts = input.customerName.trim().split(/\s+/);
-      billingData.first_name = parts[0] || '';
-      billingData.last_name = parts.slice(1).join(' ') || '';
-    }
-    if (input.customerPhone) billingData.phone_number = input.customerPhone;
-    if (Object.keys(billingData).length > 0) {
-      body.billing_data = billingData;
-    }
-
-    // Add metadata if provided
-    if (input.metadata) {
-      body.extras = input.metadata;
-    }
-
-    // Call Paymob API
-    const intention = await createIntention(creds.secretKey, body);
-
-    // Build the checkout URL (hosted by Paymob)
-    const checkoutUrl = buildCheckoutUrl(intention.id, intention.client_secret);
+    // ── Step 4: Build iframe URL ──
+    // Use the iframeId (NOT the integration ID) — they are different
+    // values on most Paymob accounts.
+    const checkoutUrl = buildIframeUrl(iframeId, paymentKey.token);
 
     return {
       success: true,
       provider: 'paymob',
-      paymentReference: intention.id,               // intention ID
-      providerOrderReference: intention.intention_order_id,  // Paymob's order ID
-      checkoutUrl,                                     // student redirects here
-      clientSecret: intention.client_secret,
-      expiresAt: undefined, // Paymob doesn't always return expiry
+      paymentReference: String(order.id), // Paymob order ID (numeric)
+      providerOrderReference: String(order.id),
+      checkoutUrl,
+      clientSecret: paymentKey.token,
+      expiresAt: undefined,
       metadata: {
         amountCents,
-        currency: intention.currency,
-        specialReference: input.orderId,
+        currency: input.currency,
+        merchantOrderId: input.orderId,
+        paymobOrderId: order.id,
+        integrationId,
+        iframeId,
+        paymentMethod,
+        notificationUrl,
       },
     };
   }
 
   /**
-   * Verify a Paymob Payment Intention's status.
+   * Verify a Paymob transaction's status.
    *
-   * Calls Paymob's GET intention endpoint to check the current
+   * Calls the Accept API's transaction endpoint to check the current
    * payment status. This is NOT the primary verification method —
    * the webhook callback (HMAC-verified) is the source of truth.
-   * verifyPayment is a supplementary check.
    */
   async verifyPayment(
     input: VerifyPaymentInput,
@@ -212,26 +402,25 @@ export class PaymobAdapter implements PaymentGateway {
     const creds = castCredentials(credentials);
 
     if (!input.paymentReference) {
-      throw new PaymentVerificationFailedError('paymob', 'Missing paymentReference (intention ID)');
+      throw new PaymentVerificationFailedError('paymob', 'Missing paymentReference (transaction ID)');
     }
 
-    // Call Paymob's GET intention endpoint
-    const intention = await getIntention(creds.secretKey, input.paymentReference);
+    // Get auth token + transaction status
+    const authToken = await getAuthToken(creds.secretKey);
+    const tx = await getTransaction(authToken, input.paymentReference);
 
-    // Map Paymob status to unified PaymentStatus
-    const status = this.mapStatus(intention);
+    const status: PaymentStatus = tx.is_refunded ? 'refunded' : tx.success ? 'paid' : tx.pending ? 'pending' : 'failed';
 
     return {
       success: status === 'paid',
       status,
-      amount: intention.amount ? intention.amount / 100 : 0,  // cents → major
-      currency: intention.currency || 'EGP',
-      providerTransactionId: intention.id,
+      amount: tx.amount_cents ? tx.amount_cents / 100 : 0,
+      currency: tx.currency || 'EGP',
+      providerTransactionId: String(tx.id),
       paidAt: status === 'paid' ? new Date().toISOString() : undefined,
       metadata: {
-        intentionId: intention.id,
-        intentionOrderId: intention.intention_order_id,
-        rawStatus: intention.status,
+        transactionId: tx.id,
+        merchantOrderId: tx.order?.merchant_order_id,
       },
     };
   }
@@ -239,17 +428,12 @@ export class PaymobAdapter implements PaymentGateway {
   /**
    * Handle a Paymob webhook callback.
    *
-   * The adapter:
-   *   1. Parses the raw body as a Paymob callback.
-   *   2. Verifies the HMAC signature using the gateway's hmacSecret.
-   *   3. Extracts the payment details (status, amount, references).
-   *   4. Returns a normalized WebhookResult.
+   * HMAC verification is UNCHANGED — the callback format is the same
+   * for both Intention API and Accept API.
    *
-   * The adapter does NOT:
-   *   - Activate subscriptions
-   *   - Update orders
-   *   - Call the RPC
-   * Those are the webhook route's responsibility.
+   * The only difference: the Accept API callback uses
+   * `obj.order.merchant_order_id` (our UUID) instead of
+   * `obj.special_reference`. The adapter now checks BOTH.
    */
   async handleWebhook(
     input: WebhookInput,
@@ -266,8 +450,7 @@ export class PaymobAdapter implements PaymentGateway {
       throw new WebhookVerificationFailedError('paymob', 'Invalid JSON in callback body');
     }
 
-    // Verify HMAC — this is the CRITICAL security check
-    // If this fails, the entire callback is rejected
+    // Verify HMAC — CRITICAL security check (UNCHANGED)
     verifyPaymobHmac(payload, creds.hmacSecret);
 
     // Extract payment details from the verified callback
@@ -276,9 +459,16 @@ export class PaymobAdapter implements PaymentGateway {
       throw new WebhookVerificationFailedError('paymob', 'Callback obj missing after HMAC verification');
     }
 
-    // Extract the internal order reference (special_reference)
-    const specialReference = obj.special_reference as string | undefined
-      || (obj.order && typeof obj.order === 'object' ? (obj.order as Record<string, unknown>)?.special_reference as string | undefined : undefined)
+    // Extract the internal order reference.
+    // Try BOTH formats:
+    //   - Intention API: obj.special_reference OR obj.order.special_reference
+    //   - Accept API: obj.order.merchant_order_id OR obj.merchant_order_id
+    const orderRef = obj.special_reference as string | undefined
+      || (obj.order && typeof obj.order === 'object'
+        ? (obj.order as Record<string, unknown>)?.special_reference as string | undefined
+          || (obj.order as Record<string, unknown>)?.merchant_order_id as string | undefined
+        : undefined)
+      || (obj.merchant_order_id as string | undefined)
       || undefined;
 
     // Map the payment status
@@ -297,7 +487,7 @@ export class PaymobAdapter implements PaymentGateway {
       status = 'failed';
     }
 
-    // Extract amount (in cents → major units)
+    // Extract amount (cents → major units)
     const amountCents = typeof obj.amount_cents === 'number'
       ? obj.amount_cents
       : typeof obj.amount === 'number'
@@ -313,8 +503,8 @@ export class PaymobAdapter implements PaymentGateway {
     return {
       success: success,
       provider: 'paymob',
-      orderId: specialReference,  // the internal order UUID
-      paymentReference: providerTransactionId,  // Paymob's transaction ID
+      orderId: orderRef,  // the internal order UUID or session_id
+      paymentReference: providerTransactionId,
       providerTransactionId,
       amount,
       currency,
@@ -322,7 +512,7 @@ export class PaymobAdapter implements PaymentGateway {
       paidAt: success ? new Date().toISOString() : undefined,
       metadata: {
         callbackType: payload.type,
-        intentionOrderId: obj.intention_order_id,
+        merchantOrderId: orderRef,
         integrationId: obj.integration_id,
       },
     };
@@ -331,12 +521,19 @@ export class PaymobAdapter implements PaymentGateway {
   /**
    * Test the connection to Paymob.
    *
-   * Since Paymob doesn't have a dedicated "test connection" endpoint,
-   * we perform a minimal validation:
-   *   - Check that the secretKey is non-empty and has a reasonable format
-   *   - Check that the hmacSecret is non-empty
+   * ACTUAL connection test (not just format check). Calls Paymob's
+   * /api/auth/tokens endpoint with the API key. If Paymob returns a
+   * token, the API key is valid and the account is reachable.
    *
-   * We do NOT create a real payment to test the connection.
+   * This is a stronger test than the previous version (which only
+   * checked the format of the credentials). It catches:
+   *   - Invalid API keys
+   *   - Account suspended / disabled
+   *   - Network connectivity issues
+   *   - Paymob API outage
+   *
+   * It does NOT test integration IDs or HMAC (those are validated
+   * only when a real payment is created or a webhook is received).
    */
   async testConnection(
     credentials: GatewayCredentials,
@@ -344,27 +541,36 @@ export class PaymobAdapter implements PaymentGateway {
   ): Promise<GatewayConnectionTestResult> {
     try {
       const creds = castCredentials(credentials);
-      // Basic format validation (without calling the API)
-      if (creds.secretKey.length < 10) {
+
+      // Try to actually get an auth token from Paymob.
+      // This validates the API key against the live Paymob API.
+      let token: string;
+      try {
+        token = await getAuthToken(creds.secretKey);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'unknown error';
         return {
           success: false,
           provider: 'paymob',
-          message: 'secretKey appears too short (expected a Paymob API key)',
+          message: `فشل الاتصال بـ Paymob: ${msg}`,
           testedAt: new Date().toISOString(),
         };
       }
-      if (creds.hmacSecret.length < 10) {
+
+      if (!token || token.length < 10) {
         return {
           success: false,
           provider: 'paymob',
-          message: 'hmacSecret appears too short (expected a Paymob HMAC secret)',
+          message: 'Paymob returned an invalid auth token',
           testedAt: new Date().toISOString(),
         };
       }
+
+      // All checks passed
       return {
         success: true,
         provider: 'paymob',
-        message: 'Credentials format is valid. To fully test, create a test payment in sandbox mode.',
+        message: 'تم الاتصال بـ Paymob بنجاح. مفتاح API صالح.',
         testedAt: new Date().toISOString(),
       };
     } catch (err) {
@@ -375,17 +581,5 @@ export class PaymobAdapter implements PaymentGateway {
         testedAt: new Date().toISOString(),
       };
     }
-  }
-
-  // refundPayment is NOT implemented — capabilities.supportsRefund = false
-  // If called, the PaymentService will throw UnsupportedCapabilityError
-  // before reaching this method.
-
-  // ─── Internal: map Paymob intention status to unified PaymentStatus ───
-  private mapStatus(intention: { success?: boolean; pending?: boolean; is_refunded?: boolean; status?: string }): PaymentStatus {
-    if (intention.is_refunded) return 'refunded';
-    if (intention.success) return 'paid';
-    if (intention.pending) return 'pending';
-    return 'failed';
   }
 }
