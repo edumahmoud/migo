@@ -205,9 +205,49 @@ export function categorizePaymentError(
       const paymobHttpStatus = e.message.match(/HTTP (\d+)/)?.[1];
       // Build the step label for the user-facing message
       const stepLabel = stepAr ? ` في مرحلة ${stepAr}` : '';
+
+      // v110: Try to extract the Paymob `detail` from the error cause.
+      // The cause is set by parseJsonResponse() in client.ts and contains:
+      //   { httpStatus: number, body: string (Paymob's JSON response, truncated to 500 chars) }
+      // The body typically looks like: {"detail": "Invalid phone number"}
+      // We extract the `detail` and include a translated hint in the user
+      // message so the student (and support) can see WHY Paymob rejected.
+      let paymobDetailHint = '';
+      try {
+        const cause = (e as { cause?: { body?: string } }).cause;
+        if (cause?.body) {
+          const paymobBody = JSON.parse(cause.body as string) as { detail?: string; message?: string };
+          const rawDetail = paymobBody.detail || paymobBody.message || '';
+          if (rawDetail) {
+            // Map common Paymob error messages to Arabic hints
+            const detailLower = rawDetail.toLowerCase();
+            if (detailLower.includes('phone')) {
+              paymobDetailHint = ' (السبب: رقم الهاتف غير صالح)';
+            } else if (detailLower.includes('amount')) {
+              paymobDetailHint = ' (السبب: المبلغ غير صالح)';
+            } else if (detailLower.includes('currency')) {
+              paymobDetailHint = ' (السبب: العملة غير مدعومة)';
+            } else if (detailLower.includes('email')) {
+              paymobDetailHint = ' (السبب: البريد الإلكتروني غير صالح)';
+            } else if (detailLower.includes('integration')) {
+              paymobDetailHint = ' (السبب: معرّف التكامل غير صالح — تواصل مع المسؤول)';
+            } else if (detailLower.includes('billing')) {
+              paymobDetailHint = ' (السبب: بيانات الفوترة غير مكتملة)';
+            } else if (detailLower.includes('special_reference') || detailLower.includes('reference')) {
+              paymobDetailHint = ' (السبب: مرجع الطلب غير صالح)';
+            } else {
+              // Include the raw Paymob detail (truncated) — helps debugging
+              paymobDetailHint = ` (السبب: ${rawDetail.slice(0, 100)})`;
+            }
+          }
+        }
+      } catch {
+        // cause.body is not valid JSON — ignore, show generic message
+      }
+
       return {
         category: 'PAYMOB_API_REJECTED',
-        userMessageAr: `تعذّر تجهيز عملية الدفع${stepLabel}${paymobHttpStatus ? ` (خطأ ${paymobHttpStatus} من بوابة الدفع)` : ''}. لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى.`,
+        userMessageAr: `تعذّر تجهيز عملية الدفع${stepLabel}${paymobHttpStatus ? ` (خطأ ${paymobHttpStatus} من بوابة الدفع)` : ''}${paymobDetailHint}. لم يتم خصم أي مبلغ. تحقق من إعدادات البوابة وحاول مرة أخرى.`,
         httpStatus: 502,
         underlyingCode: code,
       };
