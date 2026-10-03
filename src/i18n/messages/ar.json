@@ -3496,7 +3496,8 @@
       "transactions": "عدد العمليات",
       "activeSubscriptions": "الاشتراكات النشطة",
       "uniqueStudents": "عدد الطلاب",
-      "avgNetIncome": "معدل الدخل الصافي"
+      "avgStudentRevenue": "متوسط دخل الطالب",
+      "avgTransactionValue": "متوسط قيمة العملية"
     },
     "filters": {
       "title": "تصفية النتائج",

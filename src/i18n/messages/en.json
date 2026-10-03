@@ -3495,7 +3495,8 @@
       "transactions": "Transactions",
       "activeSubscriptions": "Active Subscriptions",
       "uniqueStudents": "Students",
-      "avgNetIncome": "Avg Net Income"
+      "avgStudentRevenue": "Avg Student Revenue",
+      "avgTransactionValue": "Avg Transaction Value"
     },
     "filters": {
       "title": "Filter Results",

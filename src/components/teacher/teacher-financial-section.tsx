@@ -86,6 +86,8 @@ interface Summary {
   active_subscriptions: number;
   unique_students: number;
   avg_net_income: string;
+  successful_count: number;
+  avg_transaction_value: string;
   settled_count: number;
   paid_count: number;
   refunded_count: number;
@@ -269,9 +271,9 @@ export default function TeacherFinancialSection() {
         <p className="text-sm text-muted-foreground mt-1">{t('financial.subtitle')}</p>
       </div>
 
-      {/* Summary Cards — v110: 6 cards (totalGross uses subscription_total = base price × count, no fees) */}
+      {/* Summary Cards — v110: 7 cards (replaced معدل الدخل الصافي with متوسط دخل الطالب + متوسط قيمة العملية) */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryCard
             icon={<TrendingUp className="h-5 w-5" />}
             label={t('financial.summary.totalGross')}
@@ -309,9 +311,16 @@ export default function TeacherFinancialSection() {
           />
           <SummaryCard
             icon={<Calculator className="h-5 w-5" />}
-            label={t('financial.summary.avgNetIncome')}
+            label={t('financial.summary.avgStudentRevenue')}
             value={formatAmount(summary.avg_net_income)}
             color="bg-gradient-to-br from-teal-500 to-teal-600 text-white"
+            iconBg="bg-white/25"
+          />
+          <SummaryCard
+            icon={<Calculator className="h-5 w-5" />}
+            label={t('financial.summary.avgTransactionValue')}
+            value={formatAmount(summary.avg_transaction_value)}
+            color="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"
             iconBg="bg-white/25"
           />
         </div>

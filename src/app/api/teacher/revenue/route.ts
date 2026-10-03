@@ -207,10 +207,16 @@ export async function GET(request: NextRequest) {
     transaction_count: rows.length,
     active_subscriptions: activeSubscriptions,
     unique_students: uniqueStudents,
-    // v110: avg_net_income = مستحقاتي / عدد الطلاب (handle division by zero)
+    // v110: متوسط دخل الطالب = مستحقاتي ÷ عدد الطلاب
+    // (renamed from avg_net_income — same formula, clearer label)
     avg_net_income: uniqueStudents > 0
       ? (sumCents((r) => r.teacher_share) / 100) / uniqueStudents
       : 0,
+    // v110: متوسط قيمة العملية = مستحقاتي ÷ عدد العمليات الناجحة
+    // "العمليات الناجحة" = paid + settled (money actually received).
+    // refunded/reversed/pending/failed are NOT successful.
+    successful_count: 0, // placeholder — computed below after status counts
+    avg_transaction_value: 0, // placeholder — computed below
     settled_count: rows.filter((r) => r.status === 'settled').length,
     paid_count: rows.filter((r) => r.status === 'paid').length,
     refunded_count: rows.filter((r) => r.status === 'refunded').length,
@@ -218,6 +224,13 @@ export async function GET(request: NextRequest) {
     pending_count: rows.filter((r) => r.status === 'pending').length,
     failed_count: rows.filter((r) => r.status === 'failed').length,
   };
+
+  // v110: compute successful_count + avg_transaction_value AFTER the status
+  // counts are populated (since they depend on paid_count + settled_count).
+  summary.successful_count = summary.paid_count + summary.settled_count;
+  summary.avg_transaction_value = summary.successful_count > 0
+    ? summary.total_teacher_share / summary.successful_count
+    : 0;
 
   // ── Map to public-safe shape (enriched with batch lookups) ──
   const transactions = rows.map((r: any) => ({
@@ -267,6 +280,8 @@ export async function GET(request: NextRequest) {
       active_subscriptions: summary.active_subscriptions,
       unique_students: summary.unique_students,
       avg_net_income: summary.avg_net_income.toFixed(2),
+      successful_count: summary.successful_count,
+      avg_transaction_value: summary.avg_transaction_value.toFixed(2),
       settled_count: summary.settled_count,
       paid_count: summary.paid_count,
       refunded_count: summary.refunded_count,
