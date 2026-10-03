@@ -105,6 +105,19 @@ export async function POST(request: NextRequest) {
     try { await supabaseServer.from('lessons').delete().eq('created_by', userId); } catch { /* skip */ }
     try { await supabaseServer.from('lesson_units').delete().eq('created_by', userId); } catch { /* skip */ }
 
+    // 1g2. Delete quizzes (user_id NOT NULL)
+    try { await supabaseServer.from("quizzes").delete().eq("user_id", userId); } catch { /* skip */ }
+    // 1g3. Delete summaries (user_id NOT NULL)
+    try { await supabaseServer.from("summaries").delete().eq("user_id", userId); } catch { /* skip */ }
+    // 1g4. Delete file_shares (shared_by + shared_with NOT NULL)
+    try { await supabaseServer.from("file_shares").delete().eq("shared_by", userId); } catch { /* skip */ }
+    try { await supabaseServer.from("file_shares").delete().eq("shared_with", userId); } catch { /* skip */ }
+    // 1g5. Delete user_files (user_id NOT NULL)
+    try { await supabaseServer.from("user_files").delete().eq("user_id", userId); } catch { /* skip */ }
+    // 1g6. Delete subject_files (uploaded_by NOT NULL)
+    try { await supabaseServer.from("subject_files").delete().eq("uploaded_by", userId); } catch { /* skip */ }
+    // 1g7. Delete subject_videos (uploaded_by NOT NULL)
+    try { await supabaseServer.from("subject_videos").delete().eq("uploaded_by", userId); } catch { /* skip */ }
     // 1h. Delete other rows with NOT NULL FK to users
     try { await supabaseServer.from('attendance_sessions').delete().eq('teacher_id', userId); } catch { /* skip */ }
     try { await supabaseServer.from('scorm_tracking').delete().eq('user_id', userId); } catch { /* skip */ }
@@ -119,7 +132,6 @@ export async function POST(request: NextRequest) {
       { table: 'platform_announcements', column: 'created_by' },
       { table: 'platform_announcement_views', column: 'user_id' },
       { table: 'subject_teams', column: 'created_by' },
-      { table: 'quizzes', column: 'user_id' },
       { table: 'reports', column: 'reporter_id' },
       { table: 'reports', column: 'assigned_to' },
       { table: 'report_responses', column: 'responder_id' },
@@ -128,8 +140,6 @@ export async function POST(request: NextRequest) {
       { table: 'report_messages', column: 'recipient_id' },
       { table: 'notifications', column: 'user_id' },
       { table: 'notifications', column: 'actor_id' },
-      { table: 'subject_files', column: 'uploaded_by' },
-      { table: 'subject_videos', column: 'uploaded_by' },
     ];
 
     for (const { table, column } of nullCleanup) {
