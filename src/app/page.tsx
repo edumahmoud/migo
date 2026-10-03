@@ -520,25 +520,24 @@ function HomeContent() {
       // subscription immediately. This is a fallback for when the
       // webhook doesn't fire (common in sandbox/test mode).
       if (paymentCallback === 'success') {
-        // Capture ALL URL params from the ORIGINAL redirect URL
-        // (before we deleted payment_callback above). Paymob adds
-        // its own params to the redirect URL — different params
+        // Capture ALL URL params from the Paymob redirect URL.
+        // Paymob adds its own params to the redirect URL — different params
         // for different API versions (id, txn_id, transaction_id,
         // order_id, merchant_order_id, hmac, success, etc.)
-        const originalUrl = new URL(window.location.href);
-        // Re-add payment_callback temporarily (we deleted it above)
-        // — actually we can just use the url object we already have.
-        // But that already had payment_callback deleted. Let's
-        // reconstruct from the original.
         const allParams: Record<string, string> = {};
-        // We need to re-read the URL from history BEFORE our replaceState.
-        // Since we already replaced, the original params are gone from window.location.
-        // BUT — we saved them in `url` BEFORE the replaceState. However, we
-        // also called `delete('payment_callback')` on that. The other params
-        // are still there. Let's iterate url.searchParams.
+        // url.searchParams had payment_callback deleted above (line 515),
+        // but all other Paymob params are still there.
         url.searchParams.forEach((value, key) => {
           allParams[key] = value;
         });
+        // v110: CRITICAL — re-add payment_callback to allParams.
+        // Paymob computed the redirect HMAC over ALL query params in the
+        // redirect URL, INCLUDING payment_callback (which is part of the
+        // redirection_url we sent to Paymob). We deleted it from the URL
+        // object for clean browser history, but we MUST include it in the
+        // params sent to the backend — otherwise the HMAC validation will
+        // NEVER match and the student sees "لم يتم العثور على معاملة ناجحة".
+        allParams.payment_callback = paymentCallback;
 
         // Try to extract the transaction ID from multiple possible param names
         const transactionId = allParams.id
