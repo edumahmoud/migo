@@ -31,7 +31,8 @@ export type PaymentOperation =
   | 'testConnection'
   | 'refundPayment'
   | 'resolveGateway'
-  | 'gatewayManagement';
+  | 'gatewayManagement'
+  | 'cron_reconcile';
 
 export interface PaymentLogEntry {
   timestamp: string;
