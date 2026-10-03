@@ -47,11 +47,12 @@ ALTER TABLE public.platform_announcements
   FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 -- ─────────────────────────────────────────────────────
--- 5. platform_announcements.user_id → SET NULL (blocks user deletion)
+-- 5. platform_announcement_views.user_id → SET NULL (blocks user deletion)
+--    NOTE: user_id is on platform_announcement_views, NOT platform_announcements
 -- ─────────────────────────────────────────────────────
-ALTER TABLE public.platform_announcements DROP CONSTRAINT IF EXISTS platform_announcements_user_id_fkey;
-ALTER TABLE public.platform_announcements
-  ADD CONSTRAINT platform_announcements_user_id_fkey
+ALTER TABLE public.platform_announcement_views DROP CONSTRAINT IF EXISTS platform_announcement_views_user_id_fkey;
+ALTER TABLE public.platform_announcement_views
+  ADD CONSTRAINT platform_announcement_views_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 -- ─────────────────────────────────────────────────────
