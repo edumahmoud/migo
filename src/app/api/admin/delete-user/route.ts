@@ -49,18 +49,17 @@ export async function POST(request: NextRequest) {
       .eq('student_id', userId);
     const orderIds = (userOrders || []).map((o: { id: string }) => o.id);
 
-    // 2. NULL out FK references in tables that reference orders(id)
-    //    These block the cascade delete of orders when users.student_id CASCADE fires
+    // 2. DELETE FK references in tables that reference orders(id)
+    //    These block the cascade delete of orders.
+    //    NOTE: financial_ledger.order_id is NOT NULL, so we can't
+    //    SET NULL — we must DELETE the rows.
     if (orderIds.length > 0) {
-      const orderCleanup = [
-        { table: 'financial_ledger', column: 'order_id' },
-        { table: 'payments', column: 'order_id' },
-        { table: 'teacher_payout_ledger_entries', column: 'order_id' },
-      ];
-      for (const { table, column } of orderCleanup) {
-        try { await supabaseServer.from(table).update({ [column]: null }).in('order_id', orderIds); }
-        catch { /* skip */ }
-      }
+      // Delete financial_ledger rows for these orders
+      try { await supabaseServer.from('financial_ledger').delete().in('order_id', orderIds); } catch { /* skip */ }
+      // Delete payments rows for these orders
+      try { await supabaseServer.from('payments').delete().in('order_id', orderIds); } catch { /* skip */ }
+      // NULL out teacher_payout_ledger_entries.order_id (nullable)
+      try { await supabaseServer.from('teacher_payout_ledger_entries').update({ order_id: null }).in('order_id', orderIds); } catch { /* skip */ }
       // Now safe to delete orders
       try { await supabaseServer.from('orders').delete().in('id', orderIds); } catch { /* skip */ }
     }
