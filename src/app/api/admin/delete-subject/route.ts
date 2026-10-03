@@ -31,10 +31,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // v107: Manual cascade — NULL out FK references that might block
+    // deletion. v106 should have changed these to SET NULL, but this
+    // is defense-in-depth in case v106 wasn't applied or there are
+    // other FKs we missed.
+    const cleanupTables = [
+      { table: 'quizzes', column: 'subject_id' },
+    ];
+
+    for (const { table, column } of cleanupTables) {
+      try {
+        await supabaseServer
+          .from(table)
+          .update({ [column]: null })
+          .eq(column, subjectId);
+      } catch {
+        // Table/column might not exist — skip
+      }
+    }
+
     // Delete the subject — cascades to subject_students, lectures, notes,
     // assignments, subject_files, subject_videos, etc.
-    // Note: this can be SLOW for subjects with many related rows.
-    // The cascade happens at the DB level (FK ON DELETE CASCADE).
     const { error } = await supabaseServer
       .from('subjects')
       .delete()
