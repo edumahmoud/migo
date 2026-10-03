@@ -4,7 +4,6 @@ import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-
 
 export async function POST(request: NextRequest) {
   try {
-    // ── Authenticate ──
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
 
@@ -42,34 +41,80 @@ export async function POST(request: NextRequest) {
 
     const userEmail = userRecord?.email;
 
-    // 1. Fetch all orders for this user (needed to clean up FK chains)
+    // ═══════════════════════════════════════════════════════
+    // STEP 1: DELETE rows that reference the user (bottom-up order)
+    //         We DELETE (not NULL) because many columns are NOT NULL.
+    // ═══════════════════════════════════════════════════════
+
+    // 1a. Delete teacher_payout_audit_log (references teacher_payouts)
+    try { await supabaseServer.from('teacher_payout_audit_log').delete().eq('actor_id', userId); } catch { /* skip */ }
+    // Get payout IDs for this teacher to delete child rows
+    const { data: teacherPayouts } = await supabaseServer
+      .from('teacher_payouts').select('id').eq('teacher_id', userId);
+    const payoutIds = (teacherPayouts || []).map((p: { id: string }) => p.id);
+    if (payoutIds.length > 0) {
+      try { await supabaseServer.from('teacher_payout_audit_log').delete().in('payout_id', payoutIds); } catch { /* skip */ }
+      try { await supabaseServer.from('teacher_payout_ledger_entries').delete().in('payout_id', payoutIds); } catch { /* skip */ }
+    }
+
+    // 1b. Delete teacher_payout_ledger_entries (references financial_ledger)
+    //     Get financial_ledger IDs for this user's orders first
     const { data: userOrders } = await supabaseServer
-      .from('orders')
-      .select('id')
-      .eq('student_id', userId);
+      .from('orders').select('id').eq('student_id', userId);
     const orderIds = (userOrders || []).map((o: { id: string }) => o.id);
 
-    // 2. DELETE FK references in tables that reference orders(id)
-    //    These block the cascade delete of orders.
-    //    NOTE: financial_ledger.order_id is NOT NULL, so we can't
-    //    SET NULL — we must DELETE the rows.
     if (orderIds.length > 0) {
-      // Delete financial_ledger rows for these orders
+      // Get financial_ledger IDs for these orders
+      const { data: ledgerRows } = await supabaseServer
+        .from('financial_ledger').select('id').in('order_id', orderIds);
+      const ledgerIds = (ledgerRows || []).map((l: { id: string }) => l.id);
+
+      // Delete teacher_payout_ledger_entries by ledger_id
+      if (ledgerIds.length > 0) {
+        try { await supabaseServer.from('teacher_payout_ledger_entries').delete().in('ledger_id', ledgerIds); } catch { /* skip */ }
+      }
+
+      // Delete financial_ledger rows (now safe — child rows gone)
       try { await supabaseServer.from('financial_ledger').delete().in('order_id', orderIds); } catch { /* skip */ }
-      // Delete payments rows for these orders
+
+      // Delete payments rows
       try { await supabaseServer.from('payments').delete().in('order_id', orderIds); } catch { /* skip */ }
-      // NULL out teacher_payout_ledger_entries.order_id (nullable)
-      try { await supabaseServer.from('teacher_payout_ledger_entries').update({ order_id: null }).in('order_id', orderIds); } catch { /* skip */ }
-      // Now safe to delete orders
+
+      // Delete orders
       try { await supabaseServer.from('orders').delete().in('id', orderIds); } catch { /* skip */ }
     }
 
-    // 3. Delete subject_students + subject_teachers explicitly
+    // 1c. Delete teacher_payouts (references teacher_id — NOT NULL in payout_methods)
+    try { await supabaseServer.from('teacher_payouts').delete().eq('teacher_id', userId); } catch { /* skip */ }
+
+    // 1d. Delete teacher_payout_methods (teacher_id is NOT NULL — can't NULL, must DELETE)
+    try { await supabaseServer.from('teacher_payout_methods').delete().eq('teacher_id', userId); } catch { /* skip */ }
+
+    // 1e. Delete teacher_student_links
+    try { await supabaseServer.from('teacher_student_links').delete().eq('teacher_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('teacher_student_links').delete().eq('student_id', userId); } catch { /* skip */ }
+
+    // 1f. Delete subject_students + subject_teachers
     try { await supabaseServer.from('subject_students').delete().eq('student_id', userId); } catch { /* skip */ }
     try { await supabaseServer.from('subject_teachers').delete().eq('teacher_id', userId); } catch { /* skip */ }
 
-    // 4. Manual cascade: NULL out ALL remaining FK references to this user
-    const cleanupTables = [
+    // 1g. Delete lesson_units + lessons + lesson_progress (created_by is NOT NULL)
+    try { await supabaseServer.from('lesson_progress').delete().eq('student_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('lesson_notes').delete().eq('student_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('lesson_bookmarks').delete().eq('student_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('lessons').delete().eq('created_by', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('lesson_units').delete().eq('created_by', userId); } catch { /* skip */ }
+
+    // 1h. Delete other rows with NOT NULL FK to users
+    try { await supabaseServer.from('attendance_sessions').delete().eq('teacher_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('scorm_tracking').delete().eq('user_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('push_subscriptions').delete().eq('user_id', userId); } catch { /* skip */ }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 2: NULL out FK references (nullable columns only)
+    // ═══════════════════════════════════════════════════════
+
+    const nullCleanup = [
       { table: 'announcements', column: 'created_by' },
       { table: 'platform_announcements', column: 'created_by' },
       { table: 'platform_announcement_views', column: 'user_id' },
@@ -81,40 +126,32 @@ export async function POST(request: NextRequest) {
       { table: 'report_responses', column: 'forwarded_to' },
       { table: 'report_messages', column: 'sender_id' },
       { table: 'report_messages', column: 'recipient_id' },
-      { table: 'teacher_student_links', column: 'teacher_id' },
-      { table: 'teacher_student_links', column: 'student_id' },
       { table: 'notifications', column: 'user_id' },
       { table: 'notifications', column: 'actor_id' },
-      { table: 'push_subscriptions', column: 'user_id' },
-      { table: 'subject_students', column: 'student_id' },
-      { table: 'subject_teachers', column: 'teacher_id' },
       { table: 'subject_files', column: 'uploaded_by' },
       { table: 'subject_videos', column: 'uploaded_by' },
-      { table: 'attendance_sessions', column: 'teacher_id' },
-      { table: 'lesson_units', column: 'created_by' },
-      { table: 'lessons', column: 'created_by' },
-      { table: 'orders', column: 'student_id' },
-      { table: 'scorm_tracking', column: 'user_id' },
-      { table: 'lesson_progress', column: 'student_id' },
-      { table: 'lesson_notes', column: 'student_id' },
-      { table: 'lesson_bookmarks', column: 'student_id' },
     ];
 
-    for (const { table, column } of cleanupTables) {
-      try {
-        await supabaseServer.from(table).update({ [column]: null }).eq(column, userId);
-      } catch {
-        // Table/column might not exist — skip
-      }
+    for (const { table, column } of nullCleanup) {
+      try { await supabaseServer.from(table).update({ [column]: null }).eq(column, userId); }
+      catch { /* column might not exist or NOT NULL — skip */ }
     }
 
-    // 5. Delete the user profile from public.users
+    // ═══════════════════════════════════════════════════════
+    // STEP 3: Delete the user profile
+    // ═══════════════════════════════════════════════════════
+
     const { error: profileError } = await supabaseServer
       .from('users')
       .delete()
       .eq('id', userId);
 
-    // 6. Delete the auth account (always — even if profile delete failed)
+    const profileDeleted = !profileError || profileError.message.includes('no rows') || profileError.code === 'PGRST116';
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 4: Delete auth account
+    // ═══════════════════════════════════════════════════════
+
     let authDeleted = false;
     try {
       const { error: authError } = await supabaseServer.auth.admin.deleteUser(userId);
@@ -124,12 +161,11 @@ export async function POST(request: NextRequest) {
       console.error('[delete-user] Auth deletion exception:', authErr);
     }
 
-    // 7. Determine result
-    const profileDeleted = !profileError || profileError.message.includes('no rows') || profileError.code === 'PGRST116';
+    // ═══════════════════════════════════════════════════════
+    // STEP 5: Ban email + return result
+    // ═══════════════════════════════════════════════════════
 
     if (!profileDeleted) {
-      // Profile DELETE failed — return the ACTUAL error
-      // (don't hide it — admin needs to know what went wrong)
       console.error('[delete-user] Profile DELETE failed:', profileError?.message, profileError?.code);
       return NextResponse.json(
         { success: false, error: `فشل حذف البروفايل: ${profileError?.message || 'خطأ غير معروف'}` },
@@ -137,7 +173,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Profile deleted successfully → ban email to prevent re-registration
     if (userEmail) {
       try {
         await supabaseServer.from('banned_users').upsert({
@@ -145,16 +180,10 @@ export async function POST(request: NextRequest) {
           reason: 'تم الحذف بواسطة المشرف',
           banned_by: authUserId,
         }, { onConflict: 'email' });
-      } catch {
-        // Non-fatal
-      }
+      } catch { /* non-fatal */ }
     }
 
-    return NextResponse.json({
-      success: true,
-      profileDeleted: true,
-      authDeleted,
-    });
+    return NextResponse.json({ success: true, profileDeleted: true, authDeleted });
   } catch (error) {
     console.error('Delete user error:', error);
     return NextResponse.json({ success: false, error: 'حدث خطأ غير متوقع' }, { status: 500 });
