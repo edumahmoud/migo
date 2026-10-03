@@ -31,6 +31,14 @@ import {
   CheckCircle2,
   Play,
   X,
+  // v110: extra icons for LMS feature parity
+  Bookmark,
+  Tag,
+  Calendar,
+  Sparkles,
+  Settings,
+  Video,
+  ListChecks,
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { supabase } from '@/lib/supabase';
@@ -185,6 +193,17 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   }, []);
   const [movingLessonId, setMovingLessonId] = useState<string | null>(null);
 
+  // v110: LMS feature parity — student-side state for lesson view
+  // - bookmarks: list of bookmarks the student has on the current lesson
+  // - transcriptOpen: collapsible transcript visibility toggle
+  // - bookmarksLoaded: prevents re-fetching bookmarks on every render
+  // - showLessonSettings: teacher-only toggle for the "Lesson settings" panel
+  //   in the editor sidebar (sets v102 LMS fields: summary, objectives, etc.)
+  const [bookmarks, setBookmarks] = useState<{ id: string; label: string | null; position_seconds: number | null; created_at: string }[]>([]);
+  const [bookmarksLoaded, setBookmarksLoaded] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [showLessonSettings, setShowLessonSettings] = useState(false);
+
   // Autosave timer ref
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -241,6 +260,121 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
     text = text.replace(/\s+/g, ' ').trim();
     return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
   }, []);
+
+  // -------------------------------------------------------
+  // v110: Helper: format estimated minutes → "X دقيقة" / "X min"
+  // -------------------------------------------------------
+  const formatEstimatedMinutes = useCallback((minutes: number | null | undefined): string => {
+    if (minutes == null || minutes <= 0) return '';
+    if (minutes < 60) return `${minutes} ${t('minutesLabel') || 'دقيقة'}`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) return `${hours} ${t('hoursLabel') || 'ساعة'}`;
+    return `${hours} ${t('hoursLabel') || 'ساعة'} ${mins} ${t('minutesLabel') || 'دقيقة'}`;
+  }, [t]);
+
+  // -------------------------------------------------------
+  // v110: Helper: parse objectives into string[] (handles both
+  // string[] and {text: string}[] shapes from the JSONB column).
+  // -------------------------------------------------------
+  const getObjectives = useCallback((objectives: unknown): string[] => {
+    if (!Array.isArray(objectives)) return [];
+    return objectives
+      .map((o) => typeof o === 'string' ? o : (o as { text?: string })?.text || '')
+      .filter(Boolean);
+  }, []);
+
+  // -------------------------------------------------------
+  // v110: Helper: format a scheduling date as a short localized string.
+  // Used for available_from / available_until / due_date displays.
+  // -------------------------------------------------------
+  const formatScheduleDate = useCallback((dateStr: string | null | undefined): string => {
+    if (!dateStr) return '';
+    try {
+      return new Date(dateStr).toLocaleString(
+        direction === 'rtl' ? 'ar-EG' : 'en-US',
+        { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+      );
+    } catch {
+      return dateStr;
+    }
+  }, [direction]);
+
+  // -------------------------------------------------------
+  // v110: Student-only — fetch bookmarks for the currently-viewed lesson.
+  // Triggered when viewingLesson changes (only for student role).
+  // -------------------------------------------------------
+  const fetchLessonBookmarks = useCallback(async (lessonId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lessons/${lessonId}/bookmarks`, { headers });
+      if (!res.ok) {
+        setBookmarks([]);
+        return;
+      }
+      const data = await res.json();
+      setBookmarks(data.bookmarks || []);
+    } catch (err) {
+      console.error('[LessonsTab] fetch bookmarks error:', err);
+      setBookmarks([]);
+    } finally {
+      setBookmarksLoaded(true);
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // v110: Student-only — add a quick bookmark to the current lesson.
+  // Used by the inline "+ Save bookmark" button in the student view.
+  // -------------------------------------------------------
+  const handleAddBookmark = useCallback(async (lessonId: string, label: string) => {
+    if (!label.trim()) {
+      toast.error(t('bookmarkLabelRequired') || 'اكتب عنوان للم bookmark');
+      return;
+    }
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lessons/${lessonId}/bookmarks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ label: label.trim(), position_seconds: null }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || t('bookmarkAddFailed') || 'فشل حفظ الم bookmark');
+        return;
+      }
+      const data = await res.json();
+      if (data.bookmark) {
+        setBookmarks((prev) => [...prev, data.bookmark]);
+        toast.success(t('bookmarkAdded') || 'تم حفظ الم bookmark');
+      }
+    } catch (err) {
+      console.error('[LessonsTab] add bookmark error:', err);
+      toast.error(t('bookmarkAddFailed') || 'فشل حفظ الم bookmark');
+    }
+  }, [t]);
+
+  // -------------------------------------------------------
+  // v110: Student-only — delete a bookmark by id.
+  // -------------------------------------------------------
+  const handleDeleteBookmark = useCallback(async (lessonId: string, bookmarkId: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/lessons/${lessonId}/bookmarks?bookmark_id=${bookmarkId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (!res.ok) {
+        toast.error(t('bookmarkDeleteFailed') || 'فشل حذف الم bookmark');
+        return;
+      }
+      setBookmarks((prev) => prev.filter((b) => b.id !== bookmarkId));
+      toast.success(t('bookmarkDeleted') || 'تم حذف الم bookmark');
+    } catch (err) {
+      console.error('[LessonsTab] delete bookmark error:', err);
+      toast.error(t('bookmarkDeleteFailed') || 'فشل حذف الم bookmark');
+    }
+  }, [t]);
 
   // -------------------------------------------------------
   // Helper: format relative date
@@ -751,8 +885,12 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
       markLessonProgress(lesson.id, 'view').catch((err) => {
         console.error('[handleViewLesson] Failed to record progress:', err);
       });
+      // v110: load this student's bookmarks for the lesson (LMS feature parity)
+      setBookmarksLoaded(false);
+      setBookmarks([]);
+      fetchLessonBookmarks(lesson.id);
     }
-  }, [markLessonProgress, role]);
+  }, [markLessonProgress, role, fetchLessonBookmarks]);
 
   // -------------------------------------------------------
   // Handle editor content change
@@ -832,6 +970,16 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               <Globe className="h-3 w-3 me-1" />
               {t('published') || 'Published'}
             </Badge>
+            {/* v110: free preview badge — students can preview without enrollment */}
+            {viewingLesson.is_free_preview && (
+              <Badge
+                variant="outline"
+                className="border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+              >
+                <Sparkles className="h-3 w-3 me-1" />
+                {t('freePreviewLabel') || 'معاينة مجانية'}
+              </Badge>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
             {viewingLesson.published_at && (
@@ -844,7 +992,44 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               <FileText className="h-3.5 w-3.5" />
               {getWordCount(viewingLesson.content_json)} {t('words') || 'words'}
             </span>
+            {/* v110: estimated minutes — LMS feature parity */}
+            {viewingLesson.estimated_minutes != null && viewingLesson.estimated_minutes > 0 && (
+              <span className="flex items-center gap-1 text-sky-700 dark:text-sky-400">
+                <Clock className="h-3.5 w-3.5" />
+                {formatEstimatedMinutes(viewingLesson.estimated_minutes)}
+              </span>
+            )}
+            {/* v110: scheduling info — available_from / available_until / due_date */}
+            {viewingLesson.available_from && (
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {t('availableFromLabel') || 'متاح من'}: {formatScheduleDate(viewingLesson.available_from)}
+              </span>
+            )}
+            {viewingLesson.available_until && (
+              <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                <Calendar className="h-3.5 w-3.5" />
+                {t('availableUntilLabel') || 'متاح حتى'}: {formatScheduleDate(viewingLesson.available_until)}
+              </span>
+            )}
+            {viewingLesson.due_date && (
+              <span className="flex items-center gap-1 text-rose-700 dark:text-rose-400">
+                <Calendar className="h-3.5 w-3.5" />
+                {t('dueDateLabel') || 'آخر موعد'}: {formatScheduleDate(viewingLesson.due_date)}
+              </span>
+            )}
           </div>
+          {/* v110: tags row — small badges under the title */}
+          {Array.isArray(viewingLesson.tags) && viewingLesson.tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <Tag className="h-3 w-3 text-muted-foreground/60" />
+              {viewingLesson.tags.map((tag, idx) => (
+                <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* v102: Lesson summary (if set) */}
@@ -858,28 +1043,25 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           </motion.div>
         )}
 
-        {/* v102: Learning objectives (if set) */}
-        {Array.isArray(viewingLesson.objectives) && viewingLesson.objectives.length > 0 && (
+        {/* v102: Learning objectives (if set) — v110: uses getObjectives helper for safer parsing */}
+        {getObjectives(viewingLesson.objectives).length > 0 && (
           <motion.div variants={itemVariants} className="rounded-2xl border bg-emerald-50/40 dark:bg-emerald-900/10 p-4">
             <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-2">
               <Target className="h-4 w-4" />
               {t('objectivesLabel') || 'أهداف التعلم'}
             </h3>
             <ul className="space-y-1.5">
-              {viewingLesson.objectives.map((obj: unknown, idx: number) => {
-                const text = typeof obj === 'string' ? obj : (obj as { text?: string })?.text || '';
-                return (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-foreground">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>{text}</span>
-                  </li>
-                );
-              })}
+              {getObjectives(viewingLesson.objectives).map((text, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm text-foreground">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>{text}</span>
+                </li>
+              ))}
             </ul>
           </motion.div>
         )}
 
-        {/* v102: Video (if video_url or video_id is set) */}
+        {/* v102: Video (if video_url or video_id is set) — v110: includes duration + transcript link */}
         {viewingLesson.video_url && (
           <motion.div variants={itemVariants} className="rounded-2xl border bg-card p-2 overflow-hidden">
             <video
@@ -888,6 +1070,32 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               className="w-full max-h-[480px] rounded-xl"
               preload="metadata"
             />
+            {/* v110: video duration badge + transcript toggle */}
+            {(viewingLesson.duration_seconds || viewingLesson.transcript) && (
+              <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1 flex-wrap">
+                {viewingLesson.duration_seconds != null && viewingLesson.duration_seconds > 0 && (
+                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Video className="h-3 w-3" />
+                    {Math.floor(viewingLesson.duration_seconds / 60)}:{String(Math.floor(viewingLesson.duration_seconds % 60)).padStart(2, '0')}
+                  </span>
+                )}
+                {viewingLesson.transcript && (
+                  <button
+                    onClick={() => setTranscriptOpen((v) => !v)}
+                    className="text-[11px] font-medium text-sky-700 dark:text-sky-400 hover:underline flex items-center gap-1"
+                  >
+                    <FileText className="h-3 w-3" />
+                    {transcriptOpen ? (t('hideTranscript') || 'إخفاء النص') : (t('showTranscript') || 'عرض النص')}
+                  </button>
+                )}
+              </div>
+            )}
+            {/* v110: collapsible transcript panel */}
+            {viewingLesson.transcript && transcriptOpen && (
+              <div className="mx-2 mb-2 p-3 rounded-lg bg-muted/40 border border-muted text-sm text-foreground whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                {viewingLesson.transcript}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -970,6 +1178,25 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
             expand: t('expandNotes') || 'فتح الملاحظات',
             collapse: t('collapseNotes') || 'إغلاق',
           }}
+        />
+
+        {/* v110: Student bookmarks panel — quick-add + list existing bookmarks.
+            LMS feature parity (Thinkific / Teachable / Coursera all support per-lesson
+            bookmarks so students can jump back to specific spots later). */}
+        <StudentBookmarksPanel
+          lessonId={viewingLesson.id}
+          bookmarks={bookmarks}
+          loaded={bookmarksLoaded}
+          dir={direction === 'rtl' ? 'rtl' : 'ltr'}
+          labels={{
+            title: t('myBookmarksLabel') || 'مفضلاتي في هذا الدرس',
+            placeholder: t('bookmarkPlaceholder') || 'اكتب عنوان للم bookmark...',
+            add: t('addBookmark') || 'حفظ',
+            empty: t('noBookmarksYet') || 'لا توجد مفضلات بعد — أضف واحدة للعودة لمكان محدد لاحقاً.',
+            deleteFailed: t('bookmarkDeleteFailed') || 'فشل حذف المفضلة',
+          }}
+          onAdd={(label) => handleAddBookmark(viewingLesson.id, label)}
+          onDelete={(bmId) => handleDeleteBookmark(viewingLesson.id, bmId)}
         />
       </motion.div>
     );
@@ -1110,6 +1337,18 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                 <Eye className="h-3.5 w-3.5 me-1" />
                 {tc('preview') || 'Preview'}
               </Button>
+              {/* v110: Lesson settings toggle — opens a panel with all the v102 LMS fields
+                  (summary, objectives, video_url, scheduling, free_preview, etc.).
+                  These exist in the DB + PUT endpoint but had no UI before. */}
+              <Button
+                variant={showLessonSettings ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowLessonSettings((v) => !v)}
+                className="text-xs h-8"
+              >
+                <Settings className="h-3.5 w-3.5 me-1" />
+                {t('lessonSettingsLabel') || 'إعدادات الدرس'}
+              </Button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1130,6 +1369,53 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
               </Button>
             </div>
           </div>
+
+          {/* v110: Lesson settings panel — toggled by the Settings button above.
+              Renders inline (above the editor) when showLessonSettings is true.
+              Contains all v102 LMS fields: summary, objectives, video, scheduling, etc.
+              Has its own Save button — does NOT use the content autosave (these fields
+              require explicit save so teachers don't accidentally publish wrong metadata). */}
+          {showLessonSettings && (
+            <LessonSettingsPanel
+              lesson={editingLesson}
+              dir={direction === 'rtl' ? 'rtl' : 'ltr'}
+              onSaved={(updated) => {
+                // Update the local editingLesson + lessons list with the new fields
+                setEditingLesson({ ...editingLesson, ...updated });
+                setLessons((prev) =>
+                  prev.map((l) => (l.id === editingLesson.id ? { ...l, ...updated } : l))
+                );
+              }}
+              labels={{
+                title: t('lessonSettingsTitle') || 'إعدادات الدرس',
+                summary: t('summaryLabel') || 'ملخص الدرس',
+                summaryHint: t('summaryHint') || 'يظهر للطالب أعلى المحتوى — سطر أو اثنان.',
+                objectives: t('objectivesLabel') || 'أهداف التعلم',
+                objectivesHint: t('objectivesHint') || 'أهداف يحققها الطالب بعد إكمال الدرس.',
+                objectivePlaceholder: t('objectivePlaceholder') || 'اكتب هدفاً ثم اضغط Enter',
+                videoUrl: t('videoUrlLabel') || 'رابط الفيديو',
+                videoUrlHint: t('videoUrlHint') || 'YouTube / Vimeo / MP4 مطلق.',
+                estimatedMinutes: t('estimatedMinutesLabel') || 'الوقت المقدر (دقائق)',
+                tags: t('tagsLabel') || 'الوسوم',
+                tagsHint: t('tagsHint') || 'وسوم مفصولة بفواصل لتنظيم الدروس.',
+                tagPlaceholder: t('tagPlaceholder') || 'أضف وسماً...',
+                dueDate: t('dueDateLabel') || 'آخر موعد للتسليم',
+                availableFrom: t('availableFromLabel') || 'متاح من',
+                availableUntil: t('availableUntilLabel') || 'متاح حتى',
+                freePreview: t('freePreviewLabel') || 'معاينة مجانية',
+                freePreviewHint: t('freePreviewHint') || 'الطلاب غير المشتركين يمكنهم معاينة هذا الدرس.',
+                instructorNotes: t('instructorNotesLabel') || 'ملاحظات المُعلِّم',
+                instructorNotesHint: t('instructorNotesHint') || 'ملاحظات خاصة بك — لا تظهر للطلاب.',
+                transcript: t('transcriptLabel') || 'نص الفيديو',
+                transcriptHint: t('transcriptHint') || 'نص كامل للفيديو لإمكانية الوصول.',
+                save: tc('save') || 'Save',
+                cancel: tc('cancel') || 'Cancel',
+                saveFailed: t('saveFailed') || 'فشل الحفظ',
+                saved: t('lessonSaved') || 'تم حفظ الدرس',
+                add: t('add') || 'إضافة',
+              }}
+            />
+          )}
 
           {/* Editor / Preview area */}
           <div className="flex-1 overflow-y-auto p-4">
@@ -1363,9 +1649,11 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           {units.map((unit, unitIdx) => {
             const unitLessons = visibleLessons.filter((l) => l.unit_id === unit.id);
             const isUnitLocked = unit.is_enabled === false && role !== 'teacher';
-            // v104: locked units are ALWAYS visible to students (dimmed + lock icon),
-            // even if they have 0 published lessons. Only skip non-locked empty units.
-            if (unitLessons.length === 0 && role !== 'teacher' && !isUnitLocked) return null;
+            // v110: ALWAYS show published units to students — even if they have 0
+            // published lessons. Empty units show "no published lessons yet" so
+            // students know the unit exists and what to expect next.
+            // Locked units (is_enabled=false) show with a lock icon and prevent opening.
+            // Unpublished units (is_published=false) are filtered by the API for students.
             const isCollapsed = !!collapsedUnits[unit.id];
             const unitNumber = unitIdx + 1;
 
@@ -1612,22 +1900,25 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                           );
                         })}
 
-                        {/* Inline "Add lesson to this unit" — teacher only */}
-                        {role === 'teacher' && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCreateLesson(unit.id); }}
-                            disabled={creatingLesson}
-                            className="w-full px-5 py-3 flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors border-t-2 border-dashed border-sky-200/60 dark:border-sky-900/30 disabled:opacity-50"
-                          >
-                            {creatingLesson ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Plus className="h-4 w-4" />
-                            )}
-                            {t('addLessonToUnit') || 'إضافة درس إلى هذه الوحدة'}
-                          </button>
-                        )}
                       </div>
+                    )}
+                    {/* v110: Inline "Add lesson to this unit" — teacher only, ALWAYS visible
+                        whether the unit is empty or has lessons. Moved OUTSIDE the
+                        unitLessons.length === 0 conditional so teachers can add a lesson
+                        even when the unit is currently empty. */}
+                    {role === 'teacher' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleCreateLesson(unit.id); }}
+                        disabled={creatingLesson}
+                        className="w-full px-5 py-3 flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50/50 dark:hover:bg-sky-900/10 transition-colors border-t-2 border-dashed border-sky-200/60 dark:border-sky-900/30 disabled:opacity-50"
+                      >
+                        {creatingLesson ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                        {t('addLessonToUnit') || 'إضافة درس إلى هذه الوحدة'}
+                      </button>
                     )}
                   </div>
                 )}
@@ -2228,6 +2519,646 @@ function StudentNotesPanel({ lessonId, dir, labels }: StudentNotesPanelProps) {
           )}
         </div>
       )}
+    </motion.div>
+  );
+}
+
+// =====================================================
+// v110: StudentBookmarksPanel — quick-add + list bookmarks
+// for the currently-open lesson. Uses lesson_bookmarks table.
+// Multiple bookmarks per lesson are allowed (each has a label
+// and optional position_seconds for video timelines).
+// =====================================================
+
+interface StudentBookmark {
+  id: string;
+  label: string | null;
+  position_seconds: number | null;
+  created_at: string;
+}
+
+interface StudentBookmarksPanelProps {
+  lessonId: string;
+  bookmarks: StudentBookmark[];
+  loaded: boolean;
+  dir: 'rtl' | 'ltr';
+  labels: {
+    title: string;
+    placeholder: string;
+    add: string;
+    empty: string;
+    deleteFailed: string;
+  };
+  onAdd: (label: string) => void;
+  onDelete: (bookmarkId: string) => void;
+}
+
+function StudentBookmarksPanel({
+  lessonId,
+  bookmarks,
+  loaded,
+  dir,
+  labels,
+  onAdd,
+  onDelete,
+}: StudentBookmarksPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+
+  // Reset the input when the lesson changes
+  useEffect(() => {
+    setNewLabel('');
+  }, [lessonId]);
+
+  const handleAdd = () => {
+    if (!newLabel.trim()) return;
+    onAdd(newLabel);
+    setNewLabel('');
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="rounded-2xl border bg-card overflow-hidden"
+      dir={dir}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full px-5 py-3 flex items-center justify-between gap-2 bg-muted/30 hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Bookmark className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+          <span className="font-semibold text-sm">{labels.title}</span>
+          {bookmarks.length > 0 && (
+            <Badge variant="secondary" className="text-[10px] ms-1">
+              {bookmarks.length}
+            </Badge>
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="p-4 border-t border-muted/50 space-y-3">
+          {/* Quick-add input + button */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+              placeholder={labels.placeholder}
+              dir={dir}
+              className="flex-1 min-w-[200px] h-9"
+            />
+            <Button
+              size="sm"
+              onClick={handleAdd}
+              disabled={!newLabel.trim()}
+              className="h-9"
+            >
+              <Plus className="h-4 w-4 me-1" />
+              {labels.add}
+            </Button>
+          </div>
+
+          {/* List existing bookmarks */}
+          {!loaded ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>...</span>
+            </div>
+          ) : bookmarks.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-2">
+              {labels.empty}
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {bookmarks.map((bm) => (
+                <li
+                  key={bm.id}
+                  className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Bookmark className="h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-400" />
+                    <span className="text-sm text-foreground truncate">{bm.label || '—'}</span>
+                    {bm.position_seconds != null && (
+                      <Badge variant="outline" className="text-[9px] ms-1 px-1 py-0">
+                        {Math.floor(bm.position_seconds / 60)}:{String(Math.floor(bm.position_seconds % 60)).padStart(2, '0')}
+                      </Badge>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(bm.id)}
+                    className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-900/30 dark:hover:text-rose-400 transition-colors"
+                    title={labels.deleteFailed}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// =====================================================
+// v110: LessonSettingsPanel — teacher-only panel for editing
+// all v102 LMS fields (summary, objectives, video, scheduling,
+// free_preview, instructor_notes, transcript). These fields
+// already existed in the DB and PUT /api/lessons/[id] endpoint
+// but had no UI before this.
+//
+// The panel has its own Save button (does NOT use the content
+// autosave) so teachers explicitly publish metadata changes.
+// =====================================================
+
+interface LessonSettingsPanelProps {
+  lesson: Lesson;
+  dir: 'rtl' | 'ltr';
+  onSaved: (updated: Partial<Lesson>) => void;
+  labels: {
+    title: string;
+    summary: string;
+    summaryHint: string;
+    objectives: string;
+    objectivesHint: string;
+    objectivePlaceholder: string;
+    videoUrl: string;
+    videoUrlHint: string;
+    estimatedMinutes: string;
+    tags: string;
+    tagsHint: string;
+    tagPlaceholder: string;
+    dueDate: string;
+    availableFrom: string;
+    availableUntil: string;
+    freePreview: string;
+    freePreviewHint: string;
+    instructorNotes: string;
+    instructorNotesHint: string;
+    transcript: string;
+    transcriptHint: string;
+    save: string;
+    cancel: string;
+    saveFailed: string;
+    saved: string;
+    add: string;
+  };
+}
+
+function LessonSettingsPanel({ lesson, dir, onSaved, labels }: LessonSettingsPanelProps) {
+  // Local state — fields mirror the v102 LMS columns on the lessons table
+  const [summary, setSummary] = useState<string>(lesson.summary || '');
+  const [objectives, setObjectives] = useState<string[]>(() => {
+    if (!Array.isArray(lesson.objectives)) return [];
+    return lesson.objectives
+      .map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text || ''))
+      .filter(Boolean);
+  });
+  const [newObjective, setNewObjective] = useState('');
+  const [videoUrl, setVideoUrl] = useState<string>(lesson.video_url || '');
+  const [estimatedMinutes, setEstimatedMinutes] = useState<string>(
+    lesson.estimated_minutes != null ? String(lesson.estimated_minutes) : ''
+  );
+  const [tags, setTags] = useState<string[]>(() => {
+    if (!Array.isArray(lesson.tags)) return [];
+    return lesson.tags.filter((t): t is string => typeof t === 'string');
+  });
+  const [newTag, setNewTag] = useState('');
+  // Scheduling — convert ISO strings to the datetime-local input format
+  const isoToLocalInput = (iso: string | null | undefined): string => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      // datetime-local format: YYYY-MM-DDTHH:mm (in local time, no timezone offset)
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+      return '';
+    }
+  };
+  const localInputToIso = (val: string): string | null => {
+    if (!val) return null;
+    try {
+      // Treat the local input as a local-time value (no TZ shift)
+      return new Date(val).toISOString();
+    } catch {
+      return null;
+    }
+  };
+  const [availableFrom, setAvailableFrom] = useState<string>(isoToLocalInput(lesson.available_from));
+  const [availableUntil, setAvailableUntil] = useState<string>(isoToLocalInput(lesson.available_until));
+  const [dueDate, setDueDate] = useState<string>(isoToLocalInput(lesson.due_date));
+  const [isFreePreview, setIsFreePreview] = useState<boolean>(!!lesson.is_free_preview);
+  const [instructorNotes, setInstructorNotes] = useState<string>(lesson.instructor_notes || '');
+  const [transcript, setTranscript] = useState<string>(lesson.transcript || '');
+  const [saving, setSaving] = useState(false);
+
+  // Re-sync local state when the lesson prop changes (e.g., teacher switches
+  // between lessons without leaving the editor). We only depend on lesson.id
+  // because the parent always passes a fresh lesson object when switching.
+  useEffect(() => {
+    setSummary(lesson.summary || '');
+    setObjectives(
+      Array.isArray(lesson.objectives)
+        ? lesson.objectives
+            .map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text || ''))
+            .filter(Boolean)
+        : []
+    );
+    setVideoUrl(lesson.video_url || '');
+    setEstimatedMinutes(lesson.estimated_minutes != null ? String(lesson.estimated_minutes) : '');
+    setTags(
+      Array.isArray(lesson.tags) ? lesson.tags.filter((t): t is string => typeof t === 'string') : []
+    );
+    setAvailableFrom(isoToLocalInput(lesson.available_from));
+    setAvailableUntil(isoToLocalInput(lesson.available_until));
+    setDueDate(isoToLocalInput(lesson.due_date));
+    setIsFreePreview(!!lesson.is_free_preview);
+    setInstructorNotes(lesson.instructor_notes || '');
+    setTranscript(lesson.transcript || '');
+  }, [lesson.id]);
+
+  // Objectives handlers
+  const addObjective = () => {
+    if (!newObjective.trim()) return;
+    setObjectives((prev) => [...prev, newObjective.trim()]);
+    setNewObjective('');
+  };
+  const removeObjective = (idx: number) => {
+    setObjectives((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Tags handlers
+  const addTag = () => {
+    if (!newTag.trim()) return;
+    setTags((prev) => [...prev, newTag.trim()]);
+    setNewTag('');
+  };
+  const removeTag = (idx: number) => {
+    setTags((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Save — PUT to /api/lessons/[id] with all the v102 fields
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const headers = await getAuthHeaders();
+      const payload: Record<string, unknown> = {
+        summary: summary.trim() || null,
+        objectives: objectives,
+        video_url: videoUrl.trim() || null,
+        estimated_minutes: estimatedMinutes.trim() === '' ? null : Number(estimatedMinutes),
+        tags: tags,
+        available_from: localInputToIso(availableFrom),
+        available_until: localInputToIso(availableUntil),
+        due_date: localInputToIso(dueDate),
+        is_free_preview: !!isFreePreview,
+        instructor_notes: instructorNotes.trim() || null,
+        transcript: transcript.trim() || null,
+      };
+      const res = await fetch(`/api/lessons/${lesson.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || labels.saveFailed);
+        return;
+      }
+      const data = await res.json();
+      if (data.lesson) {
+        // Pass only the v102 fields back so the parent can update its state
+        const updated: Partial<Lesson> = {
+          summary: data.lesson.summary ?? null,
+          objectives: data.lesson.objectives ?? null,
+          video_url: data.lesson.video_url ?? null,
+          estimated_minutes: data.lesson.estimated_minutes ?? null,
+          tags: data.lesson.tags ?? [],
+          available_from: data.lesson.available_from ?? null,
+          available_until: data.lesson.available_until ?? null,
+          due_date: data.lesson.due_date ?? null,
+          is_free_preview: data.lesson.is_free_preview ?? false,
+          instructor_notes: data.lesson.instructor_notes ?? null,
+          transcript: data.lesson.transcript ?? null,
+        };
+        onSaved(updated);
+        toast.success(labels.saved);
+      }
+    } catch (err) {
+      console.error('[LessonSettingsPanel] save error:', err);
+      toast.error(labels.saveFailed);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="border-b bg-muted/20 overflow-y-auto max-h-[60vh]"
+      dir={dir}
+    >
+      <div className="p-4 sm:p-5 space-y-4 max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <Settings className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+            {labels.title}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+              className="h-8"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 me-1 animate-spin" /> : <Save className="h-3.5 w-3.5 me-1" />}
+              {labels.save}
+            </Button>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ls-summary" className="text-xs font-medium flex items-center gap-1">
+            <BookMarked className="h-3 w-3" />
+            {labels.summary}
+          </Label>
+          <p className="text-[11px] text-muted-foreground">{labels.summaryHint}</p>
+          <Textarea
+            id="ls-summary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            rows={2}
+            dir={dir}
+            disabled={saving}
+            placeholder="..."
+          />
+        </div>
+
+        {/* Objectives — list editor */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium flex items-center gap-1">
+            <ListChecks className="h-3 w-3" />
+            {labels.objectives}
+          </Label>
+          <p className="text-[11px] text-muted-foreground">{labels.objectivesHint}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              value={newObjective}
+              onChange={(e) => setNewObjective(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addObjective();
+                }
+              }}
+              placeholder={labels.objectivePlaceholder}
+              dir={dir}
+              disabled={saving}
+              className="flex-1 min-w-[200px] h-9"
+            />
+            <Button size="sm" onClick={addObjective} disabled={saving || !newObjective.trim()} className="h-9">
+              <Plus className="h-3.5 w-3.5 me-1" />
+              {labels.add}
+            </Button>
+          </div>
+          {objectives.length > 0 && (
+            <ul className="space-y-1 mt-1">
+              {objectives.map((obj, idx) => (
+                <li key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background border">
+                  <span className="text-sm text-foreground flex items-center gap-2 min-w-0">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    <span className="truncate">{obj}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeObjective(idx)}
+                    className="shrink-0 text-muted-foreground hover:text-rose-700 dark:hover:text-rose-400"
+                    title={labels.cancel}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Video URL + Estimated minutes */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ls-video" className="text-xs font-medium flex items-center gap-1">
+              <Video className="h-3 w-3" />
+              {labels.videoUrl}
+            </Label>
+            <p className="text-[11px] text-muted-foreground">{labels.videoUrlHint}</p>
+            <Input
+              id="ls-video"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              dir="ltr"
+              disabled={saving}
+              placeholder="https://..."
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ls-minutes" className="text-xs font-medium flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {labels.estimatedMinutes}
+            </Label>
+            <Input
+              id="ls-minutes"
+              type="number"
+              min={0}
+              value={estimatedMinutes}
+              onChange={(e) => setEstimatedMinutes(e.target.value)}
+              dir="ltr"
+              disabled={saving}
+              placeholder="0"
+              className="h-9"
+            />
+          </div>
+        </div>
+
+        {/* Tags — list editor */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium flex items-center gap-1">
+            <Tag className="h-3 w-3" />
+            {labels.tags}
+          </Label>
+          <p className="text-[11px] text-muted-foreground">{labels.tagsHint}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addTag();
+                }
+              }}
+              placeholder={labels.tagPlaceholder}
+              dir={dir}
+              disabled={saving}
+              className="flex-1 min-w-[200px] h-9"
+            />
+            <Button size="sm" onClick={addTag} disabled={saving || !newTag.trim()} className="h-9">
+              <Plus className="h-3.5 w-3.5 me-1" />
+              {labels.add}
+            </Button>
+          </div>
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {tags.map((tag, idx) => (
+                <Badge key={idx} variant="secondary" className="text-[11px] px-2 py-0.5 flex items-center gap-1">
+                  <span>{tag}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeTag(idx)}
+                    className="hover:text-rose-700 dark:hover:text-rose-400"
+                    title={labels.cancel}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Scheduling dates */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ls-from" className="text-xs font-medium flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {labels.availableFrom}
+            </Label>
+            <Input
+              id="ls-from"
+              type="datetime-local"
+              value={availableFrom}
+              onChange={(e) => setAvailableFrom(e.target.value)}
+              disabled={saving}
+              dir="ltr"
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ls-until" className="text-xs font-medium flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {labels.availableUntil}
+            </Label>
+            <Input
+              id="ls-until"
+              type="datetime-local"
+              value={availableUntil}
+              onChange={(e) => setAvailableUntil(e.target.value)}
+              disabled={saving}
+              dir="ltr"
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ls-due" className="text-xs font-medium flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {labels.dueDate}
+            </Label>
+            <Input
+              id="ls-due"
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              disabled={saving}
+              dir="ltr"
+              className="h-9"
+            />
+          </div>
+        </div>
+
+        {/* Free preview toggle */}
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-background">
+          <div className="space-y-0.5">
+            <Label htmlFor="ls-preview" className="text-xs font-medium flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              {labels.freePreview}
+            </Label>
+            <p className="text-[11px] text-muted-foreground">{labels.freePreviewHint}</p>
+          </div>
+          <Switch
+            id="ls-preview"
+            checked={isFreePreview}
+            onCheckedChange={setIsFreePreview}
+            disabled={saving}
+          />
+        </div>
+
+        {/* Instructor notes (private) */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ls-instructor" className="text-xs font-medium flex items-center gap-1">
+            <FileText className="h-3 w-3" />
+            {labels.instructorNotes}
+          </Label>
+          <p className="text-[11px] text-muted-foreground">{labels.instructorNotesHint}</p>
+          <Textarea
+            id="ls-instructor"
+            value={instructorNotes}
+            onChange={(e) => setInstructorNotes(e.target.value)}
+            rows={3}
+            dir={dir}
+            disabled={saving}
+            placeholder="..."
+          />
+        </div>
+
+        {/* Transcript */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ls-transcript" className="text-xs font-medium flex items-center gap-1">
+            <FileText className="h-3 w-3" />
+            {labels.transcript}
+          </Label>
+          <p className="text-[11px] text-muted-foreground">{labels.transcriptHint}</p>
+          <Textarea
+            id="ls-transcript"
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            rows={4}
+            dir={dir}
+            disabled={saving}
+            placeholder="..."
+          />
+        </div>
+
+        {/* Save button (footer) */}
+        <div className="flex justify-end gap-2 pt-1 sticky bottom-0 bg-background/80 backdrop-blur p-2 -mx-2 border-t">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-sky-700 hover:bg-sky-800"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 me-1 animate-spin" /> : <Save className="h-3.5 w-3.5 me-1" />}
+            {labels.save}
+          </Button>
+        </div>
+      </div>
     </motion.div>
   );
 }
