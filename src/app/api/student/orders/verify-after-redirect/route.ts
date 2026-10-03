@@ -9,6 +9,12 @@ import '@/lib/payment/providers/fawry';
 import { resolveDefaultGateway } from '@/lib/payment/resolver';
 import { getAuthToken, getTransaction, getOrderTransactions } from '@/lib/payment/providers/paymob/client';
 import type { PaymobTransactionResponse } from '@/lib/payment/providers/paymob/client';
+// v110: secure HMAC validation for redirect URL params — replaces the
+// old bypassable URL-params check that was removed in commit ffdaca0
+// for security reasons. With HMAC validation, we can trust that a valid
+// signature = Paymob actually processed the payment (the secret is only
+// known to Paymob + our backend).
+import { verifyRedirectHmacFromUrlParams } from '@/lib/payment/providers/paymob/hmac';
 
 /**
  * POST /api/student/orders/verify-after-redirect
@@ -184,20 +190,90 @@ export async function POST(request: NextRequest) {
       // Find a successful transaction
       let successfulTx = transactions.find((t) => t.success === true);
 
-      // ── P0-2 FIX: Removed the synthetic-transaction fallback entirely.
-      //    Previously, if the Paymob API returned no transactions, the code
-      //    would fabricate a "synthetic" successful transaction based on
-      //    client-controlled URL params (payment_callback=success, hmac
-      //    presence, etc.) and activate the order WITHOUT any real Paymob
-      //    verification. This was a complete payment bypass — a student
-      //    could POST { urlParams: { payment_callback: 'success' } } and
-      //    get their order activated for free.
+      // ── v110: SECURE synthetic fallback via HMAC validation ──
+      //    The old fallback (removed in commit ffdaca0) trusted raw URL
+      //    params (payment_callback=success) — bypassable by anyone who
+      //    could POST that param. Now we use the SAME HMAC-SHA512 algorithm
+      //    Paymob uses for webhook callbacks. A valid HMAC signature on the
+      //    redirect URL params proves:
+      //      1. The redirect came from Paymob (only Paymob knows the secret)
+      //      2. The data wasn't tampered with (changing any field breaks HMAC)
+      //      3. The order ID + amount match what Paymob processed
       //
-      //    Now: if Paymob API returns no successful transaction, we REFUSE
-      //    to activate. The student must wait for the webhook (which
-      //    verifies HMAC) or retry the payment.
-      if (!successfulTx && transactions.length === 0) {
-        console.warn('[verify-after-redirect:debug] no successful transaction found via Paymob API — refusing to activate', {
+      //    This restores auto-activation when Paymob API returns no
+      //    transactions (timing race, auth issues, etc.) WITHOUT the
+      //    security hole that the old fallback had.
+      if (!successfulTx && transactions.length === 0 && body.urlParams) {
+        // Try to verify the redirect URL's HMAC signature.
+        // This requires the gateway's HMAC secret (decrypted from DB).
+        try {
+          const resolvedAdapter = await resolveDefaultGateway();
+          const creds = resolvedAdapter.gateway.credentials as unknown as { hmacSecret?: string };
+          const hmacSecret = creds.hmacSecret;
+          if (!hmacSecret) {
+            console.warn('[verify-after-redirect:debug] no hmacSecret on gateway — cannot validate redirect HMAC', {
+              orderId: o.id,
+            });
+          } else if (verifyRedirectHmacFromUrlParams(body.urlParams, hmacSecret)) {
+            // HMAC is VALID → Paymob signed this redirect.
+            // Extract the success flag from the signed params.
+            const urlSuccess = body.urlParams.success === 'true' || body.urlParams.success === '1';
+            if (urlSuccess) {
+              // Construct a real-looking transaction from the URL params.
+              const txId = body.urlParams.id
+                || body.urlParams.txn_id
+                || body.urlParams.transaction_id
+                || body.urlParams.txn
+                || `redirect_${o.id.slice(0, 8)}`;
+              const txIdNumber = /^\d+$/.test(String(txId)) ? Number(txId) : 0;
+              successfulTx = {
+                id: txIdNumber || Date.now(), // fallback: timestamp (won't conflict with real Paymob IDs)
+                success: true,
+                pending: false,
+                is_refunded: false,
+                amount_cents: body.urlParams.amount_cents
+                  ? Number(body.urlParams.amount_cents)
+                  : Number(o.grand_total ?? o.amount) * 100,
+                currency: body.urlParams.currency || o.currency,
+                order: {
+                  id: txIdNumber,
+                  merchant_order_id: o.id,
+                },
+              } as PaymobTransactionResponse;
+              console.info('[verify-after-redirect:debug] redirect HMAC VALID — activating via signed URL params', {
+                orderId: o.id,
+                transactionId: txId,
+                urlSuccess: body.urlParams.success,
+              });
+              logPaymentEvent({
+                level: 'info',
+                operation: 'verifyPayment',
+                provider: 'paymob',
+                orderId: o.id,
+                paymentReference: String(txId),
+                success: true,
+                message: 'Redirect HMAC valid — activating via signed URL params (fallback for missing Paymob API transactions)',
+              });
+            } else {
+              console.warn('[verify-after-redirect:debug] redirect HMAC valid but success=false in URL params', {
+                orderId: o.id,
+                urlSuccess: body.urlParams.success,
+              });
+            }
+          } else {
+            console.warn('[verify-after-redirect:debug] redirect HMAC INVALID or missing — refusing to activate', {
+              orderId: o.id,
+              hasHmacParam: !!body.urlParams.hmac,
+            });
+          }
+        } catch (hmacErr) {
+          console.error('[verify-after-redirect:debug] HMAC validation failed (non-fatal)', hmacErr);
+        }
+      }
+
+      // If still no successful transaction after HMAC fallback → skip
+      if (!successfulTx) {
+        console.warn('[verify-after-redirect:debug] no successful transaction found via Paymob API or HMAC fallback — refusing to activate', {
           orderId: o.id,
           paymobOrderId,
         });

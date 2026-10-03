@@ -129,3 +129,68 @@ export function verifyPaymobHmac(
   }
   // If we reach here, the callback is authentic.
 }
+
+/**
+ * v110: Verify the HMAC signature on a Paymob redirect URL.
+ *
+ * Paymob signs the redirect URL with the SAME HMAC-SHA512 algorithm used
+ * for webhook callbacks. The signature covers the standard PAYMOB_HMAC_FIELDS
+ * (sorted alphabetically + concatenated) using the gateway's HMAC secret.
+ *
+ * This is the SECURE replacement for the old bypassable URL-params check.
+ * A malicious student cannot forge the HMAC without knowing the gateway's
+ * secret — so we can trust that a valid HMAC = Paymob actually processed
+ * the payment.
+ *
+ * @param urlParams   The redirect URL params (Record<string, string>)
+ * @param hmacSecret  The gateway's HMAC secret (decrypted from DB)
+ * @returns           true if the HMAC is valid, false otherwise
+ *                    (does NOT throw — caller decides what to do)
+ */
+export function verifyRedirectHmacFromUrlParams(
+  urlParams: Record<string, string>,
+  hmacSecret: string,
+): boolean {
+  if (!hmacSecret) {
+    console.warn('[paymob:hmac] verifyRedirectHmacFromUrlParams — no HMAC secret configured');
+    return false;
+  }
+
+  const receivedHmac = urlParams.hmac;
+  if (!receivedHmac || typeof receivedHmac !== 'string') {
+    console.warn('[paymob:hmac] verifyRedirectHmacFromUrlParams — no `hmac` param in URL');
+    return false;
+  }
+
+  // Build the HMAC input string from the standard fields (sorted alphabetically).
+  // Same algorithm as buildHmacInput(), but reading from flat URL params
+  // instead of a structured `obj`.
+  const sortedFields = [...PAYMOB_HMAC_FIELDS].sort();
+  const parts: string[] = [];
+  for (const field of sortedFields) {
+    // For nested source_data_* fields, Paymob flattens them to source_data_X
+    // in URL params (e.g., source_data_pan). Direct lookup.
+    // For `order`, Paymob includes the order ID as a string in URL params.
+    const value = urlParams[field];
+    parts.push(value !== undefined && value !== null ? String(value) : '');
+  }
+  const hmacInput = parts.join('');
+
+  // Compute HMAC-SHA512
+  const computedHmac = createHmac('sha512', hmacSecret)
+    .update(hmacInput, 'utf8')
+    .digest('hex');
+
+  // Constant-time comparison
+  try {
+    const received = Buffer.from(receivedHmac, 'hex');
+    const computed = Buffer.from(computedHmac, 'hex');
+    if (received.length !== computed.length) {
+      return false;
+    }
+    return timingSafeEqual(received, computed);
+  } catch {
+    // receivedHmac is not valid hex
+    return false;
+  }
+}
