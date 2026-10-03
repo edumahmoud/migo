@@ -34,6 +34,7 @@ import {
   X,
   Inbox,
   Users,
+  Calculator,
 } from 'lucide-react';
 
 import { useTranslations } from '@/i18n/use-translations';
@@ -83,6 +84,8 @@ interface Summary {
   total_gateway_fee: string;
   transaction_count: number;
   active_subscriptions: number;
+  unique_students: number;
+  avg_net_income: string;
   settled_count: number;
   paid_count: number;
   refunded_count: number;
@@ -266,9 +269,9 @@ export default function TeacherFinancialSection() {
         <p className="text-sm text-muted-foreground mt-1">{t('financial.subtitle')}</p>
       </div>
 
-      {/* Summary Cards — v110: removed platformShare + gatewayFee, added activeSubscriptions */}
+      {/* Summary Cards — v110: 6 cards (totalGross uses subscription_total = base price × count, no fees) */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
           <SummaryCard
             icon={<TrendingUp className="h-5 w-5" />}
             label={t('financial.summary.totalGross')}
@@ -295,6 +298,20 @@ export default function TeacherFinancialSection() {
             label={t('financial.summary.activeSubscriptions')}
             value={String(summary.active_subscriptions)}
             color="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white"
+            iconBg="bg-white/25"
+          />
+          <SummaryCard
+            icon={<Users className="h-5 w-5" />}
+            label={t('financial.summary.uniqueStudents')}
+            value={String(summary.unique_students)}
+            color="bg-gradient-to-br from-purple-500 to-purple-600 text-white"
+            iconBg="bg-white/25"
+          />
+          <SummaryCard
+            icon={<Calculator className="h-5 w-5" />}
+            label={t('financial.summary.avgNetIncome')}
+            value={formatAmount(summary.avg_net_income)}
+            color="bg-gradient-to-br from-teal-500 to-teal-600 text-white"
             iconBg="bg-white/25"
           />
         </div>

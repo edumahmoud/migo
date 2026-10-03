@@ -3493,7 +3493,9 @@
       "platformShare": "Platform Share",
       "gatewayFee": "Gateway Fee",
       "transactions": "Transactions",
-      "activeSubscriptions": "Active Subscriptions"
+      "activeSubscriptions": "Active Subscriptions",
+      "uniqueStudents": "Students",
+      "avgNetIncome": "Avg Net Income"
     },
     "filters": {
       "title": "Filter Results",

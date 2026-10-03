@@ -3494,7 +3494,9 @@
       "platformShare": "حصة المنصة",
       "gatewayFee": "رسوم البوابة",
       "transactions": "عدد العمليات",
-      "activeSubscriptions": "الاشتراكات النشطة"
+      "activeSubscriptions": "الاشتراكات النشطة",
+      "uniqueStudents": "عدد الطلاب",
+      "avgNetIncome": "معدل الدخل الصافي"
     },
     "filters": {
       "title": "تصفية النتائج",

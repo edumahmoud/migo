@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       `
       id, order_id, student_id, subject_id, teacher_id,
       gateway_id, currency,
-      gross_amount, platform_share, teacher_share, gateway_fee, net_amount,
+      gross_amount, subscription_total, platform_share, teacher_share, gateway_fee, net_amount,
       commission_rate, status, created_at
       `
     )
@@ -186,13 +186,31 @@ export async function GET(request: NextRequest) {
     console.warn('[teacher/revenue] active subscriptions count failed:', activeErr);
   }
 
+  // ── v110: Count unique students from ledger rows (for "عدد الطلاب" card) ──
+  const uniqueStudentIds = new Set<string>();
+  for (const r of rows) {
+    if (r.student_id) uniqueStudentIds.add(r.student_id as string);
+  }
+  const uniqueStudents = uniqueStudentIds.size;
+
   const summary = {
-    total_gross: sumCents((r) => r.gross_amount) / 100,
+    // v110: total_gross now = sum(subscription_total) — the BASE course
+    // price × number of subscriptions, WITHOUT additional fees (platform
+    // commission, tax, gateway fee). This matches the user's request:
+    // "اجمالي الايرادات = اجمالي عدد اشتراكات * سعر الكورس بدون النسب الاضافية"
+    // Falls back to gross_amount for pre-v88 rows (subscription_total is
+    // NOT NULL + backfilled, so this should never trigger, but just in case).
+    total_gross: sumCents((r) => r.subscription_total ?? r.gross_amount) / 100,
     total_teacher_share: sumCents((r) => r.teacher_share) / 100,
     total_platform_share: sumCents((r) => r.platform_share) / 100,
     total_gateway_fee: sumCents((r) => r.gateway_fee) / 100,
     transaction_count: rows.length,
     active_subscriptions: activeSubscriptions,
+    unique_students: uniqueStudents,
+    // v110: avg_net_income = مستحقاتي / عدد الطلاب (handle division by zero)
+    avg_net_income: uniqueStudents > 0
+      ? (sumCents((r) => r.teacher_share) / 100) / uniqueStudents
+      : 0,
     settled_count: rows.filter((r) => r.status === 'settled').length,
     paid_count: rows.filter((r) => r.status === 'paid').length,
     refunded_count: rows.filter((r) => r.status === 'refunded').length,
@@ -247,6 +265,8 @@ export async function GET(request: NextRequest) {
       total_gateway_fee: summary.total_gateway_fee.toFixed(2),
       transaction_count: summary.transaction_count,
       active_subscriptions: summary.active_subscriptions,
+      unique_students: summary.unique_students,
+      avg_net_income: summary.avg_net_income.toFixed(2),
       settled_count: summary.settled_count,
       paid_count: summary.paid_count,
       refunded_count: summary.refunded_count,
