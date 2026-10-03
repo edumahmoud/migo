@@ -3492,7 +3492,8 @@
       "teacherShare": "My Earnings",
       "platformShare": "Platform Share",
       "gatewayFee": "Gateway Fee",
-      "transactions": "Transactions"
+      "transactions": "Transactions",
+      "activeSubscriptions": "Active Subscriptions"
     },
     "filters": {
       "title": "Filter Results",

@@ -133,9 +133,20 @@ export function verifyPaymobHmac(
 /**
  * v110: Verify the HMAC signature on a Paymob redirect URL.
  *
- * Paymob signs the redirect URL with the SAME HMAC-SHA512 algorithm used
- * for webhook callbacks. The signature covers the standard PAYMOB_HMAC_FIELDS
- * (sorted alphabetically + concatenated) using the gateway's HMAC secret.
+ * IMPORTANT: Paymob uses a DIFFERENT algorithm for redirect URLs than for
+ * webhook callbacks:
+ *
+ *   - Webhook callback HMAC: computed over the 17 standard PAYMOB_HMAC_FIELDS
+ *     from the `obj` payload (sorted + concatenated).
+ *
+ *   - Redirect URL HMAC: computed over ALL query params EXCEPT `hmac`,
+ *     sorted alphabetically by KEY, then concatenating the VALUES.
+ *     Reference: https://docs.paymob.com/docs/paymob-integration-api/transaction-callbacks
+ *
+ * The previous implementation incorrectly used PAYMOB_HMAC_FIELDS for the
+ * redirect URL — this caused the HMAC to NEVER match (because the redirect
+ * URL has different params than the webhook obj), which is why
+ * "لم يتم العثور على معاملة ناجحة" appeared even after a successful payment.
  *
  * This is the SECURE replacement for the old bypassable URL-params check.
  * A malicious student cannot forge the HMAC without knowing the gateway's
@@ -162,16 +173,16 @@ export function verifyRedirectHmacFromUrlParams(
     return false;
   }
 
-  // Build the HMAC input string from the standard fields (sorted alphabetically).
-  // Same algorithm as buildHmacInput(), but reading from flat URL params
-  // instead of a structured `obj`.
-  const sortedFields = [...PAYMOB_HMAC_FIELDS].sort();
+  // ── Build the HMAC input string ──
+  // Algorithm (per Paymob docs for redirect URLs):
+  //   1. Collect ALL query param keys EXCEPT `hmac`
+  //   2. Sort the keys alphabetically
+  //   3. Concatenate the VALUES (in sorted key order) — NO separators
+  //   4. Compute HMAC-SHA512 using the gateway secret
+  const allKeys = Object.keys(urlParams).filter((k) => k !== 'hmac').sort();
   const parts: string[] = [];
-  for (const field of sortedFields) {
-    // For nested source_data_* fields, Paymob flattens them to source_data_X
-    // in URL params (e.g., source_data_pan). Direct lookup.
-    // For `order`, Paymob includes the order ID as a string in URL params.
-    const value = urlParams[field];
+  for (const key of allKeys) {
+    const value = urlParams[key];
     parts.push(value !== undefined && value !== null ? String(value) : '');
   }
   const hmacInput = parts.join('');
@@ -186,6 +197,11 @@ export function verifyRedirectHmacFromUrlParams(
     const received = Buffer.from(receivedHmac, 'hex');
     const computed = Buffer.from(computedHmac, 'hex');
     if (received.length !== computed.length) {
+      console.warn('[paymob:hmac] verifyRedirectHmacFromUrlParams — HMAC length mismatch', {
+        receivedLen: received.length,
+        computedLen: computed.length,
+        keysUsed: allKeys,
+      });
       return false;
     }
     return timingSafeEqual(received, computed);

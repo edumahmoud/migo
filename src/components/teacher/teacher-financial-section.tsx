@@ -33,6 +33,7 @@ import {
   Filter,
   X,
   Inbox,
+  Users,
 } from 'lucide-react';
 
 import { useTranslations } from '@/i18n/use-translations';
@@ -81,6 +82,7 @@ interface Summary {
   total_platform_share: string;
   total_gateway_fee: string;
   transaction_count: number;
+  active_subscriptions: number;
   settled_count: number;
   paid_count: number;
   refunded_count: number;
@@ -264,9 +266,9 @@ export default function TeacherFinancialSection() {
         <p className="text-sm text-muted-foreground mt-1">{t('financial.subtitle')}</p>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards — v110: removed platformShare + gatewayFee, added activeSubscriptions */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryCard
             icon={<TrendingUp className="h-5 w-5" />}
             label={t('financial.summary.totalGross')}
@@ -282,24 +284,17 @@ export default function TeacherFinancialSection() {
             iconBg="bg-white/25"
           />
           <SummaryCard
-            icon={<Banknote className="h-5 w-5" />}
-            label={t('financial.summary.platformShare')}
-            value={formatAmount(summary.total_platform_share)}
-            color="bg-gradient-to-br from-violet-500 to-violet-600 text-white"
-            iconBg="bg-white/25"
-          />
-          <SummaryCard
-            icon={<Receipt className="h-5 w-5" />}
-            label={t('financial.summary.gatewayFee')}
-            value={formatAmount(summary.total_gateway_fee)}
-            color="bg-gradient-to-br from-amber-400 to-amber-500 text-white"
-            iconBg="bg-white/25"
-          />
-          <SummaryCard
             icon={<Receipt className="h-5 w-5" />}
             label={t('financial.summary.transactions')}
             value={String(summary.transaction_count)}
             color="bg-gradient-to-br from-rose-400 to-rose-500 text-white"
+            iconBg="bg-white/25"
+          />
+          <SummaryCard
+            icon={<Users className="h-5 w-5" />}
+            label={t('financial.summary.activeSubscriptions')}
+            value={String(summary.active_subscriptions)}
+            color="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white"
             iconBg="bg-white/25"
           />
         </div>

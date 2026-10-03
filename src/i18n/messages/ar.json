@@ -3493,7 +3493,8 @@
       "teacherShare": "مستحقاتي",
       "platformShare": "حصة المنصة",
       "gatewayFee": "رسوم البوابة",
-      "transactions": "عدد المعاملات"
+      "transactions": "عدد العمليات",
+      "activeSubscriptions": "الاشتراكات النشطة"
     },
     "filters": {
       "title": "تصفية النتائج",

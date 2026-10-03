@@ -157,12 +157,42 @@ export async function GET(request: NextRequest) {
       0
     );
 
+  // ── v110: Count active subscriptions for this teacher's subjects ──
+  // Active = subject_students.status = 'approved' AND (current_period_end IS NULL
+  // OR current_period_end > now()).
+  // This is shown on the teacher dashboard as "الاشتراكات النشطة".
+  let activeSubscriptions = 0;
+  try {
+    // First, get ALL the teacher's subject IDs (not just ones with transactions)
+    const { data: teacherSubjects, error: subjectsErr2 } = await supabaseServer
+      .from('subjects')
+      .select('id')
+      .eq('teacher_id', teacherId);
+    if (!subjectsErr2 && teacherSubjects && teacherSubjects.length > 0) {
+      const allSubjectIds = (teacherSubjects as any[]).map((s) => s.id);
+      const { count, error: countErr } = await supabaseServer
+        .from('subject_students')
+        .select('id', { count: 'exact', head: true })
+        .in('subject_id', allSubjectIds)
+        .eq('status', 'approved')
+        // Active = no expiry OR expiry in the future
+        .or('current_period_end.is.null,current_period_end.gt.' + new Date().toISOString());
+      if (!countErr && count !== null) {
+        activeSubscriptions = count;
+      }
+    }
+  } catch (activeErr) {
+    // Non-fatal — don't fail the entire revenue call if this count fails
+    console.warn('[teacher/revenue] active subscriptions count failed:', activeErr);
+  }
+
   const summary = {
     total_gross: sumCents((r) => r.gross_amount) / 100,
     total_teacher_share: sumCents((r) => r.teacher_share) / 100,
     total_platform_share: sumCents((r) => r.platform_share) / 100,
     total_gateway_fee: sumCents((r) => r.gateway_fee) / 100,
     transaction_count: rows.length,
+    active_subscriptions: activeSubscriptions,
     settled_count: rows.filter((r) => r.status === 'settled').length,
     paid_count: rows.filter((r) => r.status === 'paid').length,
     refunded_count: rows.filter((r) => r.status === 'refunded').length,
@@ -216,6 +246,7 @@ export async function GET(request: NextRequest) {
       total_platform_share: summary.total_platform_share.toFixed(2),
       total_gateway_fee: summary.total_gateway_fee.toFixed(2),
       transaction_count: summary.transaction_count,
+      active_subscriptions: summary.active_subscriptions,
       settled_count: summary.settled_count,
       paid_count: summary.paid_count,
       refunded_count: summary.refunded_count,
