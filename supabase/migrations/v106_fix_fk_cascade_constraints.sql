@@ -56,11 +56,12 @@ ALTER TABLE public.platform_announcement_views
   FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 -- ─────────────────────────────────────────────────────
--- 6. teams.created_by → SET NULL (blocks user deletion)
+-- 6. subject_teams.created_by → SET NULL (blocks user deletion)
+--    NOTE: table is subject_teams, NOT teams
 -- ─────────────────────────────────────────────────────
-ALTER TABLE public.teams DROP CONSTRAINT IF EXISTS teams_created_by_fkey;
-ALTER TABLE public.teams
-  ADD CONSTRAINT teams_created_by_fkey
+ALTER TABLE public.subject_teams DROP CONSTRAINT IF EXISTS subject_teams_created_by_fkey;
+ALTER TABLE public.subject_teams
+  ADD CONSTRAINT subject_teams_created_by_fkey
   FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 -- Done.
