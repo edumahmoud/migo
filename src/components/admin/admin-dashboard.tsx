@@ -923,20 +923,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     setDeletingUserId(userId);
     try {
       const token = await getAuthToken();
-      if (!token) {
-        toast.error(t('auth.mustLogin'));
-        return;
-      }
+      if (!token) { toast.error(t('auth.mustLogin')); return; }
       const res = await fetchWithTimeout('/api/admin/delete-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ userId }),
-      }, 20000);
+      }, 30000);
       let result;
-      try {
-        result = await res.json();
-      } catch {
-        throw new Error(res.ok ? t('common.unexpectedError') : t('serverErrorWithStatus', { status: res.status }));
+      try { result = await res.json(); } catch {
+        throw new Error(res.ok ? t('common.unexpectedError') : `HTTP ${res.status}`);
       }
       if (result.success) {
         toast.success(t('admin.userDeleted'));
@@ -961,16 +956,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     setDeletingSubjectId(subjectId);
     try {
       const token = await getAuthToken();
-      if (!token) {
-        toast.error(t('auth.mustLogin'));
-        return;
-      }
+      if (!token) { toast.error(t('auth.mustLogin')); return; }
       const res = await fetchWithTimeout('/api/admin/delete-subject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ subjectId }),
-      });
-      const result = await res.json();
+      }, 30000);
+      let result;
+      try { result = await res.json(); } catch {
+        throw new Error(res.ok ? t('common.unexpectedError') : `HTTP ${res.status}`);
+      }
       if (result.success) {
         toast.success(t('course.subjectDeleted'));
         setSubjectDetailOpen(false);
@@ -2538,113 +2533,55 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const fetchFlaggedComments = useCallback(async () => {
     setFlaggedLoading(true);
     try {
-      // Two separate queries to avoid PostgREST JOIN errors (PGRST200)
-      // when FK relationship between video_comments and subject_videos is missing
-      const { data, error } = await supabase
-        .from('video_comments')
-        .select('*')
-        .eq('is_flagged', true)
-        .order('flagged_at', { ascending: false });
+      const token = await getAuthToken();
+      const res = await fetchWithTimeout('/api/admin/flagged-comments', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) { console.error('Failed to fetch flagged comments:', res.status); setFlaggedComments([]); return; }
+      const result = await res.json();
+      if (result.success && result.comments) {
+        const enriched = result.comments.map((c: Record<string, unknown>) => ({
+          ...c,
+          user_name: c.user_name
+            ? formatNameWithTitle(c.user_name as string, c.user_role as string, c.user_title_id as string | null, c.user_gender as string | null, t)
+            : t('common.user'),
+        }));
+        setFlaggedComments(enriched);
+      } else { setFlaggedComments([]); }
+    } catch (err) { console.error('Fetch flagged comments error:', err); setFlaggedComments([]); }
+    finally { setFlaggedLoading(false); }
+  }, [fetchWithTimeout, getAuthToken, t]);
 
-      if (error) {
-        console.error('Error fetching flagged comments:', error.message || error);
-        setFlaggedComments([]);
-      } else {
-        // Enrich with user names and video titles
-        const comments = (data || []) as any[];
-        if (comments.length > 0) {
-          // Fetch video titles separately if there are video_ids
-          const videoIds = [...new Set(comments.map((c: any) => c.video_id).filter(Boolean))] as string[];
-          const videoMap = new Map<string, { id: string; title: string }>();
-          if (videoIds.length > 0) {
-            const { data: videoData } = await supabase
-              .from('subject_videos')
-              .select('id, title')
-              .in('id', videoIds);
-            if (videoData) {
-              for (const v of videoData as any[]) {
-                videoMap.set(v.id, v);
-              }
-            }
-          }
-
-          // Fetch user names
-          const userIds = [...new Set(comments.map((c: any) => c.user_id).filter(Boolean))] as string[];
-          const userMap = new Map<string, any>();
-          if (userIds.length > 0) {
-            const { data: users } = await supabase
-              .from('users')
-              .select('id, name, title_id, gender, role')
-              .in('id', userIds);
-            if (users) {
-              for (const u of users as any[]) {
-                userMap.set(u.id, u);
-              }
-            }
-          }
-
-          const enriched = comments.map((c: any) => {
-            const user = userMap.get(c.user_id);
-            const video = videoMap.get(c.video_id);
-            return {
-              ...c,
-              video: video || null,
-              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : t('common.user'),
-            };
-          });
-          setFlaggedComments(enriched);
-        } else {
-          setFlaggedComments([]);
-        }
-      }
-    } catch (err) {
-      console.error('Fetch flagged comments error:', err);
-      setFlaggedComments([]);
-    } finally {
-      setFlaggedLoading(false);
-    }
-  }, []);
-
-  // -------------------------------------------------------
-  // Unflag a comment
-  // -------------------------------------------------------
   const handleUnflagComment = async (commentId: string) => {
     try {
-      const { error } = await supabase
-        .from('video_comments')
-        .update({ is_flagged: false, flagged_at: null, flagged_by: null })
-        .eq('id', commentId);
-
-      if (error) {
-        toast.error(t('admin.toastDismissReportFailed'));
-      } else {
+      const token = await getAuthToken();
+      const res = await fetchWithTimeout('/api/admin/flagged-comments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ comment_id: commentId, action: 'unflag' }),
+      });
+      if (res.ok) {
         toast.success(t('admin.toastReportDismissed'));
-        setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
-      }
-    } catch {
-      toast.error(t('common.unexpectedError'));
-    }
+        setFlaggedComments((prev) => prev.filter((c) => c.id !== commentId));
+      } else { toast.error(t('admin.toastDismissReportFailed')); }
+    } catch { toast.error(t('common.unexpectedError')); }
   };
 
-  // -------------------------------------------------------
-  // Delete a flagged comment (admin)
-  // -------------------------------------------------------
   const handleDeleteFlaggedComment = async (commentId: string) => {
     try {
-      const { error } = await supabase
-        .from('video_comments')
-        .delete()
-        .eq('id', commentId);
-
-      if (error) {
-        toast.error(t('admin.toastDeleteCommentFailed'));
-      } else {
+      const token = await getAuthToken();
+      const res = await fetchWithTimeout(`/api/admin/flagged-comments?comment_id=${commentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
         toast.success(t('admin.toastCommentDeleted'));
-        setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
+        setFlaggedComments((prev) => prev.filter((c) => c.id !== commentId));
+      } else {
+        const result = await res.json().catch(() => ({}));
+        toast.error(result.error || t('admin.toastDeleteCommentFailed'));
       }
-    } catch {
-      toast.error(t('common.unexpectedError'));
-    }
+    } catch { toast.error(t('common.unexpectedError')); }
   };
 
   // -------------------------------------------------------
