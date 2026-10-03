@@ -42,8 +42,34 @@ export async function POST(request: NextRequest) {
 
     const userEmail = userRecord?.email;
 
-    // 1. Manual cascade: NULL out ALL FK references to this user
-    //    (defense-in-depth — handles any FK constraint regardless of v106)
+    // 1. Fetch all orders for this user (needed to clean up FK chains)
+    const { data: userOrders } = await supabaseServer
+      .from('orders')
+      .select('id')
+      .eq('student_id', userId);
+    const orderIds = (userOrders || []).map((o: { id: string }) => o.id);
+
+    // 2. NULL out FK references in tables that reference orders(id)
+    //    These block the cascade delete of orders when users.student_id CASCADE fires
+    if (orderIds.length > 0) {
+      const orderCleanup = [
+        { table: 'financial_ledger', column: 'order_id' },
+        { table: 'payments', column: 'order_id' },
+        { table: 'teacher_payout_ledger_entries', column: 'order_id' },
+      ];
+      for (const { table, column } of orderCleanup) {
+        try { await supabaseServer.from(table).update({ [column]: null }).in('order_id', orderIds); }
+        catch { /* skip */ }
+      }
+      // Now safe to delete orders
+      try { await supabaseServer.from('orders').delete().in('id', orderIds); } catch { /* skip */ }
+    }
+
+    // 3. Delete subject_students + subject_teachers explicitly
+    try { await supabaseServer.from('subject_students').delete().eq('student_id', userId); } catch { /* skip */ }
+    try { await supabaseServer.from('subject_teachers').delete().eq('teacher_id', userId); } catch { /* skip */ }
+
+    // 4. Manual cascade: NULL out ALL remaining FK references to this user
     const cleanupTables = [
       { table: 'announcements', column: 'created_by' },
       { table: 'platform_announcements', column: 'created_by' },
@@ -70,6 +96,9 @@ export async function POST(request: NextRequest) {
       { table: 'lessons', column: 'created_by' },
       { table: 'orders', column: 'student_id' },
       { table: 'scorm_tracking', column: 'user_id' },
+      { table: 'lesson_progress', column: 'student_id' },
+      { table: 'lesson_notes', column: 'student_id' },
+      { table: 'lesson_bookmarks', column: 'student_id' },
     ];
 
     for (const { table, column } of cleanupTables) {
@@ -80,13 +109,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Delete the user profile from public.users
+    // 5. Delete the user profile from public.users
     const { error: profileError } = await supabaseServer
       .from('users')
       .delete()
       .eq('id', userId);
 
-    // 3. Delete the auth account (always — even if profile delete failed)
+    // 6. Delete the auth account (always — even if profile delete failed)
     let authDeleted = false;
     try {
       const { error: authError } = await supabaseServer.auth.admin.deleteUser(userId);
@@ -96,7 +125,7 @@ export async function POST(request: NextRequest) {
       console.error('[delete-user] Auth deletion exception:', authErr);
     }
 
-    // 4. Determine result
+    // 7. Determine result
     const profileDeleted = !profileError || profileError.message.includes('no rows') || profileError.code === 'PGRST116';
 
     if (!profileDeleted) {
