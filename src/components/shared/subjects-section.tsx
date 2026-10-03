@@ -1791,7 +1791,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1.5">
-            {role === 'teacher' ? t('dashboard.noSubjectsYet') : t('course.noStudents')}
+            {role === 'teacher' ? t('dashboard.noSubjectsYet') : t('course.noEnrollments')}
           </p>
           <p className="text-sm text-muted-foreground mb-6">
             {role === 'teacher'

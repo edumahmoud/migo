@@ -458,6 +458,7 @@
     "noFilesDesc": "لم يتم رفع أي ملفات بعد",
     "noStudents": "لا يوجد طلاب",
     "noStudentsDesc": "لم يسجل أي طالب في هذا المقرر بعد",
+    "noEnrollments": "لا توجد مقررات مسجلة",
     "noTeams": "لا توجد فرق",
     "noTeamsDesc": "لم يتم إنشاء أي فرق بعد",
     "addLecture": "إضافة محاضرة",
@@ -3488,6 +3489,10 @@
   "financial": {
     "title": "الإيرادات المالية",
     "subtitle": "ملخص تفصيلي لإيراداتك من المعاملات المُكتملة",
+    "tabs": {
+      "overview": "الملخص",
+      "transactions": "العمليات المسجلة"
+    },
     "summary": {
       "totalGross": "إجمالي الإيرادات",
       "teacherShare": "مستحقاتي",

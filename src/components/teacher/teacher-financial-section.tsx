@@ -43,6 +43,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -271,6 +272,15 @@ export default function TeacherFinancialSection() {
         <p className="text-sm text-muted-foreground mt-1">{t('financial.subtitle')}</p>
       </div>
 
+      {/* v110: Tabbed layout — Summary cards in "overview" tab, transactions in "transactions" tab */}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="overview">{t('financial.tabs.overview')}</TabsTrigger>
+          <TabsTrigger value="transactions">{t('financial.tabs.transactions')}</TabsTrigger>
+        </TabsList>
+
+        {/* ─── Tab 1: Overview (Summary Cards + Filters) ─── */}
+        <TabsContent value="overview" className="space-y-6">
       {/* Summary Cards — v110: 7 cards (replaced معدل الدخل الصافي with متوسط دخل الطالب + متوسط قيمة العملية) */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -406,11 +416,14 @@ export default function TeacherFinancialSection() {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      {/* Transactions Table */}
+        {/* ─── Tab 2: Transactions (العمليات المسجلة) ─── */}
+        <TabsContent value="transactions" className="space-y-6">
+      {/* Transactions Table — v110: removed platformShare + gatewayFee columns to match the removed summary cards */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">{t('financial.table.empty').split('.')[0]}</CardTitle>
+          <CardTitle className="text-base">{t('financial.tabs.transactions')}</CardTitle>
           <CardDescription className="sr-only">{t('financial.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -444,8 +457,6 @@ export default function TeacherFinancialSection() {
                       <TableHead>{t('financial.table.course')}</TableHead>
                       <TableHead className="text-end">{t('financial.table.gross')}</TableHead>
                       <TableHead className="text-end">{t('financial.table.teacherShare')}</TableHead>
-                      <TableHead className="text-end">{t('financial.table.platformShare')}</TableHead>
-                      <TableHead className="text-end">{t('financial.table.gatewayFee')}</TableHead>
                       <TableHead>{t('financial.table.status')}</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -462,12 +473,6 @@ export default function TeacherFinancialSection() {
                         </TableCell>
                         <TableCell className="text-end text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                           {formatAmount(tx.teacher_share, tx.currency)}
-                        </TableCell>
-                        <TableCell className="text-end text-muted-foreground whitespace-nowrap">
-                          {formatAmount(tx.platform_share, tx.currency)}
-                        </TableCell>
-                        <TableCell className="text-end text-muted-foreground whitespace-nowrap">
-                          {formatAmount(tx.gateway_fee, tx.currency)}
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -510,8 +515,6 @@ export default function TeacherFinancialSection() {
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-dashed">
                       <MobileRow label={t('financial.table.gross')} value={formatAmount(tx.gross_amount, tx.currency)} />
                       <MobileRow label={t('financial.table.teacherShare')} value={formatAmount(tx.teacher_share, tx.currency)} valueClass="text-emerald-700 dark:text-emerald-400" />
-                      <MobileRow label={t('financial.table.platformShare')} value={formatAmount(tx.platform_share, tx.currency)} />
-                      <MobileRow label={t('financial.table.gatewayFee')} value={formatAmount(tx.gateway_fee, tx.currency)} />
                     </div>
                   </motion.div>
                 ))}
@@ -534,6 +537,8 @@ export default function TeacherFinancialSection() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

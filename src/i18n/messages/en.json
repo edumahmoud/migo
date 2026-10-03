@@ -458,6 +458,7 @@
     "noFilesDesc": "No files have been uploaded yet",
     "noStudents": "No students",
     "noStudentsDesc": "No students have enrolled in this subject yet",
+    "noEnrollments": "No registered courses",
     "noTeams": "No teams",
     "noTeamsDesc": "No teams have been created yet",
     "addLecture": "Add Lecture",
@@ -3487,6 +3488,10 @@
   "financial": {
     "title": "Financial Revenue",
     "subtitle": "Detailed summary of your revenue from completed transactions",
+    "tabs": {
+      "overview": "Overview",
+      "transactions": "Transactions"
+    },
     "summary": {
       "totalGross": "Total Revenue",
       "teacherShare": "My Earnings",
