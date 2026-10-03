@@ -229,14 +229,17 @@ export class PaymobAdapter implements PaymentGateway {
     // subscription.
     const redirectionUrl = input.redirectUrl ?? config.redirectionUrl;
 
-    // Build billing_data (required by Accept API — ALL fields must be present).
-    // Paymob returns HTTP 500 if any required billing_data field is missing
-    // OR if the phone number format is invalid (not E.164).
+    // Build billing_data (required by Accept API + Intention API — ALL fields must be present).
+    // Paymob returns HTTP 400/500 if any required billing_data field is missing
+    // OR if the phone number format is invalid (not E.164) OR if the email
+    // format is not a valid public TLD.
     // We provide defaults for fields the student didn't fill in.
     const billingData: Record<string, string> = {
       first_name: 'Student',
       last_name: 'User',
-      email: input.customerEmail || 'student@attendo.local',
+      // v110: use a valid public-TLD email — '.local' TLD was rejected by
+      // Paymob's email validation (HTTP 400 "invalid email").
+      email: input.customerEmail || 'student@example.com',
       phone_number: normalizeEgPhone(input.customerPhone),
       building: 'NA',
       floor: 'NA',
@@ -276,7 +279,10 @@ export class PaymobAdapter implements PaymentGateway {
         items: [
           {
             name: input.description || 'Course Subscription',
-            amount: amountCents,
+            // v110: Paymob Intention API strictly validates the items schema.
+            // The field MUST be `amount_cents` (NOT `amount`). Using `amount`
+            // caused HTTP 400 "تعذّر تجهيز عملية الدفع في مرحلة تجهيز نية الدفع".
+            amount_cents: amountCents,
             quantity: 1,
           },
         ],
