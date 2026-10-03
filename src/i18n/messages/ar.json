@@ -4882,6 +4882,7 @@
     "noLessonsPublishedInUnit": "لا توجد دروس منشورة في هذه الوحدة بعد",
     "standaloneLessons": "دروس بدون وحدة",
     "unitDisabled": "متوقفة",
+    "unitUnpublished": "غير منشورة",
     "unitLockedToast": "الوحدة متوقفة — لا يمكن فتح الدرس",
     "add": "إضافة",
     "minutesLabel": "دقيقة",

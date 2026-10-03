@@ -4881,6 +4881,7 @@
     "noLessonsPublishedInUnit": "No published lessons in this unit yet",
     "standaloneLessons": "Standalone lessons",
     "unitDisabled": "Disabled",
+    "unitUnpublished": "Unpublished",
     "unitLockedToast": "This unit is locked — cannot open the lesson",
     "add": "Add",
     "minutesLabel": "min",

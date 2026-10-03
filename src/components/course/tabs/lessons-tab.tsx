@@ -1648,12 +1648,17 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         <div className="space-y-4">
           {units.map((unit, unitIdx) => {
             const unitLessons = visibleLessons.filter((l) => l.unit_id === unit.id);
-            const isUnitLocked = unit.is_enabled === false && role !== 'teacher';
-            // v110: ALWAYS show published units to students — even if they have 0
-            // published lessons. Empty units show "no published lessons yet" so
-            // students know the unit exists and what to expect next.
-            // Locked units (is_enabled=false) show with a lock icon and prevent opening.
-            // Unpublished units (is_published=false) are filtered by the API for students.
+            // v110: A unit is "locked" for a student when EITHER:
+            //   - is_enabled === false  (teacher explicitly disabled the unit — v98)
+            //   - is_published === false (teacher marked as draft — was invisible before v110;
+            //     now visible-but-locked per user request)
+            // Teachers/admins never see the lock — they can always open lessons.
+            const isUnitLocked = role !== 'teacher' && (unit.is_enabled === false || unit.is_published === false);
+            // v110: ALWAYS show all units to students — even unpublished ones
+            // (visible but locked with a lock icon) and even if they have 0
+            // published lessons (empty units show "no published lessons yet").
+            // This matches the user's requirement: the unit appears but can't
+            // be opened, with a lock icon.
             const isCollapsed = !!collapsedUnits[unit.id];
             const unitNumber = unitIdx + 1;
 
@@ -1695,7 +1700,19 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
                           {t('unitDraft') || 'مسودة'}
                         </Badge>
                       )}
-                      {isUnitLocked && (
+                      {/* v110: For students, distinguish between unpublished (draft)
+                          and disabled units — both render with a lock icon but the
+                          badge label differs so the student understands why it's locked.
+                          Note: `isUnitLocked` already implies `role !== 'teacher'`
+                          (defined above), so we don't re-check it here — TypeScript
+                          narrows `role` to 'student' once `isUnitLocked` is true. */}
+                      {isUnitLocked && unit.is_published === false && (
+                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40">
+                          <Lock className="h-2.5 w-2.5 me-1" />
+                          {t('unitUnpublished') || 'غير منشورة'}
+                        </Badge>
+                      )}
+                      {isUnitLocked && unit.is_enabled === false && (
                         <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900/40">
                           <Lock className="h-2.5 w-2.5 me-1" />
                           {t('unitDisabled') || 'متوقفة'}

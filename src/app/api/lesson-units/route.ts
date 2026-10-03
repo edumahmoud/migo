@@ -77,16 +77,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Build query — students get published only, teachers get all
-  let query = supabaseServer
+  // Build query — v110: students now see ALL units (published + unpublished).
+  // Unpublished units render as LOCKED in the frontend (visible with a lock
+  // icon — students can see the unit exists but cannot OPEN the lessons inside).
+  // This matches the user's request: "الوحدة المحددة كغير منشور تكون ظاهرة
+  // لكن ميقدرش يفتحها ويكون عليها علامة قفل".
+  // Teachers/admins see all units (filter happens implicitly via verifySubjectAccess).
+  const query = supabaseServer
     .from('lesson_units')
     .select('*')
     .eq('subject_id', subjectId)
     .order('order_index', { ascending: true });
-
-  if (!isTeacher && isStudent) {
-    query = query.eq('is_published', true);
-  }
 
   const { data, error } = await query;
 

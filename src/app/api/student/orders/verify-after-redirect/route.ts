@@ -49,6 +49,13 @@ interface OrderRow {
   student_id: string;
   subject_id: string;
   amount: number;
+  // v110: post-v88 orders carry base_amount + fees_total + grand_total.
+  // The activate_subscription_after_payment RPC checks against grand_total
+  // (NOT amount) for these orders — so we MUST fetch + pass grand_total.
+  // Without this, the RPC returns amount_mismatch and the enrollment fails.
+  base_amount: number | null;
+  fees_total: number | null;
+  grand_total: number | null;
   currency: string;
   status: string;
   gateway_id: string | null;
@@ -119,7 +126,7 @@ export async function POST(request: NextRequest) {
 
   const { data: pendingOrders, error: pendingErr } = await supabaseServer
     .from('orders')
-    .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+    .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref')
     .eq('student_id', studentId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
@@ -213,7 +220,7 @@ export async function POST(request: NextRequest) {
         if (o.checkout_session_id) {
           const { data: sessionOrders } = await supabaseServer
             .from('orders')
-            .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+            .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref')
             .eq('checkout_session_id', o.checkout_session_id)
             .eq('status', 'pending');
           if (sessionOrders && sessionOrders.length > 0) {
@@ -253,7 +260,11 @@ export async function POST(request: NextRequest) {
             {
               p_order_id: ord.id,
               p_provider_payment_id: perOrderPaymentId,
-              p_amount: Number(ord.amount),
+              // v110: pass grand_total (NOT amount) — the RPC checks against
+              // v_order.grand_total for post-v88 orders. Sending just `amount`
+              // caused the RPC to return amount_mismatch and the student
+              // stayed unenrolled even after a successful Paymob payment.
+              p_amount: Number(ord.grand_total ?? ord.amount),
               p_currency: ord.currency,
               p_status: 'paid',
               p_raw_payload: {
@@ -269,13 +280,25 @@ export async function POST(request: NextRequest) {
             },
           );
 
-          if (rpcErr) {
-            // RPC failed — try direct enrollment fallback
+          // v110: trigger the direct-enrollment fallback when EITHER:
+          //   - rpcErr is set (POSTGREST-level error — network, permission, etc.)
+          //   - rpcResult.success === false (RPC returned an internal failure
+          //     such as 'amount_mismatch', 'order_not_found', etc.)
+          // Previously the fallback only ran on rpcErr, which meant an
+          // amount_mismatch (the most common failure mode for post-v88 orders
+          // when only `amount` was passed) left the student unenrolled and
+          // the order stayed 'pending' until admin manually activated it.
+          const rpcResultObj = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean; already_processed?: boolean }) ?? {};
+          const rpcFailedSoft = !rpcErr && rpcResultObj.success === false;
+
+          if (rpcErr || rpcFailedSoft) {
+            // RPC failed (hard OR soft) — try direct enrollment fallback.
             // This path ALSO creates financial_ledger + payments rows
             // so the subscription shows up in revenue stats.
-            console.error('[verify-after-redirect:debug] RPC error, trying direct enrollment', {
+            console.error('[verify-after-redirect:debug] RPC failure, trying direct enrollment', {
               orderId: ord.id,
-              error: rpcErr.message,
+              error: rpcErr?.message || rpcResultObj.error || 'rpc_returned_false',
+              failureKind: rpcErr ? 'rpc_error' : 'rpc_soft_failure',
             });
             const now = new Date().toISOString();
             const fallbackPaymentId = `fallback_${ord.id}`;
@@ -467,7 +490,7 @@ export async function POST(request: NextRequest) {
         if (merchantOrderId) {
           const { data: orderById } = await supabaseServer
             .from('orders')
-            .select('id, student_id, subject_id, amount, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+            .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref')
             .eq('id', merchantOrderId)
             .maybeSingle();
 
@@ -527,7 +550,9 @@ async function activateOrder(
     {
       p_order_id: o.id,
       p_provider_payment_id: perOrderPaymentId,
-      p_amount: Number(o.amount),
+      // v110: pass grand_total (NOT amount) — the RPC checks against
+      // v_order.grand_total for post-v88 orders.
+      p_amount: Number(o.grand_total ?? o.amount),
       p_currency: o.currency,
       p_status: 'paid',
       p_raw_payload: {
@@ -541,7 +566,15 @@ async function activateOrder(
     },
   );
 
-  if (rpcErr) {
+  // v110: trigger the direct-enrollment fallback when EITHER:
+  //   - rpcErr is set (POSTGREST-level error)
+  //   - rpcResult.success === false (RPC returned an internal failure
+  //     such as 'amount_mismatch' — previously this left the order
+  //     pending + student unenrolled even after a real Paymob payment)
+  const rpcResultObjHelper = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean; already_processed?: boolean }) ?? {};
+  const rpcFailedSoftHelper = !rpcErr && rpcResultObjHelper.success === false;
+
+  if (rpcErr || rpcFailedSoftHelper) {
     // Fallback: direct enrollment + payments + financial_ledger
     // (matches Strategy 0 fallback — creates ALL financial records)
     const now = new Date().toISOString();
