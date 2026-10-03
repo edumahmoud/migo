@@ -155,14 +155,18 @@ export function categorizePaymentError(
       // Including this in the user-facing message helps the student
       // (and support) know WHICH step failed — useful for debugging
       // without needing server logs.
-      const stepMatch = e.message.match(/— (auth token|create order|payment key|get transaction)/);
+      // v110: added 'create intention' for the Intention API path (the
+      // primary path when publicKey is set). Without this, the user sees
+      // a generic error without the step label, making diagnosis harder.
+      const stepMatch = e.message.match(/— (auth token|create order|create intention|payment key|get transaction)/);
       const stepAr: string | null = stepMatch
         ? {
             'auth token': 'المصادقة',
             'create order': 'إنشاء الطلب',
+            'create intention': 'تجهيز نية الدفع',
             'payment key': 'تجهيز مفتاح الدفع',
             'get transaction': 'التحقق من المعاملة',
-          }[stepMatch[1] as 'auth token' | 'create order' | 'payment key' | 'get transaction']
+          }[stepMatch[1] as 'auth token' | 'create order' | 'create intention' | 'payment key' | 'get transaction']
         : null;
 
       if (e.message.includes('Failed to connect to Paymob API')) {

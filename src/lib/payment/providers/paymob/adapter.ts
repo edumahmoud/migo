@@ -276,11 +276,7 @@ export class PaymobAdapter implements PaymentGateway {
         items: [
           {
             name: input.description || 'Course Subscription',
-            // v110: MUST be `amount_cents` (not `amount`) — Paymob strictly
-            // validates the items schema and rejects with HTTP 400 when the
-            // field name is wrong. This was the bug causing
-            // "تعذّر تجهيز عملية الدفع (خطأ 400 من بوابة الدفع)".
-            amount_cents: amountCents,
+            amount: amountCents,
             quantity: 1,
           },
         ],
