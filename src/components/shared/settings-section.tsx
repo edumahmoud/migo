@@ -207,7 +207,7 @@ export default function SettingsSection({
       const res = await fetch('/api/auth/initiate-telegram-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ phone: phone.trim() }),
+        body: JSON.stringify({ phone: phone.trim(), mode: 'phone_change' }),
       });
       const json = await res.json();
       if (json.success) {
@@ -228,7 +228,7 @@ export default function SettingsSection({
       const res = await fetch('/api/auth/update-phone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ phone: phone.trim(), code: phoneOtp.trim() }),
+        body: JSON.stringify({ phone: phone.trim(), code: phoneOtp.trim(), mode: 'phone_change' }),
       });
       const json = await res.json();
       if (json.success) {

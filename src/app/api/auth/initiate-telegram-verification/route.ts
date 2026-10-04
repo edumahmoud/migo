@@ -84,7 +84,10 @@ export async function POST(request: NextRequest) {
   const p = profile as { id: string; phone: string | null; account_status: string; phone_verified: boolean };
 
   // 2. Resilient OTP gate
-  const needsOtp =
+  // v110: Allow phone change for ACTIVE users (from settings page).
+  // When mode='phone_change', bypass the account_status check.
+  const isPhoneChange = (body as { mode?: string }).mode === 'phone_change';
+  const needsOtp = isPhoneChange ||
     p.account_status === 'pending_verification' ||
     (p.account_status === 'pending' && !!p.phone && p.phone_verified === false);
 

@@ -64,29 +64,40 @@ export async function POST(request: NextRequest) {
 
   const p = profile as { id: string; account_status: string; phone: string | null; phone_verified: boolean };
 
-  // Guard: only pending students can update their phone
-  if (p.phone_verified === true) {
-    return NextResponse.json(
-      { success: false, error: 'لا يمكن تغيير رقم هاتف متحقق منه. تواصل مع الدعم.' },
-      { status: 400 }
-    );
-  }
-  if (p.account_status !== 'pending' && p.account_status !== 'pending_verification') {
-    return NextResponse.json(
-      { success: false, error: `حالة الحساب (${p.account_status}) لا تسمح بتحديث الرقم` },
-      { status: 400 }
-    );
+  // v110: Allow phone change for ACTIVE users (from settings page).
+  // When mode='phone_change', bypass the account_status + phone_verified checks.
+  const isPhoneChange = (body as { mode?: string }).mode === 'phone_change';
+
+  // Guard: only pending students can update their phone (UNLESS mode=phone_change)
+  if (!isPhoneChange) {
+    if (p.phone_verified === true) {
+      return NextResponse.json(
+        { success: false, error: 'لا يمكن تغيير رقم هاتف متحقق منه. تواصل مع الدعم.' },
+        { status: 400 }
+      );
+    }
+    if (p.account_status !== 'pending' && p.account_status !== 'pending_verification') {
+      return NextResponse.json(
+        { success: false, error: `حالة الحساب (${p.account_status}) لا تسمح بتحديث الرقم` },
+        { status: 400 }
+      );
+    }
   }
 
-  // Update the phone + bump account_status to 'pending_verification'
-  // (in case it was 'pending' from a partial v73 apply).
+  // Update the phone.
+  // v110: For phone_change mode, DON'T change account_status (keep it 'active').
+  // For registration flow, bump to 'pending_verification'.
+  const updatePayload: Record<string, unknown> = {
+    phone: normalizedPhone,
+    updated_at: new Date().toISOString(),
+  };
+  if (!isPhoneChange) {
+    updatePayload.account_status = 'pending_verification';
+  }
+
   const { data: updated, error: updateErr } = await supabaseServer
     .from('users')
-    .update({
-      phone: normalizedPhone,
-      account_status: 'pending_verification',
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq('id', auth.user.id)
     .select('id, account_status, phone, phone_verified')
     .maybeSingle();
