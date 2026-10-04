@@ -605,9 +605,9 @@ export async function POST(request: NextRequest) {
   // This matches the same logic as the Vercel Cron reconciliation endpoint
   // (/api/cron/reconcile-pending-orders) — just triggered by the student's
   // own request instead of a cron schedule.
-  console.info('[verify-after-redirect:debug] Strategy 2: time-based fallback — checking for pending orders > 2 minutes old');
+  console.info('[verify-after-redirect:debug] Strategy 2: time-based fallback — checking for pending orders > 30 seconds old');
 
-  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const twoMinutesAgo = new Date(Date.now() - 30 * 1000).toISOString();
   const { data: oldPendingOrders, error: oldPendingErr } = await supabaseServer
     .from('orders')
     .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref, created_at')

@@ -128,6 +128,41 @@ export default function StudentActivationPage() {
   // Initial load only — no polling.
   useEffect(() => { load(); }, [load]);
 
+  // v110: Auto-call verify-after-redirect when the page loads and there are
+  // pending orders with a provider_order_ref (payment was initiated on Paymob).
+  // This triggers the time-based fallback (Strategy 2) which activates orders
+  // that are > 2 minutes old — even if the student didn't return via
+  // ?payment_callback=success redirect.
+  useEffect(() => {
+    if (!studentId || loading) return;
+    // Check if there are any pending orders with a provider_order_ref
+    const pendingWithRef = data?.recent_orders?.filter(
+      (o: any) => o.status === 'pending' && o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_')
+    );
+    if (pendingWithRef && pendingWithRef.length > 0) {
+      console.info('[activation-page] found pending orders with provider_order_ref — calling verify-after-redirect');
+      (async () => {
+        try {
+          const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+          const headers = await getCachedAuthHeaders();
+          const res = await fetch('/api/student/orders/verify-after-redirect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...headers },
+            body: JSON.stringify({}),
+          });
+          const json = await res.json();
+          if (json.success) {
+            console.info('[activation-page] verify-after-redirect activated orders:', json.activated_orders || json.order_ids);
+            // Reload to show the activated state
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error('[activation-page] auto verify-after-redirect failed:', err);
+        }
+      })();
+    }
+  }, [studentId, loading, data, load]);
+
   // ─── Realtime subscriptions (replaces polling) ───
   // Fires ONLY when actual DB changes happen — no interval, no page refresh.
   // Uses silentReload (no full-page spinner) so the update is instant.
