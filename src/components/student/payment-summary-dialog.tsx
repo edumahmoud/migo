@@ -468,30 +468,38 @@ export function PaymentSummaryDialog({
             </div>
           </div>
 
-          {/* v88 — Payment details (always show in single-order mode) */}
-          {!isMultiMode && (
-            <div className="space-y-1 text-xs border-t border-b border-sky-200 dark:border-sky-900/40 py-2 my-2 bg-sky-50/50 dark:bg-sky-900/10 rounded-md px-3">
-              <div className="flex justify-between text-muted-foreground">
-                <span>إجمالي الاشتراكات</span>
-                <span className="font-mono">{baseSubtotal.toFixed(2)} {currency}</span>
-              </div>
-              {feesBreakdown.map((fee, i) => (
+          {/* v110 — Payment details breakdown (show in BOTH single and multi mode) */}
+          <div className="space-y-1 text-xs border-t border-b border-sky-200 dark:border-sky-900/40 py-2 my-2 bg-sky-50/50 dark:bg-sky-900/10 rounded-md px-3">
+            {/* Base subscription price */}
+            <div className="flex justify-between font-medium text-foreground">
+              <span>السعر الأساسي للاشتراك</span>
+              <span className="font-mono">{baseSubtotal.toFixed(2)} {currency}</span>
+            </div>
+            {/* Fees breakdown (tax, VAT, platform commission, etc.) */}
+            {feesBreakdown.length > 0 ? (
+              feesBreakdown.map((fee, i) => (
                 <div key={i} className="flex justify-between text-muted-foreground">
                   <span>
                     {fee.name_ar}{' '}
                     <span className="text-[10px] text-muted-foreground/70">
-                      ({fee.fee_kind === 'percentage' ? `${fee.value}%` : `${fee.value} EGP`})
+                      ({fee.fee_kind === 'percentage' ? `${fee.value}%` : `${fee.value} ${currency}`})
                     </span>
                   </span>
                   <span className="font-mono">+{fee.calculated_amount.toFixed(2)} {currency}</span>
                 </div>
-              ))}
-              <div className="border-t border-sky-200 dark:border-sky-900/40 pt-1 mt-1 flex justify-between font-semibold text-teal-800 dark:text-teal-200">
-                <span>المجموع الكلي (يُرسل لبوابة الدفع)</span>
-                <span className="font-mono">{grandTotal.toFixed(2)} {currency}</span>
+              ))
+            ) : (
+              <div className="flex justify-between text-muted-foreground/60">
+                <span>لا توجد رسوم إضافية</span>
+                <span className="font-mono">+0.00 {currency}</span>
               </div>
+            )}
+            {/* Grand total */}
+            <div className="border-t border-sky-200 dark:border-sky-900/40 pt-1 mt-1 flex justify-between font-semibold text-teal-800 dark:text-teal-200">
+              <span>المجموع الكلي (يُرسل لبوابة الدفع)</span>
+              <span className="font-mono">{grandTotal.toFixed(2)} {currency}</span>
             </div>
-          )}
+          </div>
 
           {/* Total — prominent */}
           <div className="flex items-center justify-between bg-teal-50 dark:bg-teal-900/15 rounded-md p-3 border border-teal-200 dark:border-teal-900/40">
