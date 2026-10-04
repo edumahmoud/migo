@@ -212,7 +212,13 @@ export default function SettingsSection({
       const json = await res.json();
       if (json.success) {
         setPhoneVerifyStep('otp');
-        toast.success(json.message || 'تم إرسال رمز التحقق عبر تليجرام');
+        // v110: if a deep_link is returned, open it automatically (redirect to Telegram bot)
+        if (json.deep_link) {
+          window.open(json.deep_link, '_blank');
+          toast.success('تم فتح تليجرام — ستصلك رسالة برمز التحقق. أدخل الرمز أدناه.');
+        } else {
+          toast.success(json.message || 'تم إرسال رمز التحقق عبر تليجرام');
+        }
       } else {
         toast.error(json.error || 'فشل إرسال رمز التحقق');
       }
@@ -1054,7 +1060,7 @@ export default function SettingsSection({
                   )}
                   {isVerifyingPhone
                     ? 'جاري التحقق...'
-                    : 'تحديث رقم الهاتف عبر تليجرام'}
+                    : 'تحديث الرقم — تحويل تلقائي لتليجرام'}
                 </Button>
                 {phoneVerifyStep === 'otp' && (
                   <div className="space-y-1.5 mt-1.5">
