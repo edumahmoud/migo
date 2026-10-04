@@ -74,6 +74,12 @@ interface SummaryMeta {
   total_gateway_fees: string;
   net_platform_revenue: string;
   transaction_count: number;
+  // v110: new fields (matching teacher dashboard)
+  unique_students: number;
+  active_subscriptions: number;
+  successful_count: number;
+  avg_student_revenue: string;
+  avg_transaction_value: string;
 }
 
 interface StatusBreakdown {
@@ -247,12 +253,20 @@ export async function GET(request: NextRequest) {
     : (rpcResult as Record<string, unknown>) ?? {};
 
   const summary: SummaryMeta = {
-    total_gross: String(Number(summaryObj.total_gross ?? 0).toFixed(2)),
+    // v110: total_gross now uses subscription_total (base price × count, no fees)
+    // — matches the teacher dashboard. Falls back to gross_amount for pre-v88 rows.
+    total_gross: String(Number(summaryObj.total_subscription_total ?? summaryObj.total_gross ?? 0).toFixed(2)),
     total_platform_share: String(Number(summaryObj.total_platform_share ?? 0).toFixed(2)),
     total_teacher_share: String(Number(summaryObj.total_teacher_share ?? 0).toFixed(2)),
     total_gateway_fees: String(Number(summaryObj.total_gateway_fees ?? 0).toFixed(2)),
     net_platform_revenue: String(Number(summaryObj.net_platform_revenue ?? 0).toFixed(2)),
     transaction_count: Number(summaryObj.transaction_count ?? 0),
+    // v110: new fields (computed below via additional queries)
+    unique_students: 0,
+    active_subscriptions: 0,
+    successful_count: 0,
+    avg_student_revenue: '0',
+    avg_transaction_value: '0',
   };
 
   const status_breakdown: StatusBreakdown = {
@@ -263,6 +277,47 @@ export async function GET(request: NextRequest) {
     pending: Number(summaryObj.pending_count ?? 0),
     failed: Number(summaryObj.failed_count ?? 0),
   };
+
+  // v110: Compute new fields via additional queries
+  // 1. unique_students + subscription_total from ledger rows
+  let ledgerExtraQuery = supabaseServer
+    .from('financial_ledger')
+    .select('student_id, subscription_total, gross_amount');
+  ledgerExtraQuery = applyFilters(ledgerExtraQuery) as typeof ledgerExtraQuery;
+  const { data: ledgerExtra, error: ledgerExtraErr } = await ledgerExtraQuery;
+  if (!ledgerExtraErr && ledgerExtra) {
+    const rows = ledgerExtra as Array<{ student_id: string; subscription_total: number | null; gross_amount: number | null }>;
+    // unique students
+    const studentSet = new Set(rows.map((r) => r.student_id).filter(Boolean));
+    summary.unique_students = studentSet.size;
+    // sum subscription_total (fall back to gross_amount for pre-v88)
+    const subTotal = rows.reduce((acc, r) => acc + Number(r.subscription_total ?? r.gross_amount ?? 0), 0);
+    summary.total_gross = subTotal.toFixed(2);
+  }
+
+  // 2. active_subscriptions — count ALL approved subject_students (platform-wide)
+  try {
+    const { count: activeCount, error: activeErr } = await supabaseServer
+      .from('subject_students')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .or('current_period_end.is.null,current_period_end.gt.' + new Date().toISOString());
+    if (!activeErr && activeCount !== null) {
+      summary.active_subscriptions = activeCount;
+    }
+  } catch (activeErr) {
+    console.warn('[admin/financial-ledger] active subscriptions count failed:', activeErr);
+  }
+
+  // 3. successful_count + averages
+  summary.successful_count = status_breakdown.paid + status_breakdown.settled;
+  const platformShareNum = Number(summary.total_platform_share);
+  summary.avg_student_revenue = summary.unique_students > 0
+    ? (platformShareNum / summary.unique_students).toFixed(2)
+    : '0';
+  summary.avg_transaction_value = summary.successful_count > 0
+    ? (platformShareNum / summary.successful_count).toFixed(2)
+    : '0';
 
   // ─── 2. Total count for pagination (separate query, head-only) ───
   let countQuery = supabaseServer

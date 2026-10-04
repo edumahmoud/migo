@@ -47,6 +47,7 @@ import {
   ChevronRight,
   RotateCcw,
   FileDown,
+  Calculator,
 } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -110,6 +111,12 @@ interface Summary {
   total_gateway_fees: string;
   net_platform_revenue: string;
   transaction_count: number;
+  // v110: new fields (matching teacher dashboard)
+  unique_students: number;
+  active_subscriptions: number;
+  successful_count: number;
+  avg_student_revenue: string;
+  avg_transaction_value: string;
 }
 
 interface StatusBreakdown {
@@ -478,20 +485,14 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
         <p className="text-sm text-muted-foreground mt-1">{t('adminFinancial.subtitle')}</p>
       </div>
 
-      {/* ─── Summary Cards (6) ─── */}
+      {/* ─── v110: Summary Cards (7) — matches teacher dashboard pattern ─── */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryCard
             icon={<TrendingUp className="h-5 w-5" />}
             label={t('adminFinancial.summary.totalGross')}
             value={formatAmount(summary.total_gross)}
             color="bg-gradient-to-br from-sky-500 to-sky-700 text-white"
-          />
-          <SummaryCard
-            icon={<DollarSign className="h-5 w-5" />}
-            label={t('adminFinancial.summary.teacherShare')}
-            value={formatAmount(summary.total_teacher_share)}
-            color="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"
           />
           <SummaryCard
             icon={<Banknote className="h-5 w-5" />}
@@ -500,16 +501,34 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             color="bg-gradient-to-br from-violet-500 to-violet-600 text-white"
           />
           <SummaryCard
-            icon={<DollarSign className="h-5 w-5" />}
-            label={t('adminFinancial.summary.netPlatformRevenue')}
-            value={formatAmount(summary.net_platform_revenue)}
-            color="bg-gradient-to-br from-teal-500 to-teal-600 text-white"
-          />
-          <SummaryCard
             icon={<Receipt className="h-5 w-5" />}
             label={t('adminFinancial.summary.transactionCount')}
             value={String(summary.transaction_count)}
             color="bg-gradient-to-br from-rose-400 to-rose-500 text-white"
+          />
+          <SummaryCard
+            icon={<Users className="h-5 w-5" />}
+            label={t('adminFinancial.summary.activeSubscriptions')}
+            value={String(summary.active_subscriptions)}
+            color="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white"
+          />
+          <SummaryCard
+            icon={<Users className="h-5 w-5" />}
+            label={t('adminFinancial.summary.uniqueStudents')}
+            value={String(summary.unique_students)}
+            color="bg-gradient-to-br from-purple-500 to-purple-600 text-white"
+          />
+          <SummaryCard
+            icon={<Calculator className="h-5 w-5" />}
+            label={t('adminFinancial.summary.avgStudentRevenue')}
+            value={formatAmount(summary.avg_student_revenue)}
+            color="bg-gradient-to-br from-teal-500 to-teal-600 text-white"
+          />
+          <SummaryCard
+            icon={<Calculator className="h-5 w-5" />}
+            label={t('adminFinancial.summary.avgTransactionValue')}
+            value={formatAmount(summary.avg_transaction_value)}
+            color="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"
           />
         </div>
       )}

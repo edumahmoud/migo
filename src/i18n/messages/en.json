@@ -2847,7 +2847,11 @@
       "platformShare": "Platform Share",
       "gatewayFees": "Gateway Fees",
       "netPlatformRevenue": "Net Platform Revenue",
-      "transactionCount": "Transactions"
+      "transactionCount": "Transactions",
+      "activeSubscriptions": "Active Subscriptions",
+      "uniqueStudents": "Students",
+      "avgStudentRevenue": "Avg Student Revenue",
+      "avgTransactionValue": "Avg Transaction Value"
     },
     "statusBreakdown": {
       "title": "Status Breakdown"

@@ -2848,7 +2848,11 @@
       "platformShare": "حصة المنصة",
       "gatewayFees": "رسوم البوابات",
       "netPlatformRevenue": "صافي إيراد المنصة",
-      "transactionCount": "عدد المعاملات"
+      "transactionCount": "عدد العمليات",
+      "activeSubscriptions": "الاشتراكات النشطة",
+      "uniqueStudents": "عدد الطلاب",
+      "avgStudentRevenue": "متوسط دخل الطالب",
+      "avgTransactionValue": "متوسط قيمة العملية"
     },
     "statusBreakdown": {
       "title": "تفصيل الحالات"
