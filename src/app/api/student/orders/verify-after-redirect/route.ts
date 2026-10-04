@@ -676,8 +676,9 @@ export async function POST(request: NextRequest) {
             .eq('id', ord.student_id)
             .in('account_status', ['pending', 'pending_verification', null]);
 
-          // 3. INSERT payment (best effort)
-          await supabaseServer
+          // 3. INSERT payment (best effort) — might fail if UNIQUE constraint
+          // on provider_payment_id or order_id (if webhook already created one)
+          const { error: payInsertErr } = await supabaseServer
             .from('payments')
             .insert({
               order_id: ord.id,
@@ -688,18 +689,37 @@ export async function POST(request: NextRequest) {
               raw_payload: {
                 time_based_fallback: true,
                 strategy: 'time_based_fallback',
-                reason: 'Auto-activated after 2min cooling-off (Paymob API + HMAC both failed)',
+                reason: 'Auto-activated after 30s cooling-off (Paymob API + HMAC both failed)',
                 provider_order_ref: ord.provider_order_ref,
               },
               confirmed_by: null,
-            })
-            .then(({ error }) => {
-              if (error) {
-                console.warn('[verify-after-redirect:debug] Strategy 2: payments insert failed (non-critical)', error.message);
-              }
             });
+          if (payInsertErr) {
+            console.warn('[verify-after-redirect:debug] Strategy 2: payments insert failed (will try to find existing)', payInsertErr.message);
+          }
 
-          // 4. INSERT financial_ledger (best effort)
+          // 4. Get payment_id — try by provider_payment_id first, then by order_id
+          let paymentId: string | undefined;
+          // Try by our provider_payment_id
+          const { data: paymentByPpid } = await supabaseServer
+            .from('payments')
+            .select('id')
+            .eq('provider_payment_id', fallbackPaymentId)
+            .maybeSingle();
+          paymentId = (paymentByPpid as { id: string } | null)?.id;
+          // If not found, try by order_id (maybe webhook/RPC already created a payment)
+          if (!paymentId) {
+            const { data: paymentByOrder } = await supabaseServer
+              .from('payments')
+              .select('id')
+              .eq('order_id', ord.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            paymentId = (paymentByOrder as { id: string } | null)?.id;
+          }
+
+          // 5. INSERT financial_ledger (CRITICAL — without this, teacher/admin revenue shows 0)
           const { data: subjectRow } = await supabaseServer
             .from('subjects')
             .select('teacher_id')
@@ -717,18 +737,19 @@ export async function POST(request: NextRequest) {
           const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
 
           const grossAmount = Number(ord.grand_total ?? ord.amount);
-          const platformShare = Math.round(grossAmount * commissionRate) / 100;
-          const teacherShare = grossAmount - platformShare;
+          const subTotal = Number(ord.base_amount ?? ord.amount);
+          const platformShare = Math.round(subTotal * commissionRate) / 100;
+          const teacherShare = subTotal - platformShare;
 
-          const { data: paymentRow2 } = await supabaseServer
-            .from('payments')
+          // Check if financial_ledger row already exists (idempotency)
+          const { data: existingLedger } = await supabaseServer
+            .from('financial_ledger')
             .select('id')
-            .eq('provider_payment_id', fallbackPaymentId)
+            .eq('order_id', ord.id)
             .maybeSingle();
-          const paymentId = (paymentRow2 as { id: string } | null)?.id;
 
-          if (paymentId) {
-            await supabaseServer
+          if (!existingLedger && paymentId) {
+            const { error: ledgerErr } = await supabaseServer
               .from('financial_ledger')
               .insert({
                 payment_id: paymentId,
@@ -740,18 +761,34 @@ export async function POST(request: NextRequest) {
                 provider_payment_id: fallbackPaymentId,
                 currency: ord.currency,
                 gross_amount: grossAmount,
+                subscription_total: subTotal,
                 platform_share: platformShare,
                 teacher_share: teacherShare,
                 gateway_fee: 0,
                 net_amount: teacherShare,
                 commission_rate: commissionRate,
                 status: 'paid',
-              })
-              .then(({ error }) => {
-                if (error) {
-                  console.warn('[verify-after-redirect:debug] Strategy 2: financial_ledger insert failed (non-critical)', error.message);
-                }
               });
+            if (ledgerErr) {
+              console.error('[verify-after-redirect:debug] Strategy 2: financial_ledger insert FAILED — teacher revenue will show 0 for this order', {
+                orderId: ord.id,
+                error: ledgerErr.message,
+              });
+            } else {
+              console.info('[verify-after-redirect:debug] Strategy 2: financial_ledger row created ✓', {
+                orderId: ord.id,
+                teacherId,
+                teacherShare,
+                grossAmount,
+              });
+            }
+          } else if (existingLedger) {
+            console.info('[verify-after-redirect:debug] Strategy 2: financial_ledger row already exists — skipping insert');
+          } else if (!paymentId) {
+            console.error('[verify-after-redirect:debug] Strategy 2: NO payment_id — cannot create financial_ledger row!', {
+              orderId: ord.id,
+              fallbackPaymentId,
+            });
           }
 
           results.push({ order_id: ord.id, success: true });
