@@ -632,12 +632,56 @@ export async function POST(request: NextRequest) {
         count: oldOrders.length,
       });
 
-      // Activate each old pending order via direct enrollment
+      // Activate each old pending order — try RPC FIRST (creates financial_ledger atomically),
+      // then fall back to direct enrollment if RPC fails.
       const results: Array<{ order_id: string; success: boolean; error?: string }> = [];
       for (const ord of oldOrders) {
         try {
           const now = new Date().toISOString();
           const fallbackPaymentId = `timefallback_${ord.id}`;
+
+          // v110: Try the RPC FIRST — it creates subject_students + orders + payments +
+          // financial_ledger ALL in one atomic transaction. If it succeeds, we're done.
+          const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
+            'activate_subscription_after_payment',
+            {
+              p_order_id: ord.id,
+              p_provider_payment_id: fallbackPaymentId,
+              p_amount: Number(ord.grand_total ?? ord.amount),
+              p_currency: ord.currency,
+              p_status: 'paid',
+              p_raw_payload: {
+                time_based_fallback: true,
+                strategy: 'time_based_rpc',
+                reason: 'Auto-activated via RPC after 30s cooling-off',
+                provider_order_ref: ord.provider_order_ref,
+              },
+              p_confirmed_by: null,
+            },
+          );
+
+          const rpcResultObj = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
+          const rpcSucceeded = !rpcErr && rpcResultObj.success !== false;
+
+          if (rpcSucceeded) {
+            // RPC created everything (enrollment + payment + financial_ledger) ✓
+            results.push({ order_id: ord.id, success: true });
+            logPaymentEvent({
+              level: 'info',
+              operation: 'verifyPayment',
+              provider: 'paymob',
+              orderId: ord.id,
+              success: true,
+              message: 'Activated via RPC (time-based fallback) — financial_ledger created ✓',
+            });
+            continue; // Skip the direct enrollment — RPC already did everything
+          }
+
+          // RPC failed (e.g., amount_mismatch) → fall back to direct enrollment
+          console.warn('[verify-after-redirect:debug] Strategy 2: RPC failed, doing direct enrollment', {
+            orderId: ord.id,
+            rpcError: rpcErr?.message || rpcResultObj.error,
+          });
 
           // 1. UPSERT subject_students (enrollment)
           const { error: enrollErr } = await supabaseServer
