@@ -57,8 +57,10 @@ export async function POST(request: NextRequest) {
 
   // Parse optional body (phone for update)
   let bodyPhone: string | undefined;
+  let rawMode: string | undefined;
   try {
-    const raw = await request.json();
+    const raw = await request.json() as Record<string, unknown>;
+    rawMode = raw?.mode as string | undefined;
     const parsed = BodySchema.safeParse(raw);
     if (parsed.success && parsed.data?.phone) {
       bodyPhone = parsed.data.phone;
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
   // 2. Resilient OTP gate
   // v110: Allow phone change for ACTIVE users (from settings page).
   // When mode='phone_change', bypass the account_status check.
-  const isPhoneChange = (body as { mode?: string }).mode === 'phone_change';
+  const isPhoneChange = rawMode === 'phone_change';
   const needsOtp = isPhoneChange ||
     p.account_status === 'pending_verification' ||
     (p.account_status === 'pending' && !!p.phone && p.phone_verified === false);
