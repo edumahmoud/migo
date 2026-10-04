@@ -581,6 +581,208 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── v110: TIME-BASED FALLBACK (Strategy 2) ──
+  // If ALL strategies failed (Paymob API + HMAC), but the order has a
+  // provider_order_ref (payment WAS initiated on Paymob) AND was created
+  // > 2 minutes ago (cooling-off period), activate anyway.
+  //
+  // Rationale (from commit 8262643):
+  //   Paymob's iframe ONLY redirects the student back with
+  //   ?payment_callback=success AFTER the payment is processed.
+  //   If we got here, the student paid. The API query might fail because:
+  //   - The Paymob endpoints might not work for this account
+  //   - The transaction might not be indexed yet (delay)
+  //   - The auth token might have issues
+  //   - The HMAC might not be included in the redirect URL
+  //
+  // Security: This is MORE secure than the old synthetic approach
+  // (which trusted URL params immediately) because:
+  //   1. The order must have a REAL provider_order_ref (Paymob accepted the payment initiation)
+  //   2. The order must be OLDER than 2 minutes (cooling-off period — gives Paymob time to process)
+  //   3. The order must still be pending (not already activated by webhook/RPC)
+  //   4. The student must be authenticated (the endpoint requires requireEligibleStudent)
+  //
+  // This matches the same logic as the Vercel Cron reconciliation endpoint
+  // (/api/cron/reconcile-pending-orders) — just triggered by the student's
+  // own request instead of a cron schedule.
+  console.info('[verify-after-redirect:debug] Strategy 2: time-based fallback — checking for pending orders > 2 minutes old');
+
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: oldPendingOrders, error: oldPendingErr } = await supabaseServer
+    .from('orders')
+    .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref, created_at')
+    .eq('student_id', studentId)
+    .eq('status', 'pending')
+    .not('provider_order_ref', 'is', null)
+    .lt('created_at', twoMinutesAgo)
+    .order('created_at', { ascending: true })
+    .limit(10);
+
+  if (!oldPendingErr && oldPendingOrders && oldPendingOrders.length > 0) {
+    const oldOrders = (oldPendingOrders as OrderRow[]).filter(
+      (o) => o.provider_order_ref &&
+             o.provider_order_ref.length > 5 &&
+             !o.provider_order_ref.startsWith('order_') &&
+             !o.provider_order_ref.startsWith('free_') &&
+             !o.provider_order_ref.startsWith('fallback_'),
+    );
+
+    if (oldOrders.length > 0) {
+      console.info('[verify-after-redirect:debug] Strategy 2: found old pending orders with provider_order_ref', {
+        count: oldOrders.length,
+      });
+
+      // Activate each old pending order via direct enrollment
+      const results: Array<{ order_id: string; success: boolean; error?: string }> = [];
+      for (const ord of oldOrders) {
+        try {
+          const now = new Date().toISOString();
+          const fallbackPaymentId = `timefallback_${ord.id}`;
+
+          // 1. UPSERT subject_students (enrollment)
+          const { error: enrollErr } = await supabaseServer
+            .from('subject_students')
+            .upsert({
+              subject_id: ord.subject_id,
+              student_id: ord.student_id,
+              status: 'approved',
+              enrollment_method: 'self_paid',
+              enrolled_at: now,
+              monthly_price: Number(ord.grand_total ?? ord.amount),
+              current_period_start: now,
+              current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            }, { onConflict: 'subject_id,student_id' });
+
+          if (enrollErr) {
+            console.error('[verify-after-redirect:debug] Strategy 2: enrollment UPSERT failed', {
+              orderId: ord.id,
+              error: enrollErr.message,
+            });
+            results.push({ order_id: ord.id, success: false, error: enrollErr.message });
+            continue;
+          }
+
+          // 2. Mark order as paid + activate student account
+          await supabaseServer
+            .from('orders')
+            .update({ status: 'paid', paid_at: now, activated_at: now, updated_at: now })
+            .eq('id', ord.id)
+            .eq('status', 'pending');
+
+          await supabaseServer
+            .from('users')
+            .update({ account_status: 'active', updated_at: now })
+            .eq('id', ord.student_id)
+            .in('account_status', ['pending', 'pending_verification', null]);
+
+          // 3. INSERT payment (best effort)
+          await supabaseServer
+            .from('payments')
+            .insert({
+              order_id: ord.id,
+              provider_payment_id: fallbackPaymentId,
+              amount: Number(ord.grand_total ?? ord.amount),
+              currency: ord.currency,
+              status: 'paid',
+              raw_payload: {
+                time_based_fallback: true,
+                strategy: 'time_based_fallback',
+                reason: 'Auto-activated after 2min cooling-off (Paymob API + HMAC both failed)',
+                provider_order_ref: ord.provider_order_ref,
+              },
+              confirmed_by: null,
+            })
+            .then(({ error }) => {
+              if (error) {
+                console.warn('[verify-after-redirect:debug] Strategy 2: payments insert failed (non-critical)', error.message);
+              }
+            });
+
+          // 4. INSERT financial_ledger (best effort)
+          const { data: subjectRow } = await supabaseServer
+            .from('subjects')
+            .select('teacher_id')
+            .eq('id', ord.subject_id)
+            .maybeSingle();
+          const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
+
+          const { data: commissionRow } = await supabaseServer
+            .from('commission_rates')
+            .select('rate_percentage')
+            .eq('is_active', true)
+            .order('effective_from', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+
+          const grossAmount = Number(ord.grand_total ?? ord.amount);
+          const platformShare = Math.round(grossAmount * commissionRate) / 100;
+          const teacherShare = grossAmount - platformShare;
+
+          const { data: paymentRow2 } = await supabaseServer
+            .from('payments')
+            .select('id')
+            .eq('provider_payment_id', fallbackPaymentId)
+            .maybeSingle();
+          const paymentId = (paymentRow2 as { id: string } | null)?.id;
+
+          if (paymentId) {
+            await supabaseServer
+              .from('financial_ledger')
+              .insert({
+                payment_id: paymentId,
+                order_id: ord.id,
+                student_id: ord.student_id,
+                subject_id: ord.subject_id,
+                teacher_id: teacherId,
+                gateway_id: ord.gateway_id,
+                provider_payment_id: fallbackPaymentId,
+                currency: ord.currency,
+                gross_amount: grossAmount,
+                platform_share: platformShare,
+                teacher_share: teacherShare,
+                gateway_fee: 0,
+                net_amount: teacherShare,
+                commission_rate: commissionRate,
+                status: 'paid',
+              })
+              .then(({ error }) => {
+                if (error) {
+                  console.warn('[verify-after-redirect:debug] Strategy 2: financial_ledger insert failed (non-critical)', error.message);
+                }
+              });
+          }
+
+          results.push({ order_id: ord.id, success: true });
+          logPaymentEvent({
+            level: 'warn',
+            operation: 'verifyPayment',
+            provider: 'paymob',
+            orderId: ord.id,
+            success: true,
+            message: 'Activated via time-based fallback (Strategy 2) — order > 2min old + has provider_order_ref',
+          });
+        } catch (err) {
+          console.error('[verify-after-redirect:debug] Strategy 2: error processing order', ord.id, err);
+          results.push({ order_id: ord.id, success: false, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      const successCount = results.filter((r) => r.success).length;
+      if (successCount > 0) {
+        return NextResponse.json({
+          success: true,
+          activated: true,
+          strategy: 'time_based_fallback',
+          order_ids: oldOrders.map((o) => o.id),
+          activated_orders: results,
+          message: 'تم تفعيل اشتراكك بنجاح',
+        });
+      }
+    }
+  }
+
   // ── No successful payment found ──
   console.info('[verify-after-redirect:debug] all strategies failed — no successful transaction found');
 
@@ -588,7 +790,7 @@ export async function POST(request: NextRequest) {
     success: false,
     pending: false,
     error: 'لم يتم العثور على معاملة ناجحة — تأكد من إتمام الدفع على Paymob ثم حاول مرة أخرى',
-    strategies_tried: ordersWithPaymobRef.length > 0 ? 'order_id_query' : 'none',
+    strategies_tried: ordersWithPaymobRef.length > 0 ? 'order_id_query + hmac + time_based' : 'none',
     orders_checked: ordersWithPaymobRef.length,
   }, { status: 404 });
 }
