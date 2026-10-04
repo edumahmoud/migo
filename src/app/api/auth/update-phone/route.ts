@@ -84,6 +84,26 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // v110: DUPLICATE PHONE CHECK — prevent two users from sharing the same phone number.
+  // If the new phone is ALREADY verified by ANOTHER user, reject.
+  const { data: existingPhoneOwner, error: phoneCheckErr } = await supabaseServer
+    .from('users')
+    .select('id, name')
+    .eq('phone', normalizedPhone)
+    .eq('phone_verified', true)
+    .neq('id', auth.user.id)
+    .maybeSingle();
+
+  if (phoneCheckErr) {
+    console.error('[update-phone] duplicate phone check error:', phoneCheckErr.message);
+  }
+  if (existingPhoneOwner) {
+    return NextResponse.json(
+      { success: false, error: 'هذا الرقم مسجّل ومُتحقَّق منه بالفعل لحساب آخر. استخدم رقماً آخر.' },
+      { status: 409 }
+    );
+  }
+
   // Update the phone.
   // v110: For phone_change mode, DON'T change account_status (keep it 'active').
   // For registration flow, bump to 'pending_verification'.
