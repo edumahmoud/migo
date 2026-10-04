@@ -455,7 +455,6 @@ export default function TeacherFinancialSection() {
                       <TableHead>{t('financial.table.date')}</TableHead>
                       <TableHead>{t('financial.table.student')}</TableHead>
                       <TableHead>{t('financial.table.course')}</TableHead>
-                      <TableHead className="text-end">{t('financial.table.gross')}</TableHead>
                       <TableHead className="text-end">{t('financial.table.teacherShare')}</TableHead>
                       <TableHead>{t('financial.table.status')}</TableHead>
                     </TableRow>
@@ -468,9 +467,6 @@ export default function TeacherFinancialSection() {
                         </TableCell>
                         <TableCell className="font-medium">{tx.student_name}</TableCell>
                         <TableCell className="text-sm">{tx.subject_name}</TableCell>
-                        <TableCell className="text-end font-semibold whitespace-nowrap">
-                          {formatAmount(tx.gross_amount, tx.currency)}
-                        </TableCell>
                         <TableCell className="text-end text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                           {formatAmount(tx.teacher_share, tx.currency)}
                         </TableCell>
@@ -513,7 +509,6 @@ export default function TeacherFinancialSection() {
                       <span>{formatDate(tx.created_at)}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-dashed">
-                      <MobileRow label={t('financial.table.gross')} value={formatAmount(tx.gross_amount, tx.currency)} />
                       <MobileRow label={t('financial.table.teacherShare')} value={formatAmount(tx.teacher_share, tx.currency)} valueClass="text-emerald-700 dark:text-emerald-400" />
                     </div>
                   </motion.div>

@@ -2841,6 +2841,10 @@
     "title": "Financial Dashboard",
     "subtitle": "Platform-wide view of revenue, teacher shares, and gateway fees",
     "loading": "Loading financial data...",
+    "tabs": {
+      "overview": "Overview",
+      "transactions": "Transactions"
+    },
     "summary": {
       "totalGross": "Gross Revenue",
       "teacherShare": "Teacher Share",

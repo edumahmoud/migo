@@ -55,6 +55,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -533,6 +534,16 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
         </div>
       )}
 
+      {/* v110: Tabbed layout — matches teacher dashboard */}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="overview">{t('adminFinancial.tabs.overview')}</TabsTrigger>
+          <TabsTrigger value="transactions">{t('adminFinancial.tabs.transactions')}</TabsTrigger>
+        </TabsList>
+
+        {/* ─── Tab 1: Overview (Status Breakdown + Filters) ─── */}
+        <TabsContent value="overview" className="space-y-6">
+
       {/* ─── Status Breakdown ─── */}
       {statusBreakdown && (
         <Card>
@@ -692,6 +703,10 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* ─── Tab 2: Transactions (سجل العمليات) ─── */}
+        <TabsContent value="transactions" className="space-y-6">
 
       {/* ─── Ledger Table ─── */}
       <Card>
@@ -908,6 +923,8 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
