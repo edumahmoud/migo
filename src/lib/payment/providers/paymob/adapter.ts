@@ -276,16 +276,15 @@ export class PaymobAdapter implements PaymentGateway {
         amount: amountCents,
         currency: input.currency,
         payment_methods: [integrationId],
-        items: [
-          {
-            name: input.description || 'Course Subscription',
-            // v110: Paymob Intention API strictly validates the items schema.
-            // The field MUST be `amount_cents` (NOT `amount`). Using `amount`
-            // caused HTTP 400 "تعذّر تجهيز عملية الدفع في مرحلة تجهيز نية الدفع".
-            amount_cents: amountCents,
-            quantity: 1,
-          },
-        ],
+        // v110: REMOVED items[] entirely — the Intention API's items[] field
+        // is OPTIONAL. The top-level `amount` is sufficient for Paymob to
+        // process the payment. Including items[] was causing HTTP 400
+        // because Paymob strictly validates the items schema (field names,
+        // amount matching, etc.) and the exact field name requirement
+        // varies by account configuration.
+        // By removing items[], we eliminate the entire class of validation
+        // errors related to items[]. The student still sees the course
+        // name + amount in OUR payment dialog (not in Paymob's checkout).
         billing_data: billingData,
         extras: {
           merchant_order_id: input.orderId, // our internal UUID/session_id

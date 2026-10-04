@@ -405,7 +405,11 @@ export async function createIntention(
         amount: body.amount,
         currency: body.currency,
         payment_methods: body.payment_methods,
-        items: body.items ?? [],
+        // v110: only include items[] if it's a non-empty array.
+        // If items[] is empty or undefined, DON'T send it — Paymob's
+        // Intention API treats items[] as optional, and sending an
+        // empty array might trigger schema validation on some accounts.
+        ...(body.items && body.items.length > 0 ? { items: body.items } : {}),
         billing_data: body.billing_data,
         extras: body.extras,
         special_reference: body.special_reference,
