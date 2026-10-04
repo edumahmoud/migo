@@ -85,7 +85,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentCode.trim()) {
-      toast.error('الرجاء إدخال كود الطالب');
+      toast.error('الرجاء إدخال الكود');
       return;
     }
     if (!password.trim()) {
@@ -102,7 +102,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
       });
       const resolveJson = await resolveRes.json();
       if (!resolveJson.success) {
-        toast.error(resolveJson.error || 'كود الطالب غير صحيح');
+        toast.error(resolveJson.error || 'الكود غير صحيح');
         return;
       }
 
@@ -181,7 +181,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 }`}
               >
                 <KeyRound className="h-4 w-4" />
-                بكود الطالب
+                بالكود
               </button>
             </div>
 
@@ -221,7 +221,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   className="space-y-2"
                 >
                   <Label htmlFor="student-code" className="text-gray-700 font-medium text-xs sm:text-sm">
-                    كود الطالب
+                    الكود
                   </Label>
                   <div className="relative">
                     <Input
@@ -240,9 +240,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     />
                     <KeyRound className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    ستجد الكود وكلمة المرور المؤقتة عند من قام بتسجيلك (المعلم أو الوكيل).
-                  </p>
+
                 </motion.div>
               )}
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, User, Mail, Trash2, Loader2, AlertTriangle, Camera, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Settings, User, Mail, Trash2, Loader2, AlertTriangle, Camera, Lock, Eye, EyeOff, CheckCircle2, KeyRound, Phone } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -73,6 +73,77 @@ export default function SettingsModal({
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // v110: Phone number state + Telegram verification flow
+  const [phone, setPhone] = useState(profile.phone || '');
+  const [phoneVerifyStep, setPhoneVerifyStep] = useState<'idle' | 'otp'>('idle');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+
+  useEffect(() => { setPhone(profile.phone || ''); }, [profile.phone]);
+
+  // v110: Initiate Telegram OTP verification for phone number change
+  const handlePhoneUpdate = async () => {
+    if (!phone.trim()) {
+      toast.error('الرجاء إدخال رقم الهاتف');
+      return;
+    }
+    setIsVerifyingPhone(true);
+    try {
+      const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+      const headers = await getCachedAuthHeaders();
+      const res = await fetch('/api/auth/initiate-telegram-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPhoneVerifyStep('otp');
+        toast.success(json.message || 'تم إرسال رمز التحقق عبر تليجرام');
+      } else {
+        toast.error(json.error || 'فشل إرسال رمز التحقق');
+      }
+    } catch (err) {
+      console.error('Phone verification init failed:', err);
+      toast.error('فشل إرسال رمز التحقق');
+    } finally {
+      setIsVerifyingPhone(false);
+    }
+  };
+
+  // v110: Verify the OTP code and update the phone number
+  const handlePhoneOtpVerify = async () => {
+    if (!phoneOtp.trim()) {
+      toast.error('الرجاء إدخال رمز التحقق');
+      return;
+    }
+    setIsVerifyingPhone(true);
+    try {
+      const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+      const headers = await getCachedAuthHeaders();
+      const res = await fetch('/api/auth/update-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ phone: phone.trim(), code: phoneOtp.trim() }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم تحديث رقم الهاتف بنجاح');
+        setPhoneVerifyStep('idle');
+        setPhoneOtp('');
+        // Trigger a profile reload
+        window.location.reload();
+      } else {
+        toast.error(json.error || 'رمز التحقق غير صحيح');
+      }
+    } catch (err) {
+      console.error('Phone OTP verify failed:', err);
+      toast.error('فشل التحقق من الرمز');
+    } finally {
+      setIsVerifyingPhone(false);
+    }
+  };
 
   // Avatar upload state
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -351,6 +422,85 @@ export default function SettingsModal({
                 <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground select-all">{profile.email}</span>
               </div>
+            </div>
+
+            {/* v110: Login Code (read-only) */}
+            <div className="space-y-2">
+              <Label htmlFor="settings-code" className="text-sm text-muted-foreground">
+                {t('loginCode') || 'كود الدخول'}
+              </Label>
+              <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
+                <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="text-sm text-foreground font-mono tracking-widest select-all">
+                  {profile.student_code || '—'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('loginCodeHint') || 'استخدم هذا الكود لتسجيل الدخول بدلاً من البريد الإلكتروني'}
+              </p>
+            </div>
+
+            {/* v110: Phone number (with Telegram verification) */}
+            <div className="space-y-2">
+              <Label htmlFor="settings-phone" className="text-sm text-muted-foreground">
+                {t('phone') || 'رقم الهاتف'}
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="settings-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={t('phonePlaceholder') || '+201234567890'}
+                  className="text-end flex-1"
+                  disabled={isUpdating || isVerifyingPhone}
+                  dir="ltr"
+                />
+                {profile.phone_verified && (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 w-full"
+                onClick={handlePhoneUpdate}
+                disabled={isUpdating || isVerifyingPhone || !phone.trim()}
+              >
+                {isVerifyingPhone ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Phone className="h-4 w-4" />
+                )}
+                {isVerifyingPhone
+                  ? (t('verifyingPhone') || 'جاري التحقق...')
+                  : (t('updatePhone') || 'تحديث رقم الهاتف عبر تليجرام')}
+              </Button>
+              {phoneVerifyStep === 'otp' && (
+                <div className="space-y-2 mt-2">
+                  <Input
+                    type="text"
+                    value={phoneOtp}
+                    onChange={(e) => setPhoneOtp(e.target.value)}
+                    placeholder={t('enterOtp') || 'أدخل رمز التحقق'}
+                    className="text-center font-mono tracking-widest"
+                    disabled={isVerifyingPhone}
+                    maxLength={6}
+                    dir="ltr"
+                  />
+                  <Button
+                    size="sm"
+                    className="gap-2 w-full"
+                    onClick={handlePhoneOtpVerify}
+                    disabled={isVerifyingPhone || !phoneOtp.trim()}
+                  >
+                    {t('verifyOtp') || 'تأكيد الرمز'}
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {t('phoneTelegramHint') || 'سيتم إرسال رمز التحقق عبر تليجرام لتأكيد رقم الهاتف'}
+              </p>
             </div>
 
             {/* Role badge */}

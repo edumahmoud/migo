@@ -46,26 +46,22 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json(
-      { success: false, error: 'تعذّر البحث عن الطالب' },
+      { success: false, error: 'تعذّر البحث عن المستخدم' },
       { status: 500 }
     );
   }
 
   if (!user) {
     return NextResponse.json(
-      { success: false, error: 'لا يوجد طالب بهذا الكود' },
+      { success: false, error: 'لا يوجد مستخدم بهذا الكود' },
       { status: 404 }
     );
   }
 
-  if (user.role !== 'student') {
-    // A 'registration_agent', 'teacher', 'admin', etc. tried to log in by code.
-    // We refuse — code login is for students only.
-    return NextResponse.json(
-      { success: false, error: 'هذا الكود لا يُستخدم لتسجيل دخول الطلاب' },
-      { status: 403 }
-    );
-  }
+  // v110: Code login is now available for ALL account types (student, teacher, admin, agent, etc.)
+  // Previously only students could login with their code. Now any user with a student_code can.
+  // The field name 'student_code' is kept for backward compatibility, but it's used as a
+  // universal login code for all users on the platform.
 
   return NextResponse.json({
     success: true,
