@@ -48,13 +48,17 @@ import {
   RotateCcw,
   FileDown,
   Calculator,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
@@ -72,6 +76,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { FinancialCharts, ChartViewToggle, ChartView } from '@/components/shared/financial-charts';
 import type { UserProfile } from '@/lib/types';
 
 // ─── API response types ───
@@ -206,6 +211,14 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   // edits a filter, we don't fetch until they click Apply OR change
   // pagination.
   const [appliedFilters, setAppliedFilters] = useState(filters);
+
+  // v112: summary view toggle (cards / bar / line)
+  const [summaryView, setSummaryView] = useState<ChartView>('cards');
+
+  // v112: transactions log — search + sort + op code column
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [timeFilter, setTimeFilter] = useState('');  // HH:MM filter
 
   // ─── Data state ───
   const [data, setData] = useState<FinancialResponse | null>(null);
@@ -414,6 +427,46 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
     }
   };
 
+  // v112: format with date + time (HH:MM)
+  const formatDateTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString(isRTL ? 'ar-EG' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  // v112: format JUST the time (HH:MM)
+  const formatTime = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  // v112: operation code — short, monospace, copyable. Distinct from
+  // formatOrderId (which slices the order_id). The op code is derived
+  // from the LEDGER row's UUID (row.id), not the order UUID — that
+  // way one click highlights the row in the financial ledger.
+  const formatOpCode = (uuid: string) => {
+    if (!uuid || uuid.length < 8) return uuid ?? '—';
+    return uuid.slice(0, 8).toUpperCase();
+  };
+
   const formatOrderId = (uuid: string) => {
     // Show first 8 chars for readability. NOT a security feature — admin
     // already has access to the full UUID via the API response if needed.
@@ -426,6 +479,51 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   const pagination = data?.pagination;
   const totalPages = pagination?.total_pages ?? 0;
   const currentPage = pagination?.page ?? 1;
+
+  // v112: client-side search + sort + time filter on the loaded ledger
+  // rows. Server-side filters (date range, teacher, subject, gateway,
+  // status, pagination) are still applied via the API. The client-side
+  // search filters by op code / order / student / teacher / subject.
+  const filteredAndSortedRows = useMemo<LedgerRow[]>(() => {
+    let result: LedgerRow[] = rows;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((row: LedgerRow) => {
+        const opCode = formatOpCode(row.id).toLowerCase();
+        const order = (row.order_id ?? '').toLowerCase();
+        const student = (row.student_name ?? '').toLowerCase();
+        const teacher = (row.teacher_name ?? '').toLowerCase();
+        const subject = (row.subject_name ?? '').toLowerCase();
+        return (
+          opCode.includes(q) ||
+          order.includes(q) ||
+          student.includes(q) ||
+          teacher.includes(q) ||
+          subject.includes(q)
+        );
+      });
+    }
+    // Time-of-day filter (HH:MM substring match)
+    if (timeFilter) {
+      const t = timeFilter.trim();
+      result = result.filter((row: LedgerRow) => {
+        try {
+          const d = new Date(row.created_at);
+          const hhmm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+          return hhmm.startsWith(t);
+        } catch {
+          return false;
+        }
+      });
+    }
+    // Sort by created_at (desc = newest first by default)
+    result = [...result].sort((a: LedgerRow, b: LedgerRow) => {
+      const aT = new Date(a.created_at).getTime() || 0;
+      const bT = new Date(b.created_at).getTime() || 0;
+      return sortDir === 'asc' ? aT - bT : bT - aT;
+    });
+    return result;
+  }, [rows, searchQuery, timeFilter, sortDir]);
 
   // Filtered subject options (when teacher is selected, show only that teacher's subjects)
   const filteredSubjects = useMemo(() => {
@@ -486,8 +584,19 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
         <p className="text-sm text-muted-foreground mt-1">{t('adminFinancial.subtitle')}</p>
       </div>
 
-      {/* ─── v110: Summary Cards (7) — matches teacher dashboard pattern ─── */}
-      {summary && (
+      {/* v112: Summary view toggle (cards / bar / line) — toggle between
+          the existing card layout and two new chart views (daily
+          aggregation of gross_amount + teacher_share + platform_share). */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Receipt className="h-3.5 w-3.5" />
+          {t('adminFinancial.viewToggle.label') || 'طريقة العرض'}
+        </div>
+        <ChartViewToggle view={summaryView} onChange={setSummaryView} />
+      </div>
+
+      {/* ─── Summary Cards (only shown when view = 'cards') ─── */}
+      {summaryView === 'cards' && summary && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryCard
             icon={<TrendingUp className="h-5 w-5" />}
@@ -532,6 +641,36 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             color="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"
           />
         </div>
+      )}
+
+      {/* v112: chart view (when summary view is bar/line) */}
+      {summaryView !== 'cards' && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              {summaryView === 'bar'
+                ? (t('adminFinancial.viewToggle.barChart') || 'رسم الأعمدة')
+                : (t('adminFinancial.viewToggle.lineChart') || 'رسم خطي')}
+            </CardTitle>
+            <CardDescription className="sr-only">
+              {t('adminFinancial.subtitle')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FinancialCharts
+              view={summaryView}
+              transactions={rows.map((r) => ({
+                created_at: r.created_at,
+                teacher_share: r.teacher_share,
+                platform_share: r.platform_share,
+                gross_amount: r.gross_amount,
+                currency: r.currency,
+              }))}
+              currency={t('adminFinancial.currency') || 'EGP'}
+              height={320}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* v110: Tabbed layout — matches teacher dashboard */}
@@ -711,17 +850,72 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
       {/* ─── Ledger Table ─── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base">{t('adminFinancial.table.title')}</CardTitle>
-            {pagination && (
-              <span className="text-xs text-muted-foreground">
-                {t('adminFinancial.pagination.showing', {
-                  from: (currentPage - 1) * pagination.page_size + 1,
-                  to: Math.min(currentPage * pagination.page_size, pagination.total_count),
-                  total: pagination.total_count,
-                })}
-              </span>
-            )}
+          {/* v112: header row with title + filtered count badge */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base">
+                {t('adminFinancial.table.title')}
+                {' '}
+                {/* v112: total transactions count (filtered) in the header */}
+                <Badge
+                  variant="secondary"
+                  className="ms-2 bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
+                >
+                  {t('adminFinancial.table.totalFiltered', { count: filteredAndSortedRows.length })
+                    || `إجمالي العمليات (مصفى): ${filteredAndSortedRows.length}`}
+                </Badge>
+              </CardTitle>
+              {pagination && (
+                <span className="text-xs text-muted-foreground">
+                  {t('adminFinancial.pagination.showing', {
+                    from: (currentPage - 1) * pagination.page_size + 1,
+                    to: Math.min(currentPage * pagination.page_size, pagination.total_count),
+                    total: pagination.total_count,
+                  })}
+                </span>
+              )}
+            </div>
+            {/* v112: Search field + time filter + sort toggle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px] max-w-md">
+                <Search className="absolute top-1/2 -translate-y-1/2 start-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t('adminFinancial.search.placeholder') || 'ابحث بكود العملية أو الطلب أو الطالب...'}
+                  className="h-9 ps-8"
+                  aria-label={t('adminFinancial.search.label') || 'بحث'}
+                />
+              </div>
+              <Input
+                type="time"
+                value={timeFilter}
+                onChange={(e) => setTimeFilter(e.target.value)}
+                className="h-9 w-32"
+                aria-label={t('adminFinancial.table.time') || 'الوقت'}
+                title={t('adminFinancial.table.time') || 'الوقت'}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1"
+                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                title={sortDir === 'asc'
+                  ? (t('adminFinancial.sort.asc') || 'تصاعدي')
+                  : (t('adminFinancial.sort.desc') || 'تنازلي')}
+              >
+                {sortDir === 'asc'
+                  ? <ArrowUp className="h-3.5 w-3.5" />
+                  : <ArrowDown className="h-3.5 w-3.5" />}
+                <ArrowUpDown className="h-3 w-3 opacity-50" />
+                <span className="text-xs">
+                  {sortDir === 'asc'
+                    ? (t('adminFinancial.sort.asc') || 'تصاعدي')
+                    : (t('adminFinancial.sort.desc') || 'تنازلي')}
+                </span>
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -746,13 +940,49 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             </div>
           )}
 
-          {!loading && rows.length > 0 && (
+          {/* v112: empty filtered results state — when rows exist but
+              the search/time filter excluded them all */}
+          {!loading && rows.length > 0 && filteredAndSortedRows.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+              <Search className="h-6 w-6 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">
+                لا توجد نتائج مطابقة للبحث
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => { setSearchQuery(''); setTimeFilter(''); }}
+              >
+                مسح البحث
+              </Button>
+            </div>
+          )}
+
+          {!loading && filteredAndSortedRows.length > 0 && (
             <>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t('adminFinancial.table.date')}</TableHead>
+                      {/* v112: op code column (NEW) */}
+                      <TableHead>{t('adminFinancial.table.opCode') || 'كود العملية'}</TableHead>
+                      {/* v112: date column header with sort toggle */}
+                      <TableHead>
+                        <button
+                          type="button"
+                          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                          className="inline-flex items-center gap-1 hover:text-foreground"
+                          title={sortDir === 'asc'
+                            ? (t('adminFinancial.sort.desc') || 'تنازلي')
+                            : (t('adminFinancial.sort.asc') || 'تصاعدي')}
+                        >
+                          {t('adminFinancial.table.date') || 'التاريخ'}
+                          {sortDir === 'asc'
+                            ? <ArrowUp className="h-3 w-3" />
+                            : <ArrowDown className="h-3 w-3" />}
+                        </button>
+                      </TableHead>
                       <TableHead>{t('adminFinancial.table.order')}</TableHead>
                       <TableHead>{t('adminFinancial.table.student')}</TableHead>
                       <TableHead>{t('adminFinancial.table.teacher')}</TableHead>
@@ -768,10 +998,30 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((row) => (
+                    {filteredAndSortedRows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                          {formatDate(row.created_at)}
+                        {/* v112: op code cell — short, monospace, copyable */}
+                        <TableCell className="whitespace-nowrap">
+                          <code
+                            className="font-mono text-xs text-sky-700 dark:text-sky-300 cursor-pointer hover:underline"
+                            title={row.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              try {
+                                navigator.clipboard?.writeText(row.id);
+                                toast.success('تم نسخ كود العملية');
+                              } catch { /* ignore */ }
+                            }}
+                          >
+                            {formatOpCode(row.id)}
+                          </code>
+                        </TableCell>
+                        {/* v112: date+time cell (was date-only) */}
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground" dir="ltr">
+                          <div className="flex flex-col">
+                            <span>{formatDate(row.created_at)}</span>
+                            <span className="text-[10px] opacity-70">{formatTime(row.created_at)}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="font-mono text-xs">{formatOrderId(row.order_id)}</TableCell>
                         <TableCell className="font-medium">{row.student_name}</TableCell>

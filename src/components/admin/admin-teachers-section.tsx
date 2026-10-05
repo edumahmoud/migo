@@ -1090,6 +1090,56 @@ export default function AdminTeachersSection() {
                     </div>
                   </div>
 
+                  {/* v112: Commission agreement card — prominent display
+                      of the agreed platform commission rate between the
+                      platform and this specific teacher. Shows the override
+                      value (set via PATCH /api/admin/teachers/[id]/commission)
+                      or "عام" when the teacher falls back to the global
+                      commission_rates row. Historical ledger rows are
+                      NEVER recalculated — only NEW orders use the new rate. */}
+                  <div className="rounded-xl border-2 border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50/80 to-fuchsia-50/60 dark:from-violet-900/15 dark:to-fuchsia-900/10 p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                          <HandCoins className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-violet-900 dark:text-violet-100">
+                            نسبة الاتفاق مع المنصة
+                          </h3>
+                          <p className="text-[11px] text-violet-700/70 dark:text-violet-300/60">
+                            نسبة العمولة المُتفق عليها بين المنصة وهذا المعلم
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-baseline gap-3">
+                      <span className="text-3xl font-bold font-mono text-violet-900 dark:text-violet-100">
+                        {teacherDetail.teacher?.commission_rate === null
+                          || teacherDetail.teacher?.commission_rate === undefined
+                          ? 'عام'
+                          : `${Number(teacherDetail.teacher.commission_rate).toFixed(2)}%`}
+                      </span>
+                      {teacherDetail.teacher?.commission_rate === null
+                        || teacherDetail.teacher?.commission_rate === undefined ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          (يستخدم النسبة العامة المُفعّلة في fee_catalog → commission_rates)
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground">
+                          لكل معاملة جديدة بعد الآن
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-violet-200/60 dark:border-violet-900/40">
+                      <p className="text-[10px] text-violet-800/70 dark:text-violet-200/60 leading-relaxed">
+                        ⚠️ تغيير هذه النسبة يؤثر فقط على الطلبات الجديدة بعد لحظة التغيير.
+                        المعاملات السابقة ولقطات order_fees محفوظة بسعرها الأصلي المسجّل وقت الدفع —
+                        لا يتم إعادة حسابها أو تعديلها بأي شكل.
+                      </p>
+                    </div>
+                  </div>
+
                   {/* Financial summary */}
                   <div className="rounded-lg border p-4 space-y-3 bg-muted/20">
                     <h3 className="text-sm font-semibold flex items-center gap-2">

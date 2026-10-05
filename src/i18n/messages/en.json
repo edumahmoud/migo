@@ -2897,7 +2897,10 @@
       "gatewayFee": "Gateway Fee",
       "net": "Net",
       "status": "Status",
-      "empty": "No transactions match the selected filters"
+      "empty": "No transactions match the selected filters",
+      "opCode": "Op Code",
+      "time": "Time",
+      "totalFiltered": "Total transactions (filtered): {count}"
     },
     "pagination": {
       "previous": "Previous",
@@ -2911,7 +2914,23 @@
       "noSecretsLeaked": "SQL errors or internal details are not shown.",
       "retry": "Retry"
     },
-    "currency": "EGP"
+    "currency": "EGP",
+    "viewToggle": {
+      "cards": "Cards",
+      "barChart": "Bar",
+      "lineChart": "Line",
+      "label": "View as"
+    },
+    "search": {
+      "placeholder": "Search by op code, order, or student...",
+      "label": "Search"
+    },
+    "sort": {
+      "label": "Sort",
+      "asc": "Ascending",
+      "desc": "Descending",
+      "byDate": "By date"
+    }
   },
   "setup": {
     "setup": "Setup",
@@ -3540,7 +3559,10 @@
       "platformShare": "Platform Share",
       "gatewayFee": "Gateway Fee",
       "status": "Status",
-      "empty": "No financial transactions yet. They will appear here once the first payment completes."
+      "empty": "No financial transactions yet. They will appear here once the first payment completes.",
+      "opCode": "Op Code",
+      "time": "Time",
+      "totalFiltered": "Total transactions (filtered): {count}"
     },
     "errors": {
       "loadFailed": "Failed to load financial data. Please try again.",
@@ -3548,7 +3570,23 @@
       "retry": "Retry"
     },
     "loading": "Loading financial data...",
-    "currency": "EGP"
+    "currency": "EGP",
+    "viewToggle": {
+      "cards": "Cards",
+      "barChart": "Bar",
+      "lineChart": "Line",
+      "label": "View as"
+    },
+    "search": {
+      "placeholder": "Search by op code, order, or student...",
+      "label": "Search"
+    },
+    "sort": {
+      "label": "Sort",
+      "asc": "Ascending",
+      "desc": "Descending",
+      "byDate": "By date"
+    }
   },
   "payoutMethods": {
     "title": "Payout Methods",
