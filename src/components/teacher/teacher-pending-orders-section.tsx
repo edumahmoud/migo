@@ -8,8 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
-import { generatePaymentCode } from '@/lib/payment/utils';
-import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
 import type { UserProfile } from '@/lib/types';
 
 interface PendingOrder {
@@ -123,31 +121,26 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
     }
   };
 
-  // v112: client-side filter — search by op code (SUB-XXXXXXXX format OR
-  // the bare 8-char short code), student name, student email, student_code,
-  // OR subject name. Server-side list is unchanged — this is a fast
-  // in-memory filter on the already-loaded orders.
+  // v113: client-side filter — search by payment_order_id (provider_order_ref),
+  // student name, student email, student_code, subject name, OR provider reference.
+  // Replaces the old SUB-XXXXXXXX format search.
   const filteredOrders = useMemo<PendingOrder[]>(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return orders;
     return orders.filter((o) => {
-      const payCode = generatePaymentCode(o.id).toLowerCase();        // e.g. "sub-1dd8e6e5"
-      const bareCode = payCode.replace(/^sub-/, '');                   // e.g. "1dd8e6e5"
+      const orderRef = (o.provider_order_ref ?? '').toLowerCase();
       const orderId = (o.id ?? '').toLowerCase();
       const studentName = (o.student?.name ?? '').toLowerCase();
       const studentEmail = (o.student?.email ?? '').toLowerCase();
       const studentCode = (o.student?.student_code ?? '').toLowerCase();
       const subjectName = (o.subject?.name ?? '').toLowerCase();
-      const providerRef = (o.provider_order_ref ?? '').toLowerCase();
       return (
-        payCode.includes(q) ||
-        bareCode.includes(q) ||
+        orderRef.includes(q) ||
         orderId.startsWith(q) ||
         studentName.includes(q) ||
         studentEmail.includes(q) ||
         studentCode.includes(q) ||
-        subjectName.includes(q) ||
-        providerRef.includes(q)
+        subjectName.includes(q)
       );
     });
   }, [orders, searchQuery]);
@@ -175,8 +168,8 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
         </Button>
       </header>
 
-      {/* Search box — search by payment code */}
-      <PaymentCodeSearchBox />
+      {/* v113: removed PaymentCodeSearchBox (SUB-XXXXXXXX search) —
+          unified search is now inline in the orders list header below. */}
 
       {/* Stats card */}
       <Card>
@@ -217,16 +210,16 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                 </Button>
               )}
             </div>
-            {/* v112: inline search field — searches by op code (SUB-XXXXXXXX
-                OR bare 8-char code), student name/email/code, subject name,
-                OR provider reference. */}
+            {/* v113: unified inline search field — searches by payment_order_id,
+                student name/email/code, subject name. Replaces the old
+                SUB-XXXXXXXX format search. */}
             <div className="relative max-w-md">
               <Search className="absolute top-1/2 -translate-y-1/2 start-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث بكود العملية (SUB-XXXXXXXX) أو اسم الطالب أو المقرر..."
+                placeholder="ابحث برقم العملية أو اسم الطالب أو المقرر..."
                 className="h-9 ps-8"
                 aria-label="بحث"
               />
@@ -296,27 +289,35 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                           </Badge>
                         )}
                       </div>
-                      {/* Payment code — copyable */}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const code = generatePaymentCode(o.id);
-                          try {
-                            await navigator.clipboard.writeText(code);
-                            toast.success(`تم نسخ الكود: ${code}`);
-                          } catch {
-                            toast.error('تعذّر نسخ الكود');
-                          }
-                        }}
-                        className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
-                        title="اضغط للنسخ"
-                      >
-                        <span className="font-bold">كود العملية:</span>
-                        <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
-                          {generatePaymentCode(o.id)}
-                          <Copy className="h-2.5 w-2.5" />
-                        </span>
-                      </button>
+                      {/* v113: payment_order_id display — replaces old SUB-XXXXXXXX code.
+                          Shows the real Paymob Order ID (from provider_order_ref)
+                          when available. Falls back to UUID-short when not. */}
+                      {(() => {
+                        const INTERNAL_PREFIXES = ['order_', 'free_', 'manual_', 'force_', 'backfill_', 'verify_', 'gateway_', 'pi_test_', 'pi_live_'];
+                        const raw = o.provider_order_ref;
+                        const displayCode = raw && !INTERNAL_PREFIXES.some(p => raw.startsWith(p))
+                          ? raw
+                          : (o.id.length >= 8 ? o.id.slice(0, 8).toUpperCase() : o.id);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try {
+                                navigator.clipboard?.writeText(displayCode);
+                                toast.success(`تم نسخ رقم العملية: ${displayCode}`);
+                              } catch { toast.error('تعذّر النسخ'); }
+                            }}
+                            className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
+                            title="اضغط للنسخ"
+                          >
+                            <span className="font-bold">رقم العملية:</span>
+                            <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                              {displayCode}
+                              <Copy className="h-2.5 w-2.5" />
+                            </span>
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
 

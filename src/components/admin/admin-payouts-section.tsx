@@ -36,7 +36,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
@@ -212,9 +211,8 @@ export default function AdminPayoutsSection() {
       {/* v112: removed the page H1 — the parent tab bar already shows
           "المدفوعات" — eliminates the duplicate label. */}
 
-      {/* Search by payment code (e.g., SUB-XXXXXXXX) — separate modal-style
-          search that takes the user to a dedicated result page. Kept as-is. */}
-      <PaymentCodeSearchBox />
+      {/* v113: removed PaymentCodeSearchBox (SUB-XXXXXXXX search) —
+          unified search is now inline in the payouts table header. */}
 
       <Card>
         <CardHeader className="pb-3">
