@@ -201,17 +201,61 @@ export async function POST(request: NextRequest) {
       // the existing webhook/RPC code that uses `orders.amount`. The
       // new `base_amount`, `fees_total`, `grand_total` columns are
       // the structured source of truth going forward.
+      //
+      // v112 — per-teacher commission override:
+      //   1. Read the subject's teacher_id (already in scope).
+      //   2. Read users.commission_rate for that teacher.
+      //   3. If NOT NULL → override the platform_commission fee's
+      //      value with the teacher's rate.
+      //   4. If NULL → keep the global fee_catalog value unchanged.
+      //   5. If the teacher cannot be resolved → preserve the existing
+      //      global behavior (do not invent a rate).
+      //   6. calculateFees() then runs normally; the resulting
+      //      calculated_amount is snapshotted into order_fees.
+      //   7. NO existing order or order_fees row is modified — this
+      //      flow only applies to NEW orders being created right now.
       const { data: activeFees } = await supabaseServer
         .from('fee_catalog')
         .select('id, code, name_ar, name_en, fee_kind, value, sort_order')
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
+      // Look up the teacher's per-teacher commission_rate override.
+      // subject.teacher_id is already in scope from the subjectsMap.
+      let teacherCommissionRate: number | null = null;
+      try {
+        const { data: teacherRow } = await supabaseServer
+          .from('users')
+          .select('commission_rate')
+          .eq('id', subject.teacher_id)
+          .maybeSingle();
+        teacherCommissionRate = (teacherRow as { commission_rate: number | null } | null)
+          ?.commission_rate ?? null;
+      } catch (err) {
+        // If the lookup fails, preserve the existing global behavior
+        // (do not invent a rate). Log loudly.
+        console.error('[student/orders] teacher commission_rate lookup failed', {
+          teacherId: subject.teacher_id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
       const basePrice = Number(subject.price);
       const feeRows = (activeFees ?? []) as Array<{
         id: string; code: string; name_ar: string; name_en: string;
         fee_kind: 'percentage' | 'flat'; value: number; sort_order: number;
       }>;
+
+      // Apply per-teacher override IN-PLACE on the in-memory feeRows
+      // (the DB fee_catalog row is NOT modified — we only override the
+      // value used for THIS order's snapshot).
+      if (teacherCommissionRate !== null && teacherCommissionRate !== undefined) {
+        const platformCommissionFee = feeRows.find((f) => f.code === 'platform_commission');
+        if (platformCommissionFee && platformCommissionFee.fee_kind === 'percentage') {
+          platformCommissionFee.value = teacherCommissionRate;
+        }
+      }
+
       const breakdown = calculateFees(basePrice, feeRows);
 
       const { data: order, error: insertError } = await supabaseServer

@@ -36,8 +36,9 @@ export async function GET(request: NextRequest) {
   // Build the query
   let query = supabaseServer
     .from('users')
-    // v111: include commission_percentage for the editable UI column.
-    .select('id, name, email, phone, account_status, created_at, auto_payout_enabled, commission_percentage', { count: 'exact' })
+    // v112: per-teacher commission column is `commission_rate` (NOT
+    // `commission_percentage`). NULL = use the global platform default.
+    .select('id, name, email, phone, account_status, created_at, auto_payout_enabled, commission_rate', { count: 'exact' })
     .eq('role', 'teacher')
     .order('created_at', { ascending: false })
     .range(from, to);
@@ -155,7 +156,7 @@ export async function GET(request: NextRequest) {
 
   // Build the response — 3 separate financial fields
   const data = (teachers ?? []).map((t) => {
-    const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string; auto_payout_enabled: boolean | null; commission_percentage: number | null };
+    const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string; auto_payout_enabled: boolean | null; commission_rate: number | null };
     return {
       id: teacher.id,
       name: teacher.name ?? '—',
@@ -164,8 +165,8 @@ export async function GET(request: NextRequest) {
       account_status: teacher.account_status,
       created_at: teacher.created_at,
       auto_payout_enabled: teacher.auto_payout_enabled ?? false,
-      // v111: per-teacher platform commission (null = use global rate).
-      commission_percentage: teacher.commission_percentage ?? null,
+      // v112: per-teacher platform commission rate (null = use global default).
+      commission_rate: teacher.commission_rate ?? null,
       subject_count: subjectCountMap.get(teacher.id) ?? 0,
       student_count: studentCountMap.get(teacher.id)?.size ?? 0,
       // Renamed from 'total_revenue' to be more accurate:

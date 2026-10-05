@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { randomUUID } from 'crypto';
-import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
+// v112: per-teacher commission resolver + v88 fees-on-top split helper
+import { getEffectiveCommissionRate, calculateSharesFromOrderFees, OrderFeesSnapshotError } from '@/lib/payment/commission';
 
 /**
  * GET /api/admin/backfill-financial-ledger
@@ -49,9 +50,10 @@ export async function POST(request: NextRequest) {
   console.info('[backfill-financial-ledger] starting backfill...');
 
   // 1. Get ALL paid orders (no financial_ledger filter — we'll check below)
+  //    v112: include base_amount + grand_total for v88 split computation.
   const { data: paidOrders, error: ordersErr } = await supabaseServer
     .from('orders')
-    .select('id, student_id, subject_id, amount, currency, status, gateway_id, paid_at, created_at')
+    .select('id, student_id, subject_id, amount, currency, status, gateway_id, paid_at, created_at, base_amount, grand_total')
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
     .limit(500); // safety limit — adjust if needed
@@ -144,6 +146,9 @@ export async function POST(request: NextRequest) {
       gateway_id: string | null;
       paid_at: string | null;
       created_at: string;
+      // v112: v88 fees-on-top columns (NULL for pre-v88 orders)
+      base_amount: number | null;
+      grand_total: number | null;
     };
 
     // Skip if financial_ledger already exists for this order
@@ -153,13 +158,42 @@ export async function POST(request: NextRequest) {
     }
 
     const teacherId = subjectTeacherMap.get(o.subject_id) ?? '00000000-0000-0000-0000-000000000000';
-    // v111: per-teacher commission resolution (falls back to global rate).
-    // The resolved rate is snapshotted into financial_ledger.commission_rate
-    // — subsequent changes do NOT retroactively affect this row.
+    // v112: resolve commission_rate for the legacy display snapshot
+    // (per-teacher users.commission_rate → global commission_rates → 0).
     const commissionResolution = await getEffectiveCommissionRate(teacherId);
     const commissionRate = commissionResolution.rate;
-    const grossAmount = Number(o.amount);
-    const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
+
+    // v112: financial split comes from the v88 order_fees snapshot
+    // when present. For pre-v88 orders, fall back to legacy
+    // calculateShares() (computed inside the helper).
+    const grossAmount = Number(o.grand_total ?? o.amount);
+    const baseAmount = o.base_amount ?? null;
+
+    let splitResult: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
+    try {
+      splitResult = await calculateSharesFromOrderFees(o.id, grossAmount, baseAmount, commissionRate);
+    } catch (err) {
+      if (err instanceof OrderFeesSnapshotError) {
+        // Fail safely — log + skip this order.
+        console.error('[backfill] order_fees snapshot invalid', {
+          orderId: o.id,
+          reason: err.reason,
+        });
+        errors++;
+        errorDetails.push(`Order ${o.id}: order_fees snapshot invalid — ${err.reason}`);
+        continue;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!splitResult) {
+      // Shouldn't happen, but defensive.
+      errors++;
+      errorDetails.push(`Order ${o.id}: split result undefined`);
+      continue;
+    }
+
     const now = new Date().toISOString();
     const backfillPaymentId = `backfill_${o.id}`;
 
@@ -215,26 +249,35 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // b. Insert financial_ledger
+      // b. Insert financial_ledger with v88 columns when available
+      const insertPayload: Record<string, unknown> = {
+        payment_id: paymentId,
+        order_id: o.id,
+        student_id: o.student_id,
+        subject_id: o.subject_id,
+        teacher_id: teacherId,
+        gateway_id: o.gateway_id,
+        provider_payment_id: backfillPaymentId,
+        currency: o.currency,
+        gross_amount: splitResult.grossAmount,
+        platform_share: splitResult.platformShare,
+        teacher_share: splitResult.teacherShare,
+        gateway_fee: 0,
+        net_amount: splitResult.netAmount,
+        commission_rate: commissionRate,
+        status: 'paid',
+      };
+
+      if (splitResult.kind === 'v88') {
+        insertPayload.subscription_total = splitResult.subscriptionTotal;
+        insertPayload.tax_amount = splitResult.taxAmount;
+        insertPayload.other_fees_amount = splitResult.otherFeesAmount;
+        insertPayload.fees_breakdown = splitResult.feesBreakdown;
+      }
+
       const { error: ledgerErr } = await supabaseServer
         .from('financial_ledger')
-        .insert({
-          payment_id: paymentId,
-          order_id: o.id,
-          student_id: o.student_id,
-          subject_id: o.subject_id,
-          teacher_id: teacherId,
-          gateway_id: o.gateway_id,
-          provider_payment_id: backfillPaymentId,
-          currency: o.currency,
-          gross_amount: grossAmount,
-          platform_share: platformShare,
-          teacher_share: teacherShare,
-          gateway_fee: 0,
-          net_amount: teacherShare,
-          commission_rate: commissionRate,
-          status: 'paid',
-        });
+        .insert(insertPayload);
 
       if (ledgerErr) {
         console.error('[backfill] financial_ledger insert failed', {
@@ -248,7 +291,8 @@ export async function POST(request: NextRequest) {
         console.info('[backfill] created financial_ledger', {
           orderId: o.id,
           teacherId,
-          teacherShare,
+          teacherShare: splitResult.teacherShare,
+          splitSource: splitResult.kind,
           paymentId,
         });
       }
@@ -264,11 +308,12 @@ export async function POST(request: NextRequest) {
     backfilled,
     skipped, // already had financial_ledger
     errors,
-    // v111: commission is now resolved per-teacher, not a single global
-    // rate. The detailed per-order rate is snapshotted into each
-    // financial_ledger.commission_rate column; the summary here just
-    // notes the resolution strategy.
-    commission_resolution: 'per-teacher (v111) — rate snapshotted per order into financial_ledger.commission_rate',
+    // v112: commission is now resolved per-teacher and split source
+    // is the v88 order_fees snapshot when available. The detailed
+    // per-order rate is snapshotted into each
+    // financial_ledger.commission_rate column; the summary notes the
+    // resolution strategy.
+    commission_resolution: 'v112: per-teacher (users.commission_rate) → global commission_rates → 0; split source = v88 order_fees snapshot when present, else legacy calculateShares()',
     error_details: errorDetails.slice(0, 10), // first 10 errors
   };
 

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireEligibleStudent, authErrorResponse } from '@/lib/auth-helpers';
 import { logPaymentEvent } from '@/lib/payment/logger';
-import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
+// v112: per-teacher commission resolver + v88 fees-on-top split helper
+import { getEffectiveCommissionRate, calculateSharesFromOrderFees, OrderFeesSnapshotError } from '@/lib/payment/commission';
 
 // Import the payment core (registers the Paymob adapter)
 import '@/lib/payment/providers/paymob';
@@ -436,11 +437,13 @@ export async function POST(request: NextRequest) {
               //    This is CRITICAL for revenue stats — without it, the
               //    teacher/admin dashboards won't count this payment.
               //    We need: teacher_id (from subjects) + commission_rate
-              //    v111: commission_rate is resolved per-teacher (falls
+              //    v112: commission_rate is resolved per-teacher (falls
               //    back to global rate). The resolved rate is snapshotted
               //    into financial_ledger.commission_rate — future changes
-              //    to users.commission_percentage do NOT retroactively
-              //    affect this row.
+              //    to users.commission_rate do NOT retroactively affect
+              //    this row. The money split comes from the v88
+              //    order_fees snapshot when present, else legacy
+              //    calculateShares().
               const { data: subjectRow } = await supabaseServer
                 .from('subjects')
                 .select('teacher_id')
@@ -448,12 +451,27 @@ export async function POST(request: NextRequest) {
                 .maybeSingle();
               const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
 
-              // v111: per-teacher commission resolution (falls back to global rate)
+              // v112: per-teacher commission resolution (falls back to global rate)
               const commissionResolution = await getEffectiveCommissionRate(teacherId);
               const commissionRate = commissionResolution.rate;
 
-              const grossAmount = Number(ord.amount);
-              const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
+              // v112: v88 fees-on-top split (from order_fees snapshot)
+              const grossAmount = Number(ord.grand_total ?? ord.amount);
+              const baseAmount = ord.base_amount ?? null;
+              let splitResult: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
+              try {
+                splitResult = await calculateSharesFromOrderFees(ord.id, grossAmount, baseAmount, commissionRate);
+              } catch (err) {
+                if (err instanceof OrderFeesSnapshotError) {
+                  // Fail safely — log + skip ledger insert.
+                  console.warn('[verify-after-redirect:debug] order_fees snapshot invalid', {
+                    orderId: ord.id,
+                    reason: err.reason,
+                  });
+                } else {
+                  throw err;
+                }
+              }
 
               // We need the payment_id from step 3 — fetch it
               const { data: paymentRow } = await supabaseServer
@@ -463,26 +481,33 @@ export async function POST(request: NextRequest) {
                 .maybeSingle();
               const paymentId = (paymentRow as { id: string } | null)?.id;
 
-              if (paymentId) {
+              if (paymentId && splitResult) {
+                const insertPayload: Record<string, unknown> = {
+                  payment_id: paymentId,
+                  order_id: ord.id,
+                  student_id: ord.student_id,
+                  subject_id: ord.subject_id,
+                  teacher_id: teacherId,
+                  gateway_id: ord.gateway_id,
+                  provider_payment_id: fallbackPaymentId,
+                  currency: ord.currency,
+                  gross_amount: splitResult.grossAmount,
+                  platform_share: splitResult.platformShare,
+                  teacher_share: splitResult.teacherShare,
+                  gateway_fee: 0,
+                  net_amount: splitResult.netAmount,
+                  commission_rate: commissionRate,
+                  status: 'paid',
+                };
+                if (splitResult.kind === 'v88') {
+                  insertPayload.subscription_total = splitResult.subscriptionTotal;
+                  insertPayload.tax_amount = splitResult.taxAmount;
+                  insertPayload.other_fees_amount = splitResult.otherFeesAmount;
+                  insertPayload.fees_breakdown = splitResult.feesBreakdown;
+                }
                 await supabaseServer
                   .from('financial_ledger')
-                  .insert({
-                    payment_id: paymentId,
-                    order_id: ord.id,
-                    student_id: ord.student_id,
-                    subject_id: ord.subject_id,
-                    teacher_id: teacherId,
-                    gateway_id: ord.gateway_id,
-                    provider_payment_id: fallbackPaymentId,
-                    currency: ord.currency,
-                    gross_amount: grossAmount,
-                    platform_share: platformShare,
-                    teacher_share: teacherShare,
-                    gateway_fee: 0,
-                    net_amount: teacherShare,
-                    commission_rate: commissionRate,
-                    status: 'paid',
-                  })
+                  .insert(insertPayload)
                   .then(({ error }) => {
                     if (error) {
                       console.warn('[verify-after-redirect:debug] financial_ledger insert failed (non-critical)', error.message);
@@ -490,7 +515,8 @@ export async function POST(request: NextRequest) {
                       console.info('[verify-after-redirect:debug] financial_ledger row created for fallback', {
                         orderId: ord.id,
                         paymentId,
-                        teacherShare,
+                        teacherShare: splitResult!.teacherShare,
+                        splitSource: splitResult!.kind,
                       });
                     }
                   });
@@ -770,14 +796,27 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
           const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
 
-          // v111: per-teacher commission resolution (falls back to global rate).
+          // v112: per-teacher commission resolution (falls back to global rate).
           // Snapshot is preserved in financial_ledger.commission_rate.
           const commissionResolution = await getEffectiveCommissionRate(teacherId);
           const commissionRate = commissionResolution.rate;
 
+          // v112: v88 fees-on-top split (from order_fees snapshot)
           const grossAmount = Number(ord.grand_total ?? ord.amount);
-          const subTotal = Number(ord.base_amount ?? ord.amount);
-          const { platformShare, teacherShare } = calculateShares(subTotal, commissionRate);
+          const baseAmount = ord.base_amount ?? null;
+          let splitResult2: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
+          try {
+            splitResult2 = await calculateSharesFromOrderFees(ord.id, grossAmount, baseAmount, commissionRate);
+          } catch (err) {
+            if (err instanceof OrderFeesSnapshotError) {
+              console.warn('[verify-after-redirect:debug] Strategy 2: order_fees snapshot invalid', {
+                orderId: ord.id,
+                reason: err.reason,
+              });
+            } else {
+              throw err;
+            }
+          }
 
           // Check if financial_ledger row already exists (idempotency)
           const { data: existingLedger } = await supabaseServer
@@ -786,27 +825,33 @@ export async function POST(request: NextRequest) {
             .eq('order_id', ord.id)
             .maybeSingle();
 
-          if (!existingLedger && paymentId) {
+          if (!existingLedger && paymentId && splitResult2) {
+            const insertPayload: Record<string, unknown> = {
+              payment_id: paymentId,
+              order_id: ord.id,
+              student_id: ord.student_id,
+              subject_id: ord.subject_id,
+              teacher_id: teacherId,
+              gateway_id: ord.gateway_id,
+              provider_payment_id: fallbackPaymentId,
+              currency: ord.currency,
+              gross_amount: splitResult2.grossAmount,
+              platform_share: splitResult2.platformShare,
+              teacher_share: splitResult2.teacherShare,
+              gateway_fee: 0,
+              net_amount: splitResult2.netAmount,
+              commission_rate: commissionRate,
+              status: 'paid',
+            };
+            if (splitResult2.kind === 'v88') {
+              insertPayload.subscription_total = splitResult2.subscriptionTotal;
+              insertPayload.tax_amount = splitResult2.taxAmount;
+              insertPayload.other_fees_amount = splitResult2.otherFeesAmount;
+              insertPayload.fees_breakdown = splitResult2.feesBreakdown;
+            }
             const { error: ledgerErr } = await supabaseServer
               .from('financial_ledger')
-              .insert({
-                payment_id: paymentId,
-                order_id: ord.id,
-                student_id: ord.student_id,
-                subject_id: ord.subject_id,
-                teacher_id: teacherId,
-                gateway_id: ord.gateway_id,
-                provider_payment_id: fallbackPaymentId,
-                currency: ord.currency,
-                gross_amount: grossAmount,
-                subscription_total: subTotal,
-                platform_share: platformShare,
-                teacher_share: teacherShare,
-                gateway_fee: 0,
-                net_amount: teacherShare,
-                commission_rate: commissionRate,
-                status: 'paid',
-              });
+              .insert(insertPayload);
             if (ledgerErr) {
               console.error('[verify-after-redirect:debug] Strategy 2: financial_ledger insert FAILED — teacher revenue will show 0 for this order', {
                 orderId: ord.id,
@@ -816,7 +861,8 @@ export async function POST(request: NextRequest) {
               console.info('[verify-after-redirect:debug] Strategy 2: financial_ledger row created ✓', {
                 orderId: ord.id,
                 teacherId,
-                teacherShare,
+                teacherShare: splitResult2.teacherShare,
+                splitSource: splitResult2.kind,
                 grossAmount,
               });
             }
@@ -983,12 +1029,29 @@ async function activateOrder(
       .eq('id', o.subject_id)
       .maybeSingle();
     const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
-    // v111: per-teacher commission resolution (falls back to global rate).
+    // v112: per-teacher commission resolution (falls back to global rate).
     // Snapshot is preserved in financial_ledger.commission_rate.
     const commissionResolution = await getEffectiveCommissionRate(teacherId);
     const commissionRate = commissionResolution.rate;
-    const grossAmount = Number(o.amount);
-    const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
+    // v112: v88 fees-on-top split (from order_fees snapshot when
+    // present). For pre-v88 orders, falls back to legacy
+    // calculateShares() inside the helper.
+    const grossAmount = Number(o.grand_total ?? o.amount);
+    const baseAmount = o.base_amount ?? null;
+    let splitResult3: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
+    try {
+      splitResult3 = await calculateSharesFromOrderFees(o.id, grossAmount, baseAmount, commissionRate);
+    } catch (err) {
+      if (err instanceof OrderFeesSnapshotError) {
+        // Fail safely — log + skip ledger insert.
+        console.warn('[verify-after-redirect] activateOrder: order_fees snapshot invalid', {
+          orderId: o.id,
+          reason: err.reason,
+        });
+      } else {
+        throw err;
+      }
+    }
 
     const { data: paymentRow } = await supabaseServer
       .from('payments')
@@ -996,26 +1059,33 @@ async function activateOrder(
       .eq('provider_payment_id', fallbackPaymentId)
       .maybeSingle();
     const paymentId = (paymentRow as { id: string } | null)?.id;
-    if (paymentId) {
+    if (paymentId && splitResult3) {
+      const insertPayload: Record<string, unknown> = {
+        payment_id: paymentId,
+        order_id: o.id,
+        student_id: o.student_id,
+        subject_id: o.subject_id,
+        teacher_id: teacherId,
+        gateway_id: o.gateway_id,
+        provider_payment_id: fallbackPaymentId,
+        currency: o.currency,
+        gross_amount: splitResult3.grossAmount,
+        platform_share: splitResult3.platformShare,
+        teacher_share: splitResult3.teacherShare,
+        gateway_fee: 0,
+        net_amount: splitResult3.netAmount,
+        commission_rate: commissionRate,
+        status: 'paid',
+      };
+      if (splitResult3.kind === 'v88') {
+        insertPayload.subscription_total = splitResult3.subscriptionTotal;
+        insertPayload.tax_amount = splitResult3.taxAmount;
+        insertPayload.other_fees_amount = splitResult3.otherFeesAmount;
+        insertPayload.fees_breakdown = splitResult3.feesBreakdown;
+      }
       await supabaseServer
         .from('financial_ledger')
-        .insert({
-          payment_id: paymentId,
-          order_id: o.id,
-          student_id: o.student_id,
-          subject_id: o.subject_id,
-          teacher_id: teacherId,
-          gateway_id: o.gateway_id,
-          provider_payment_id: fallbackPaymentId,
-          currency: o.currency,
-          gross_amount: grossAmount,
-          platform_share: platformShare,
-          teacher_share: teacherShare,
-          gateway_fee: 0,
-          net_amount: teacherShare,
-          commission_rate: commissionRate,
-          status: 'paid',
-        })
+        .insert(insertPayload)
         .then(({ error }) => {
           if (error) console.warn('[verify-after-redirect] financial_ledger insert failed (non-critical)', error.message);
           else console.info('[verify-after-redirect] financial_ledger created (activateOrder fallback)', { orderId: o.id, paymentId });

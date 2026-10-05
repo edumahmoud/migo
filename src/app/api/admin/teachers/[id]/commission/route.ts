@@ -8,7 +8,7 @@ interface RouteContext { params: Promise<{ id: string }> }
 
 const BodySchema = z.object({
   /**
-   * New platform commission percentage for this teacher.
+   * New platform commission rate for this teacher.
    *   number  → explicit per-teacher override (0-100, 2 decimals)
    *   null    → clears the override → teacher falls back to the global
    *             active commission_rates row
@@ -19,13 +19,18 @@ const BodySchema = z.object({
    *   - Up to 2 decimal places (enforced by NUMERIC(5,2) in DB)
    *
    * HISTORICAL SAFETY (CRITICAL — do not remove this comment):
-   *   The patch updates ONLY users.commission_percentage. It does NOT
-   *   touch financial_ledger. Each ledger row already has its own
-   *   commission_rate SNAPSHOT taken at payment time (v78/v85/v111).
-   *   Past transactions keep their original rate FOREVER — only NEW
-   *   transactions created after the change use the new rate.
+   *   The patch updates ONLY users.commission_rate. It does NOT
+   *   touch financial_ledger or order_fees. Each ledger row already
+   *   has its own commission_rate SNAPSHOT taken at payment time
+   *   (v78/v85/v111/v112). Past transactions keep their original
+   *   rate FOREVER — only NEW transactions created after the change
+   *   use the new rate.
+   *
+   * v112: the field name is `commission_rate` (NOT
+   * `commission_percentage`). The name `commission_percentage` is
+   * FORBIDDEN in any application code, test, or migration.
    */
-  commission_percentage: z.union([
+  commission_rate: z.union([
     z.number().finite().min(0).max(100),
     z.null(),
   ]),
@@ -34,30 +39,35 @@ const BodySchema = z.object({
 /**
  * PATCH /api/admin/teachers/[id]/commission
  *
- * Sets (or clears) the per-teacher platform commission percentage.
+ * Sets (or clears) the per-teacher platform commission rate.
  *
- * Body: { commission_percentage: number | null }
- *   - number (0-100): explicit per-teacher override. Future payments
- *     for this teacher use this rate. The rate is snapshotted into
- *     financial_ledger.commission_rate at payment time.
- *   - null: clears the override. Future payments fall back to the
- *     global active commission_rates row.
+ * Body: { commission_rate: number | null }
+ *   - number (0-100): explicit per-teacher override. Future orders
+ *     created for this teacher snapshot this rate into order_fees
+ *     at checkout (v88 model), and the legacy
+ *     financial_ledger.commission_rate column also snapshots it at
+ *     payment time.
+ *   - null: clears the override. Future orders fall back to the
+ *     global active commission_rates row (or, more precisely, to
+ *     the active fee_catalog.platform_commission fee).
  *
  * Authorization: admin or superadmin only (requireAdmin).
  *
  * HISTORICAL SAFETY:
- *   - This endpoint updates ONLY users.commission_percentage.
+ *   - This endpoint updates ONLY users.commission_rate.
  *   - It does NOT recalculate, modify, or delete any existing
- *     financial_ledger row. Each ledger row keeps its snapshot
- *     commission_rate forever.
- *   - The new rate applies only to NEW transactions created after
- *     this PATCH returns successfully.
+ *     financial_ledger row, order_fees row, or order row.
+ *   - Each ledger row keeps its snapshot commission_rate forever.
+ *   - Each order_fees row keeps its snapshot calculated_amount
+ *     forever.
+ *   - The new rate applies only to NEW orders created AFTER this
+ *     PATCH returns successfully.
  *
  * Response: {
  *   success: true,
  *   teacher_id: string,
  *   teacher_name: string | null,
- *   commission_percentage: number | null,
+ *   commission_rate: number | null,
  *   effective_rate: number,                 // resolved rate (per-teacher or global fallback)
  *   source: 'per_teacher' | 'global' | 'default_zero' | 'unchanged',
  *   historical_note: string,                // safety reminder
@@ -84,14 +94,14 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json(
       {
         success: false,
-        error: 'commission_percentage مطلوب (رقم بين 0 و100 أو null)',
+        error: 'commission_rate مطلوب (رقم بين 0 و100 أو null)',
         details: parsed.error.issues,
       },
       { status: 400 },
     );
   }
 
-  const newValue = parsed.data.commission_percentage;
+  const newValue = parsed.data.commission_rate;
   // Round to 2 decimals (NUMERIC(5,2) precision). Avoid 5.555 → DB error.
   const roundedValue = newValue === null
     ? null
@@ -100,7 +110,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   // 1. Verify the target is a teacher.
   const { data: teacher, error: tErr } = await supabaseServer
     .from('users')
-    .select('id, role, name, commission_percentage')
+    .select('id, role, name, commission_rate')
     .eq('id', teacherId)
     .maybeSingle();
   if (tErr || !teacher) {
@@ -116,7 +126,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  const oldValue = (teacher as { commission_percentage: number | null }).commission_percentage;
+  const oldValue = (teacher as { commission_rate: number | null }).commission_rate;
   const nowIso = new Date().toISOString();
 
   // 2. Defense-in-depth: if the new value equals the old value, no-op
@@ -127,7 +137,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       success: true,
       teacher_id: teacherId,
       teacher_name: (teacher as { name: string | null }).name,
-      commission_percentage: oldValue,
+      commission_rate: oldValue,
       effective_rate: oldValue ?? 0, // best-effort — full resolution below
       source: 'unchanged',
       historical_note: 'لم يتم تغيير النسبة — القيمة الجديدة مطابقة للقيمة الحالية. أي معاملة مالية سابقة تحتفظ بسعرها المسجّل وقت الدفع.',
@@ -135,12 +145,13 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     });
   }
 
-  // 3. Update ONLY the users.commission_percentage column.
-  //    financial_ledger is NEVER touched by this update.
+  // 3. Update ONLY the users.commission_rate column.
+  //    financial_ledger + order_fees + orders are NEVER touched by
+  //    this update — historical snapshots are preserved forever.
   const { error: updateErr } = await supabaseServer
     .from('users')
     .update({
-      commission_percentage: roundedValue,
+      commission_rate: roundedValue,
       updated_at: nowIso,
     })
     .eq('id', teacherId);
@@ -150,7 +161,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       level: 'error',
       operation: 'gatewayManagement',
       success: false,
-      message: `Admin ${adminId} FAILED to set commission_percentage=${roundedValue} for teacher ${teacherId}: ${updateErr.message}`,
+      message: `Admin ${adminId} FAILED to set commission_rate=${roundedValue} for teacher ${teacherId}: ${updateErr.message}`,
     });
     return NextResponse.json(
       { success: false, error: `فشل التحديث: ${updateErr.message}` },
@@ -185,17 +196,17 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     level: 'info',
     operation: 'gatewayManagement',
     success: true,
-    message: `Admin ${adminId} set commission_percentage=${roundedValue} for teacher ${teacherId} (was ${oldValue}). New payments will use the new rate; existing financial_ledger rows are unchanged.`,
+    message: `Admin ${adminId} set commission_rate=${roundedValue} for teacher ${teacherId} (was ${oldValue}). New orders will use the new rate; existing financial_ledger + order_fees rows are unchanged.`,
   });
 
   return NextResponse.json({
     success: true,
     teacher_id: teacherId,
     teacher_name: (teacher as { name: string | null }).name,
-    commission_percentage: roundedValue,
+    commission_rate: roundedValue,
     effective_rate: effectiveRate,
     source,
-    historical_note: 'تم تحديث النسبة للمعلم. القيمة الجديدة تنطبق فقط على المعاملات المالية الجديدة بعد الآن. المعاملات السابقة محفوظة بسعرها الأصلي المسجّل وقت الدفع — لا يتم إعادة حسابها أو تعديلها.',
+    historical_note: 'تم تحديث النسبة للمعلم. القيمة الجديدة تنطبق فقط على الطلبات الجديدة بعد الآن. المعاملات السابقة + لقطات order_fees محفوظة بسعرها الأصلي المسجّل وقت الدفع — لا يتم إعادة حسابها أو تعديلها.',
     updated_at: nowIso,
   });
 }

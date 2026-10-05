@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
-import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
+// v112: per-teacher commission resolver + v88 fees-on-top split helper
+import { getEffectiveCommissionRate, calculateSharesFromOrderFees, OrderFeesSnapshotError } from '@/lib/payment/commission';
 
 /**
  * POST /api/teacher/subscriptions/activate
@@ -47,10 +48,12 @@ export async function POST(request: NextRequest) {
   const teacherId = auth.user.id;
 
   // 1. Fetch the order + validate it belongs to a subject owned by this teacher
+  //    v112: include base_amount + grand_total for v88 split computation.
   const { data: order, error: orderErr } = await supabaseServer
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
+      base_amount, fees_total, grand_total,
       subjects:subject_id (teacher_id)
     `)
     .eq('id', orderId)
@@ -63,6 +66,10 @@ export async function POST(request: NextRequest) {
   const o = order as unknown as {
     id: string; student_id: string; subject_id: string;
     amount: number; currency: string; status: string;
+    // v112: v88 fees-on-top columns (NULL for pre-v88 orders)
+    base_amount: number | null;
+    fees_total: number | null;
+    grand_total: number | null;
     subjects: { teacher_id: string } | null;
   };
 
@@ -271,12 +278,29 @@ export async function POST(request: NextRequest) {
       .eq('id', o.subject_id)
       .maybeSingle();
     const ledgerTeacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? teacherId;
-    // v111: per-teacher commission resolution (falls back to global rate).
+    // v112: per-teacher commission resolution (falls back to global rate).
     // Snapshot is preserved in financial_ledger.commission_rate.
     const commissionResolution = await getEffectiveCommissionRate(ledgerTeacherId);
     const commissionRate = commissionResolution.rate;
-    const grossAmount = Number(o.amount);
-    const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
+    // v112: v88 fees-on-top split (from order_fees snapshot when
+    // present). For pre-v88 orders, falls back to legacy
+    // calculateShares() inside the helper.
+    const grossAmount = Number(o.grand_total ?? o.amount);
+    const baseAmount = o.base_amount ?? null;
+    let splitResult: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
+    try {
+      splitResult = await calculateSharesFromOrderFees(orderId, grossAmount, baseAmount, commissionRate);
+    } catch (err) {
+      if (err instanceof OrderFeesSnapshotError) {
+        // Fail safely — log + skip ledger insert.
+        console.warn('[teacher:activate] verify-fallback: order_fees snapshot invalid', {
+          orderId,
+          reason: err.reason,
+        });
+      } else {
+        throw err;
+      }
+    }
 
     const { data: paymentRow } = await supabaseServer
       .from('payments')
@@ -284,29 +308,36 @@ export async function POST(request: NextRequest) {
       .eq('provider_payment_id', verifyPaymentId)
       .maybeSingle();
     const paymentId = (paymentRow as { id: string } | null)?.id;
-    if (paymentId) {
+    if (paymentId && splitResult) {
+      const insertPayload: Record<string, unknown> = {
+        payment_id: paymentId,
+        order_id: orderId,
+        student_id: o.student_id,
+        subject_id: o.subject_id,
+        teacher_id: ledgerTeacherId,
+        gateway_id: null,
+        provider_payment_id: verifyPaymentId,
+        currency: o.currency,
+        gross_amount: splitResult.grossAmount,
+        platform_share: splitResult.platformShare,
+        teacher_share: splitResult.teacherShare,
+        gateway_fee: 0,
+        net_amount: splitResult.netAmount,
+        commission_rate: commissionRate,
+        status: 'paid',
+      };
+      if (splitResult.kind === 'v88') {
+        insertPayload.subscription_total = splitResult.subscriptionTotal;
+        insertPayload.tax_amount = splitResult.taxAmount;
+        insertPayload.other_fees_amount = splitResult.otherFeesAmount;
+        insertPayload.fees_breakdown = splitResult.feesBreakdown;
+      }
       await supabaseServer
         .from('financial_ledger')
-        .insert({
-          payment_id: paymentId,
-          order_id: orderId,
-          student_id: o.student_id,
-          subject_id: o.subject_id,
-          teacher_id: ledgerTeacherId,
-          gateway_id: null,
-          provider_payment_id: verifyPaymentId,
-          currency: o.currency,
-          gross_amount: grossAmount,
-          platform_share: platformShare,
-          teacher_share: teacherShare,
-          gateway_fee: 0,
-          net_amount: teacherShare,
-          commission_rate: commissionRate,
-          status: 'paid',
-        })
+        .insert(insertPayload)
         .then(({ error }) => {
           if (error) console.warn('[teacher:activate] verify-fallback financial_ledger insert failed (non-critical)', error.message);
-          else console.info('[teacher:activate] financial_ledger created (verify-fallback)', { orderId, paymentId });
+          else console.info('[teacher:activate] financial_ledger created (verify-fallback)', { orderId, paymentId, splitSource: splitResult!.kind });
         });
     }
 

@@ -23,10 +23,10 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
   const { id: teacherId } = await ctx.params;
 
-  // 1. Fetch teacher account info (v111: include commission_percentage)
+  // 1. Fetch teacher account info (v112: include commission_rate)
   const { data: teacher, error: teacherErr } = await supabaseServer
     .from('users')
-    .select('id, name, email, phone, account_status, created_at, commission_percentage')
+    .select('id, name, email, phone, account_status, created_at, commission_rate')
     .eq('id', teacherId)
     .eq('role', 'teacher')
     .maybeSingle();

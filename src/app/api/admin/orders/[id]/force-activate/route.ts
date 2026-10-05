@@ -3,7 +3,8 @@ import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { logPaymentEvent } from '@/lib/payment/logger';
-import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
+// v112: per-teacher commission resolver + v88 fees-on-top split helper
+import { getEffectiveCommissionRate, calculateSharesFromOrderFees, OrderFeesSnapshotError } from '@/lib/payment/commission';
 
 /**
  * POST /api/admin/orders/[id]/force-activate
@@ -38,13 +39,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const adminId = authResult.user.id;
   const { id: orderId } = await ctx.params;
 
-  // 1. Fetch the order
+  // 1. Fetch the order (v112: include base_amount + grand_total for
+  //    the v88 fees-on-top split computation in the ledger insert).
   const { data: order, error: orderErr } = await supabaseServer
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
       provider_order_ref, gateway_id, checkout_session_id,
-      created_at, updated_at, paid_at, activated_at
+      created_at, updated_at, paid_at, activated_at,
+      base_amount, fees_total, grand_total
     `)
     .eq('id', orderId)
     .maybeSingle();
@@ -70,6 +73,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     updated_at: string;
     paid_at: string | null;
     activated_at: string | null;
+    // v112: v88 fees-on-top columns (NULL for pre-v88 orders)
+    base_amount: number | null;
+    fees_total: number | null;
+    grand_total: number | null;
   };
 
   console.info('[force-activate:debug] order fetched', {
@@ -170,20 +177,42 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id
         ?? '00000000-0000-0000-0000-000000000000';
 
-      // v111: per-teacher commission lookup (falls back to global rate).
-      // The resolved rate is snapshotted into financial_ledger.commission_rate
-      // — subsequent changes to users.commission_percentage do NOT affect
-      // this row or any historical row.
+      // v112: resolve commission_rate for the legacy display snapshot
+      // (per-teacher users.commission_rate → global commission_rates → 0).
       const commissionResolution = await getEffectiveCommissionRate(teacherId);
       const commissionRate = commissionResolution.rate;
 
-      // Financial calculations (NUMERIC — no floating-point)
-      const grossAmount = Number(o.amount);
-      const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
+      // v112: financial calculations come from the v88 order_fees
+      // snapshot when present. For pre-v88 orders (no base_amount and
+      // no order_fees), fall back to legacy calculateShares().
+      const grossAmount = Number(o.grand_total ?? o.amount);
+      const baseAmount = o.base_amount ?? null;
+      let splitResult: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
+      try {
+        splitResult = await calculateSharesFromOrderFees(orderId, grossAmount, baseAmount, commissionRate);
+      } catch (err) {
+        if (err instanceof OrderFeesSnapshotError) {
+          // Fail safely — do NOT produce a silently incorrect ledger
+          // row. The order is still marked paid (step 2 above), so the
+          // student gets access to the course. The operator can run
+          // /api/admin/backfill-financial-ledger after fixing the
+          // snapshot.
+          console.error('[force-activate:debug] order_fees snapshot invalid', {
+            orderId,
+            reason: err.reason,
+          });
+          actions.push(`financial_ledger insert SKIPPED: order_fees snapshot invalid — ${err.reason}`);
+        } else {
+          throw err;
+        }
+      }
 
-      const { error: ledgerErr } = await supabaseServer
-        .from('financial_ledger')
-        .insert({
+      if (splitResult) {
+        // Build the insert payload. For v88 orders, populate the v88
+        // columns (subscription_total, tax_amount, other_fees_amount,
+        // fees_breakdown). For legacy orders, omit them (DB defaults
+        // apply: tax_amount=0, other_fees_amount=0, fees_breakdown=[]).
+        const insertPayload: Record<string, unknown> = {
           payment_id: paymentId,
           order_id: orderId,
           student_id: o.student_id,
@@ -192,20 +221,32 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           gateway_id: o.gateway_id,
           provider_payment_id: manualPaymentId,
           currency: o.currency,
-          gross_amount: grossAmount,
-          platform_share: platformShare,
-          teacher_share: teacherShare,
+          gross_amount: splitResult.grossAmount,
+          platform_share: splitResult.platformShare,
+          teacher_share: splitResult.teacherShare,
           gateway_fee: 0,
-          net_amount: teacherShare,
+          net_amount: splitResult.netAmount,
           commission_rate: commissionRate,
           status: 'paid',
-        });
+        };
 
-      if (ledgerErr) {
-        console.error('[force-activate:debug] failed to insert financial_ledger', ledgerErr);
-        actions.push(`financial_ledger insert FAILED: ${ledgerErr.message}`);
-      } else {
-        actions.push('financial_ledger record inserted');
+        if (splitResult.kind === 'v88') {
+          insertPayload.subscription_total = splitResult.subscriptionTotal;
+          insertPayload.tax_amount = splitResult.taxAmount;
+          insertPayload.other_fees_amount = splitResult.otherFeesAmount;
+          insertPayload.fees_breakdown = splitResult.feesBreakdown;
+        }
+
+        const { error: ledgerErr } = await supabaseServer
+          .from('financial_ledger')
+          .insert(insertPayload);
+
+        if (ledgerErr) {
+          console.error('[force-activate:debug] failed to insert financial_ledger', ledgerErr);
+          actions.push(`financial_ledger insert FAILED: ${ledgerErr.message}`);
+        } else {
+          actions.push(`financial_ledger record inserted (split source: ${splitResult.kind})`);
+        }
       }
     } else {
       actions.push('financial_ledger record already exists');
