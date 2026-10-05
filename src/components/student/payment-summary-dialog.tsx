@@ -431,23 +431,7 @@ export function PaymentSummaryDialog({
                 </div>
                 <span className="text-xs text-muted-foreground">Visa / Mastercard</span>
               </button>
-              {/* Wallet option — generic name, no specific provider */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('wallet')}
-                disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
-                className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
-                  paymentMethod === 'wallet'
-                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
-                    : 'border-muted hover:border-teal-400 hover:bg-muted/30'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <Smartphone className={`h-4 w-4 ${paymentMethod === 'wallet' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
-                  <span className="text-sm font-medium">محفظة</span>
-                </div>
-                <span className="text-xs text-muted-foreground">محفظة إلكترونية</span>
-              </button>
+              {/* v113: removed wallet option per user request */}
               {/* Fawry option */}
               <button
                 type="button"
