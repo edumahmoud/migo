@@ -23,10 +23,10 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 
   const { id: teacherId } = await ctx.params;
 
-  // 1. Fetch teacher account info
+  // 1. Fetch teacher account info (v111: include commission_percentage)
   const { data: teacher, error: teacherErr } = await supabaseServer
     .from('users')
-    .select('id, name, email, phone, account_status, created_at')
+    .select('id, name, email, phone, account_status, created_at, commission_percentage')
     .eq('id', teacherId)
     .eq('role', 'teacher')
     .maybeSingle();
@@ -83,17 +83,34 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     .order('created_at', { ascending: false })
     .limit(10);
 
-  // 5. Fetch subject count + student count
-  const { count: subjectCount } = await supabaseServer
+  // 5. Fetch subject count + student count.
+  //    Student count is sourced from subject_students (status='approved')
+  //    joined to subjects.teacher_id, NOT from financial_ledger. The
+  //    previous implementation counted only students with paid orders,
+  //    which returned 0 for teachers with approved-but-unpaid enrollments.
+  const { data: teacherSubjects, count: subjectCount } = await supabaseServer
     .from('subjects')
-    .select('id', { count: 'exact', head: true })
+    .select('id', { count: 'exact' })
     .eq('teacher_id', teacherId);
 
-  const { count: studentCount } = await supabaseServer
-    .from('financial_ledger')
-    .select('student_id', { count: 'exact', head: true })
-    .eq('teacher_id', teacherId)
-    .eq('status', 'paid');
+  const subjectIds = ((teacherSubjects ?? []) as Array<{ id: string }>).map((s) => s.id);
+
+  let studentCount = 0;
+  if (subjectIds.length > 0) {
+    // Count UNIQUE student_id values across the teacher's subjects
+    // (a student enrolled in two of the teacher's subjects counts once).
+    const { data: enrollments } = await supabaseServer
+      .from('subject_students')
+      .select('student_id')
+      .in('subject_id', subjectIds)
+      .eq('status', 'approved');
+
+    const uniqueStudentIds = new Set<string>();
+    for (const e of (enrollments ?? []) as Array<{ student_id: string }>) {
+      uniqueStudentIds.add(e.student_id);
+    }
+    studentCount = uniqueStudentIds.size;
+  }
 
   return NextResponse.json({
     success: true,

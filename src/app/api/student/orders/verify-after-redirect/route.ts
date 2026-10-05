@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireEligibleStudent, authErrorResponse } from '@/lib/auth-helpers';
 import { logPaymentEvent } from '@/lib/payment/logger';
+import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
 
 // Import the payment core (registers the Paymob adapter)
 import '@/lib/payment/providers/paymob';
@@ -434,7 +435,12 @@ export async function POST(request: NextRequest) {
               // 4. INSERT into financial_ledger (best effort — UNIQUE on payment_id)
               //    This is CRITICAL for revenue stats — without it, the
               //    teacher/admin dashboards won't count this payment.
-              //    We need: teacher_id (from subjects), commission_rate (from commission_rates)
+              //    We need: teacher_id (from subjects) + commission_rate
+              //    v111: commission_rate is resolved per-teacher (falls
+              //    back to global rate). The resolved rate is snapshotted
+              //    into financial_ledger.commission_rate — future changes
+              //    to users.commission_percentage do NOT retroactively
+              //    affect this row.
               const { data: subjectRow } = await supabaseServer
                 .from('subjects')
                 .select('teacher_id')
@@ -442,19 +448,12 @@ export async function POST(request: NextRequest) {
                 .maybeSingle();
               const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
 
-              // Get active commission rate
-              const { data: commissionRow } = await supabaseServer
-                .from('commission_rates')
-                .select('rate_percentage')
-                .eq('is_active', true)
-                .order('effective_from', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+              // v111: per-teacher commission resolution (falls back to global rate)
+              const commissionResolution = await getEffectiveCommissionRate(teacherId);
+              const commissionRate = commissionResolution.rate;
 
               const grossAmount = Number(ord.amount);
-              const platformShare = Math.round(grossAmount * commissionRate) / 100;
-              const teacherShare = grossAmount - platformShare;
+              const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
 
               // We need the payment_id from step 3 — fetch it
               const { data: paymentRow } = await supabaseServer
@@ -771,19 +770,14 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
           const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
 
-          const { data: commissionRow } = await supabaseServer
-            .from('commission_rates')
-            .select('rate_percentage')
-            .eq('is_active', true)
-            .order('effective_from', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+          // v111: per-teacher commission resolution (falls back to global rate).
+          // Snapshot is preserved in financial_ledger.commission_rate.
+          const commissionResolution = await getEffectiveCommissionRate(teacherId);
+          const commissionRate = commissionResolution.rate;
 
           const grossAmount = Number(ord.grand_total ?? ord.amount);
           const subTotal = Number(ord.base_amount ?? ord.amount);
-          const platformShare = Math.round(subTotal * commissionRate) / 100;
-          const teacherShare = subTotal - platformShare;
+          const { platformShare, teacherShare } = calculateShares(subTotal, commissionRate);
 
           // Check if financial_ledger row already exists (idempotency)
           const { data: existingLedger } = await supabaseServer
@@ -989,17 +983,12 @@ async function activateOrder(
       .eq('id', o.subject_id)
       .maybeSingle();
     const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? '00000000-0000-0000-0000-000000000000';
-    const { data: commissionRow } = await supabaseServer
-      .from('commission_rates')
-      .select('rate_percentage')
-      .eq('is_active', true)
-      .order('effective_from', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+    // v111: per-teacher commission resolution (falls back to global rate).
+    // Snapshot is preserved in financial_ledger.commission_rate.
+    const commissionResolution = await getEffectiveCommissionRate(teacherId);
+    const commissionRate = commissionResolution.rate;
     const grossAmount = Number(o.amount);
-    const platformShare = Math.round(grossAmount * commissionRate) / 100;
-    const teacherShare = grossAmount - platformShare;
+    const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
 
     const { data: paymentRow } = await supabaseServer
       .from('payments')

@@ -64,6 +64,8 @@ interface TeacherRow {
   total_earned: number;         // ALL money (paid + settled)
   total_settled: number;        // actually sent to teacher
   total_pending: number;        // available for payout (in platform account)
+  // v111: per-teacher platform commission percentage (null = use global rate).
+  commission_percentage: number | null;
 }
 
 interface Pagination {
@@ -233,6 +235,98 @@ export default function AdminTeachersSection() {
   const [bulkToggling, setBulkToggling] = useState(false);
   const [togglingTeacherId, setTogglingTeacherId] = useState<string | null>(null);
   const [autoPayoutWarnings, setAutoPayoutWarnings] = useState<Record<string, string>>({});
+
+  // v111: per-teacher commission editing state.
+  //   editingCommission[teacherId] = the draft text in the input (string
+  //     so the user can clear + type freely; parsed on save).
+  //   savingCommission[teacherId] = true while the PATCH is in-flight.
+  //   The list view shows an inline editable <Input> + Save/Cancel buttons.
+  //   Detail modal shows the resolved rate (per-teacher override OR
+  //   global fallback).
+  const [editingCommission, setEditingCommission] = useState<Record<string, string>>({});
+  const [savingCommission, setSavingCommission] = useState<Record<string, boolean>>({});
+
+  // Begin inline edit for a teacher's commission.
+  const startEditCommission = (teacherId: string, currentValue: number | null) => {
+    // Pre-fill: empty string when null (admin can type a number or leave
+    // empty to clear the override). Show the existing number otherwise.
+    setEditingCommission((prev) => ({
+      ...prev,
+      [teacherId]: currentValue === null ? '' : String(currentValue),
+    }));
+  };
+
+  const cancelEditCommission = (teacherId: string) => {
+    setEditingCommission((prev) => {
+      const next = { ...prev };
+      delete next[teacherId];
+      return next;
+    });
+  };
+
+  // PATCH /api/admin/teachers/[id]/commission
+  // Body: { commission_percentage: number | null }
+  //   - number (0-100): explicit per-teacher override
+  //   - null: clears the override (uses global rate)
+  // HISTORICAL SAFETY: this only updates users.commission_percentage.
+  // Existing financial_ledger rows keep their snapshot commission_rate.
+  const saveCommission = async (teacherId: string) => {
+    const draft = (editingCommission[teacherId] ?? '').trim();
+    let newValue: number | null;
+    if (draft === '') {
+      // Empty = clear override → fall back to global rate
+      newValue = null;
+    } else {
+      const parsed = Number(draft);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+        toast.error('النسبة يجب أن تكون رقمًا بين 0 و100');
+        return;
+      }
+      // Round to 2 decimals (matches NUMERIC(5,2) precision)
+      newValue = Math.round(parsed * 100) / 100;
+    }
+
+    setSavingCommission((prev) => ({ ...prev, [teacherId]: true }));
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacherId}/commission`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ commission_percentage: newValue }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || 'فشل تحديث النسبة');
+        return;
+      }
+      // Optimistically update the local teachers list
+      setTeachers((prev) => prev.map((t) =>
+        t.id === teacherId
+          ? { ...t, commission_percentage: json.commission_percentage }
+          : t
+      ));
+      // Exit edit mode
+      setEditingCommission((prev) => {
+        const next = { ...prev };
+        delete next[teacherId];
+        return next;
+      });
+      // Inform the admin of the historical-safety guarantee.
+      toast.success(
+        json.source === 'unchanged'
+          ? 'لم تتغير النسبة'
+          : `تم تحديث نسبة العمولة. المعاملات السابقة محفوظة بسعرها الأصلي.`,
+      );
+    } catch (err) {
+      console.error('[commission-patch] failed', err);
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setSavingCommission((prev) => {
+        const next = { ...prev };
+        delete next[teacherId];
+        return next;
+      });
+    }
+  };
 
   const toggleAutoPayout = async (teacherId: string, currentEnabled: boolean) => {
     if (togglingTeacherId) return;
@@ -421,6 +515,10 @@ export default function AdminTeachersSection() {
         ['تاريخ التسجيل', new Date(teacher.created_at).toLocaleDateString('ar-EG')],
         ['عدد المقررات', teacher.subject_count],
         ['عدد الطلاب', teacher.student_count],
+        // v111: per-teacher commission (null = uses global rate)
+        ['نسبة العمولة (خاصة بالمعلم)', teacher.commission_percentage === null || teacher.commission_percentage === undefined
+          ? 'عام (يستخدم النسبة العامة)'
+          : `${Number(teacher.commission_percentage).toFixed(2)}%`],
         ['الإيراد الكلي (مدفوع + مُسوّى)', Number(teacher.total_earned ?? 0).toFixed(2)],
         ['المُسوّى (تم تسليمه)', Number(teacher.total_settled ?? 0).toFixed(2)],
         ['المتاح للصرف', Number(teacher.total_pending ?? 0).toFixed(2)],
@@ -486,11 +584,16 @@ export default function AdminTeachersSection() {
       const headers = [
         'الاسم', 'البريد', 'الهاتف', 'الحالة',
         'المقررات', 'الطلاب',
+        'العمولة %', // v111
         'الإيراد الكلي', 'المُسوّى', 'المتاح', 'تاريخ التسجيل',
       ];
       const rows = teachers.map((t) => [
         t.name, t.email, t.phone ?? '—', t.account_status,
         t.subject_count, t.student_count,
+        // v111: per-teacher commission (null = uses global rate)
+        t.commission_percentage === null || t.commission_percentage === undefined
+          ? 'عام'
+          : `${Number(t.commission_percentage).toFixed(2)}%`,
         Number(t.total_earned ?? 0).toFixed(2),
         Number(t.total_settled ?? 0).toFixed(2),
         Number(t.total_pending ?? 0).toFixed(2),
@@ -501,6 +604,7 @@ export default function AdminTeachersSection() {
         'الإجمالي', '', '', '',
         teachers.reduce((s, t) => s + t.subject_count, 0),
         teachers.reduce((s, t) => s + t.student_count, 0),
+        '', // commission % has no total (per-teacher value)
         teachers.reduce((s, t) => s + Number(t.total_earned ?? 0), 0).toFixed(2),
         teachers.reduce((s, t) => s + Number(t.total_settled ?? 0), 0).toFixed(2),
         teachers.reduce((s, t) => s + Number(t.total_pending ?? 0), 0).toFixed(2),
@@ -509,7 +613,7 @@ export default function AdminTeachersSection() {
       const ws1 = XLSX.utils.aoa_to_sheet([headers, ...rows, totalsRow]);
       ws1['!cols'] = [
         { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
-        { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
       ];
       XLSX.utils.book_append_sheet(wb, ws1, `المعلمون (صفحة ${page})`);
 
@@ -654,6 +758,7 @@ export default function AdminTeachersSection() {
                       <th className="p-3 text-start font-medium">{t('common.status')}</th>
                       <th className="p-3 text-center font-medium">{t('subjects.subjects') || 'المقررات'}</th>
                       <th className="p-3 text-center font-medium">{t('admin.students') || 'الطلاب'}</th>
+                      <th className="p-3 text-center font-medium text-violet-600">العمولة %</th>
                       <th className="p-3 text-end font-medium text-emerald-600">مُسوّى</th>
                       <th className="p-3 text-end font-medium text-amber-600">متاح</th>
                       <th className="p-3 text-end font-medium">الإجمالي</th>
@@ -691,6 +796,79 @@ export default function AdminTeachersSection() {
                         </td>
                         <td className="p-3 text-center text-xs">{teacher.subject_count}</td>
                         <td className="p-3 text-center text-xs">{teacher.student_count}</td>
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          {/* v111: per-teacher platform commission %
+                              — editable inline. Null = use global rate. */}
+                          {editingCommission[teacher.id] !== undefined ? (
+                            <div className="flex flex-col items-center gap-1 min-w-[110px]">
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                aria-label={`نسبة العمولة لـ ${teacher.name}`}
+                                value={editingCommission[teacher.id]}
+                                onChange={(e) =>
+                                  setEditingCommission((prev) => ({
+                                    ...prev,
+                                    [teacher.id]: e.target.value,
+                                  }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    saveCommission(teacher.id);
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    cancelEditCommission(teacher.id);
+                                  }
+                                }}
+                                placeholder="عام"
+                                disabled={savingCommission[teacher.id]}
+                                className="h-7 w-20 text-center text-xs"
+                              />
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={() => saveCommission(teacher.id)}
+                                  disabled={savingCommission[teacher.id]}
+                                  title="حفظ"
+                                >
+                                  {savingCommission[teacher.id]
+                                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                                    : 'حفظ'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[10px]"
+                                  onClick={() => cancelEditCommission(teacher.id)}
+                                  disabled={savingCommission[teacher.id]}
+                                  title="إلغاء"
+                                >
+                                  إلغاء
+                                </Button>
+                              </div>
+                              <p className="text-[9px] text-muted-foreground text-center max-w-[150px]">
+                                اتركه فارغًا لاستخدام النسبة العامة
+                              </p>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startEditCommission(teacher.id, teacher.commission_percentage)}
+                              className="inline-flex items-center gap-1 rounded-md border border-transparent hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/10 px-2 py-1 text-xs font-mono font-medium text-violet-700 dark:text-violet-300 transition-colors"
+                              title="انقر لتعديل نسبة العمولة لهذا المعلم"
+                            >
+                              {teacher.commission_percentage === null || teacher.commission_percentage === undefined
+                                ? <span className="text-muted-foreground">عام</span>
+                                : `${Number(teacher.commission_percentage).toFixed(2)}%`}
+                            </button>
+                          )}
+                        </td>
                         <td className="p-3 text-end font-mono text-xs text-emerald-600">
                           {Number(teacher.total_settled ?? 0).toFixed(2)}
                         </td>
@@ -894,6 +1072,21 @@ export default function AdminTeachersSection() {
                     <div>
                       <span className="text-xs text-muted-foreground">{t('admin.students') || 'الطلاب'}</span>
                       <p className="font-medium">{teacherDetail.teacher?.student_count ?? 0}</p>
+                    </div>
+                    {/* v111: per-teacher commission percentage (read-only here —
+                        editing happens in the list view). Shows the override
+                        value or "عام" if falling back to the global rate. */}
+                    <div>
+                      <span className="text-xs text-muted-foreground">نسبة العمولة</span>
+                      <p className="font-medium font-mono">
+                        {teacherDetail.teacher?.commission_percentage === null
+                          || teacherDetail.teacher?.commission_percentage === undefined
+                          ? <span className="text-muted-foreground">عام (يستخدم النسبة العامة)</span>
+                          : `${Number(teacherDetail.teacher.commission_percentage).toFixed(2)}%`}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        المعاملات السابقة محفوظة بسعرها الأصلي
+                      </p>
                     </div>
                   </div>
 

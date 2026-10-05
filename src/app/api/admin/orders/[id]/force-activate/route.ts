@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { logPaymentEvent } from '@/lib/payment/logger';
+import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
 
 /**
  * POST /api/admin/orders/[id]/force-activate
@@ -169,20 +170,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       const teacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id
         ?? '00000000-0000-0000-0000-000000000000';
 
-      // Snapshot commission rate (active rate at force-activate time)
-      const { data: commissionRow } = await supabaseServer
-        .from('commission_rates')
-        .select('rate_percentage')
-        .eq('is_active', true)
-        .order('effective_from', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+      // v111: per-teacher commission lookup (falls back to global rate).
+      // The resolved rate is snapshotted into financial_ledger.commission_rate
+      // — subsequent changes to users.commission_percentage do NOT affect
+      // this row or any historical row.
+      const commissionResolution = await getEffectiveCommissionRate(teacherId);
+      const commissionRate = commissionResolution.rate;
 
       // Financial calculations (NUMERIC — no floating-point)
       const grossAmount = Number(o.amount);
-      const platformShare = Math.round(grossAmount * commissionRate) / 100;
-      const teacherShare = grossAmount - platformShare;
+      const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
 
       const { error: ledgerErr } = await supabaseServer
         .from('financial_ledger')

@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
   // Build the query
   let query = supabaseServer
     .from('users')
-    .select('id, name, email, phone, account_status, created_at, auto_payout_enabled', { count: 'exact' })
+    // v111: include commission_percentage for the editable UI column.
+    .select('id, name, email, phone, account_status, created_at, auto_payout_enabled, commission_percentage', { count: 'exact' })
     .eq('role', 'teacher')
     .order('created_at', { ascending: false })
     .range(from, to);
@@ -70,15 +71,20 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Batch: count subjects per teacher
-  const { data: subjectCounts } = await supabaseServer
+  // Batch: fetch all subjects owned by these teachers in ONE query.
+  // Used for both subject_count (count rows per teacher) AND as input
+  // for the student_count join below (subject_id → teacher_id).
+  const { data: teacherSubjects } = await supabaseServer
     .from('subjects')
-    .select('teacher_id')
+    .select('id, teacher_id')
     .in('teacher_id', teacherIds);
 
   const subjectCountMap = new Map<string, number>();
-  for (const s of (subjectCounts ?? []) as Array<{ teacher_id: string }>) {
+  const teacherToSubjects = new Map<string, string[]>();
+  for (const s of (teacherSubjects ?? []) as Array<{ id: string; teacher_id: string }>) {
     subjectCountMap.set(s.teacher_id, (subjectCountMap.get(s.teacher_id) ?? 0) + 1);
+    if (!teacherToSubjects.has(s.teacher_id)) teacherToSubjects.set(s.teacher_id, []);
+    teacherToSubjects.get(s.teacher_id)!.push(s.id);
   }
 
   // Batch: sum teacher_share from financial_ledger per teacher
@@ -108,22 +114,48 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Batch: count unique students per teacher
-  const { data: studentCounts } = await supabaseServer
-    .from('financial_ledger')
-    .select('teacher_id, student_id')
-    .in('teacher_id', teacherIds)
-    .in('status', ['paid', 'settled']);
+  // Batch: count unique APPROVED students per teacher, sourced from
+  // subject_students (the authoritative enrollment table) joined to
+  // subjects.teacher_id. The previous implementation read from
+  // financial_ledger, which only counted students who had already paid —
+  // teachers with approved-but-unpaid enrollments showed 0 students.
+  //
+  // subject_students.status = 'approved' — only approved enrollments
+  // count toward the teacher's student roster (matches the v104
+  // backfill + the activate_subscription_after_payment RPC behavior).
+  //
+  // Two-step query (avoids nested PostgREST filter ambiguity):
+  //   1. teacher → subject_ids map (built above alongside subject_count).
+  //   2. Fetch approved subject_students for those subject_ids, then
+  //      aggregate UNIQUE student_id per teacher (a student enrolled in
+  //      two of the teacher's subjects counts once).
+  const allSubjectIds = Array.from(teacherToSubjects.values()).flat();
+  // Avoid sending an empty `.in()` to PostgREST (which would error).
+  const { data: enrollments } = allSubjectIds.length === 0
+    ? { data: [] }
+    : await supabaseServer
+        .from('subject_students')
+        .select('subject_id, student_id')
+        .in('subject_id', allSubjectIds)
+        .eq('status', 'approved');
+
+  // subject_id → teacher_id (for aggregation)
+  const subjectToTeacher = new Map<string, string>();
+  for (const [tid, sids] of teacherToSubjects.entries()) {
+    for (const sid of sids) subjectToTeacher.set(sid, tid);
+  }
 
   const studentCountMap = new Map<string, Set<string>>();
-  for (const r of (studentCounts ?? []) as Array<{ teacher_id: string; student_id: string }>) {
-    if (!studentCountMap.has(r.teacher_id)) studentCountMap.set(r.teacher_id, new Set());
-    studentCountMap.get(r.teacher_id)!.add(r.student_id);
+  for (const row of (enrollments ?? []) as Array<{ subject_id: string; student_id: string }>) {
+    const tid = subjectToTeacher.get(row.subject_id);
+    if (!tid) continue;
+    if (!studentCountMap.has(tid)) studentCountMap.set(tid, new Set());
+    studentCountMap.get(tid)!.add(row.student_id);
   }
 
   // Build the response — 3 separate financial fields
   const data = (teachers ?? []).map((t) => {
-    const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string; auto_payout_enabled: boolean | null };
+    const teacher = t as { id: string; name: string | null; email: string; phone: string | null; account_status: string; created_at: string; auto_payout_enabled: boolean | null; commission_percentage: number | null };
     return {
       id: teacher.id,
       name: teacher.name ?? '—',
@@ -132,6 +164,8 @@ export async function GET(request: NextRequest) {
       account_status: teacher.account_status,
       created_at: teacher.created_at,
       auto_payout_enabled: teacher.auto_payout_enabled ?? false,
+      // v111: per-teacher platform commission (null = use global rate).
+      commission_percentage: teacher.commission_percentage ?? null,
       subject_count: subjectCountMap.get(teacher.id) ?? 0,
       student_count: studentCountMap.get(teacher.id)?.size ?? 0,
       // Renamed from 'total_revenue' to be more accurate:

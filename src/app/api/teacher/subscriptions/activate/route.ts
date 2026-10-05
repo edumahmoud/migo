@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
+import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
 
 /**
  * POST /api/teacher/subscriptions/activate
@@ -270,17 +271,12 @@ export async function POST(request: NextRequest) {
       .eq('id', o.subject_id)
       .maybeSingle();
     const ledgerTeacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? teacherId;
-    const { data: commissionRow } = await supabaseServer
-      .from('commission_rates')
-      .select('rate_percentage')
-      .eq('is_active', true)
-      .order('effective_from', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+    // v111: per-teacher commission resolution (falls back to global rate).
+    // Snapshot is preserved in financial_ledger.commission_rate.
+    const commissionResolution = await getEffectiveCommissionRate(ledgerTeacherId);
+    const commissionRate = commissionResolution.rate;
     const grossAmount = Number(o.amount);
-    const platformShare = Math.round(grossAmount * commissionRate) / 100;
-    const teacherShare = grossAmount - platformShare;
+    const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
 
     const { data: paymentRow } = await supabaseServer
       .from('payments')

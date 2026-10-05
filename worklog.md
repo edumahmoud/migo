@@ -523,3 +523,93 @@ Stage Summary:
 - No new API routes needed — /api/lessons/[id] PUT + bookmarks +
   notes + progress routes already existed from v102/v100.
 - Ready for Vercel deploy.
+
+---
+Task ID: v111
+Agent: main-agent
+Task: Three high-precision fixes for the migo LMS platform —
+  1. Incorrect student count (showed 0 in admin teacher details modal)
+  2. Dynamic per-teacher commission percentage (was global only)
+  3. Editable + validated commission field with historical safety
+
+Work Log:
+- Investigated existing architecture:
+  - DB: subject_students (status='approved') is the authoritative
+    enrollment table; financial_ledger.commission_rate is a per-row
+    SNAPSHOT taken at payment time (v78/v85 RPCs).
+  - UI: admin-teachers-section.tsx renders a paginated teacher list
+    + a detail modal; commission was not editable anywhere.
+  - Commission paths: 5 TS files do their own commission_rates
+    lookup (force-activate, backfill, verify-after-redirect x3,
+    teacher subscriptions/activate verify-fallback).
+- Fix #1 (student_count): rewrote the batched query in
+  /api/admin/teachers/route.ts and the single-teacher query in
+  /api/admin/teachers/[id]/route.ts to count UNIQUE students from
+  subject_students WHERE status='approved' joined to
+  subjects.teacher_id. Removed the financial_ledger-based count
+  (which only counted paid students → 0 for teachers with
+  approved-but-unpaid enrollments). Reused the subjects query for
+  both subject_count and student_count (one fewer DB round-trip).
+- Fix #2 (per-teacher commission):
+  - Created migration v111_per_teacher_commission.sql adding
+    users.commission_percentage NUMERIC(5,2) NULL with a 0-100
+    CHECK constraint, plus a partial index on non-NULL values.
+  - Updated activate_subscription_after_payment() RPC: looks up
+    users.commission_percentage for the snapshotted teacher_id
+    FIRST, falls back to the global commission_rates row, defaults
+    to 0. The resolved rate is snapshotted into
+    financial_ledger.commission_rate (unchanged snapshot invariant).
+  - Created helper src/lib/payment/commission.ts exporting
+    getEffectiveCommissionRate(teacherId) + calculateShares(gross,
+    rate). Consolidated the 3-step resolution logic.
+  - Replaced inline commission_rates lookups + Math.round(...) in
+    all 5 TS paths with the new helper. Verified count = 3 in
+    verify-after-redirect.
+- Fix #3 (editable commission field):
+  - Created PATCH /api/admin/teachers/[id]/commission endpoint
+    with zod validation (number 0-100 OR null), admin-only auth,
+    2-decimal rounding (NUMERIC(5,2) precision), no-op fast path
+    when value is unchanged, and a historical_note field in the
+    response. Endpoint updates ONLY users.commission_percentage;
+    financial_ledger is never touched.
+  - Added commission_percentage to TeacherRow interface +
+    GET /api/admin/teachers (LIST) and GET /api/admin/teachers/[id]
+    (DETAIL) SELECTs + response bodies.
+  - Added inline-editable column to the Teacher Accounts table:
+    click the badge to enter edit mode → numeric Input with
+    Save/Cancel buttons, Enter to save, Escape to cancel,
+    client-side 0-100 validation before PATCH. Shows "عام"
+    (global) when the override is null.
+  - Added read-only commission display in the teacher detail
+    modal account info grid, including the historical-safety
+    note "المعاملات السابقة محفوظة بسعرها الأصلي".
+  - Added commission column to both Excel exports (single-teacher
+    + all-teachers).
+- Tests: created v111-per-teacher-commission.test.ts with 39 tests
+  covering migration, helper, Fix #1, Fix #2, Fix #3, and
+  historical-safety invariants. All 39 pass. The 5 pre-existing
+  test failures (missing @supabase/supabase-js / next/server
+  modules) are unrelated to v111.
+- TypeScript: no new errors introduced. Pre-existing TS7006 /
+  TS2591 errors in unchanged code (crypto/process/Buffer globals
+  and implicit-any on .map((t) => ...)) remain at the same
+  baseline (only line numbers shifted due to added lines).
+
+Stage Summary:
+- Files modified (7):
+  - src/app/api/admin/teachers/route.ts
+  - src/app/api/admin/teachers/[id]/route.ts
+  - src/app/api/admin/orders/[id]/force-activate/route.ts
+  - src/app/api/admin/backfill-financial-ledger/route.ts
+  - src/app/api/student/orders/verify-after-redirect/route.ts
+  - src/app/api/teacher/subscriptions/activate/route.ts
+  - src/components/admin/admin-teachers-section.tsx
+- Files added (4):
+  - supabase/migrations/v111_per_teacher_commission.sql
+  - src/lib/payment/commission.ts
+  - src/app/api/admin/teachers/[id]/commission/route.ts
+  - src/lib/payment/__tests__/v111-per-teacher-commission.test.ts
+- Historical safety: financial_ledger.commission_rate is a
+  per-row snapshot; the PATCH endpoint touches ONLY
+  users.commission_percentage; existing ledger rows are NEVER
+  recalculated.

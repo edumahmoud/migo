@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 import { randomUUID } from 'crypto';
+import { getEffectiveCommissionRate, calculateShares } from '@/lib/payment/commission';
 
 /**
  * GET /api/admin/backfill-financial-ledger
@@ -99,17 +100,21 @@ export async function POST(request: NextRequest) {
     (existingPayments ?? []).map((p: { order_id: string }) => p.order_id)
   );
 
-  // 4. Get active commission rate (snapshot for all backfills)
-  const { data: commissionRow } = await supabaseServer
-    .from('commission_rates')
-    .select('rate_percentage')
-    .eq('is_active', true)
-    .order('effective_from', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const commissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
-
-  console.info('[backfill-financial-ledger] using commission rate', { commissionRate });
+  // 4. v111: per-teacher commission resolution.
+  //    The OLD backfill used a single global rate snapshot for ALL paid
+  //    orders being backfilled. That was acceptable when only the global
+  //    rate existed. With per-teacher overrides, the correct rate for
+  //    each backfilled order is whatever was effective for THAT teacher
+  //    at backfill time (since we cannot retroactively determine the
+  //    rate that should have been used at payment time for orders that
+  //    predate the v78 ledger). The per-teacher lookup resolves the
+  //    rate per order based on subjectRow.teacher_id.
+  //
+  //    The resolved rate is snapshotted into financial_ledger.commission_rate
+  //    for that order — future changes do NOT retroactively affect it.
+  //
+  //    We no longer fetch a single commission rate here. Instead we
+  //    resolve it per-order inside the loop below.
 
   // 5. Get all subject teacher_ids (snapshot)
   const subjectIds = [...new Set(paidOrders.map((o: { subject_id: string }) => o.subject_id))];
@@ -148,9 +153,13 @@ export async function POST(request: NextRequest) {
     }
 
     const teacherId = subjectTeacherMap.get(o.subject_id) ?? '00000000-0000-0000-0000-000000000000';
+    // v111: per-teacher commission resolution (falls back to global rate).
+    // The resolved rate is snapshotted into financial_ledger.commission_rate
+    // — subsequent changes do NOT retroactively affect this row.
+    const commissionResolution = await getEffectiveCommissionRate(teacherId);
+    const commissionRate = commissionResolution.rate;
     const grossAmount = Number(o.amount);
-    const platformShare = Math.round(grossAmount * commissionRate) / 100;
-    const teacherShare = grossAmount - platformShare;
+    const { platformShare, teacherShare } = calculateShares(grossAmount, commissionRate);
     const now = new Date().toISOString();
     const backfillPaymentId = `backfill_${o.id}`;
 
@@ -255,7 +264,11 @@ export async function POST(request: NextRequest) {
     backfilled,
     skipped, // already had financial_ledger
     errors,
-    commission_rate_used: commissionRate,
+    // v111: commission is now resolved per-teacher, not a single global
+    // rate. The detailed per-order rate is snapshotted into each
+    // financial_ledger.commission_rate column; the summary here just
+    // notes the resolution strategy.
+    commission_resolution: 'per-teacher (v111) — rate snapshotted per order into financial_ledger.commission_rate',
     error_details: errorDetails.slice(0, 10), // first 10 errors
   };
 
