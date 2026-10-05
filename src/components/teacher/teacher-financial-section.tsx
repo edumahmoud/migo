@@ -106,6 +106,10 @@ interface Summary {
   reversed_count: number;
   pending_count: number;
   failed_count: number;
+  // v113: teacher's current per-teacher commission rate (null = global).
+  // resolved_commission_rate = per-teacher rate OR global fallback.
+  commission_rate?: number | null;
+  resolved_commission_rate?: number;
 }
 
 interface SubjectFilter {
@@ -304,6 +308,7 @@ export default function TeacherFinancialSection() {
   // it's a real gateway Order ID → display it.
   const INTERNAL_PREFIXES = [
     'order_', 'free_', 'manual_', 'force_', 'backfill_', 'verify_', 'gateway_',
+    'pi_test_', 'pi_live_', // Paymob Intention IDs — not real Order IDs
   ];
   const resolvePaymentOrderId = (tx: TransactionRow): string => {
     const raw = tx.payment_order_id;
@@ -473,6 +478,30 @@ export default function TeacherFinancialSection() {
             color="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"
             iconBg="bg-white/25"
           />
+        </div>
+      )}
+
+      {/* v113: Commission rate card — shows the teacher's CURRENT
+          commission rate (per-teacher override OR global fallback).
+          No "عام" label — shows the resolved rate directly.
+          Positioned right after the summary cards grid. */}
+      {summary && (
+        <div className="rounded-xl border-2 border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50/80 to-fuchsia-50/60 dark:from-violet-900/15 dark:to-fuchsia-900/10 p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 shrink-0">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-violet-700/70 dark:text-violet-300/60">نسبة العمولة</p>
+              <p className="text-2xl font-bold font-mono text-violet-900 dark:text-violet-100">
+                {Number(summary.resolved_commission_rate ?? 0).toFixed(2)}%
+              </p>
+            </div>
+            <div className="text-end shrink-0">
+              <p className="text-[10px] text-muted-foreground">عمولة المنصة</p>
+              <p className="text-[10px] text-muted-foreground">لكل معاملة جديدة</p>
+            </div>
+          </div>
         </div>
       )}
 

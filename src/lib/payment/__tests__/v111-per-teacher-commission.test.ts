@@ -410,10 +410,17 @@ describe('Fix #3: PATCH commission API + editable UI', () => {
     expect(src).toContain('commission_rate: newValue');
   });
 
-  test('Detail modal shows commission_rate (read-only display)', () => {
+  test('Detail modal no longer shows commission_rate (moved to teacher financial section)', () => {
+    // v113: the commission display was REMOVED from the admin teachers
+    // detail modal + moved to the teacher's own financial dashboard
+    // (teacher-financial-section.tsx) as a dedicated commission card.
     const src = readSrc('src/components/admin/admin-teachers-section.tsx');
-    expect(src).toContain('نسبة العمولة');
-    expect(src).toContain('teacherDetail.teacher?.commission_rate');
+    // The admin detail modal should NOT contain the commission card
+    expect(src).not.toContain('نسبة الاتفاق مع المنصة');
+    // The teacher financial section should contain it instead
+    const teacherSrc = readSrc('src/components/teacher/teacher-financial-section.tsx');
+    expect(teacherSrc).toContain('نسبة العمولة');
+    expect(teacherSrc).toContain('resolved_commission_rate');
   });
 });
 

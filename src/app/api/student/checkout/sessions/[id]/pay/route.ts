@@ -254,12 +254,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         .eq('student_id', auth.user.id)
         .eq('status', 'pending'),
 
-      // Store the Paymob intention ID on the first order only (UNIQUE
-      // constraint allows only one order per intention ID at a time)
+      // Store the Paymob order reference on the first order only (UNIQUE
+      // constraint allows only one order per reference at a time).
+      // v113: prefer providerOrderReference (real Paymob Order ID, numeric)
+      // over paymentReference (Intention ID like "pi_test_...") so the
+      // transactions log shows the same Order ID as the Paymob dashboard.
       supabaseServer
         .from('orders')
         .update({
-          provider_order_ref: paymentReference,
+          provider_order_ref: result.providerOrderReference ?? paymentReference,
           updated_at: new Date().toISOString(),
         })
         .eq('id', firstOrderId)

@@ -290,6 +290,40 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Lookup the teacher's current commission_rate (from users table).
+  // This is the PER-TEACHER rate (null = falls back to the global
+  // commission_rates row). Used by the UI to display a commission card
+  // in the teacher's financial dashboard. ──
+  let teacherCommissionRate: number | null = null;
+  {
+    const { data: teacherRow } = await supabaseServer
+      .from('users')
+      .select('commission_rate')
+      .eq('id', teacherId)
+      .maybeSingle();
+    teacherCommissionRate = (teacherRow as { commission_rate: number | null } | null)?.commission_rate ?? null;
+  }
+
+  // ── Lookup the global commission rate (for fallback display when
+  // the teacher's per-teacher rate is NULL). The UI shows this
+  // directly instead of "عام" — per the user's instruction to
+  // remove the "general" classification. ──
+  let globalCommissionRate: number = 0;
+  {
+    const { data: commissionRow } = await supabaseServer
+      .from('commission_rates')
+      .select('rate_percentage')
+      .eq('is_active', true)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    globalCommissionRate = (commissionRow as { rate_percentage: number } | null)?.rate_percentage ?? 0;
+  }
+
+  // v113: resolved rate = per-teacher rate (if set) OR global rate.
+  // The UI shows this directly — no "عام" label.
+  const resolvedCommissionRate = teacherCommissionRate ?? globalCommissionRate;
+
   return NextResponse.json({
     success: true,
     filters: {
@@ -315,6 +349,10 @@ export async function GET(request: NextRequest) {
       reversed_count: summary.reversed_count,
       pending_count: summary.pending_count,
       failed_count: summary.failed_count,
+      // v113: teacher's current per-teacher commission rate (null = global).
+      // The UI shows resolved_commission_rate directly — no "عام" label.
+      commission_rate: teacherCommissionRate,
+      resolved_commission_rate: resolvedCommissionRate,
     },
     transactions,
     subjects: subjectsForFilter,

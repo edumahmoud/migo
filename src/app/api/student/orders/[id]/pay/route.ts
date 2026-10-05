@@ -221,10 +221,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       // student's order now has a provider_order_ref that the webhook
       // will match. If the student doesn't complete the payment, the
       // next pay attempt will CLEAR this (see the clearing block above).
+      //
+      // v113: prefer providerOrderReference (the real Paymob Order ID,
+      // numeric like "625912253") over paymentReference (the Intention
+      // ID like "pi_test_..." when using the Intention API path).
+      // This ensures the transactions log shows the SAME Order ID the
+      // user sees in the Paymob dashboard.
+      const orderRef = result.providerOrderReference ?? paymentReference;
       await supabaseServer
         .from('orders')
         .update({
-          provider_order_ref: paymentReference,
+          provider_order_ref: orderRef,
           gateway_id: result.gatewayId ?? gatewayId ?? null,
           updated_at: new Date().toISOString(),
         })

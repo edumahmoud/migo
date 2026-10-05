@@ -493,6 +493,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   // it's a real gateway Order ID → display it.
   const INTERNAL_PREFIXES = [
     'order_', 'free_', 'manual_', 'force_', 'backfill_', 'verify_', 'gateway_',
+    'pi_test_', 'pi_live_', // Paymob Intention IDs — not real Order IDs
   ];
   const resolvePaymentOrderId = (row: LedgerRow): string => {
     const raw = row.payment_order_id;
