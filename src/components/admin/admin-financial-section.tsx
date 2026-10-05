@@ -1001,7 +1001,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => { setSearchQuery(''); setTimeFilter(''); }}
+                onClick={() => { setSearchQuery(''); setPeriodFilter('all'); }}
               >
                 مسح البحث
               </Button>
