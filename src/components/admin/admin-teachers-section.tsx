@@ -554,7 +554,7 @@ export default function AdminTeachersSection() {
           Number(r.platform_share ?? 0).toFixed(2),
           Number(r.teacher_share ?? 0).toFixed(2),
           r.currency ?? 'EGP',
-          t('financial.status.' + (r.status ?? '')) || formatAccountStatus(r.status) || '—',
+          t('financial.status.' + String(r.status ?? '')) || formatAccountStatus(String(r.status ?? '')) || '—',
           Number(r.commission_rate ?? 0).toFixed(2),
         ]);
         const txSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
