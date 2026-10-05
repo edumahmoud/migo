@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { generatePaymentCode } from '@/lib/payment/utils';
@@ -46,6 +47,9 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
   const [orders, setOrders] = useState<PendingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [actioningOrderId, setActioningOrderId] = useState<string | null>(null);
+  // v112: inline search by op code (SUB-XXXXXXXX format OR bare 8-char code
+  // OR student name OR subject name). Filters the already-loaded list.
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -119,6 +123,35 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
     }
   };
 
+  // v112: client-side filter — search by op code (SUB-XXXXXXXX format OR
+  // the bare 8-char short code), student name, student email, student_code,
+  // OR subject name. Server-side list is unchanged — this is a fast
+  // in-memory filter on the already-loaded orders.
+  const filteredOrders = useMemo<PendingOrder[]>(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return orders;
+    return orders.filter((o) => {
+      const payCode = generatePaymentCode(o.id).toLowerCase();        // e.g. "sub-1dd8e6e5"
+      const bareCode = payCode.replace(/^sub-/, '');                   // e.g. "1dd8e6e5"
+      const orderId = (o.id ?? '').toLowerCase();
+      const studentName = (o.student?.name ?? '').toLowerCase();
+      const studentEmail = (o.student?.email ?? '').toLowerCase();
+      const studentCode = (o.student?.student_code ?? '').toLowerCase();
+      const subjectName = (o.subject?.name ?? '').toLowerCase();
+      const providerRef = (o.provider_order_ref ?? '').toLowerCase();
+      return (
+        payCode.includes(q) ||
+        bareCode.includes(q) ||
+        orderId.startsWith(q) ||
+        studentName.includes(q) ||
+        studentEmail.includes(q) ||
+        studentCode.includes(q) ||
+        subjectName.includes(q) ||
+        providerRef.includes(q)
+      );
+    });
+  }, [orders, searchQuery]);
+
   return (
     <div className="space-y-4 p-3 sm:p-6 max-w-6xl mx-auto">
       {/* Header */}
@@ -161,7 +194,44 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
       {/* Orders list */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">الطلبات</CardTitle>
+          {/* v112: header with title + total count badge + inline search */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                الطلبات
+                <Badge
+                  variant="secondary"
+                  className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                >
+                  {filteredOrders.length} / {orders.length}
+                </Badge>
+              </CardTitle>
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setSearchQuery('')}
+                >
+                  مسح البحث
+                </Button>
+              )}
+            </div>
+            {/* v112: inline search field — searches by op code (SUB-XXXXXXXX
+                OR bare 8-char code), student name/email/code, subject name,
+                OR provider reference. */}
+            <div className="relative max-w-md">
+              <Search className="absolute top-1/2 -translate-y-1/2 start-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث بكود العملية (SUB-XXXXXXXX) أو اسم الطالب أو المقرر..."
+                className="h-9 ps-8"
+                aria-label="بحث"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -175,9 +245,23 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                 لا توجد طلبات معلّقة حاليًا. سيظهر هنا أي طلب جديد ينشئه طالب ولم يدفع بعد.
               </p>
             </div>
+          ) : filteredOrders.length === 0 ? (
+            /* v112: empty-state when search filters out everything */
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+              <Search className="h-6 w-6 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">لا توجد طلبات مطابقة للبحث</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setSearchQuery('')}
+              >
+                مسح البحث
+              </Button>
+            </div>
           ) : (
             <div className="divide-y">
-              {orders.map((o) => (
+              {filteredOrders.map((o) => (
                 <div
                   key={o.id}
                   className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/30 flex-wrap"

@@ -245,31 +245,34 @@ export default function TeacherPayoutsSection() {
           ) : (
             <>
               {/* v112: horizontal scroll wrapper for narrow screens
-                  so the description column never breaks the layout */}
+                  so the description column never breaks the layout.
+                  min-w-[680px] ensures stable column widths. */}
               <div className="overflow-x-auto">
                 <Table className="min-w-[680px]">
                   <TableHeader>
+                    {/* v112: all column headers centered for consistent
+                        visual alignment in both LTR + RTL layouts. */}
                     <TableRow>
-                      <TableHead className="w-[140px] sm:w-[170px]">{isRTL ? 'التاريخ' : 'Date'}</TableHead>
-                      <TableHead className="w-[120px] sm:w-[160px]">{isRTL ? 'المرجع' : 'Reference'}</TableHead>
-                      <TableHead>{isRTL ? 'الوسيلة' : 'Method'}</TableHead>
-                      <TableHead className="text-end w-[110px] sm:w-[130px]">{isRTL ? 'المبلغ' : 'Amount'}</TableHead>
-                      <TableHead className="w-[90px] sm:w-[100px]">{isRTL ? 'الحالة' : 'Status'}</TableHead>
+                      <TableHead className="text-center w-[140px] sm:w-[170px]">{isRTL ? 'التاريخ' : 'Date'}</TableHead>
+                      <TableHead className="text-center w-[120px] sm:w-[160px]">{isRTL ? 'المرجع' : 'Reference'}</TableHead>
+                      <TableHead className="text-center">{isRTL ? 'الوسيلة' : 'Method'}</TableHead>
+                      <TableHead className="text-center w-[110px] sm:w-[130px]">{isRTL ? 'المبلغ' : 'Amount'}</TableHead>
+                      <TableHead className="text-center w-[90px] sm:w-[100px]">{isRTL ? 'الحالة' : 'Status'}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredPayouts.map((p) => (
                       <TableRow key={p.id}>
-                        {/* v112: date + time cell */}
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground" dir="ltr">
+                        {/* v112: date + time cell — centered, LTR for stable date format */}
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground text-center" dir="ltr">
                           {formatDateTime(p.created_at)}
                         </TableCell>
-                        <TableCell>
-                          {/* v112: clickable reference (copies to clipboard) */}
+                        <TableCell className="text-center">
+                          {/* v112: clickable reference (copies the reference, not UUID) */}
                           <button
                             type="button"
                             onClick={() => copyRef(p.provider_reference || p.internal_reference)}
-                            className="font-mono text-xs text-sky-700 dark:text-sky-300 hover:underline text-start break-all"
+                            className="font-mono text-xs text-sky-700 dark:text-sky-300 hover:underline text-center break-all inline-block max-w-full"
                             title={p.provider_reference || p.internal_reference}
                             dir="ltr"
                           >
@@ -278,9 +281,10 @@ export default function TeacherPayoutsSection() {
                         </TableCell>
                         {/* v112: method cell — wraps gracefully with
                             min-w-0 + break-words so long masked strings
-                            don't break the layout */}
-                        <TableCell className="min-w-0">
-                          <div className="flex flex-col gap-0.5 min-w-0">
+                            don't break the layout. Centered for visual
+                            consistency in LTR + RTL. */}
+                        <TableCell className="text-center min-w-0">
+                          <div className="flex flex-col gap-0.5 min-w-0 items-center">
                             <span className="text-xs font-medium text-foreground break-words">
                               {p.payout_method_display_label || p.payout_method_type}
                             </span>
@@ -289,11 +293,12 @@ export default function TeacherPayoutsSection() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-end font-semibold whitespace-nowrap" dir="ltr">
+                        {/* v112: amount — centered, LTR for stable numeric format */}
+                        <TableCell className="text-center font-semibold whitespace-nowrap" dir="ltr">
                           {Number(p.amount).toFixed(2)}
                           <span className="text-[10px] text-muted-foreground ms-1">{p.currency}</span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge variant="secondary" className={`whitespace-nowrap ${STATUS_COLOR[p.status] ?? ''}`}>
                             {STATUS_LABELS[p.status] ?? p.status}
                           </Badge>

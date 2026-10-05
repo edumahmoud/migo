@@ -687,16 +687,20 @@ export default function TeacherFinancialSection() {
                   <TableBody>
                     {filteredAndSorted.map((tx) => (
                       <TableRow key={tx.id}>
-                        {/* v112: op code cell — short, monospace, copyable */}
+                        {/* v112: op code cell — short, monospace, copyable.
+                            Click copies the SHORT code (1DD8E6E5),
+                            NOT the full UUID. The full UUID stays in
+                            the title attribute for tooltip/hover. */}
                         <TableCell className="whitespace-nowrap">
                           <code
                             className="font-mono text-xs text-sky-700 dark:text-sky-300 cursor-pointer hover:underline"
                             title={tx.id}
                             onClick={(e) => {
                               e.stopPropagation();
+                              const shortCode = formatOpCode(tx.id);
                               try {
-                                navigator.clipboard?.writeText(tx.id);
-                                toast.success('تم نسخ كود العملية');
+                                navigator.clipboard?.writeText(shortCode);
+                                toast.success(`تم نسخ كود العملية: ${shortCode}`);
                               } catch { /* ignore — clipboard may not be available */ }
                             }}
                           >

@@ -1000,16 +1000,20 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                   <TableBody>
                     {filteredAndSortedRows.map((row) => (
                       <TableRow key={row.id}>
-                        {/* v112: op code cell — short, monospace, copyable */}
+                        {/* v112: op code cell — short, monospace, copyable.
+                            Click copies the SHORT code (1DD8E6E5),
+                            NOT the full UUID. The full UUID stays in
+                            the title attribute for tooltip/hover. */}
                         <TableCell className="whitespace-nowrap">
                           <code
                             className="font-mono text-xs text-sky-700 dark:text-sky-300 cursor-pointer hover:underline"
                             title={row.id}
                             onClick={(e) => {
                               e.stopPropagation();
+                              const shortCode = formatOpCode(row.id);
                               try {
-                                navigator.clipboard?.writeText(row.id);
-                                toast.success('تم نسخ كود العملية');
+                                navigator.clipboard?.writeText(shortCode);
+                                toast.success(`تم نسخ كود العملية: ${shortCode}`);
                               } catch { /* ignore */ }
                             }}
                           >
