@@ -21,6 +21,7 @@
  *   - src/components/admin/admin-financial-section.tsx
  */
 
+import * as React from 'react';
 import { useMemo } from 'react';
 import {
   ResponsiveContainer,
@@ -129,20 +130,43 @@ export function FinancialCharts({
     );
   }
 
-  const tooltipFormatter = (value: number, name: string) => {
+  // v112: recharts Tooltip formatter — accept the broad ValueType
+  // (string | number | array) and normalize to a number for display.
+  // The function returns [formatted_value, label_name] tuple.
+  // Reference: recharts `Formatter<ValueType, NameType>` type signature
+  // requires accepting possibly-undefined values.
+  const tooltipFormatter = (value: unknown, name: unknown) => {
     const labels: Record<string, string> = {
       teacher_share: t('financial.summary.teacherShare') || 'حصة المعلم',
       platform_share: t('adminFinancial.summary.platformShare') || 'حصة المنصة',
       gross_amount: t('financial.summary.totalGross') || 'الإجمالي',
     };
-    return [`${Number(value).toFixed(2)} ${currency}`, labels[name] ?? name];
+    const numericValue = Number(value);
+    const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+    const nameStr = String(name ?? '');
+    return [`${safeValue.toFixed(2)} ${currency}`, labels[nameStr] ?? nameStr] as [React.ReactNode, React.ReactNode];
   };
 
-  const tooltipLabelFormatter = (label: string, payload: Array<{ payload: AggregatedDay }>) => {
-    const day = payload?.[0]?.payload;
-    if (!day) return label;
-    const count = day.count;
-    return `${label} · ${count} ${isRTL ? 'عملية' : 'tx'}`;
+  // v112: recharts Tooltip labelFormatter — accepts the full recharts
+  // payload (readonly array of Payload<ValueType, NameType>) and extracts
+  // the day aggregation from the first entry.
+  // We use `unknown` types + safe access because recharts' internal
+  // Payload<TValue, TName> type is generic and we don't want to import
+  // the private type symbols.
+  const tooltipLabelFormatter = (label: unknown, payload: unknown) => {
+    const labelStr = label != null ? String(label) : '';
+    // The payload is a readonly array of objects each having a `payload`
+    // field that points to the underlying data row.
+    let count = 0;
+    try {
+      const arr = Array.isArray(payload) ? payload : [];
+      const first = arr[0] as { payload?: { count?: number } } | undefined;
+      count = first?.payload?.count ?? 0;
+    } catch {
+      count = 0;
+    }
+    if (!count) return labelStr;
+    return `${labelStr} · ${count} ${isRTL ? 'عملية' : 'tx'}`;
   };
 
   const chartProps = {
@@ -166,11 +190,11 @@ export function FinancialCharts({
               tick={{ fontSize: 10 }}
               stroke="#94a3b8"
               orientation={isRTL ? 'right' : 'left'}
-              tickFormatter={(v: number) => Number(v).toFixed(0)}
+              tickFormatter={(v: unknown) => Number(v ?? 0).toFixed(0)}
             />
             <Tooltip
               formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter as any}
+              labelFormatter={tooltipLabelFormatter}
               contentStyle={{
                 background: 'rgba(255,255,255,0.96)',
                 border: '1px solid #e2e8f0',
@@ -181,13 +205,14 @@ export function FinancialCharts({
             />
             <Legend
               wrapperStyle={{ fontSize: 11 }}
-              formatter={(value: string) => {
+              formatter={(value: unknown) => {
                 const labels: Record<string, string> = {
                   teacher_share: t('financial.summary.teacherShare') || 'حصة المعلم',
                   platform_share: t('adminFinancial.summary.platformShare') || 'حصة المنصة',
                   gross_amount: t('financial.summary.totalGross') || 'الإجمالي',
                 };
-                return labels[value] ?? value;
+                const key = String(value ?? '');
+                return labels[key] ?? key;
               }}
             />
             <Bar
@@ -222,11 +247,11 @@ export function FinancialCharts({
               tick={{ fontSize: 10 }}
               stroke="#94a3b8"
               orientation={isRTL ? 'right' : 'left'}
-              tickFormatter={(v: number) => Number(v).toFixed(0)}
+              tickFormatter={(v: unknown) => Number(v ?? 0).toFixed(0)}
             />
             <Tooltip
               formatter={tooltipFormatter}
-              labelFormatter={tooltipLabelFormatter as any}
+              labelFormatter={tooltipLabelFormatter}
               contentStyle={{
                 background: 'rgba(255,255,255,0.96)',
                 border: '1px solid #e2e8f0',
@@ -237,13 +262,14 @@ export function FinancialCharts({
             />
             <Legend
               wrapperStyle={{ fontSize: 11 }}
-              formatter={(value: string) => {
+              formatter={(value: unknown) => {
                 const labels: Record<string, string> = {
                   teacher_share: t('financial.summary.teacherShare') || 'حصة المعلم',
                   platform_share: t('adminFinancial.summary.platformShare') || 'حصة المنصة',
                   gross_amount: t('financial.summary.totalGross') || 'الإجمالي',
                 };
-                return labels[value] ?? value;
+                const key = String(value ?? '');
+                return labels[key] ?? key;
               }}
             />
             <Line
