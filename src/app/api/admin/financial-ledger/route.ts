@@ -376,6 +376,8 @@ export async function GET(request: NextRequest) {
   const teacherIds = new Set<string>();
   const subjectIdsSet = new Set<string>();
   const gatewayIdsSet = new Set<string>();
+  // Collect order_ids for payment_order_id lookup (from orders.provider_order_ref)
+  const orderIdsForPaymentLookup = new Set<string>();
 
   for (const r of rows) {
     if (r.student_id) {
@@ -388,6 +390,7 @@ export async function GET(request: NextRequest) {
     }
     if (r.subject_id) subjectIdsSet.add(r.subject_id);
     if (r.gateway_id) gatewayIdsSet.add(r.gateway_id);
+    if (r.order_id) orderIdsForPaymentLookup.add(r.order_id);
   }
 
   // Batch query users (students + teachers in one query)
@@ -435,6 +438,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Batch lookup orders.provider_order_ref — used as the generic
+  // "payment_order_id" (gateway-agnostic). For Paymob, this stores
+  // the numeric Paymob Order ID after payment initiation. For future
+  // gateways (Fawry, etc.), it stores that gateway's Order ID.
+  // The UI filters out internal placeholders (order_<UUID>, free_<UUID>,
+  // etc.) before displaying — only real gateway Order IDs are shown.
+  const paymentOrderIdMap = new Map<string, string>();
+  const orderIdsForLookupArray = [...orderIdsForPaymentLookup];
+  if (orderIdsForLookupArray.length > 0) {
+    const { data: ordersData, error: ordersLookupErr } = await supabaseServer
+      .from('orders')
+      .select('id, provider_order_ref')
+      .in('id', orderIdsForLookupArray);
+    if (!ordersLookupErr && ordersData) {
+      for (const o of ordersData as any[]) {
+        if (o.provider_order_ref) {
+          paymentOrderIdMap.set(o.id, o.provider_order_ref);
+        }
+      }
+    }
+  }
+
   // ─── 5. Map rows to public shape (enriched with batch lookups) ───
   const data = rows.map((r) => ({
     id: r.id,
@@ -449,6 +474,13 @@ export async function GET(request: NextRequest) {
     gateway_display_name: r.gateway_id
       ? (gatewayDisplayNameMap.get(r.gateway_id) ?? '—')
       : '—',
+    // Generic payment_order_id — sourced from orders.provider_order_ref.
+    // For Paymob: the numeric Paymob Order ID (e.g. "625912253").
+    // For future gateways (Fawry, etc.): that gateway's Order ID.
+    // NULL for orders that haven't initiated payment, free courses,
+    // or internal placeholders (order_<UUID>, free_<UUID>, etc.).
+    // The UI filters out placeholders before displaying.
+    payment_order_id: r.order_id ? (paymentOrderIdMap.get(r.order_id) ?? null) : null,
     currency: r.currency,
     gross_amount: Number(r.gross_amount),
     platform_share: Number(r.platform_share),

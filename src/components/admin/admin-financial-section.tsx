@@ -101,6 +101,11 @@ interface LedgerRow {
   status: 'paid' | 'settled' | 'refunded' | 'reversed' | 'pending' | 'failed';
   created_at: string;
   updated_at: string;
+  // Generic payment_order_id — sourced from orders.provider_order_ref.
+  // For Paymob: the numeric Paymob Order ID. For future gateways:
+  // that gateway's Order ID. NULL for free/unpaid orders. The UI
+  // filters out internal placeholders before displaying.
+  payment_order_id?: string | null;
 }
 
 interface PaginationMeta {
@@ -465,6 +470,35 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   const formatOpCode = (uuid: string) => {
     if (!uuid || uuid.length < 8) return uuid ?? '—';
     return uuid.slice(0, 8).toUpperCase();
+  };
+
+  // payment_order_id validation — returns the real gateway Order ID
+  // when the value is NOT an internal placeholder.
+  //
+  // Internal placeholders (created by the system, NOT by the gateway):
+  //   "order_<UUID>"    — initial state at checkout, before payment
+  //   "free_<UUID>"     — free course
+  //   "manual_<UUID>"   — manual activation by teacher
+  //   "force_<UUID>"    — force-activation by admin
+  //   "backfill_<id>"   — backfilled by admin
+  //   "verify_<id>"     — verify-fallback path
+  //   "gateway_<UUID>"  — fallback when gateway didn't return a reference
+  //
+  // Real gateway Order IDs (created by the gateway):
+  //   Paymob: numeric like "625912253"
+  //   Fawry (future): alphanumeric
+  //   Any other gateway (future): that gateway's format
+  //
+  // Rule: if the value doesn't start with any known internal prefix,
+  // it's a real gateway Order ID → display it.
+  const INTERNAL_PREFIXES = [
+    'order_', 'free_', 'manual_', 'force_', 'backfill_', 'verify_', 'gateway_',
+  ];
+  const resolvePaymentOrderId = (row: LedgerRow): string => {
+    const raw = row.payment_order_id;
+    if (!raw) return '—';
+    if (INTERNAL_PREFIXES.some((p) => raw.startsWith(p))) return '—';
+    return raw;
   };
 
   const formatOrderId = (uuid: string) => {
@@ -967,6 +1001,11 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                     <TableRow>
                       {/* v112: op code column (NEW) */}
                       <TableHead>{t('adminFinancial.table.opCode') || 'كود العملية'}</TableHead>
+                      {/* Generic payment_order_id column — sourced from
+                          orders.provider_order_ref. Shows the gateway's
+                          Order ID (Paymob, Fawry, etc.) next to the
+                          operation code. */}
+                      <TableHead>رقم الطلب</TableHead>
                       {/* v112: date column header with sort toggle */}
                       <TableHead>
                         <button
@@ -1019,6 +1058,18 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                           >
                             {formatOpCode(row.id)}
                           </code>
+                        </TableCell>
+                        {/* payment_order_id cell — shows the gateway's
+                            Order ID (Paymob, Fawry, etc.) when available.
+                            Internal placeholders (order_<UUID>, free_<UUID>,
+                            etc.) are filtered out — "—" is shown instead. */}
+                        <TableCell className="whitespace-nowrap text-xs font-mono">
+                          {(() => {
+                            const orderId = resolvePaymentOrderId(row);
+                            return orderId === '—'
+                              ? <span className="text-muted-foreground">—</span>
+                              : <span className="text-sky-700 dark:text-sky-300">{orderId}</span>;
+                          })()}
                         </TableCell>
                         {/* v112: date+time cell (was date-only) */}
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground" dir="ltr">

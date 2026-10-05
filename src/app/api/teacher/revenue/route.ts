@@ -149,6 +149,27 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ── Batch lookup orders.provider_order_ref — used as the generic
+  // "payment_order_id" (gateway-agnostic). For Paymob, this stores
+  // the numeric Paymob Order ID after payment initiation. For future
+  // gateways (Fawry, etc.), it stores that gateway's Order ID.
+  // The UI filters out internal placeholders before displaying. ──
+  const orderIdsForLookup = [...new Set(rows.map((r) => r.order_id).filter(Boolean))] as string[];
+  const paymentOrderIdMap = new Map<string, string>();
+  if (orderIdsForLookup.length > 0) {
+    const { data: ordersData, error: ordersLookupErr } = await supabaseServer
+      .from('orders')
+      .select('id, provider_order_ref')
+      .in('id', orderIdsForLookup);
+    if (!ordersLookupErr && ordersData) {
+      for (const o of ordersData as any[]) {
+        if (o.provider_order_ref) {
+          paymentOrderIdMap.set(o.id, o.provider_order_ref);
+        }
+      }
+    }
+  }
+
   // ── Compute summary from rows only (no recomputing from orders) ──
   // Use cents (piasters) to avoid floating-point summation drift.
   const sumCents = (selector: (r: any) => number | null | undefined): number =>
@@ -239,6 +260,12 @@ export async function GET(request: NextRequest) {
     subject_id: r.subject_id,
     subject_name: subjectNameMap.get(r.subject_id) ?? '—',
     student_name: studentNameMap.get(r.student_id) ?? '—',
+    // Generic payment_order_id — sourced from orders.provider_order_ref.
+    // For Paymob: the numeric Paymob Order ID (e.g. "625912253").
+    // For future gateways: that gateway's Order ID.
+    // NULL for orders that haven't initiated payment or are free.
+    // The UI filters out placeholders before displaying.
+    payment_order_id: r.order_id ? (paymentOrderIdMap.get(r.order_id) ?? null) : null,
     currency: r.currency,
     gross_amount: Number(r.gross_amount),
     platform_share: Number(r.platform_share),
