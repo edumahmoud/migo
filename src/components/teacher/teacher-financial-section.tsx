@@ -621,15 +621,6 @@ export default function TeacherFinancialSection() {
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="text-base">
                 {t('financial.tabs.transactions')}
-                {' '}
-                {/* v112: total transactions count (filtered) in the header */}
-                <Badge
-                  variant="secondary"
-                  className="ms-2 bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
-                >
-                  {t('financial.table.totalFiltered', { count: filteredAndSorted.length })
-                    || `إجمالي العملات (مصفى): ${filteredAndSorted.length}`}
-                </Badge>
               </CardTitle>
               <CardDescription className="sr-only">{t('financial.subtitle')}</CardDescription>
             </div>

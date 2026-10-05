@@ -554,7 +554,7 @@ export default function AdminTeachersSection() {
           Number(r.platform_share ?? 0).toFixed(2),
           Number(r.teacher_share ?? 0).toFixed(2),
           r.currency ?? 'EGP',
-          r.status ?? '—',
+          t('financial.status.' + (r.status ?? '')) || formatAccountStatus(r.status) || '—',
           Number(r.commission_rate ?? 0).toFixed(2),
         ]);
         const txSheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -1229,7 +1229,9 @@ export default function AdminTeachersSection() {
                               <span className="font-mono font-semibold text-emerald-700">
                                 +{Number(tx.teacher_share).toFixed(2)}
                               </span>
-                              <Badge variant="secondary" className="text-xs ms-2">{tx.status}</Badge>
+                              <Badge variant="secondary" className="text-xs ms-2">
+                                {t('financial.status.' + tx.status) || formatAccountStatus(tx.status)}
+                              </Badge>
                             </div>
                           </div>
                         ))}

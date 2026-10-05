@@ -223,7 +223,8 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   // v112: transactions log — search + sort + op code column
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [timeFilter, setTimeFilter] = useState('');  // HH:MM filter
+  // v113: replace time-only filter (HH:MM) with day/month/year period filter
+  const [periodFilter, setPeriodFilter] = useState<'all' | 'day' | 'month' | 'year'>('all');
 
   // ─── Data state ───
   const [data, setData] = useState<FinancialResponse | null>(null);
@@ -538,14 +539,20 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
         );
       });
     }
-    // Time-of-day filter (HH:MM substring match)
-    if (timeFilter) {
-      const t = timeFilter.trim();
+    // v113: period filter (day/month/year) — replaces the old HH:MM time filter
+    if (periodFilter !== 'all') {
+      const now = new Date();
       result = result.filter((row: LedgerRow) => {
         try {
           const d = new Date(row.created_at);
-          const hhmm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-          return hhmm.startsWith(t);
+          if (periodFilter === 'day') {
+            return d.toDateString() === now.toDateString();
+          } else if (periodFilter === 'month') {
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          } else if (periodFilter === 'year') {
+            return d.getFullYear() === now.getFullYear();
+          }
+          return true;
         } catch {
           return false;
         }
@@ -558,7 +565,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
       return sortDir === 'asc' ? aT - bT : bT - aT;
     });
     return result;
-  }, [rows, searchQuery, timeFilter, sortDir]);
+  }, [rows, searchQuery, periodFilter, sortDir]);
 
   // Filtered subject options (when teacher is selected, show only that teacher's subjects)
   const filteredSubjects = useMemo(() => {
@@ -923,14 +930,21 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                   aria-label={t('adminFinancial.search.label') || 'بحث'}
                 />
               </div>
-              <Input
-                type="time"
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-                className="h-9 w-32"
-                aria-label={t('adminFinancial.table.time') || 'الوقت'}
-                title={t('adminFinancial.table.time') || 'الوقت'}
-              />
+              {/* v113: period filter (day/month/year) — replaces HH:MM time filter */}
+              <Select
+                value={periodFilter}
+                onValueChange={(v) => setPeriodFilter(v as 'all' | 'day' | 'month' | 'year')}
+              >
+                <SelectTrigger className="w-32 h-9">
+                  <SelectValue placeholder="الكل" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="day">اليوم</SelectItem>
+                  <SelectItem value="month">هذا الشهر</SelectItem>
+                  <SelectItem value="year">هذا العام</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"
@@ -1023,7 +1037,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                             : <ArrowDown className="h-3 w-3" />}
                         </button>
                       </TableHead>
-                      <TableHead>{t('adminFinancial.table.order')}</TableHead>
+                      {/* v113: removed 'order' column per user request */}
                       <TableHead>{t('adminFinancial.table.student')}</TableHead>
                       <TableHead>{t('adminFinancial.table.teacher')}</TableHead>
                       <TableHead>{t('adminFinancial.table.subject')}</TableHead>
@@ -1079,7 +1093,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                             <span className="text-[10px] opacity-70">{formatTime(row.created_at)}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{formatOrderId(row.order_id)}</TableCell>
+                        {/* v113: removed order_id cell per user request */}
                         <TableCell className="font-medium">{row.student_name}</TableCell>
                         <TableCell className="text-sm">{row.teacher_name}</TableCell>
                         <TableCell className="text-sm">{row.subject_name}</TableCell>
