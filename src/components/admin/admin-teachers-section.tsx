@@ -75,6 +75,19 @@ interface Pagination {
   total_pages: number;
 }
 
+// Format account_status from snake_case to Title Case.
+// "pending_verification" → "Pending Verification"
+// "active" → "Active"
+// "suspended" → "Suspended"
+// "pending" → "Pending"
+const formatAccountStatus = (status: string | null | undefined): string => {
+  if (!status) return '—';
+  return status
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export default function AdminTeachersSection() {
   const { t, direction } = useTranslations();
   const isRTL = direction === 'rtl';
@@ -511,7 +524,7 @@ export default function AdminTeachersSection() {
         ['الاسم', teacher.name],
         ['البريد الإلكتروني', teacher.email],
         ['الهاتف', teacher.phone ?? '—'],
-        ['الحالة', teacher.account_status],
+        ['الحالة', formatAccountStatus(teacher.account_status)],
         ['تاريخ التسجيل', new Date(teacher.created_at).toLocaleDateString('ar-EG')],
         ['عدد المقررات', teacher.subject_count],
         ['عدد الطلاب', teacher.student_count],
@@ -588,7 +601,7 @@ export default function AdminTeachersSection() {
         'الإيراد الكلي', 'المُسوّى', 'المتاح', 'تاريخ التسجيل',
       ];
       const rows = teachers.map((t) => [
-        t.name, t.email, t.phone ?? '—', t.account_status,
+        t.name, t.email, t.phone ?? '—', formatAccountStatus(t.account_status),
         t.subject_count, t.student_count,
         // v111: per-teacher commission (null = uses global rate)
         t.commission_rate === null || t.commission_rate === undefined
@@ -791,7 +804,7 @@ export default function AdminTeachersSection() {
                             teacher.account_status === 'suspended' ? 'bg-rose-100 text-rose-700' :
                             'bg-amber-100 text-amber-700'
                           }>
-                            {teacher.account_status}
+                            {formatAccountStatus(teacher.account_status)}
                           </Badge>
                         </td>
                         <td className="p-3 text-center text-xs">{teacher.subject_count}</td>
@@ -1063,7 +1076,7 @@ export default function AdminTeachersSection() {
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">{t('common.status') || 'الحالة'}</span>
-                      <Badge variant="secondary" className="mt-0.5">{teacherDetail.teacher?.account_status ?? '—'}</Badge>
+                      <Badge variant="secondary" className="mt-0.5">{formatAccountStatus(teacherDetail.teacher?.account_status)}</Badge>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">{t('subjects.subjects') || 'المقررات'}</span>
