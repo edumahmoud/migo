@@ -255,17 +255,25 @@ export default function StudentActivationPage() {
     if (selectedCourses.size === 0) { toast.error('اختر مقرراً واحداً على الأقل'); return; }
     setSubmitting(true);
     try {
-      // v116: pick the FIRST non-empty selected planId (single-plan checkout
-      // model — matches the existing single-checkout-session flow). When
-      // the planId starts with 'default-monthly-', we strip it (the API
-      // falls back to subject.price when planId is null/empty).
+      // v116: For unified multi-subject subscription, plan selection is
+      // per-subject in the UI but the /api/student/orders endpoint only
+      // accepts a SINGLE planId that must belong to ONE of the selected
+      // subjects. Sending that planId for OTHER subjects produces wrong
+      // prices + plan_id FK violations.
+      //
+      // Surgical fix: send planId ONLY when exactly ONE subject is
+      // selected. For multi-subject subscriptions, send NO planId —
+      // each subject uses its own default monthly price (subject.price).
+      // This preserves the unified subscription: all subjects get
+      // pending orders, the multi-checkout session groups them, the
+      // student pays for all in one Paymob Intention, the webhook
+      // activates all when payment is confirmed.
       const selectedSubjectIds = Array.from(selectedCourses);
       let planId: string | undefined;
-      for (const sid of selectedSubjectIds) {
-        const pid = selectedPlanIds[sid];
+      if (selectedSubjectIds.length === 1) {
+        const pid = selectedPlanIds[selectedSubjectIds[0]];
         if (pid && !pid.startsWith('default-monthly-')) {
           planId = pid;
-          break;
         }
       }
       const res = await fetch('/api/student/orders', {
@@ -275,6 +283,7 @@ export default function StudentActivationPage() {
       const json = await res.json();
       if (json.success) {
         setSelectedCourses(new Set());
+        setSelectedPlanIds({});
         await silentReload();
 
         // ─── Phase 14.1: multi-subject checkout ───
@@ -321,26 +330,30 @@ export default function StudentActivationPage() {
           });
           setPaymentSummaryOpen(true);
         } else {
-          // Multiple paid orders — DON'T auto-create a multi-subject checkout
-          // session. Per user requirement (v116): when subscribing to multiple
-          // courses at once, only the FIRST paid order is processed immediately
-          // (its payment dialog opens). The rest stay as pending orders in
-          // the "قيد الدفع" list — the student pays them individually from
-          // there whenever they're ready.
-          const firstPaid = paidOrders[0];
-          setPaymentSummaryOrder({
-            orderId: String(firstPaid.id),
-            subjectName: String(firstPaid.subject_name ?? '—'),
-            amount: Number((firstPaid as { grand_total?: number }).grand_total ?? firstPaid.amount),
-            currency: String(firstPaid.currency ?? 'EGP'),
-            baseAmount: Number((firstPaid as { base_amount?: number }).base_amount ?? firstPaid.amount),
-            feesTotal: Number((firstPaid as { fees_total?: number }).fees_total ?? 0),
-            grandTotal: Number((firstPaid as { grand_total?: number }).grand_total ?? firstPaid.amount),
-            feesBreakdown: (firstPaid as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
-          });
-          setPaymentSummaryOpen(true);
-          if (paidOrders.length > 1) {
-            toast.info(`تم إنشاء ${paidOrders.length} طلبات معلّقة. تابع الدفع للمقرر الأول، وستجد الباقي في قائمة "قيد الدفع" أدناه.`);
+          // Multiple paid orders — create a checkout session, then open
+          // the consolidated Payment Summary dialog. All selected paid
+          // orders are grouped under ONE checkout_session_id so the
+          // student pays for all of them in a single Paymob Intention.
+          const orderIds = paidOrders.map((o) => String(o.id));
+          try {
+            const session = await createCheckoutSession(orderIds, await getCachedAuthHeaders());
+            setPaymentSummaryOrder(null); // single-order mode disabled
+            setSessionItems(session.items);
+            setSessionId(session.session_id);
+            setPaymentSummaryOpen(true);
+            toast.info(
+              t('student.payment.paymentSummaryDesc') +
+              ` — ${session.item_count} ${t('student.payment.coursesLabel')} • ${session.total_amount.toFixed(2)} ${session.currency}`,
+            );
+          } catch (err) {
+            // Session creation failed — show categorized error
+            const message = err instanceof PaymentActionError
+              ? getPaymentActionErrorMessage(err, t('student.payment.paymentInitFailed'))
+              : (err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
+            toast.error(message);
+            // Fall back to showing the success toast (orders were created,
+            // the student can pay them individually from the pending list)
+            toast.success(json.message || 'تم إنشاء الطلبات');
           }
         }
       } else toast.error(json.error || t('common.unexpectedError'));
