@@ -57,7 +57,7 @@ interface ActivationData {
 
 
 export default function StudentActivationPage() {
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
   const router = useRouter();
   const { signOut, user } = useAuthStore();
   const { reset: resetAppStore } = useAppStore();
@@ -68,6 +68,11 @@ export default function StudentActivationPage() {
   const [teacherCode, setTeacherCode] = useState('');
   const [linking, setLinking] = useState(false);
   const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
+  // v116: per-course selected plan + plans map (mirrors the subjects-section
+  // logic so the activation page can show the same plan selector + send
+  // planId when subscribing).
+  const [selectedPlanIds, setSelectedPlanIds] = useState<Record<string, string>>({});
+  const [subjectPlans, setSubjectPlans] = useState<Record<string, Array<{ id: string; period_type: string; period_label: string; duration_days: number; price: number; currency: string }>>>({});
   const [submitting, setSubmitting] = useState(false);
   // ─── Payment Summary dialog state ───
   // For "continue payment on existing pending order" flow.
@@ -116,6 +121,36 @@ export default function StudentActivationPage() {
       const json = await res.json();
       if (json.success) {
         setData(json as ActivationData);
+        // v116: fetch subscription plans for all available courses.
+        // Synthesize a fallback monthly plan from subject.price when no
+        // plans are stored (courses created before v113).
+        const allCourseIds = ((json as ActivationData).available_courses ?? []).map((c) => c.id);
+        if (allCourseIds.length > 0) {
+          const plansMap: Record<string, Array<{ id: string; period_type: string; period_label: string; duration_days: number; price: number; currency: string }>> = {};
+          await Promise.all(allCourseIds.map(async (sid: string) => {
+            try {
+              const pres = await fetch(`/api/subjects/${sid}/subscription-plans`);
+              const pjson = await pres.json();
+              if (pjson.success && pjson.data?.length > 0) {
+                plansMap[sid] = pjson.data;
+              } else {
+                // No stored plans → synthesize a fallback monthly plan.
+                const courseInfo = ((json as ActivationData).available_courses ?? []).find(c => c.id === sid);
+                if (courseInfo) {
+                  plansMap[sid] = [{
+                    id: `default-monthly-${sid}`,
+                    period_type: 'monthly',
+                    period_label: '',
+                    duration_days: 30,
+                    price: Number(courseInfo.price) || 0,
+                    currency: courseInfo.currency || 'EGP',
+                  }];
+                }
+              }
+            } catch { /* ignore — no plans for this subject */ }
+          }));
+          setSubjectPlans(plansMap);
+        }
         if ((json as ActivationData).student.account_status === 'active') {
           toast.success('تم تفعيل حسابك! جارٍ فتح المنصة...');
           setTimeout(() => router.push('/'), 1500);
@@ -220,9 +255,22 @@ export default function StudentActivationPage() {
     if (selectedCourses.size === 0) { toast.error('اختر مقرراً واحداً على الأقل'); return; }
     setSubmitting(true);
     try {
+      // v116: pick the FIRST non-empty selected planId (single-plan checkout
+      // model — matches the existing single-checkout-session flow). When
+      // the planId starts with 'default-monthly-', we strip it (the API
+      // falls back to subject.price when planId is null/empty).
+      const selectedSubjectIds = Array.from(selectedCourses);
+      let planId: string | undefined;
+      for (const sid of selectedSubjectIds) {
+        const pid = selectedPlanIds[sid];
+        if (pid && !pid.startsWith('default-monthly-')) {
+          planId = pid;
+          break;
+        }
+      }
       const res = await fetch('/api/student/orders', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({ subjectIds: Array.from(selectedCourses) }),
+        body: JSON.stringify({ subjectIds: selectedSubjectIds, ...(planId ? { planId } : {}) }),
       });
       const json = await res.json();
       if (json.success) {
@@ -435,10 +483,24 @@ export default function StudentActivationPage() {
                   const sub = data.subscriptions?.find(s => s.subject_id === c.id);
                   const isSubActive = sub?.current_period_end && new Date(sub.current_period_end) > new Date();
                   const isSelected = selectedCourses.has(c.id);
+                  // v116: plans for this course + the selected plan (if any).
+                  const plans = subjectPlans[c.id];
+                  const selectedPlanId = selectedPlanIds[c.id] || '';
+                  const selectedPlan = selectedPlanId && !selectedPlanId.startsWith('default-monthly-')
+                    ? plans?.find(p => p.id === selectedPlanId)
+                    : undefined;
+                  const fallbackPlan = plans?.find(p => p.id === `default-monthly-${c.id}`);
+                  const displayPrice = selectedPlan
+                    ? selectedPlan.price
+                    : (fallbackPlan ? fallbackPlan.price : c.price);
+                  const periodLabel = selectedPlan
+                    ? (selectedPlan.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: selectedPlan.duration_days + ' يوم' }[selectedPlan.period_type] || selectedPlan.period_type))
+                    : 'شهر';
                   return (
-                    <div key={c.id} className={`flex items-center gap-3 border rounded-md p-3 cursor-pointer transition-colors ${isSelected ? 'border-sky-400 bg-sky-50/40' : 'hover:bg-muted/30'}`}
+                    <div key={c.id}
+                      className={`flex items-start gap-3 border rounded-md p-3 cursor-pointer transition-colors ${isSelected ? 'border-sky-400 bg-sky-50/40' : 'hover:bg-muted/30'}`}
                       onClick={() => toggleCourse(c.id)}>
-                      <div className={`flex h-5 w-5 items-center justify-center rounded border shrink-0 ${isSelected ? 'bg-sky-600 border-sky-600 text-white' : 'border-muted-foreground/40'}`}>
+                      <div className={`flex h-5 w-5 items-center justify-center rounded border shrink-0 mt-0.5 ${isSelected ? 'bg-sky-600 border-sky-600 text-white' : 'border-muted-foreground/40'}`}>
                         {isSelected && <Check className="h-3.5 w-3.5" />}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -450,9 +512,33 @@ export default function StudentActivationPage() {
                             <Badge variant="default" className="text-[10px] bg-emerald-600">نشط حتى {new Date(sub.current_period_end).toLocaleDateString('ar-EG')}</Badge>
                           )}
                         </div>
+                        {/* v116: plan selector — shows when plans exist */}
+                        {plans && plans.length > 0 && !isSubActive && (
+                          <select
+                            value={selectedPlanId}
+                            onChange={(e) => {
+                              e.stopPropagation(); // prevent toggling course selection
+                              const val = e.target.value;
+                              // Strip synthetic fallback IDs before storing — the
+                              // API doesn't know about them and would reject.
+                              const safeVal = val.startsWith('default-monthly-') ? '' : val;
+                              setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10px] mt-1.5 rounded border bg-background px-1.5 py-0.5 cursor-pointer max-w-[200px]"
+                            dir={direction}
+                          >
+                            <option value="">افتراضي (شهري)</option>
+                            {plans.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <div className="text-end shrink-0 font-bold text-emerald-700">
-                        {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}/شهر`}
+                        {displayPrice === 0 ? 'مجاناً' : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}
                       </div>
                     </div>
                   );
