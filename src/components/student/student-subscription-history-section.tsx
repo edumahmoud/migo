@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
-import { generatePaymentCode } from '@/lib/payment/utils';
 import type { UserProfile } from '@/lib/types';
 
 interface OrderHistory {
@@ -118,12 +117,13 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
   const filteredOrders = orders.filter((o) => {
     // Status filter
     if (statusFilter !== 'all' && o.status !== statusFilter) return false;
-    // Search filter (by code or subject name)
+    // v113: search by payment_order_id (provider_order_ref) or subject name
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      const code = generatePaymentCode(o.id).toLowerCase();
+      const orderRef = (o.provider_order_ref ?? '').toLowerCase();
+      const orderId = (o.id ?? '').toLowerCase().slice(0, 8);
       const subjectName = (o.subject?.name ?? '').toLowerCase();
-      if (!code.includes(q) && !subjectName.includes(q)) return false;
+      if (!orderRef.includes(q) && !orderId.includes(q) && !subjectName.includes(q)) return false;
     }
     return true;
   });
@@ -238,64 +238,76 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
           ) : (
             <div className="divide-y">
               {filteredOrders.map((o) => {
-                const paymentCode = generatePaymentCode(o.id);
+                const INTERNAL_PREFIXES = ['order_', 'free_', 'manual_', 'force_', 'backfill_', 'verify_', 'gateway_', 'pi_test_', 'pi_live_'];
+                const rawRef = o.provider_order_ref;
+                const displayOrderId = rawRef && !INTERNAL_PREFIXES.some(p => rawRef.startsWith(p))
+                  ? rawRef
+                  : (o.id.length >= 8 ? o.id.slice(0, 8).toUpperCase() : o.id);
+                const subjectPrice = Number(o.subject?.price ?? 0);
+                const totalPaid = Number(o.amount ?? 0);
                 return (
                   <div
                     key={o.id}
-                    className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-muted/30 flex-wrap"
+                    className="px-4 py-3 hover:bg-muted/30"
                   >
-                    {/* Left: subject + code + dates */}
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <BookOpen className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
-                      <div className="flex flex-col gap-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium truncate">
-                            {o.subject?.name ?? 'مقرر غير معروف'}
+                    {/* v113: Redesigned transaction details card —
+                        clean grid layout showing all key info. */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium truncate">
+                          {o.subject?.name ?? 'مقرر غير معروف'}
+                        </span>
+                      </div>
+                      <Badge variant={statusBadgeVariant(o.status)} className="text-xs">
+                        {statusLabel(o.status)}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      {/* Date + Time */}
+                      <div>
+                        <span className="text-muted-foreground">التاريخ</span>
+                        <p className="font-medium" dir="ltr">
+                          {new Date(o.created_at).toLocaleDateString('ar-EG')}
+                          {' '}
+                          <span className="text-muted-foreground">
+                            {new Date(o.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false })}
                           </span>
-                          <Badge variant={statusBadgeVariant(o.status)} className="text-xs">
-                            {statusLabel(o.status)}
-                          </Badge>
-                          {o.checkout_session_id && (
-                            <Badge variant="outline" className="text-xs">دفعة موحدة</Badge>
-                          )}
-                        </div>
-                        {/* Payment code — copyable */}
+                        </p>
+                      </div>
+                      {/* Payment gateway + Order ID */}
+                      <div>
+                        <span className="text-muted-foreground">بوابة الدفع</span>
+                        <p className="font-medium">Paymob</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">رقم العملية</span>
                         <button
                           type="button"
-                          onClick={() => copyCode(paymentCode)}
-                          className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
+                          onClick={() => copyCode(displayOrderId)}
+                          className="font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1"
                           title="اضغط للنسخ"
                         >
-                          <span className="font-bold">كود العملية:</span>
-                          <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
-                            {paymentCode}
-                            <Copy className="h-2.5 w-2.5" />
-                          </span>
+                          {displayOrderId}
+                          <Copy className="h-2.5 w-2.5" />
                         </button>
-                        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                          <span>أُنشئ: {new Date(o.created_at).toLocaleString('ar-EG')}</span>
-                          {o.paid_at && (
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              دُفع: {new Date(o.paid_at).toLocaleString('ar-EG')}
-                            </span>
-                          )}
-                          {o.activated_at && (
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              فُعّل: {new Date(o.activated_at).toLocaleString('ar-EG')}
-                            </span>
-                          )}
-                        </div>
                       </div>
-                    </div>
-
-                    {/* Right: amount */}
-                    <div className="text-end shrink-0">
-                      <div className="text-sm font-mono font-semibold">
-                        {Number(o.amount).toFixed(2)} {o.currency}
+                      {/* Subject base price */}
+                      <div>
+                        <span className="text-muted-foreground">ثمن المقرر</span>
+                        <p className="font-medium font-mono">{subjectPrice.toFixed(2)} {o.currency}</p>
                       </div>
-                      {o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_') && (
-                        <div className="text-xs text-muted-foreground font-mono" dir="ltr">
-                          Paymob: {o.provider_order_ref}
+                      {/* Total paid */}
+                      <div>
+                        <span className="text-muted-foreground">إجمالي المدفوع</span>
+                        <p className="font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                          {totalPaid.toFixed(2)} {o.currency}
+                        </p>
+                      </div>
+                      {o.checkout_session_id && (
+                        <div>
+                          <span className="text-muted-foreground">نوع الدفعة</span>
+                          <p className="font-medium">دفعة موحدة</p>
                         </div>
                       )}
                     </div>
