@@ -29,7 +29,7 @@ import {
   LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronLeft, ChevronRight,
-  AlertCircle,
+  AlertCircle, Gift, Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -274,6 +274,55 @@ export default function AgentPortal({
     return ref;
   };
 
+  // ─── Format price display ───
+  // Shows the original subject price (catalog price) separately
+  // from the order's actual amount (the total the student paid/will pay).
+  // When amount=0 → the order is free (e.g., free subscription plan),
+  // so we show a "مجاني" badge so the agent can confidently activate
+  // the order without hesitation.
+  const renderPriceBlock = (
+    originalPrice: number | undefined | null,
+    amount: number,
+    currency: string,
+  ) => {
+    const isFree = !amount || amount === 0;
+    const hasOriginalPrice = originalPrice !== undefined && originalPrice !== null && originalPrice > 0;
+    const originalDifferentFromTotal = hasOriginalPrice && originalPrice !== amount;
+
+    if (isFree) {
+      return (
+        <div className="flex items-center gap-2 flex-wrap">
+          {originalDifferentFromTotal && (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground line-through decoration-muted-foreground/40">
+              <Tag className="h-3 w-3" />
+              {Number(originalPrice).toFixed(2)} {currency}
+            </span>
+          )}
+          <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
+            <Gift className="h-3 w-3 me-1" />
+            مجاني
+          </Badge>
+        </div>
+      );
+    }
+
+    // Paid order — show original price (if different) + total
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        {originalDifferentFromTotal && (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground line-through decoration-muted-foreground/40">
+            <Tag className="h-3 w-3" />
+            {Number(originalPrice).toFixed(2)} {currency}
+          </span>
+        )}
+        <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+          <DollarSign className="h-3 w-3" />
+          {Number(amount).toFixed(2)} {currency}
+        </span>
+      </div>
+    );
+  };
+
   // ─── Allowed teacher sections (filtered by per-agent config) ───
   const visibleTeacherSections = useMemo(() => {
     if (!self?.allowed_sections) return TEACHER_SECTION_DEFS;
@@ -361,8 +410,8 @@ export default function AgentPortal({
                         <div key={o.id} className="flex items-center justify-between gap-2 p-3">
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{o.subject?.name ?? '—'}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{Number(o.subject?.price ?? o.amount).toFixed(2)} {o.currency}</span>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                              {renderPriceBlock(o.subject?.price, o.amount, o.currency)}
                               <span>·</span>
                               <span>{formatDate(o.created_at)}</span>
                               <span>·</span>
@@ -450,8 +499,8 @@ export default function AgentPortal({
                           <span className="text-sm font-medium truncate">{o.subject?.name ?? '—'}</span>
                           <Badge variant="secondary" className="text-[10px]">{o.student?.name ?? '—'}</Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          <span>{Number(o.subject?.price ?? o.amount).toFixed(2)} {o.currency}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                          {renderPriceBlock(o.subject?.price, o.amount, o.currency)}
                           <span>·</span>
                           <span>{formatDate(o.created_at)}</span>
                           <span>·</span>
@@ -757,48 +806,439 @@ function SettingsSection({
 }
 
 // ──────────────────────────────────────────────────────────────
-// TeacherSectionPreview — v114
-//   Renders a read-only preview of a teacher section using the
-//   agent's auth context. Each section that the agent is allowed
-//   to view fetches its own data via the existing teacher API
-//   endpoints (the agent's auth token is accepted because
-//   registration_agent role has read access via RLS).
+// TeacherSectionPreview — v114 (real data)
+//   Renders a READ-ONLY view of the teacher's data for the agent.
+//   Fetches data from /api/agent/teacher-view?section=<id>.
+//   Switches on the section id to render the appropriate layout.
+//
+//   Supported sections (with real data):
+//     dashboard           — stats grid (subjects, students, pending, paid)
+//     subjects            — list of subjects with name, level, students count, price
+//     students            — list of students enrolled in the teacher's courses
+//     pendingOrders       — list of pending orders (mirrors agent's Pending section)
+//     registration        — list of other agents of the same teacher
+//     summaries           — list of summaries
+//     questionBank        — list of question banks
+//     scormLibrary        — list of SCORM packages
+//     financialManagement — monthly revenue aggregate per currency
+//
+//   Other sections (videos, files, todos, calendar, reports, analytics,
+//   notifications, chat, tracking) render an informational placeholder
+//   because their data shapes are complex and the agent's Teacher
+//   View is a secondary feature; the teacher should use their own login
+//   for those.
 // ──────────────────────────────────────────────────────────────
+const SECTION_LABELS: Record<string, string> = {
+  dashboard: 'الرئيسية',
+  subjects: 'المقررات',
+  students: 'الطلاب',
+  tracking: 'التتبع',
+  summaries: 'الملخصات',
+  questionBank: 'بنك الأسئلة',
+  scormLibrary: 'مكتبة SCORM',
+  pendingOrders: 'طلبات معلّقة',
+  financialManagement: 'الإدارة المالية',
+  chat: 'المحادثة',
+  videos: 'الفيديوهات',
+  files: 'الملفات',
+  todos: 'المهام',
+  calendar: 'التقويم',
+  reports: 'البلاغات',
+  analytics: 'التحليلات',
+  notifications: 'الإشعارات',
+  registration: 'وكلاء التسجيل',
+};
+
 function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
-  // For now, this is a structural placeholder that confirms what
-  // section is selected. The agent has read-only access to teacher
-  // data via RLS; a full per-section read view will be added in a
-  // follow-up. Showing the section id + a hint to switch to the
-  // teacher's own login for full editing.
-  const labels: Record<string, string> = {
-    dashboard: 'الرئيسية',
-    subjects: 'المقررات',
-    students: 'الطلاب',
-    tracking: 'التتبع',
-    summaries: 'الملخصات',
-    questionBank: 'بنك الأسئلة',
-    scormLibrary: 'مكتبة SCORM',
-    pendingOrders: 'طلبات معلّقة',
-    financialManagement: 'الإدارة المالية',
-    chat: 'المحادثة',
-    videos: 'الفيديوهات',
-    files: 'الملفات',
-    todos: 'المهام',
-    calendar: 'التقويم',
-    reports: 'البلاغات',
-    analytics: 'التحليلات',
-    notifications: 'الإشعارات',
-    registration: 'وكلاء التسجيل',
+  const { direction } = useTranslations();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setData(null);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/agent/teacher-view?section=${encodeURIComponent(sectionId)}`,
+          { headers: await getCachedAuthHeaders() },
+        );
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success) {
+          setData(json);
+        } else {
+          setError(json.error || 'تعذّر تحميل البيانات');
+        }
+      } catch {
+        if (!cancelled) setError('تعذّر الاتصال بالخادم');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sectionId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-md border border-rose-200 bg-rose-50 dark:bg-rose-950 dark:border-rose-800 p-3 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
+        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>{error}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div dir={direction}>
+      {renderSectionContent(sectionId, data)}
+    </div>
+  );
+}
+
+function renderSectionContent(sectionId: string, data: Record<string, unknown> | null) {
+  if (!data) return null;
+  const note = data.note as string | undefined;
+  if (note) {
+    // Server returned a placeholder note for unsupported sections.
+    return (
+      <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-muted-foreground">
+        {note}
+      </div>
+    );
+  }
+
+  switch (sectionId) {
+    case 'dashboard':
+      return <DashboardView data={data} />;
+    case 'subjects':
+      return <SubjectsView data={data} />;
+    case 'students':
+      return <StudentsView data={data} />;
+    case 'pendingOrders':
+      return <PendingOrdersView data={data} />;
+    case 'registration':
+      return <RegistrationView data={data} />;
+    case 'summaries':
+    case 'questionBank':
+    case 'scormLibrary':
+      return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد عناصر" />;
+    case 'financialManagement':
+      return <FinancialView data={data} />;
+    default:
+      return (
+        <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-muted-foreground">
+          القسم المحدد: <span className="font-medium">{SECTION_LABELS[sectionId] ?? sectionId}</span>
+          <br />
+          معاينة لهذا القسم غير متاحة للوكيل حالياً — يجب على المعلم الدخول لحسابه لرؤية المحتوى الكامل.
+        </div>
+      );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Per-section views
+// ──────────────────────────────────────────────────────────────
+
+function DashboardView({ data }: { data: Record<string, unknown> }) {
+  const stats = (data.stats ?? {}) as {
+    total_subjects: number;
+    total_students: number;
+    pending_orders: number;
+    paid_orders: number;
   };
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30">
-      <p className="text-xs text-muted-foreground">
-        القسم المحدد: <span className="font-medium">{labels[sectionId] ?? sectionId}</span>
-      </p>
-      <p className="text-xs text-muted-foreground mt-1">
-        يمكن للوكيل تصفّح بيانات هذا القسم بصلاحية قراءة فقط. التفاعل الكامل
-        (إضافة/تعديل/حذف) متاح للمعلم فقط من حسابه الخاص.
-      </p>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <StatTile label="المقررات" value={stats.total_subjects ?? 0} color="sky" icon={<BookOpen className="h-3.5 w-3.5" />} />
+      <StatTile label="الطلاب" value={stats.total_students ?? 0} color="teal" icon={<Users className="h-3.5 w-3.5" />} />
+      <StatTile label="طلبات معلّقة" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
+      <StatTile label="طلبات مدفوعة" value={stats.paid_orders ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+    </div>
+  );
+}
+
+function StatTile({ label, value, color, icon }: {
+  label: string; value: number; color: 'sky' | 'teal' | 'amber' | 'emerald';
+  icon: React.ReactNode;
+}) {
+  const colorMap: Record<string, string> = {
+    sky: 'border-sky-200 bg-sky-50/60 text-sky-700 dark:bg-sky-900/20 dark:text-sky-300',
+    teal: 'border-teal-200 bg-teal-50/60 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300',
+    amber: 'border-amber-200 bg-amber-50/60 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+    emerald: 'border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+  };
+  return (
+    <div className={`rounded-md border px-3 py-2 ${colorMap[color]}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] opacity-80">{label}</span>
+        <span className="opacity-80">{icon}</span>
+      </div>
+      <div className="text-xl font-bold mt-1">{value}</div>
+    </div>
+  );
+}
+
+function SubjectsView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string; name: string; level: string | null; sub_level: string | null;
+    price: number | null; is_paused: boolean; students_count: number;
+  }>;
+  if (items.length === 0) return <EmptyState label="لا توجد مقررات" />;
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((s) => (
+        <div key={s.id} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">{s.name}</span>
+              {s.is_paused && (
+                <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">متوقّف</Badge>
+              )}
+              {s.level && (
+                <Badge variant="secondary" className="text-[9px]">{s.level}{s.sub_level ? ` - ${s.sub_level}` : ''}</Badge>
+              )}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {s.students_count} طالب
+            </div>
+          </div>
+          <div className="shrink-0 text-end">
+            {s.price !== null && s.price > 0 ? (
+              <span className="font-medium text-emerald-700 dark:text-emerald-300">{Number(s.price).toFixed(2)} EGP</span>
+            ) : (
+              <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200"><Gift className="h-2.5 w-2.5 me-0.5" />مجاني</Badge>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StudentsView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string; name: string | null; email: string;
+    username: string | null; student_code: string | null;
+    account_status: string | null;
+    enrollments: Array<{ subject_id: string; subject_name: string; status: string; enrolled_at: string | null }>;
+  }>;
+  if (items.length === 0) return <EmptyState label="لا يوجد طلاب" />;
+
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((s) => (
+        <div key={s.id} className="p-2.5 text-xs space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium truncate">{s.name ?? '—'}</span>
+                {s.student_code && (
+                  <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
+                )}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate" dir="ltr">{s.email}</div>
+            </div>
+            <Badge
+              variant={s.account_status === 'active' ? 'default' : 'secondary'}
+              className="text-[9px] shrink-0"
+            >
+              {s.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+            </Badge>
+          </div>
+          {s.enrollments.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+              {s.enrollments.slice(0, 5).map((e, idx) => (
+                <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted px-1.5 py-0.5">
+                  {e.subject_name} · {e.status}
+                </span>
+              ))}
+              {s.enrollments.length > 5 && (
+                <span className="text-[9px]">+{s.enrollments.length - 5} أخرى</span>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string; amount: number; currency: string; status: string; created_at: string;
+    provider_order_ref: string | null;
+    student: { id: string; name: string | null; email: string; student_code: string | null } | null;
+    subject: { id: string; name: string; price: number | null } | null;
+  }>;
+  if (items.length === 0) return <EmptyState label="لا توجد طلبات معلّقة" />;
+  const formatDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }); }
+    catch { return '—'; }
+  };
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((o) => {
+        const isFree = !o.amount || o.amount === 0;
+        return (
+          <div key={o.id} className="p-2.5 text-xs flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium truncate">{o.subject?.name ?? '—'}</span>
+                <Badge variant="secondary" className="text-[9px]">{o.student?.name ?? '—'}</Badge>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">{formatDate(o.created_at)}</div>
+            </div>
+            {isFree ? (
+              <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
+                <Gift className="h-2.5 w-2.5 me-0.5" />مجاني
+              </Badge>
+            ) : (
+              <span className="font-medium text-emerald-700 dark:text-emerald-300">
+                {Number(o.amount).toFixed(2)} {o.currency}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RegistrationView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string; display_name: string | null; kind: string | null;
+    is_active: boolean; created_at: string;
+    user: { id: string; email: string; name: string | null } | null;
+  }>;
+  if (items.length === 0) return <EmptyState label="لا يوجد وكلاء آخرون" />;
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((a) => (
+        <div key={a.id} className="p-2.5 text-xs flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">{a.display_name ?? a.user?.name ?? '—'}</span>
+              {a.is_active ? (
+                <Badge variant="default" className="text-[9px]">نشط</Badge>
+              ) : (
+                <Badge variant="destructive" className="text-[9px]">معطّل</Badge>
+              )}
+              {a.kind && (
+                <Badge variant="secondary" className="text-[9px]">{a.kind}</Badge>
+              )}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 truncate" dir="ltr">
+              {a.user?.email ?? '—'}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ItemsListView({ data, idField, titleField, subtitleField, emptyMsg }: {
+  data: Record<string, unknown>;
+  idField: string; titleField: string; subtitleField: string; emptyMsg: string;
+}) {
+  const items = (data.items ?? []) as Array<Record<string, unknown>>;
+  if (items.length === 0) return <EmptyState label={emptyMsg} />;
+
+  // Resolve nested field paths like 'subject.name' from the item.
+  const resolve = (obj: Record<string, unknown>, path: string): unknown => {
+    return path.split('.').reduce<unknown>((acc, key) => {
+      if (acc && typeof acc === 'object') {
+        return (acc as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, obj);
+  };
+
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((item) => {
+        const id = String(item[idField] ?? '');
+        const title = String(resolve(item, titleField) ?? '—');
+        const subtitle = resolve(item, subtitleField);
+        const subtitleText: string = subtitle === null || subtitle === undefined
+          ? ''
+          : typeof subtitle === 'object'
+          ? JSON.stringify(subtitle)
+          : String(subtitle);
+        return (
+          <div key={id} className="p-2.5 text-xs flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium truncate">{title}</p>
+              {subtitleText && (
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                  {subtitleText}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FinancialView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    currency: string; gross: number; teacher: number; platform: number; count: number;
+  }>;
+  const period = data.period as { from: string; to: string } | undefined;
+  if (items.length === 0) {
+    return <EmptyState label="لا توجد بيانات مالية لهذا الشهر" />;
+  }
+  return (
+    <div className="space-y-2">
+      {period && (
+        <p className="text-[10px] text-muted-foreground text-center">
+          بيانات الشهر الحالي
+        </p>
+      )}
+      <div className="rounded-md border border-border/60 divide-y">
+        {items.map((row) => (
+          <div key={row.currency} className="p-2.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">{row.currency}</span>
+              <span className="text-[10px] text-muted-foreground">{row.count} معاملة</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1 mt-1.5 text-[10px]">
+              <div>
+                <p className="text-muted-foreground">الإجمالي</p>
+                <p className="font-medium text-sky-700 dark:text-sky-300">{row.gross.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">نص المعلم</p>
+                <p className="font-medium text-emerald-700 dark:text-emerald-300">{row.teacher.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">نص المنصة</p>
+                <p className="font-medium text-amber-700 dark:text-amber-300">{row.platform.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-border/60 p-6 text-center text-xs text-muted-foreground">
+      {label}
     </div>
   );
 }
