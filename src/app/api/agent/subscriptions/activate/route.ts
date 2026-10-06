@@ -52,10 +52,14 @@ export async function POST(request: NextRequest) {
   const { sourceTeacherId } = auth;
 
   // 1. Fetch the order + verify subject ownership
+  //    v116: also fetch plan_id + plan_duration_days so the activation
+  //    RPC uses the plan's actual duration (e.g., 365 for yearly)
+  //    instead of the hardcoded 30-day default.
   const { data: order, error: orderErr } = await supabaseServer
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
+      plan_id, plan_duration_days,
       subjects:subject_id (teacher_id)
     `)
     .eq('id', orderId)
@@ -68,6 +72,8 @@ export async function POST(request: NextRequest) {
   const o = order as unknown as {
     id: string; student_id: string; subject_id: string;
     amount: number; currency: string; status: string;
+    plan_id: string | null;
+    plan_duration_days: number | null;
     subjects: { teacher_id: string } | null;
   };
 
@@ -88,7 +94,12 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Call the existing RPC — marks as paid + creates enrollment + financial_ledger
+  //    v116: pass plan_duration_days so the RPC uses the plan's actual
+  //    duration (e.g., 365 for yearly) instead of the hardcoded 30-day
+  //    default. The RPC also reads plan_duration_days from the order
+  //    row directly as a fallback (in case the caller forgets to pass it).
   const manualPaymentId = `manual_agent_${randomUUID()}`;
+  const periodDays = o.plan_duration_days ?? 30;
   const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
     'activate_subscription_after_payment',
     {
@@ -105,6 +116,7 @@ export async function POST(request: NextRequest) {
         reason: 'Manual activation by registration agent (payment received outside system)',
       },
       p_confirmed_by: agentId,
+      p_period_days: periodDays,
     },
   );
 
@@ -140,8 +152,8 @@ export async function POST(request: NextRequest) {
         enrolled_at: now,
         monthly_price: Number(o.amount),
         current_period_start: now,
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
       }, {
         onConflict: 'subject_id,student_id',
       });
@@ -221,8 +233,8 @@ export async function POST(request: NextRequest) {
         enrolled_at: now,
         monthly_price: Number(o.amount),
         current_period_start: now,
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
       }, {
         onConflict: 'subject_id,student_id',
       });

@@ -198,12 +198,53 @@ export async function POST(request: NextRequest) {
           provider: 'free',
           provider_order_ref: orderRef,
           status: 'pending',
+          // v116: snapshot plan_id + plan_duration_days so the activation
+          // flow knows which plan was selected (and uses its duration).
+          plan_id: planId ?? null,
+          plan_duration_days: planDurationDays,
         })
         .select('id')
         .single();
 
       if (freeOrder) {
         createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: (freeOrder as { id: string }).id });
+      }
+    } else if (planPriceOverride === 0) {
+      // v116: PAID subject + FREE plan (e.g., scholarship plan with price=0).
+      // Route through the FREE branch so the agent can activate the order
+      // directly without payment gateway involvement. Without this, the
+      // order would go through the PAID branch and the agent would see
+      // an order with amount=0 in the pending list but no way to
+      // activate it (the gateway never fires for amount=0).
+      const orderRef = `free_${randomUUID()}`;
+      const { data: freeOrder } = await supabaseServer
+        .from('orders')
+        .insert({
+          student_id: studentId,
+          subject_id: subjectId,
+          amount: 0,
+          currency: subject.currency,
+          provider: 'free',
+          provider_order_ref: orderRef,
+          status: 'pending',
+          plan_id: planId ?? null,
+          plan_duration_days: planDurationDays,
+        })
+        .select('id')
+        .single();
+
+      if (freeOrder) {
+        createdOrders.push({
+          subject_id: subjectId,
+          subject_name: subject.name,
+          amount: 0,
+          status: 'pending',
+          free: true,
+          free_plan: true,
+          plan_period_type: planPeriodType,
+          plan_period_label: planPeriodLabel,
+          order_id: (freeOrder as { id: string }).id,
+        });
       }
     } else {
       // PAID course — create 'pending' order. The order will be
@@ -290,6 +331,11 @@ export async function POST(request: NextRequest) {
           provider: 'pending_gateway',
           provider_order_ref: `order_${randomUUID()}`,
           status: 'pending',
+          // v116: snapshot plan_id + plan_duration_days so the activation
+          // RPC can use the plan's actual duration (e.g., 365 for yearly)
+          // instead of the hardcoded 30-day default.
+          plan_id: planId ?? null,
+          plan_duration_days: planDurationDays,
         })
         .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at, fees_breakdown')
         .single();
@@ -345,6 +391,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Build a clearer message based on the outcome.
+  // v116 — distinguish free-plan reservations so the student understands
+  // the order is now in pending state and they cannot re-book the same
+  // plan while it's pending.
+  let message: string;
+  if (createdOrders.length === 0 && skippedOrders.length > 0) {
+    // All were skipped — student already has pending orders for these subjects.
+    const isAllFree = skippedOrders.every(o => o.amount === 0);
+    message = isAllFree
+      ? 'لديك طلبات معلّقة بالفعل لهذه المقررات — تم حجزها بانتظار تفعيل الوكيل/المعلم. لا يمكنك إعادة الحجز حتى يتم التفعيل أو الإلغاء.'
+      : 'لديك طلبات قيد الدفع بالفعل — يمكنك إتمام الدفع الآن أو إلغاؤها لإعادة المحاولة.';
+  } else if (createdOrders.some(o => (o as { free?: boolean }).free)) {
+    message = 'تم حجز الطلبات المجانية بنجاح — في انتظار تفعيل الوكيل/المعلم. لا يمكنك إعادة الحجز حتى يتم التفعيل أو الإلغاء.';
+  } else if (createdOrders.some(o => o.status === 'pending')) {
+    message = 'تم إنشاء الطلبات. سيتم تفعيل المقررات بعد موافقة الوكيل/المعلم أو بعد إتمام الدفع.';
+  } else {
+    message = 'تم إنشاء الطلبات بنجاح.';
+  }
+
   return NextResponse.json({
     success: true,
     created_orders: createdOrders,
@@ -353,10 +418,6 @@ export async function POST(request: NextRequest) {
     skipped_orders: skippedOrders,
     // v92+ — subjects that were not available (paused or subscription closed)
     not_available: notAvailableSubjects,
-    message: skippedOrders.length > 0 && createdOrders.length === 0
-      ? 'لديك طلبات قيد الدفع بالفعل — يمكنك إتمام الدفع الآن'
-      : createdOrders.some(o => o.status === 'pending')
-        ? 'تم إنشاء الطلبات. سيتم تفعيل المقررات بعد موافقة الوكيل/المعلم أو بعد إتمام الدفع.'
-        : 'تم إنشاء الطلبات بنجاح.',
+    message,
   });
 }

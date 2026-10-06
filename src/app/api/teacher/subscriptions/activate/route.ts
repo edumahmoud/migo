@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
     .select(`
       id, student_id, subject_id, amount, currency, status,
       base_amount, fees_total, grand_total,
+      plan_id, plan_duration_days,
       subjects:subject_id (teacher_id)
     `)
     .eq('id', orderId)
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest) {
     base_amount: number | null;
     fees_total: number | null;
     grand_total: number | null;
+    // v116: plan snapshot for the activation RPC + fallback UPSERT.
+    plan_id: string | null;
+    plan_duration_days: number | null;
     subjects: { teacher_id: string } | null;
   };
 
@@ -87,7 +91,12 @@ export async function POST(request: NextRequest) {
   }
 
   // 4. Call the existing RPC — marks as paid + creates enrollment + financial_ledger
+  //    v116: pass plan_duration_days so the RPC uses the plan's actual
+  //    duration (e.g., 365 for yearly) instead of the hardcoded 30-day
+  //    default. The RPC also reads plan_duration_days from the order
+  //    row directly as a fallback.
   const manualPaymentId = `manual_${randomUUID()}`;
+  const periodDays = o.plan_duration_days ?? 30;
   const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
     'activate_subscription_after_payment',
     {
@@ -103,6 +112,7 @@ export async function POST(request: NextRequest) {
         reason: 'Manual activation by teacher (payment gateway unavailable)',
       },
       p_confirmed_by: teacherId,
+      p_period_days: periodDays,
     },
   );
 
@@ -143,8 +153,8 @@ export async function POST(request: NextRequest) {
         enrolled_at: now,
         monthly_price: Number(o.amount),
         current_period_start: now,
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
       }, {
         onConflict: 'subject_id,student_id',
       });
@@ -232,8 +242,8 @@ export async function POST(request: NextRequest) {
         enrolled_at: now,
         monthly_price: Number(o.amount),
         current_period_start: now,
-        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        next_billing_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
+        next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
       }, {
         onConflict: 'subject_id,student_id',
       });

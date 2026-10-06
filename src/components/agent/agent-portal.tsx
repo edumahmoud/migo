@@ -28,7 +28,7 @@ import {
   Settings, Inbox, BookOpen, Power, PowerOff, ShieldCheck,
   LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
-  ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronLeft, ChevronRight,
+  ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronLeft, ChevronRight, ChevronDown,
   AlertCircle, Gift, Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -527,66 +527,8 @@ export default function AgentPortal({
         </>
       )}
 
-      {/* ════════ Section: STUDENTS ════════ */}
-      {activeSection === 'students' && (
-        <>
-          <header className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shrink-0">
-              <Users className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">الطلاب</h1>
-              <p className="text-sm text-muted-foreground">ابحث عن أي طالب بالكود لعرض تفاصيله</p>
-            </div>
-          </header>
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  value={searchCode}
-                  onChange={(e) => setSearchCode(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !searching) searchStudent(); }}
-                  placeholder="كود الطالب..."
-                  className="flex-1"
-                  dir="ltr"
-                />
-                <Button onClick={searchStudent} disabled={searching || !searchCode.trim()}>
-                  {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  بحث
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          {studentResult?.student && (
-            <Card>
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold">{studentResult.student.name ?? '—'}</p>
-                  <Badge variant={studentResult.student.account_status === 'active' ? 'default' : 'secondary'}>
-                    {studentResult.student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">{studentResult.student.email}</p>
-                {studentResult.subscriptions.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs font-medium">الاشتراكات:</p>
-                    {studentResult.subscriptions.map((sub) => (
-                      <div key={sub.id} className="flex items-center justify-between text-xs">
-                        <span>{sub.subject?.name ?? '—'}</span>
-                        <Badge variant="secondary" className="text-[10px]">{sub.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
-
-      {/* ════════ Section: SETTINGS (Profile + Teacher View) ════════ */}
-      {activeSection === 'settings' && (
+      {/* ════════ Section: TEACHER VIEW (top-level, replaces old "Settings + students") ════════ */}
+      {activeSection === 'teacherView' && (
         <SettingsSection
           self={self}
           teacher={teacher}
@@ -638,11 +580,11 @@ function SettingsSection({
       <>
         <header className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
-            <Settings className="h-5 w-5 text-white" />
+            <LayoutDashboard className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">الملف الشخصي</h1>
-            <p className="text-sm text-muted-foreground">بيانات الوكيل + أقسام المعلم</p>
+            <h1 className="text-xl font-bold">عرض المعلم</h1>
+            <p className="text-sm text-muted-foreground">بيانات الوكيل + أقسام المعلم المرئية لك</p>
           </div>
         </header>
         {selfError ? (
@@ -687,11 +629,11 @@ function SettingsSection({
     <>
       <header className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
-          <Settings className="h-5 w-5 text-white" />
+          <LayoutDashboard className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-xl font-bold">الملف الشخصي + عرض المعلم</h1>
-          <p className="text-sm text-muted-foreground">بيانات الوكيل + أقسام المعلم المرئية لك</p>
+          <h1 className="text-xl font-bold">عرض المعلم</h1>
+          <p className="text-sm text-muted-foreground">أقسام المعلم المرئية لك — قراءة فقط</p>
         </div>
       </header>
 
@@ -852,24 +794,42 @@ const SECTION_LABELS: Record<string, string> = {
 function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
   const { direction } = useTranslations();
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
+  // v116: pagination — accumulate items across pages so "load more"
+  // appends to the visible list instead of replacing it.
+  const [items, setItems] = useState<unknown[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const LIMIT = 20;
 
+  // Reset state when sectionId changes.
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+    setItems([]);
+    setOffset(0);
+    setHasMore(false);
+    setTotalCount(0);
     setData(null);
+    setError(null);
+    setLoading(true);
+
+    let cancelled = false;
     (async () => {
       try {
         const res = await fetch(
-          `/api/agent/teacher-view?section=${encodeURIComponent(sectionId)}`,
+          `/api/agent/teacher-view?section=${encodeURIComponent(sectionId)}&limit=${LIMIT}&offset=0`,
           { headers: await getCachedAuthHeaders() },
         );
         const json = await res.json();
         if (cancelled) return;
         if (json.success) {
           setData(json);
+          setItems(Array.isArray(json.items) ? json.items : []);
+          setHasMore(!!json.has_more);
+          setTotalCount(Number(json.total_count ?? (Array.isArray(json.items) ? json.items.length : 0)));
+          setOffset(LIMIT);
         } else {
           setError(json.error || 'تعذّر تحميل البيانات');
         }
@@ -881,6 +841,30 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
     })();
     return () => { cancelled = true; };
   }, [sectionId]);
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/agent/teacher-view?section=${encodeURIComponent(sectionId)}&limit=${LIMIT}&offset=${offset}`,
+        { headers: await getCachedAuthHeaders() },
+      );
+      const json = await res.json();
+      if (json.success) {
+        const newItems = Array.isArray(json.items) ? json.items : [];
+        setItems(prev => [...prev, ...newItems]);
+        setHasMore(!!json.has_more);
+        setOffset(prev => prev + LIMIT);
+      } else {
+        toast.error(json.error || 'تعذّر تحميل المزيد');
+      }
+    } catch {
+      toast.error('تعذّر الاتصال بالخادم');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -899,9 +883,26 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
     );
   }
 
+  // Merge the accumulated items back into the data object so each
+  // per-section view reads them from the same place.
+  const mergedData = data ? { ...data, items } : null;
+
   return (
-    <div dir={direction}>
-      {renderSectionContent(sectionId, data)}
+    <div dir={direction} className="space-y-2">
+      {totalCount > 0 && (
+        <div className="text-[10px] text-muted-foreground text-end">
+          عُرض {items.length} من {totalCount}
+        </div>
+      )}
+      {renderSectionContent(sectionId, mergedData)}
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button size="sm" variant="outline" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1" /> : <ChevronDown className="h-3.5 w-3.5 me-1" />}
+            عرض المزيد
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

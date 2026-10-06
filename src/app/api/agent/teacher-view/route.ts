@@ -64,6 +64,18 @@ export async function GET(request: NextRequest) {
   }
   const section = parsed.data;
 
+  // v116: pagination — the agent's Teacher View must NOT load long
+  // lists in one shot. Default limit is 20 items, max 50. The UI
+  // shows a "load more" button to fetch the next page.
+  const rawLimit = Number(searchParams.get('limit') ?? '20');
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 50
+    ? Math.floor(rawLimit)
+    : 20;
+  const rawOffset = Number(searchParams.get('offset') ?? '0');
+  const offset = Number.isFinite(rawOffset) && rawOffset >= 0
+    ? Math.floor(rawOffset)
+    : 0;
+
   // Per-agent allowed_sections check.
   const allowed = auth.agent.allowed_sections;
   if (allowed !== null && !allowed.includes(section)) {
@@ -83,19 +95,19 @@ export async function GET(request: NextRequest) {
       case 'dashboard':
         return await handleDashboard(teacherId);
       case 'subjects':
-        return await handleSubjects(teacherId);
+        return await handleSubjects(teacherId, limit, offset);
       case 'students':
-        return await handleStudents(teacherId);
+        return await handleStudents(teacherId, limit, offset);
       case 'pendingOrders':
-        return await handlePendingOrders(teacherId);
+        return await handlePendingOrders(teacherId, limit, offset);
       case 'registration':
-        return await handleRegistration(teacherId);
+        return await handleRegistration(teacherId, limit, offset);
       case 'summaries':
-        return await handleSummaries(teacherId);
+        return await handleSummaries(teacherId, limit, offset);
       case 'questionBank':
-        return await handleQuestionBank(teacherId);
+        return await handleQuestionBank(teacherId, limit, offset);
       case 'scormLibrary':
-        return await handleScormLibrary(teacherId);
+        return await handleScormLibrary(teacherId, limit, offset);
       case 'financialManagement':
         return await handleFinancial(teacherId);
       default:
@@ -176,7 +188,13 @@ async function handleDashboard(teacherId: string) {
   });
 }
 
-async function handleSubjects(teacherId: string) {
+async function handleSubjects(teacherId: string, limit: number, offset: number) {
+  // Count total first so the UI can show "showing X of Y".
+  const { count: totalCount } = await supabaseServer
+    .from('subjects')
+    .select('id', { count: 'exact', head: true })
+    .eq('teacher_id', teacherId);
+
   const { data: subjects, error } = await supabaseServer
     .from('subjects')
     .select(`
@@ -186,7 +204,7 @@ async function handleSubjects(teacherId: string) {
     `)
     .eq('teacher_id', teacherId)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
@@ -200,15 +218,27 @@ async function handleSubjects(teacherId: string) {
     students_count: Array.isArray(s.subject_students_count) ? (s.subject_students_count[0] as { count: number })?.count ?? 0 : 0,
   }));
 
+  const total = totalCount ?? 0;
   return NextResponse.json({
     success: true,
     section: 'subjects',
     items,
+    total_count: total,
+    has_more: offset + items.length < total,
+    limit,
+    offset,
   });
 }
 
-async function handleStudents(teacherId: string) {
+async function handleStudents(teacherId: string, limit: number, offset: number) {
+  // Count first.
+  const { count: totalCount } = await supabaseServer
+    .from('subject_students')
+    .select('id', { count: 'exact', head: true })
+    .in('subject_id', (await supabaseServer.from('subjects').select('id').eq('teacher_id', teacherId)).data?.map((s: { id: string }) => s.id) ?? []);
+
   // Join subject_students + users + subjects where subject.teacher_id = teacherId.
+  // We over-fetch by 2x so we can group by student + still respect the limit.
   const { data: rows, error } = await supabaseServer
     .from('subject_students')
     .select(`
@@ -218,7 +248,7 @@ async function handleStudents(teacherId: string) {
     `)
     .eq('subject.teacher_id', teacherId)
     .order('enrolled_at', { ascending: false })
-    .limit(500);
+    .range(offset, offset + (limit * 2) - 1);
 
   if (error) throw error;
 
@@ -261,21 +291,32 @@ async function handleStudents(teacherId: string) {
     });
   }
 
+  const total = totalCount ?? 0;
+  const studentItems = Array.from(byStudent.values()).slice(0, limit);
   return NextResponse.json({
     success: true,
     section: 'students',
-    items: Array.from(byStudent.values()),
+    items: studentItems,
+    total_count: total,
+    has_more: offset + studentItems.length < total,
+    limit,
+    offset,
   });
 }
 
-async function handlePendingOrders(teacherId: string) {
-  // Mirror of /api/agent/orders but queried here for convenience.
+async function handlePendingOrders(teacherId: string, limit: number, offset: number) {
   const teacherSubjects = await supabaseServer.from('subjects').select('id, name, price').eq('teacher_id', teacherId);
   const teacherSubjectIds = (teacherSubjects.data ?? []).map((s: { id: string }) => s.id);
 
   if (teacherSubjectIds.length === 0) {
-    return NextResponse.json({ success: true, section: 'pendingOrders', items: [] });
+    return NextResponse.json({ success: true, section: 'pendingOrders', items: [], total_count: 0, has_more: false, limit, offset });
   }
+
+  const { count: totalCount } = await supabaseServer
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+    .in('subject_id', teacherSubjectIds);
 
   const { data: orders, error } = await supabaseServer
     .from('orders')
@@ -287,27 +328,38 @@ async function handlePendingOrders(teacherId: string) {
     .eq('status', 'pending')
     .in('subject_id', teacherSubjectIds)
     .order('created_at', { ascending: false })
-    .limit(200);
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
+  const total = totalCount ?? 0;
   return NextResponse.json({
     success: true,
     section: 'pendingOrders',
     items: orders ?? [],
+    total_count: total,
+    has_more: offset + (orders?.length ?? 0) < total,
+    limit,
+    offset,
   });
 }
 
-async function handleRegistration(teacherId: string) {
-  // List other agents of the same teacher. The current agent is filtered out.
+async function handleRegistration(teacherId: string, limit: number, offset: number) {
+  const { count: totalCount } = await supabaseServer
+    .from('registration_agents')
+    .select('id', { count: 'exact', head: true })
+    .eq('teacher_id', teacherId);
+
   const { data: agents, error } = await supabaseServer
     .from('registration_agents')
     .select('id, display_name, kind, is_active, created_at, user:users!user_id(id, email, name)')
     .eq('teacher_id', teacherId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
+  const total = totalCount ?? 0;
   return NextResponse.json({
     success: true,
     section: 'registration',
@@ -319,10 +371,14 @@ async function handleRegistration(teacherId: string) {
       created_at: a.created_at as string,
       user: a.user as { id: string; email: string; name: string | null } | null,
     })),
+    total_count: total,
+    has_more: offset + (agents?.length ?? 0) < total,
+    limit,
+    offset,
   });
 }
 
-async function handleSummaries(teacherId: string) {
+async function handleSummaries(teacherId: string, limit: number, offset: number) {
   const { data: summaries, error } = await supabaseServer
     .from('summaries')
     .select(`
@@ -331,18 +387,23 @@ async function handleSummaries(teacherId: string) {
     `)
     .eq('subject.teacher_id', teacherId)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
+  const items = (summaries ?? []) as unknown as Array<{ id: string }>;
   return NextResponse.json({
     success: true,
     section: 'summaries',
     items: summaries ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
   });
 }
 
-async function handleQuestionBank(teacherId: string) {
+async function handleQuestionBank(teacherId: string, limit: number, offset: number) {
   const { data: banks, error } = await supabaseServer
     .from('question_banks')
     .select(`
@@ -351,18 +412,23 @@ async function handleQuestionBank(teacherId: string) {
     `)
     .eq('subject.teacher_id', teacherId)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
+  const items = (banks ?? []) as unknown as Array<{ id: string }>;
   return NextResponse.json({
     success: true,
     section: 'questionBank',
     items: banks ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
   });
 }
 
-async function handleScormLibrary(teacherId: string) {
+async function handleScormLibrary(teacherId: string, limit: number, offset: number) {
   const { data: packages, error } = await supabaseServer
     .from('scorm_packages')
     .select(`
@@ -371,14 +437,19 @@ async function handleScormLibrary(teacherId: string) {
     `)
     .eq('subject.teacher_id', teacherId)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
 
+  const items = (packages ?? []) as unknown as Array<{ id: string }>;
   return NextResponse.json({
     success: true,
     section: 'scormLibrary',
     items: packages ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
   });
 }
 

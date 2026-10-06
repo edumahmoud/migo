@@ -1020,6 +1020,51 @@ onSignOut={async () => {
 
     // Registration agent — portal with sidebar showing agent-specific sections.
     if (user.role === 'registration_agent') {
+      // v116: 'profile' section reuses the existing user-profile-page
+      // (the same one used by students/teachers/admins). Other sections
+      // (search/pending/teacherView) are handled by AgentPortal.
+      if (agentSection === 'profile') {
+        return (
+          <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+            <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30">
+              <AppHeader
+                userName={user.name}
+                userId={user.id}
+                userRole={user.role}
+                userGender={user.gender}
+                titleId={user.title_id}
+                avatarUrl={user.avatar_url ?? undefined}
+                onSignOut={handleSignOut}
+                onOpenSettings={() => setAgentSection('profile')}
+                onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+                sidebarCollapsed={!sidebarOpen}
+              />
+              <AppSidebar
+                role={'admin' as 'student' | 'teacher' | 'admin'}
+                activeSection={agentSection}
+                onSectionChange={(s: string) => setAgentSection(s)}
+                customNavItems={[
+                  { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
+                  { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
+                  { id: 'teacherView', label: 'عرض المعلم', icon: <LayoutDashboard className="h-5 w-5" /> },
+                  { id: 'profile', label: 'الملف الشخصي', icon: <Users className="h-5 w-5" /> },
+                ]}
+              />
+              <main
+                className={`flex-1 min-w-0 overflow-x-hidden pt-14 md:pt-16 pb-20 md:pb-4 transition-[margin,padding] duration-300 ease-in-out ${
+                  sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
+                }`}
+              >
+                <UserProfilePage
+                  userId={user.id}
+                  currentUser={user}
+                  onBack={() => setAgentSection('search')}
+                />
+              </main>
+            </div>
+          </DashboardErrorBoundary>
+        );
+      }
       return (
         <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
           <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30">
@@ -1031,7 +1076,7 @@ onSignOut={async () => {
               titleId={user.title_id}
               avatarUrl={user.avatar_url ?? undefined}
               onSignOut={handleSignOut}
-              onOpenSettings={() => setAgentSection('settings')}
+              onOpenSettings={() => setAgentSection('profile')}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
               sidebarCollapsed={!sidebarOpen}
             />
@@ -1042,8 +1087,8 @@ onSignOut={async () => {
               customNavItems={[
                 { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
                 { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-                { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
-                { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
+                { id: 'teacherView', label: 'عرض المعلم', icon: <LayoutDashboard className="h-5 w-5" /> },
+                { id: 'profile', label: 'الملف الشخصي', icon: <Users className="h-5 w-5" /> },
               ]}
             />
             <main
