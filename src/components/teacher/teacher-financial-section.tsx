@@ -171,7 +171,8 @@ export default function TeacherFinancialSection() {
   // v112: transactions log — search + sort + op code column
   const [searchQuery, setSearchQuery] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [timeFilter, setTimeFilter] = useState('');  // HH:MM filter (matches any time-of-day)
+  // v113: replace time-only filter (HH:MM) with day/month/year period filter
+  const [periodFilter, setPeriodFilter] = useState<'all' | 'day' | 'month' | 'year'>('all');
 
   // Data state
   const [data, setData] = useState<RevenueResponse | null>(null);
@@ -343,17 +344,17 @@ export default function TeacherFinancialSection() {
         );
       });
     }
-    // Time-of-day filter (HH:MM substring match against tx.created_at's time)
-    if (timeFilter) {
-      const t = timeFilter.trim();
+    // v113: period filter (day/month/year) — replaces HH:MM time filter
+    if (periodFilter !== 'all') {
+      const now = new Date();
       result = result.filter((tx: TransactionRow) => {
         try {
           const d = new Date(tx.created_at);
-          const hhmm = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-          return hhmm.startsWith(t);
-        } catch {
-          return false;
-        }
+          if (periodFilter === 'day') return d.toDateString() === now.toDateString();
+          if (periodFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          if (periodFilter === 'year') return d.getFullYear() === now.getFullYear();
+          return true;
+        } catch { return false; }
       });
     }
     // Sort by created_at (desc = newest first by default)
@@ -363,7 +364,7 @@ export default function TeacherFinancialSection() {
       return sortDir === 'asc' ? aT - bT : bT - aT;
     });
     return result;
-  }, [transactions, searchQuery, timeFilter, sortDir]);
+  }, [transactions, searchQuery, periodFilter, sortDir]);
 
   // ─── Loading state ───
   if (loading && !data) {
@@ -523,7 +524,7 @@ export default function TeacherFinancialSection() {
               transactions={transactions}
               currency={t('financial.currency') || 'EGP'}
               height={320}
-              showPlatformShare={false}
+              showPlatformData={false}
             />
           </CardContent>
         </Card>
@@ -638,15 +639,21 @@ export default function TeacherFinancialSection() {
                   aria-label={t('financial.search.label') || 'بحث'}
                 />
               </div>
-              {/* v112: time-of-day filter (HH:MM) */}
-              <Input
-                type="time"
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-                className="h-9 w-32"
-                aria-label={t('financial.table.time') || 'الوقت'}
-                title={t('financial.table.time') || 'الوقت'}
-              />
+              {/* v113: period filter (day/month/year) — replaces HH:MM time filter */}
+              <Select
+                value={periodFilter}
+                onValueChange={(v) => setPeriodFilter(v as 'all' | 'day' | 'month' | 'year')}
+              >
+                <SelectTrigger className="w-32 h-9">
+                  <SelectValue placeholder="الكل" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="day">اليوم</SelectItem>
+                  <SelectItem value="month">هذا الشهر</SelectItem>
+                  <SelectItem value="year">هذا العام</SelectItem>
+                </SelectContent>
+              </Select>
               {/* v112: sort toggle (asc / desc) */}
               <Button
                 variant="outline"
@@ -701,7 +708,7 @@ export default function TeacherFinancialSection() {
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => { setSearchQuery(''); setTimeFilter(''); }}
+                onClick={() => { setSearchQuery(''); setPeriodFilter('all'); }}
               >
                 مسح البحث
               </Button>
@@ -776,7 +783,22 @@ export default function TeacherFinancialSection() {
                             const orderId = resolvePaymentOrderId(tx);
                             return orderId === '—'
                               ? <span className="text-muted-foreground">—</span>
-                              : <span className="text-sky-700 dark:text-sky-300">{orderId}</span>;
+                              : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      navigator.clipboard?.writeText(orderId);
+                                      toast.success(`تم نسخ رقم الطلب: ${orderId}`);
+                                    } catch { /* ignore */ }
+                                  }}
+                                  className="text-sky-700 dark:text-sky-300 hover:underline cursor-pointer"
+                                  title="اضغط للنسخ"
+                                >
+                                  {orderId}
+                                </button>
+                              );
                           })()}
                         </TableCell>
                         {/* v112: date+time cell (was date-only) */}

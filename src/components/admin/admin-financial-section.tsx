@@ -711,6 +711,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
               }))}
               currency={t('adminFinancial.currency') || 'EGP'}
               height={320}
+              showPlatformData
             />
           </CardContent>
         </Card>
@@ -898,15 +899,6 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="text-base">
                 {t('adminFinancial.table.title')}
-                {' '}
-                {/* v112: total transactions count (filtered) in the header */}
-                <Badge
-                  variant="secondary"
-                  className="ms-2 bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
-                >
-                  {t('adminFinancial.table.totalFiltered', { count: filteredAndSortedRows.length })
-                    || `إجمالي العمليات (مصفى): ${filteredAndSortedRows.length}`}
-                </Badge>
               </CardTitle>
               {pagination && (
                 <span className="text-xs text-muted-foreground">
@@ -1084,7 +1076,22 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                             const orderId = resolvePaymentOrderId(row);
                             return orderId === '—'
                               ? <span className="text-muted-foreground">—</span>
-                              : <span className="text-sky-700 dark:text-sky-300">{orderId}</span>;
+                              : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      navigator.clipboard?.writeText(orderId);
+                                      toast.success(`تم نسخ رقم الطلب: ${orderId}`);
+                                    } catch { /* ignore */ }
+                                  }}
+                                  className="text-sky-700 dark:text-sky-300 hover:underline cursor-pointer"
+                                  title="اضغط للنسخ"
+                                >
+                                  {orderId}
+                                </button>
+                              );
                           })()}
                         </TableCell>
                         {/* v112: date+time cell (was date-only) */}
