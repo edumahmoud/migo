@@ -1246,6 +1246,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
       </Card>
         </TabsContent>
       </Tabs>
+      {confirmDialog}
     </div>
   );
 }
@@ -1291,7 +1292,6 @@ function SummarySkeleton() {
           aria-hidden
         />
       ))}
-      {confirmDialog}
     </div>
   );
 }
