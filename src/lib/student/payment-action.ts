@@ -288,8 +288,12 @@ export interface CheckoutSessionItem {
   order_id: string;
   subject_id: string;
   subject_name: string;
-  amount: number;
+  amount: number;            // grand_total (base + fees) — what the student pays
   currency: string;
+  // v116: optional fields from the new API response shape. Older
+  // sessions (created before this fix shipped) won't have them.
+  base_amount?: number;     // base price (plan.price OR subject.price)
+  subject_price?: number;   // original catalog price (subject.price)
 }
 
 export interface CreateSessionResult {

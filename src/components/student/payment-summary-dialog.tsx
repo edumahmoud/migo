@@ -119,11 +119,18 @@ export function PaymentSummaryDialog({
 
   // Determine mode + items to display
   const isMultiMode = !order && Array.isArray(sessionItems) && sessionItems.length > 0 && !!sessionId;
-  const items: Array<{ subjectName: string; amount: number; currency: string }> = isMultiMode
+  // v116: extend items shape to include optional subject_price (original
+  // catalog price) + base_amount (charged price after plan selection).
+  // For multi-mode these come from the new checkout-sessions API response.
+  // For single-order mode, the dialog fetches /api/student/orders/[id]
+  // separately to populate feesData — subject_price is the order.amount
+  // fallback (since base_amount IS the plan price when a plan was used).
+  const items: Array<{ subjectName: string; amount: number; currency: string; subjectPrice?: number }> = isMultiMode
     ? (sessionItems as CheckoutSessionItem[]).map((it) => ({
         subjectName: it.subject_name,
         amount: Number(it.amount),
         currency: it.currency,
+        subjectPrice: it.subject_price !== undefined ? Number(it.subject_price) : undefined,
       }))
     // v88+ — show the BASE price (subscription cost) as the item amount,
     // NOT the grand_total. The grand_total appears in the breakdown section
@@ -366,6 +373,14 @@ export function PaymentSummaryDialog({
                   <div className="text-sm font-medium text-end break-words">
                     {it.subjectName}
                   </div>
+                  {/* v116: show original course catalog price when it differs
+                      from the actual charged amount (e.g., when a non-default
+                      plan was selected). */}
+                  {it.subjectPrice !== undefined && it.subjectPrice !== it.amount && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5 line-through decoration-muted-foreground/40">
+                      أصل سعر المقرر: {Number(it.subjectPrice).toFixed(2)} {it.currency}
+                    </div>
+                  )}
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {t('student.payment.monthlySubscription')}
                   </div>

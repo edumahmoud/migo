@@ -56,19 +56,24 @@ interface OrderRow {
   student_id: string;
   subject_id: string;
   amount: number;
+  base_amount: number | null;
+  grand_total: number | null;
   currency: string;
   status: string;
   checkout_session_id: string | null;
   gateway_id: string | null;
-  subjects: { name: string } | null;
+  subjects: { name: string; price: number | null } | null;
 }
 
 interface SessionItem {
   order_id: string;
   subject_id: string;
   subject_name: string;
-  amount: number;
+  amount: number;            // grand_total (base + fees) — what the student pays
   currency: string;
+  base_amount?: number;      // base price (subject.price OR plan.price if plan selected)
+  subject_price?: number;    // original catalog price (subject.price) — for showing
+                             // the difference when a non-default plan was selected
 }
 
 export async function POST(request: NextRequest) {
@@ -100,9 +105,9 @@ export async function POST(request: NextRequest) {
   const { data: ordersData, error: ordersErr } = await supabaseServer
     .from('orders')
     .select(`
-      id, student_id, subject_id, amount, currency, status,
-      checkout_session_id, gateway_id,
-      subjects:subject_id (name)
+      id, student_id, subject_id, amount, base_amount, grand_total,
+      currency, status, checkout_session_id, gateway_id,
+      subjects:subject_id ( name, price )
     `)
     .in('id', orderIds)
     .eq('student_id', studentId);
@@ -215,12 +220,17 @@ export async function POST(request: NextRequest) {
   }
 
   // 8. Build the response items.
+  //    v116: include base_amount + subject_price so the dialog can show
+  //    the ORIGINAL course catalog price next to the actual charged amount
+  //    (which may differ if the student picked a non-default plan).
   const items: SessionItem[] = orders.map((o) => ({
     order_id: o.id,
     subject_id: o.subject_id,
     subject_name: o.subjects?.name ?? '—',
     amount: Number(o.amount),
     currency: o.currency,
+    base_amount: o.base_amount != null ? Number(o.base_amount) : undefined,
+    subject_price: o.subjects?.price != null ? Number(o.subjects.price) : undefined,
   }));
 
   return NextResponse.json({
