@@ -247,7 +247,10 @@ export default function AgentPortal() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                          <span className="text-xs font-mono">{Number(o.amount).toFixed(2)} {o.currency}</span>
+                          {/* v113: show subject base price (not total paid) */}
+                          <span className="text-xs font-mono">
+                            {Number(o.subject?.price ?? o.amount).toFixed(2)} {o.currency}
+                          </span>
                           <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>
                           {(() => {
                             const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
