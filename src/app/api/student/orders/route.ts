@@ -183,9 +183,10 @@ export async function POST(request: NextRequest) {
     if (!subject) continue;
 
     if (subject.price === 0) {
-      // FREE course — auto-activate immediately via the RPC.
-      // (Free courses are NOT considered a "payment system" — they
-      //  just need the enrollment to be created.)
+      // v113: FREE course — create 'pending' order, do NOT auto-activate.
+      // The agent/teacher must approve the subscription manually.
+      // (Previously the system auto-activated free courses via the RPC.
+      // Now the order stays 'pending' until the agent approves it.)
       const orderRef = `free_${randomUUID()}`;
       const { data: freeOrder } = await supabaseServer
         .from('orders')
@@ -202,31 +203,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (freeOrder) {
-        const { data: rpcData, error: rpcErr } = await supabaseServer.rpc(
-          'activate_subscription_after_payment',
-          {
-            p_order_id: (freeOrder as { id: string }).id,
-            p_provider_payment_id: `free_${randomUUID()}`,
-            p_amount: 0,
-            p_currency: subject.currency,
-            p_status: 'paid',
-            p_raw_payload: { free_course: true, auto_activated: true },
-            p_confirmed_by: null,
-          }
-        );
-
-        if (rpcErr) {
-          console.error('[student/orders] FREE RPC error:', rpcErr);
-          createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'error', free: true, error: rpcErr.message });
-        } else {
-          const rpcResult = (rpcData as { success?: boolean; error?: string }) ?? {};
-          if (rpcResult.success === false) {
-            console.error('[student/orders] FREE RPC returned failure:', rpcResult);
-            createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'error', free: true, error: rpcResult.error || 'RPC failed' });
-          } else {
-            createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'paid', free: true });
-          }
-        }
+        createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: (freeOrder as { id: string }).id });
       }
     } else {
       // PAID course — create 'pending' order. The order will be
@@ -379,7 +356,7 @@ export async function POST(request: NextRequest) {
     message: skippedOrders.length > 0 && createdOrders.length === 0
       ? 'لديك طلبات قيد الدفع بالفعل — يمكنك إتمام الدفع الآن'
       : createdOrders.some(o => o.status === 'pending')
-        ? 'تم إنشاء الطلبات. سيتم تفعيل المقررات المدفوعة تلقائياً بعد إتمام الدفع عبر بوابة الدفع.'
-        : 'تم تفعيل المقررات المجانية بنجاح.',
+        ? 'تم إنشاء الطلبات. سيتم تفعيل المقررات بعد موافقة الوكيل/المعلم أو بعد إتمام الدفع.'
+        : 'تم إنشاء الطلبات بنجاح.',
   });
 }

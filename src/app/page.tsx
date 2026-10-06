@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
@@ -157,6 +157,8 @@ type AuthMode = 'login' | 'register' | 'forgot-password' | 'update-password';
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo, passwordRecoveryMode, clearPasswordRecovery } = useAuthStore();
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, setQuizReviewMode, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode } = useAppStore();
+  // v113: agent portal section state
+  const [agentSection, setAgentSection] = useState<string>('search');
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const { cleanup: cleanupNotifications } = useNotificationStore();
   const profileBannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
@@ -1015,7 +1017,7 @@ onSignOut={async () => {
       return isBannedUser ? <BannedUserOverlay>{teacherContent}</BannedUserOverlay> : teacherContent;
     }
 
-    // Registration agent — limited-scope portal only (no sidebar, no admin/teacher/student nav).
+    // Registration agent — portal with sidebar showing agent-specific sections.
     if (user.role === 'registration_agent') {
       return (
         <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
@@ -1029,11 +1031,26 @@ onSignOut={async () => {
               avatarUrl={user.avatar_url ?? undefined}
               onSignOut={handleSignOut}
               onOpenSettings={() => {}}
-              onToggleSidebar={() => {}}
-              sidebarCollapsed={true}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+              sidebarCollapsed={!sidebarOpen}
             />
-            <main className="pt-14 sm:pt-16 pb-20 md:pb-4">
-              <AgentPortal />
+            <AppSidebar
+              role={'admin' as 'student' | 'teacher' | 'admin'}
+              activeSection={agentSection}
+              onSectionChange={(s: string) => setAgentSection(s)}
+              customNavItems={[
+                { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
+                { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
+                { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
+                { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
+              ]}
+            />
+            <main
+              className={`flex-1 min-w-0 overflow-x-hidden pt-14 md:pt-16 pb-20 md:pb-4 transition-[margin,padding] duration-300 ease-in-out ${
+                sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
+              }`}
+            >
+              <AgentPortal activeSection={agentSection} onSectionChange={setAgentSection} />
             </main>
           </div>
         </DashboardErrorBoundary>

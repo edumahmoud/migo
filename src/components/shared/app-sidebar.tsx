@@ -59,7 +59,8 @@ interface AppSidebarProps {
 
 interface NavItem {
   id: string;
-  labelKey: string;
+  label?: string;        // v113: direct label (used by agent portal)
+  labelKey?: string;      // translation key (used by student/teacher/admin)
   icon: React.ReactNode;
 }
 
@@ -149,7 +150,7 @@ function NavItems({
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground border border-sidebar-primary shadow-sm'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground border border-transparent'
               }`}
-              title={collapsed ? t(item.labelKey) : undefined}
+              title={collapsed ? (item.label || t(item.labelKey || '')) : undefined}
             >
               <span
                 className={`transition-colors duration-200 shrink-0 relative ${
@@ -180,7 +181,7 @@ function NavItems({
               </span>
               {!collapsed && (
                 <>
-                  <span className={isRTL ? 'text-end flex-1' : ''}>{t(item.labelKey)}</span>
+                  <span className={isRTL ? 'text-end flex-1' : ''}>{item.label || t(item.labelKey || '')}</span>
                   {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"

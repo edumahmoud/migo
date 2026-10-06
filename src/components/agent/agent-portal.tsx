@@ -29,7 +29,7 @@ interface PendingOrder {
   subject: { id: string; name: string; price?: number } | null;
 }
 
-export default function AgentPortal() {
+export default function AgentPortal({ activeSection = 'search', onSectionChange }: { activeSection?: string; onSectionChange?: (s: string) => void }) {
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
   const [studentResult, setStudentResult] = useState<{
@@ -119,14 +119,17 @@ export default function AgentPortal() {
   };
 
   return (
-    <div className="space-y-6 p-3 sm:p-6 max-w-5xl mx-auto">
+    <div className="space-y-6 p-3 sm:p-6 max-w-5xl mx-auto" dir={typeof window !== 'undefined' ? (document.dir === 'rtl' ? 'rtl' : 'ltr') : undefined}>
+      {/* v113: section switcher — shows different content based on sidebar selection */}
+      {activeSection === 'search' && (
+        <>
       {/* Header */}
       <header className="flex items-start gap-3 flex-wrap">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shrink-0">
           <Clock className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold">بوابة المشرف</h1>
+          <h1 className="text-xl font-bold">بوابة الوكيل</h1>
           <p className="text-sm text-muted-foreground">تفعيل الاشتراكات + البحث عن الطلاب + إدارة حساباتهم.</p>
         </div>
       </header>
@@ -307,11 +310,127 @@ export default function AgentPortal() {
         </CardContent>
       </Card>
 
-      {/* Search by payment code (e.g., SUB-XXXXXXXX) */}
-      <PaymentCodeSearchBox />
-
-      {/* Student subscriptions log (active / expired / free) */}
+      {/* v113: Student subscriptions log (active / expired / free) */}
       <StudentSubscriptionsLog />
+      </>
+      )}
+
+      {/* v113: Pending Orders section — shows all pending orders for this agent */}
+      {activeSection === 'pending' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">الطلبات المعلّقة</h2>
+          <p className="text-sm text-muted-foreground">ابحث عن طالب بالكود لرؤية طلباته المعلّقة وتفعيلها أو إلغائها.</p>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Search className="h-4 w-4 text-sky-600" />
+                بحث عن طالب
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !searching) searchStudent(); }}
+                  placeholder="كود الطالب..."
+                  className="flex-1"
+                />
+                <Button onClick={searchStudent} disabled={searching || !searchCode.trim()}>بحث</Button>
+              </div>
+              {searching && <div className="flex items-center justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-sky-500" /></div>}
+              {studentResult?.pending_orders && studentResult.pending_orders.length > 0 ? (
+                <div className="divide-y mt-3">
+                  {studentResult.pending_orders.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between gap-2 py-2">
+                      <div>
+                        <p className="text-sm font-medium">{o.subject?.name ?? '—'}</p>
+                        <p className="text-xs text-muted-foreground">{Number(o.amount).toFixed(2)} {o.currency} — {new Date(o.created_at).toLocaleDateString('ar-EG')}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700" disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
+                          {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
+                          تفعيل
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600" disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
+                          <Ban className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : studentResult ? (
+                <p className="text-sm text-muted-foreground text-center py-4">لا توجد طلبات معلّقة لهذا الطالب.</p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* v113: Students section — quick search */}
+      {activeSection === 'students' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">الطلاب</h2>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Search className="h-4 w-4 text-sky-600" />
+                بحث عن طالب بالكود
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !searching) searchStudent(); }}
+                  placeholder="كود الطالب..."
+                  className="flex-1"
+                />
+                <Button onClick={searchStudent} disabled={searching || !searchCode.trim()}>بحث</Button>
+              </div>
+              {searching && <div className="flex items-center justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-sky-500" /></div>}
+              {studentResult?.student && (
+                <div className="rounded-lg border p-3 space-y-1">
+                  <p className="font-medium">{studentResult.student.name ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">{studentResult.student.email}</p>
+                  <Badge variant={studentResult.student.account_status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                    {studentResult.student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                  </Badge>
+                  {studentResult.subscriptions && studentResult.subscriptions.length > 0 && (
+                    <div className="mt-2 text-xs space-y-1">
+                      <p className="font-medium">الاشتراكات النشطة:</p>
+                      {studentResult.subscriptions.map((sub) => (
+                        <div key={sub.id} className="flex items-center justify-between">
+                          <span>{sub.subject?.name ?? '—'}</span>
+                          <Badge variant="secondary" className="text-[10px]">{sub.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* v113: Settings section */}
+      {activeSection === 'settings' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold">الإعدادات</h2>
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <p className="text-sm text-muted-foreground">سيتم إضافة إعدادات الوكيل قريبًا.</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Search by payment code */}
+      {activeSection === 'search' && <PaymentCodeSearchBox />}
       {confirmDialog}
     </div>
   );
