@@ -3357,7 +3357,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                         );
                                       })()}
                                       {/* v113: plan selector — shows when plans exist */}
-                                      {subjectPlans[c.id]?.length > 0 && !isSubActive && (
+                                      {/* v116: plan selector — shows ONLY when there are 2+ plans */}
+                                      {(subjectPlans[c.id]?.length ?? 0) > 1 && !isSubActive && (
                                         <select
                                           value={selectedPlanIds[c.id] || ''}
                                           onChange={(e) => {

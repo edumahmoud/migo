@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import {
   Loader2, KeyRound, Copy, Link as LinkIcon, BookOpen, CreditCard,
   CheckCircle2, AlertCircle, RefreshCw, LogOut, Check, X,
-  Clock,
+  Clock, Gift,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -321,28 +321,26 @@ export default function StudentActivationPage() {
           });
           setPaymentSummaryOpen(true);
         } else {
-          // Multiple paid orders — create a checkout session, then open
-          // the consolidated Payment Summary dialog.
-          const orderIds = paidOrders.map((o) => String(o.id));
-          try {
-            const session = await createCheckoutSession(orderIds, await getCachedAuthHeaders());
-            setPaymentSummaryOrder(null); // single-order mode disabled
-            setSessionItems(session.items);
-            setSessionId(session.session_id);
-            setPaymentSummaryOpen(true);
-            toast.info(
-              t('student.payment.paymentSummaryDesc') +
-              ` — ${session.item_count} ${t('student.payment.coursesLabel')} • ${session.total_amount.toFixed(2)} ${session.currency}`,
-            );
-          } catch (err) {
-            // Session creation failed — show categorized error
-            const message = err instanceof PaymentActionError
-              ? getPaymentActionErrorMessage(err, t('student.payment.paymentInitFailed'))
-              : (err instanceof Error ? err.message : t('student.payment.paymentInitFailed'));
-            toast.error(message);
-            // Fall back to showing the success toast (orders were created,
-            // the student can pay them individually from the pending list)
-            toast.success(json.message || 'تم إنشاء الطلبات');
+          // Multiple paid orders — DON'T auto-create a multi-subject checkout
+          // session. Per user requirement (v116): when subscribing to multiple
+          // courses at once, only the FIRST paid order is processed immediately
+          // (its payment dialog opens). The rest stay as pending orders in
+          // the "قيد الدفع" list — the student pays them individually from
+          // there whenever they're ready.
+          const firstPaid = paidOrders[0];
+          setPaymentSummaryOrder({
+            orderId: String(firstPaid.id),
+            subjectName: String(firstPaid.subject_name ?? '—'),
+            amount: Number((firstPaid as { grand_total?: number }).grand_total ?? firstPaid.amount),
+            currency: String(firstPaid.currency ?? 'EGP'),
+            baseAmount: Number((firstPaid as { base_amount?: number }).base_amount ?? firstPaid.amount),
+            feesTotal: Number((firstPaid as { fees_total?: number }).fees_total ?? 0),
+            grandTotal: Number((firstPaid as { grand_total?: number }).grand_total ?? firstPaid.amount),
+            feesBreakdown: (firstPaid as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],
+          });
+          setPaymentSummaryOpen(true);
+          if (paidOrders.length > 1) {
+            toast.info(`تم إنشاء ${paidOrders.length} طلبات معلّقة. تابع الدفع للمقرر الأول، وستجد الباقي في قائمة "قيد الدفع" أدناه.`);
           }
         }
       } else toast.error(json.error || t('common.unexpectedError'));
@@ -512,15 +510,14 @@ export default function StudentActivationPage() {
                             <Badge variant="default" className="text-[10px] bg-emerald-600">نشط حتى {new Date(sub.current_period_end).toLocaleDateString('ar-EG')}</Badge>
                           )}
                         </div>
-                        {/* v116: plan selector — shows when plans exist */}
-                        {plans && plans.length > 0 && !isSubActive && (
+                        {/* v116: plan selector — shows ONLY when there are 2+ plans
+                            (single plan = no choice to make, dropdown is noise). */}
+                        {plans && plans.length > 1 && !isSubActive && (
                           <select
                             value={selectedPlanId}
                             onChange={(e) => {
-                              e.stopPropagation(); // prevent toggling course selection
+                              e.stopPropagation();
                               const val = e.target.value;
-                              // Strip synthetic fallback IDs before storing — the
-                              // API doesn't know about them and would reject.
                               const safeVal = val.startsWith('default-monthly-') ? '' : val;
                               setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
                             }}
@@ -713,6 +710,9 @@ export default function StudentActivationPage() {
                 // already paid. The verify-after-redirect fires automatically
                 // and activates the subscription within seconds.
                 const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
+                // v116: detect FREE orders (amount=0 OR provider='free') and show
+                // a different badge — they don't need payment, just agent approval.
+                const isFreeOrder = Number(o.amount) === 0 || o.provider === 'free';
                 return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -720,39 +720,56 @@ export default function StudentActivationPage() {
                     <div className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString('ar-EG')}</div>
                   </div>
                   <div className="text-end shrink-0 flex items-center gap-2">
-                    <span className="font-mono text-xs">{Number(o.amount).toFixed(2)} {o.currency}</span>
-                    {paymentInitiated ? (
-                      // Payment was initiated on Paymob → the student paid.
-                      // verify-after-redirect is firing automatically.
-                      // Show "تم الدفع — جارٍ التفعيل" with a spinner
-                      // (NOT "بانتظار التأكيد" which implies uncertainty).
-                      <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
-                        <Loader2 className="h-3 w-3 me-1 animate-spin" />
-                        تم الدفع — جارٍ التفعيل
-                      </Badge>
-                    ) : (
-                      // Payment NOT initiated → show "استكمال الدفع" button
+                    {isFreeOrder ? (
+                      // Free order — show "مجاني" badge + "بانتظار تفعيل الوكيل/المعلم"
+                      // (NOT "استكمال الدفع" — there's no payment to complete)
                       <>
-                        <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => {
-                            setPaymentSummaryOrder({
-                              orderId: o.id,
-                              subjectName: courseNameById.get(o.subject_id) ?? '—',
-                              amount: Number(o.amount),
-                              currency: String(o.currency ?? 'EGP'),
-                            });
-                            setSessionItems(null);
-                            setSessionId(null);
-                            setPaymentSummaryOpen(true);
-                          }}
-                        >
-                          <CreditCard className="h-3 w-3 me-1" />
-                          {t('student.payment.completePayment')}
-                        </Button>
+                        <Badge variant="outline" className="text-xs border-sky-300 text-sky-700 bg-sky-50">
+                          <Gift className="h-3 w-3 me-1" />
+                          مجاني
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          <Clock className="h-3 w-3 me-1" />
+                          بانتظار تفعيل الوكيل/المعلم
+                        </Badge>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-mono text-xs">{Number(o.amount).toFixed(2)} {o.currency}</span>
+                        {paymentInitiated ? (
+                          // Payment was initiated on Paymob → the student paid.
+                          // verify-after-redirect is firing automatically.
+                          // Show "تم الدفع — جارٍ التفعيل" with a spinner
+                          // (NOT "بانتظار التأكيد" which implies uncertainty).
+                          <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
+                            <Loader2 className="h-3 w-3 me-1 animate-spin" />
+                            تم الدفع — جارٍ التفعيل
+                          </Badge>
+                        ) : (
+                          // Payment NOT initiated → show "استكمال الدفع" button
+                          <>
+                            <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setPaymentSummaryOrder({
+                                  orderId: o.id,
+                                  subjectName: courseNameById.get(o.subject_id) ?? '—',
+                                  amount: Number(o.amount),
+                                  currency: String(o.currency ?? 'EGP'),
+                                });
+                                setSessionItems(null);
+                                setSessionId(null);
+                                setPaymentSummaryOpen(true);
+                              }}
+                            >
+                              <CreditCard className="h-3 w-3 me-1" />
+                              {t('student.payment.completePayment')}
+                            </Button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>

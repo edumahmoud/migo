@@ -90,7 +90,6 @@ import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import PlatformAnnouncementsSection from '@/components/admin/platform-announcements-section';
 import AdminPerformanceTrackingSection from '@/components/admin/admin-performance-tracking-section';
-import AdminStudentSuspendDialog from '@/components/admin/admin-student-suspend-dialog';
 
 // -------------------------------------------------------
 // Props
@@ -474,9 +473,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [userSearch, setUserSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'teacher' | 'admin' | 'superadmin'>('all');
   const [selectedUser, setSelectedUser] = useState<UserWithMeta | null>(null);
-  // v115: student suspend/activate dialog (admin only)
-  const [suspendStudentId, setSuspendStudentId] = useState<string | null>(null);
-  const [suspendStudentName, setSuspendStudentName] = useState<string>('');
   const [userDetailOpen, setUserDetailOpen] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
@@ -2013,34 +2009,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   );
                 })()}
 
-                {/* v115: Student suspend/activate section (admin only, students only) */}
-                {selectedUser.role === 'student' && !isSelf(selectedUser.id) && (
-                  <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 p-4 mt-4">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
-                        <Ban className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-semibold text-amber-700 dark:text-amber-500">
-                          إيقاف / تنشيط الطالب
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSuspendStudentId(selectedUser.id);
-                          setSuspendStudentName(selectedUser.name ?? selectedUser.email ?? '—');
-                        }}
-                        className="flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
-                      >
-                        <Ban className="h-3.5 w-3.5" />
-                        إدارة الإيقاف
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-amber-700 dark:text-amber-500">
-                      إيقاف مؤقت على مستوى المنصة أو على مستوى المقرر، مع تحديد
-                      المدة والسبب. يقدر المعلم أيضاً إيقاف الطالب من داخل كل مقرر.
-                    </p>
-                  </div>
-                )}
-
                 {/* Self-action notice */}
                 {isSelf(selectedUser.id) && (
                   <div className="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 p-4">
@@ -2195,15 +2163,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* v115: Student Suspend/Activate dialog (admin only) */}
-      <AdminStudentSuspendDialog
-        open={suspendStudentId !== null}
-        studentId={suspendStudentId}
-        studentName={suspendStudentName}
-        onClose={() => setSuspendStudentId(null)}
-        onChanged={() => { /* refetch banned users to keep UI in sync */ fetchBannedUsers?.(); }}
-      />
     </motion.div>
     );
   };
