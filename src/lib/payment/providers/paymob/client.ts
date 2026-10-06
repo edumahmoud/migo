@@ -367,7 +367,8 @@ export interface PaymobIntentionRequest {
   payment_methods: number[];        // integration IDs as integers
   items?: Array<{
     name: string;
-    amount_cents: number;           // v110: Paymob Intention API uses amount_cents (NOT amount)
+    amount?: number;           // some Paymob accounts use this field name
+    amount_cents?: number;    // v110: other accounts use this field name
     quantity?: number;
     description?: string;
   }>;
