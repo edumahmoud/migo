@@ -1461,6 +1461,21 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           const pjson = await pres.json();
                           if (pjson.success && pjson.data?.length > 0) {
                             plansMap[sid] = pjson.data;
+                          } else {
+                            // v116: no stored plans (e.g. course created before v113).
+                            // Synthesize a fallback monthly plan from subject.price
+                            // so the dropdown always shows at least one option.
+                            const courseInfo = (json.available_courses ?? []).find((c: { id: string }) => c.id === sid);
+                            if (courseInfo) {
+                              plansMap[sid] = [{
+                                id: `default-monthly-${sid}`,
+                                period_type: 'monthly',
+                                period_label: '',
+                                duration_days: 30,
+                                price: Number(courseInfo.price) || 0,
+                                currency: courseInfo.currency || 'EGP',
+                              }];
+                            }
                           }
                         } catch { /* ignore — no plans for this subject */ }
                       }));
@@ -3324,8 +3339,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                       {(() => {
                                         const plans = subjectPlans[c.id];
                                         const selectedPlanId = selectedPlanIds[c.id];
-                                        const selectedPlan = plans?.find(p => p.id === selectedPlanId);
-                                        const displayPrice = selectedPlan ? selectedPlan.price : c.price;
+                                        // v116: ignore synthetic fallback plans (their IDs start with 'default-monthly-')
+                                        const selectedPlan = selectedPlanId && !selectedPlanId.startsWith('default-monthly-')
+                                          ? plans?.find(p => p.id === selectedPlanId)
+                                          : undefined;
+                                        const fallbackPlan = plans?.find(p => p.id === `default-monthly-${c.id}`);
+                                        const displayPrice = selectedPlan
+                                          ? selectedPlan.price
+                                          : (fallbackPlan ? fallbackPlan.price : c.price);
                                         const periodLabel = selectedPlan
                                           ? (selectedPlan.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: selectedPlan.duration_days + ' يوم' }[selectedPlan.period_type] || selectedPlan.period_type))
                                           : 'شهر';
@@ -3339,7 +3360,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                       {subjectPlans[c.id]?.length > 0 && !isSubActive && (
                                         <select
                                           value={selectedPlanIds[c.id] || ''}
-                                          onChange={(e) => setSelectedPlanIds(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            // v116: synthetic fallback plans have IDs starting
+                                            // with 'default-monthly-'. Don't send these as
+                                            // planId to the API — the API will fall back to
+                                            // subject.price when planId is null.
+                                            const safeVal = val.startsWith('default-monthly-') ? '' : val;
+                                            setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
+                                          }}
                                           className="text-[10px] mt-1 rounded border bg-background px-1.5 py-0.5 cursor-pointer"
                                           dir={direction}
                                         >
@@ -3368,7 +3397,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                                   (o: { subject_id?: string; error?: string; free?: boolean; amount?: number; status?: string }) => o.subject_id === c.id
                                                 );
                                                 // v113: check effective price (plan price or subject price)
-                                                const selectedPlan = subjectPlans[c.id]?.find(p => p.id === selectedPlanIds[c.id]);
+                                                // v116: ignore synthetic fallback plans (their IDs start with 'default-monthly-')
+                                                const rawSelectedPlanId = selectedPlanIds[c.id];
+                                                const selectedPlan = rawSelectedPlanId && !rawSelectedPlanId.startsWith('default-monthly-')
+                                                  ? subjectPlans[c.id]?.find(p => p.id === rawSelectedPlanId)
+                                                  : subjectPlans[c.id]?.find(p => p.id === `default-monthly-${c.id}`); // use the synthesized monthly plan's price
                                                 const effectivePrice = selectedPlan ? selectedPlan.price : c.price;
                                                 if (effectivePrice === 0) {
                                                   // Free course — order created as 'pending' (agent must approve)
