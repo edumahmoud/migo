@@ -29,6 +29,7 @@ import {
   LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronLeft, ChevronRight,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -129,19 +130,38 @@ export default function AgentPortal({
   const [pendingLoading, setPendingLoading] = useState(false);
   const [self, setSelf] = useState<AgentSelf | null>(null);
   const [teacher, setTeacher] = useState<TeacherInfo | null>(null);
+  const [selfError, setSelfError] = useState<string | null>(null);
   const [teacherViewSection, setTeacherViewSection] = useState<string>('dashboard');
   const { confirmDialog, confirm } = useConfirmDialog();
 
   // ─── Fetch agent profile (for allowed_sections + display) ───
+  // Surface real errors instead of silently swallowing, so the user
+  // sees the actual reason (e.g., "agent not active", "agent not found")
+  // in the SettingsSection UI rather than an infinite spinner.
   const fetchSelf = useCallback(async () => {
+    setSelfError(null);
     try {
       const res = await fetch('/api/agent/me', { headers: await getCachedAuthHeaders() });
       const json = await res.json();
       if (json.success) {
         setSelf(json.agent as AgentSelf);
         setTeacher(json.teacher as TeacherInfo | null);
+      } else {
+        const err = json.error || 'تعذّر تحميل بيانات الوكيل';
+        setSelfError(err);
+        setSelf(null);
+        setTeacher(null);
+        // Also toast the error so the user notices immediately on first load.
+        toast.error(err);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      const msg = err instanceof Error
+        ? `تعذّر الاتصال بالخادم: ${err.message}`
+        : 'تعذّر الاتصال بالخادم';
+      setSelfError(msg);
+      setSelf(null);
+      toast.error(msg);
+    }
   }, []);
 
   useEffect(() => {
@@ -157,7 +177,7 @@ export default function AgentPortal({
       const res = await fetch('/api/agent/search-student', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({ searchCode: searchCode.trim() }),
+        body: JSON.stringify({ studentCode: searchCode.trim() }),
       });
       const json = await res.json();
       if (json.success) { setStudentResult(json); }
@@ -216,15 +236,24 @@ export default function AgentPortal({
     finally { setActioningOrderId(null); }
   };
 
-  // ─── Fetch all pending orders ───
+  // ─── Fetch all pending orders (agent-scoped endpoint) ───
+  // Note: we use /api/agent/orders (requireAgent) — /api/teacher/orders
+  // rejects the registration_agent role.
   const fetchPendingOrders = useCallback(async () => {
     setPendingLoading(true);
     try {
-      const res = await fetch('/api/teacher/orders', { headers: await getCachedAuthHeaders() });
+      const res = await fetch('/api/agent/orders', { headers: await getCachedAuthHeaders() });
       const json = await res.json();
       if (json.success) { setPendingOrders(json.orders ?? []); }
-    } catch { /* ignore */ }
-    finally { setPendingLoading(false); }
+      else {
+        // Surface real errors instead of silently swallowing.
+        toast.error(json.error || 'تعذّر جلب الطلبات المعلّقة');
+        setPendingOrders([]);
+      }
+    } catch {
+      toast.error('تعذّر الاتصال بالخادم لجلب الطلبات');
+      setPendingOrders([]);
+    } finally { setPendingLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -512,6 +541,8 @@ export default function AgentPortal({
         <SettingsSection
           self={self}
           teacher={teacher}
+          selfError={selfError}
+          onRetry={fetchSelf}
           teacherViewSection={teacherViewSection}
           setTeacherViewSection={setTeacherViewSection}
           visibleTeacherSections={visibleTeacherSections}
@@ -526,10 +557,18 @@ export default function AgentPortal({
 // SettingsSection — v114
 //   Shows the agent's own profile + a Teacher View that exposes
 //   the teacher's sidebar (filtered by allowed_sections).
+//
+//   If fetchSelf failed (e.g., the agent's row was deactivated or
+//   deleted by the teacher, leaving role='registration_agent' but
+//   no matching registration_agents row), we show a clear error
+//   card with the actual server-side error message + a Retry
+//   button — instead of an infinite spinner.
 // ──────────────────────────────────────────────────────────────
 function SettingsSection({
   self,
   teacher,
+  selfError,
+  onRetry,
   teacherViewSection,
   setTeacherViewSection,
   visibleTeacherSections,
@@ -537,16 +576,58 @@ function SettingsSection({
 }: {
   self: AgentSelf | null;
   teacher: TeacherInfo | null;
+  selfError: string | null;
+  onRetry: () => void;
   teacherViewSection: string;
   setTeacherViewSection: (s: string) => void;
   visibleTeacherSections: Array<{ id: string; label: string; icon: React.ReactNode }>;
   isRTL: boolean;
 }) {
   if (!self) {
+    // Loading state OR error state.
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
-      </div>
+      <>
+        <header className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
+            <Settings className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">الملف الشخصي</h1>
+            <p className="text-sm text-muted-foreground">بيانات الوكيل + أقسام المعلم</p>
+          </div>
+        </header>
+        {selfError ? (
+          <Card>
+            <CardContent className="p-6 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-rose-700 dark:text-rose-300">
+                    تعذّر تحميل بيانات الوكيل
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selfError}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    قد يكون سبب ذلك أن المعلم أوقف حساب الوكيل أو حذفه. تواصل
+                    مع المعلم للتأكد من حالة الوكيل، أو حاول مرة أخرى:
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={onRetry} variant="outline" size="sm">
+                  <RefreshCw className="h-4 w-4 me-1" />
+                  إعادة المحاولة
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+          </div>
+        )}
+      </>
     );
   }
 
