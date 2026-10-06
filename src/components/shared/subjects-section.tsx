@@ -240,6 +240,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [expandedTeacherIds, setExpandedTeacherIds] = useState<Set<string>>(new Set());
   // v93+ — multi-select for batch subscription
   const [selectedAvailableCourseIds, setSelectedAvailableCourseIds] = useState<Set<string>>(new Set());
+  // v113: subscription plan selection per subject (subjectId → planId)
+  const [subjectPlans, setSubjectPlans] = useState<Record<string, Array<{ id: string; period_type: string; period_label: string; duration_days: number; price: number; currency: string }>>>({});
+  const [selectedPlanIds, setSelectedPlanIds] = useState<Record<string, string>>({});
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectDesc, setNewSubjectDesc] = useState('');
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
@@ -1380,6 +1383,21 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   const json = await res.json();
                   if (json.success) {
                     setAvailableCoursesData(json);
+                    // v113: fetch subscription plans for all available courses
+                    const allCourseIds = (json.available_courses ?? []).map((c: { id: string }) => c.id);
+                    if (allCourseIds.length > 0) {
+                      const plansMap: Record<string, Array<{ id: string; period_type: string; period_label: string; duration_days: number; price: number; currency: string }>> = {};
+                      await Promise.all(allCourseIds.map(async (sid: string) => {
+                        try {
+                          const pres = await fetch(`/api/subjects/${sid}/subscription-plans`);
+                          const pjson = await pres.json();
+                          if (pjson.success && pjson.data?.length > 0) {
+                            plansMap[sid] = pjson.data;
+                          }
+                        } catch { /* ignore — no plans for this subject */ }
+                      }));
+                      setSubjectPlans(plansMap);
+                    }
                   } else {
                     toast.error(json.error || t('common.unexpectedError'));
                     setAvailableCoursesOpen(false);
@@ -2949,9 +2967,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       setSubscribingCourseId('multi');
                       try {
                         const ids = Array.from(selectedAvailableCourseIds);
+                        // v113: pass the first selected plan if any
+                        const firstPlanId = ids.map(id => selectedPlanIds[id]).find(Boolean);
                         const res = await fetch('/api/student/orders', {
                           method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-                          body: JSON.stringify({ subjectIds: ids }),
+                          body: JSON.stringify({ subjectIds: ids, ...(firstPlanId ? { planId: firstPlanId } : {}) }),
                         });
                         const json = await res.json();
                         if (json.success) {
@@ -3125,17 +3145,47 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                       </div>
                                     </div>
                                     <div className="text-end shrink-0">
-                                      <div className="font-bold text-emerald-700 text-sm">
-                                        {c.price === 0 ? 'مجاناً' : `${Number(c.price).toFixed(2)} ${c.currency}/شهر`}
-                                      </div>
+                                      {/* v113: show plan price if selected, else default */}
+                                      {(() => {
+                                        const plans = subjectPlans[c.id];
+                                        const selectedPlanId = selectedPlanIds[c.id];
+                                        const selectedPlan = plans?.find(p => p.id === selectedPlanId);
+                                        const displayPrice = selectedPlan ? selectedPlan.price : c.price;
+                                        const periodLabel = selectedPlan
+                                          ? (selectedPlan.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: selectedPlan.duration_days + ' يوم' }[selectedPlan.period_type] || selectedPlan.period_type))
+                                          : 'شهر';
+                                        return (
+                                          <div className="font-bold text-emerald-700 text-sm">
+                                            {displayPrice === 0 ? 'مجاناً' : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}
+                                          </div>
+                                        );
+                                      })()}
+                                      {/* v113: plan selector — shows when plans exist */}
+                                      {subjectPlans[c.id]?.length > 0 && !isSubActive && (
+                                        <select
+                                          value={selectedPlanIds[c.id] || ''}
+                                          onChange={(e) => setSelectedPlanIds(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                          className="text-[10px] mt-1 rounded border bg-background px-1.5 py-0.5 cursor-pointer"
+                                          dir={direction}
+                                        >
+                                          <option value="">افتراضي (شهري)</option>
+                                          {subjectPlans[c.id].map(p => (
+                                            <option key={p.id} value={p.id}>
+                                              {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
                                       {!isSubActive && (
                                         <button
                                           onClick={async () => {
                                             setSubscribingCourseId(c.id);
                                             try {
+                                              // v113: pass planId if a plan is selected
+                                              const selectedPlanId = selectedPlanIds[c.id];
                                               const res = await fetch('/api/student/orders', {
                                                 method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-                                                body: JSON.stringify({ subjectIds: [c.id] }),
+                                                body: JSON.stringify({ subjectIds: [c.id], ...(selectedPlanId ? { planId: selectedPlanId } : {}) }),
                                               });
                                               const json = await res.json();
                                               if (json.success) {

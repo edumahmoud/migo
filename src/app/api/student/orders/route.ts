@@ -8,7 +8,12 @@ import { calculateFees, breakdownToJsonb } from '@/lib/fees/calculator';
 /**
  * POST /api/student/orders
  *
- * Body: { subjectIds: string[] (UUID array — multi-course) }
+ * Body: { subjectIds: string[] (UUID array — multi-course),
+ *          planId?: string (UUID — optional subscription plan) }
+ *
+ * If planId is provided, the order uses the plan's price + duration
+ * instead of the default subject.price. The plan must be active and
+ * belong to one of the specified subjects.
  *
  * Creates one order per selected course.
  *
@@ -30,6 +35,8 @@ import { calculateFees, breakdownToJsonb } from '@/lib/fees/calculator';
  */
 const BodySchema = z.object({
   subjectIds: z.array(z.string().uuid()).min(1),
+  // v113: optional subscription plan ID (monthly/term/yearly)
+  planId: z.string().uuid().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -48,6 +55,39 @@ export async function POST(request: NextRequest) {
 
   const studentId = auth.user.id;
   const requestedSubjectIds = Array.from(new Set(parsed.data.subjectIds));
+  const planId = parsed.data.planId;
+
+  // v113: If planId is provided, fetch the plan to use its price + duration
+  // instead of the default subject.price. The plan must be active and belong
+  // to one of the requested subjects.
+  let planPriceOverride: number | null = null;
+  let planDurationDays: number | null = null;
+  let planPeriodType: string | null = null;
+  let planPeriodLabel: string | null = null;
+  if (planId) {
+    const { data: plan } = await supabaseServer
+      .from('subject_subscription_plans')
+      .select('id, subject_id, period_type, period_label, duration_days, price, is_active')
+      .eq('id', planId)
+      .maybeSingle();
+    if (!plan || !(plan as { is_active: boolean }).is_active) {
+      return NextResponse.json(
+        { success: false, error: 'خطة الاشتراك غير موجودة أو غير مفعّلة' },
+        { status: 400 },
+      );
+    }
+    const planRow = plan as { subject_id: string; period_type: string; period_label: string; duration_days: number; price: number };
+    if (!requestedSubjectIds.includes(planRow.subject_id)) {
+      return NextResponse.json(
+        { success: false, error: 'خطة الاشتراك لا تنتمي لأحد المقررات المطلوبة' },
+        { status: 400 },
+      );
+    }
+    planPriceOverride = Number(planRow.price);
+    planDurationDays = planRow.duration_days;
+    planPeriodType = planRow.period_type;
+    planPeriodLabel = planRow.period_label;
+  }
 
   // 1. Fetch subjects (server-side price source of truth).
   const { data: subjectsData } = await supabaseServer
@@ -240,7 +280,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const basePrice = Number(subject.price);
+      // v113: use plan price override when available
+      const basePrice = planPriceOverride !== null ? planPriceOverride : Number(subject.price);
       const feeRows = (activeFees ?? []) as Array<{
         id: string; code: string; name_ar: string; name_en: string;
         fee_kind: 'percentage' | 'flat'; value: number; sort_order: number;
@@ -320,6 +361,8 @@ export async function POST(request: NextRequest) {
           ...(order as Record<string, unknown>),
           subject_name: subject.name,
           fees_breakdown: breakdownToJsonb(breakdown),
+          // v113: include plan info in the response so the UI can display it
+          ...(planPeriodType ? { plan_period_type: planPeriodType, plan_period_label: planPeriodLabel } : {}),
         });
       }
     }
