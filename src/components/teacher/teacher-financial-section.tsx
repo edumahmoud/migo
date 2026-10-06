@@ -523,6 +523,7 @@ export default function TeacherFinancialSection() {
               transactions={transactions}
               currency={t('financial.currency') || 'EGP'}
               height={320}
+              showPlatformShare={false}
             />
           </CardContent>
         </Card>

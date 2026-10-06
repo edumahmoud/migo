@@ -48,6 +48,13 @@ interface Props {
   currency?: string;
   /** Height of the chart in pixels (default 280). */
   height?: number;
+  /**
+   * v113: When true (admin view), show the platform_share series.
+   * When false (teacher view), hide it — teachers should only see
+   * their own data (gross + teacher_share), not the platform's cut.
+   * Default: true (backward compatible).
+   */
+  showPlatformShare?: boolean;
 }
 
 interface AggregatedDay {
@@ -100,6 +107,7 @@ export function FinancialCharts({
   transactions,
   currency = 'EGP',
   height = 280,
+  showPlatformShare = true,
 }: Props) {
   const { t, direction } = useTranslations();
   const isRTL = direction === 'rtl';
@@ -227,12 +235,15 @@ export function FinancialCharts({
               radius={[4, 4, 0, 0]}
               maxBarSize={42}
             />
-            <Bar
-              dataKey="platform_share"
-              fill="#8b5cf6"
-              radius={[4, 4, 0, 0]}
-              maxBarSize={42}
-            />
+            {/* v113: platform_share only shown for admin view */}
+            {showPlatformShare && (
+              <Bar
+                dataKey="platform_share"
+                fill="#8b5cf6"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={42}
+              />
+            )}
           </BarChart>
         ) : (
           <LineChart {...chartProps}>
@@ -288,14 +299,17 @@ export function FinancialCharts({
               dot={{ r: 3, fill: '#10b981' }}
               activeDot={{ r: 5 }}
             />
-            <Line
-              type="monotone"
-              dataKey="platform_share"
-              stroke="#8b5cf6"
-              strokeWidth={2}
-              dot={{ r: 3, fill: '#8b5cf6' }}
-              activeDot={{ r: 5 }}
-            />
+            {/* v113: platform_share only shown for admin view */}
+            {showPlatformShare && (
+              <Line
+                type="monotone"
+                dataKey="platform_share"
+                stroke="#8b5cf6"
+                strokeWidth={2}
+                dot={{ r: 3, fill: '#8b5cf6' }}
+                activeDot={{ r: 5 }}
+              />
+            )}
           </LineChart>
         )}
       </ResponsiveContainer>
