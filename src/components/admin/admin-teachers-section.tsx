@@ -45,6 +45,7 @@ const FIELD_LABELS_AR: Record<string, string> = {
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -89,6 +90,7 @@ const formatAccountStatus = (status: string | null | undefined): string => {
 };
 
 export default function AdminTeachersSection() {
+  const { confirmDialog, confirm } = useConfirmDialog();
   const { t, direction } = useTranslations();
   const isRTL = direction === 'rtl';
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
@@ -160,7 +162,8 @@ export default function AdminTeachersSection() {
   // ── Settlement handler (manual — admin records money sent outside system) ──
   const handleSettle = async (teacherId: string, amount: number) => {
     if (settlingTeacherId) return;
-    if (!confirm(`تأكيد التسوية: ${amount.toFixed(2)} EGP لهذا المعلم؟`)) return;
+    const okSettle = await confirm({ title: 'تأكيد التسوية', description: `تأكيد التسوية: ${amount.toFixed(2)} EGP لهذا المعلم؟`, confirmLabel: 'تسوية', cancelLabel: 'تراجع' });
+    if (!okSettle) return;
     setSettlingTeacherId(teacherId);
     try {
       const res = await fetch(`/api/admin/teachers/${teacherId}/settle`, {
@@ -186,7 +189,8 @@ export default function AdminTeachersSection() {
   // ── Deliver payment handler (through the payout system) ──
   const handleDeliverPayment = async (teacherId: string, amount: number, payoutMethodId: string) => {
     if (deliveringTeacherId) return;
-    if (!confirm(`تأكيد تسليم الدفعة: ${amount.toFixed(2)} EGP عبر وسيلة الاستلام؟`)) return;
+    const okDeliver = await confirm({ title: 'تأكيد تسليم الدفعة', description: `تأكيد تسليم الدفعة: ${amount.toFixed(2)} EGP عبر وسيلة الاستلام؟`, confirmLabel: 'تسليم', cancelLabel: 'تراجع' });
+    if (!okDeliver) return;
     setDeliveringTeacherId(teacherId);
     try {
       const res = await fetch(`/api/admin/teachers/${teacherId}/deliver-payment`, {
@@ -388,10 +392,12 @@ export default function AdminTeachersSection() {
       toast.error('لا يوجد معلمون لهم مستحقات');
       return;
     }
-    const confirmed = window.confirm(
-      `تأكيد ${enabled ? 'تفعيل' : 'تعطيل'} الدفع التلقائي لـ ${eligible.length} معلم ` +
-      `(الذين لديهم مستحقات)؟`
-    );
+    const confirmed = await confirm({
+      title: 'تأكيد',
+      description: `تأكيد ${enabled ? 'تفعيل' : 'تعطيل'} الدفع التلقائي لـ ${eligible.length} معلم (الذين لديهم مستحقات)؟`,
+      confirmLabel: 'تأكيد',
+      cancelLabel: 'تراجع',
+    });
     if (!confirmed) return;
     setBulkToggling(true);
     try {
@@ -466,10 +472,12 @@ export default function AdminTeachersSection() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `تأكيد التسوية الجماعية لـ ${settlements.length} معلم بإجمالي ` +
-      `${settlements.reduce((s, x) => s + x.amount, 0).toFixed(2)} EGP؟`
-    );
+    const confirmed = await confirm({
+      title: 'تأكيد التسوية الجماعية',
+      description: `تأكيد التسوية الجماعية لـ ${settlements.length} معلم بإجمالي ${settlements.reduce((s, x) => s + x.amount, 0).toFixed(2)} EGP؟`,
+      confirmLabel: 'تسوية',
+      cancelLabel: 'تراجع',
+    });
     if (!confirmed) return;
 
     setBulkSettling(true);
@@ -1356,6 +1364,7 @@ export default function AdminTeachersSection() {
           </motion.div>
         )}
       </AnimatePresence>
+      {confirmDialog}
     </div>
   );
 }

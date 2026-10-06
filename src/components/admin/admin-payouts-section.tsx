@@ -36,6 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
@@ -85,6 +86,7 @@ export default function AdminPayoutsSection() {
   const [statusFilter, setStatusFilter] = useState('all');
   // v112: inline search field (filters the already-loaded list)
   const [searchQuery, setSearchQuery] = useState('');
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const fetchPayouts = useCallback(async () => {
     setLoading(true); setError(null);
@@ -115,7 +117,8 @@ export default function AdminPayoutsSection() {
   };
 
   const cancelPayout = async (id: string) => {
-    if (!confirm('هل تريد إلغاء هذه الدفعة؟')) return;
+    const ok = await confirm({ title: 'تأكيد الإلغاء', description: 'هل تريد إلغاء هذه الدفعة؟', confirmLabel: 'إلغاء', cancelLabel: 'تراجع', variant: 'destructive' });
+  if (!ok) return;
     try {
       const res = await fetch(`/api/admin/payouts/${id}/cancel`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
@@ -422,6 +425,7 @@ export default function AdminPayoutsSection() {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

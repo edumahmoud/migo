@@ -20,6 +20,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Plus, Percent, Banknote, Power, PowerOff, Trash2, Pencil, Receipt, X } from 'lucide-react';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +68,7 @@ export default function AdminFeeCatalogSection() {
   const { t, direction } = useTranslations();
   const [fees, setFees] = useState<FeeCatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [submitting, setSubmitting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<NewFeeForm>(EMPTY_FORM);
@@ -198,7 +200,8 @@ export default function AdminFeeCatalogSection() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('تأكيد الحذف؟ لا يمكن التراجع. الرسوم اللي اتمسحت مينفعش تتعرف على الطلبات القديمة (snapshot بيفضل موجود، لكن الرابط بينالهم ما بيتعدّلش).')) return;
+    const ok = await confirm({ title: 'تأكيد الحذف', description: 'لا يمكن التراجع. الرسوم اللي اتمسحت مينفعش تتعرف على الطلبات القديمة.', confirmLabel: 'حذف', cancelLabel: 'تراجع', variant: 'destructive' });
+    if (!ok) return;
     const res = await fetch(`/api/admin/fee-catalog/${id}`, {
       method: 'DELETE',
       headers: await getCachedAuthHeaders(),
@@ -511,6 +514,7 @@ export default function AdminFeeCatalogSection() {
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

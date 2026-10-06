@@ -39,6 +39,7 @@ export default function AgentPortal() {
   // Tracks which order is currently being activated or cancelled
   // (so we can show a spinner on that specific button)
   const [actioningOrderId, setActioningOrderId] = useState<string | null>(null);
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const searchStudent = async () => {
     if (!searchCode.trim()) { toast.error('أدخل كود الطالب'); return; }
@@ -66,7 +67,8 @@ export default function AgentPortal() {
   // Activate a pending order manually (payment received outside the system)
   const activateOrder = async (orderId: string) => {
     if (actioningOrderId) return;
-    if (!confirm('تأكيد: تم استلام المبلغ من الطالب خارج النظام؟ سيتم تفعيل الاشتراك يدويًا.')) return;
+    const ok = await confirm({ title: 'تأكيد التفعيل', description: 'تم استلام المبلغ من الطالب خارج النظام؟ سيتم تفعيل الاشتراك يدويًا.', confirmLabel: 'تفعيل', cancelLabel: 'تراجع' });
+    if (!ok) return;
     setActioningOrderId(orderId);
     try {
       const res = await fetch('/api/agent/subscriptions/activate', {
@@ -92,7 +94,8 @@ export default function AgentPortal() {
   // Cancel a pending order
   const cancelOrder = async (orderId: string) => {
     if (actioningOrderId) return;
-    if (!confirm('تأكيد: إلغاء هذا الطلب المعلّق؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.')) return;
+    const okCancel = await confirm({ title: 'تأكيد الإلغاء', description: 'إلغاء هذا الطلب المعلّق؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.', confirmLabel: 'إلغاء', cancelLabel: 'تراجع', variant: 'destructive' });
+    if (!okCancel) return;
     setActioningOrderId(orderId);
     try {
       const res = await fetch(`/api/agent/orders/${orderId}/cancel`, {
@@ -305,6 +308,7 @@ export default function AgentPortal() {
 
       {/* Student subscriptions log (active / expired / free) */}
       <StudentSubscriptionsLog />
+      {confirmDialog}
     </div>
   );
 }

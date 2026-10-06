@@ -76,6 +76,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { FinancialCharts, ChartViewToggle, ChartView } from '@/components/shared/financial-charts';
 import type { UserProfile } from '@/lib/types';
 
@@ -225,6 +226,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   // v113: replace time-only filter (HH:MM) with day/month/year period filter
   const [periodFilter, setPeriodFilter] = useState<'all' | 'day' | 'month' | 'year'>('all');
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   // ─── Data state ───
   const [data, setData] = useState<FinancialResponse | null>(null);
@@ -380,14 +382,13 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const handleRefund = async (row: LedgerRow) => {
     if (refundingId) return;
-    const confirmed = window.confirm(
-      `تأكيد الاسترداد لهذه العملية؟\n\n` +
-      `الطالب: ${row.student_name}\n` +
-      `المعلم: ${row.teacher_name}\n` +
-      `المقرر: ${row.subject_name}\n` +
-      `الإجمالي: ${formatAmount(row.gross_amount, row.currency)}\n\n` +
-      `سيتم تغيير الحالة فقط إلى "مسترد". القيم المالية التاريخية لن تُعدّل.`
-    );
+    const confirmed = await confirm({
+      title: 'تأكيد الاسترداد',
+      description: `تأكيد الاسترداد لهذه العملية؟ الطالب: ${row.student_name} — المعلم: ${row.teacher_name} — المقرر: ${row.subject_name} — الإجمالي: ${formatAmount(row.gross_amount, row.currency)}. سيتم تغيير الحالة فقط إلى "مسترد". القيم المالية التاريخية لن تُعدّل.`,
+      confirmLabel: 'استرداد',
+      cancelLabel: 'تراجع',
+      variant: 'destructive',
+    });
     if (!confirmed) return;
     setRefundingId(row.id);
     try {
@@ -1290,6 +1291,7 @@ function SummarySkeleton() {
           aria-hidden
         />
       ))}
+      {confirmDialog}
     </div>
   );
 }

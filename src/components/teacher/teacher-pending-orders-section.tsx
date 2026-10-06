@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import type { UserProfile } from '@/lib/types';
 
 interface PendingOrder {
@@ -48,6 +49,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
   // v112: inline search by op code (SUB-XXXXXXXX format OR bare 8-char code
   // OR student name OR subject name). Filters the already-loaded list.
   const [searchQuery, setSearchQuery] = useState('');
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -75,7 +77,13 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
   // Activate a pending order manually (payment received outside the system)
   const activateOrder = async (orderId: string) => {
     if (actioningOrderId) return;
-    if (!confirm('تأكيد: تم استلام المبلغ من الطالب خارج النظام؟ سيتم تفعيل الاشتراك يدويًا.')) return;
+    const ok = await confirm({
+      title: 'تأكيد التفعيل اليدوي',
+      description: 'تأكيد: تم استلام المبلغ من الطالب خارج النظام؟ سيتم تفعيل الاشتراك يدويًا.',
+      confirmLabel: 'تفعيل',
+      cancelLabel: 'تراجع',
+    });
+    if (!ok) return;
     setActioningOrderId(orderId);
     try {
       const res = await fetch('/api/teacher/subscriptions/activate', {
@@ -100,7 +108,14 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
   // Cancel a pending order
   const cancelOrder = async (orderId: string) => {
     if (actioningOrderId) return;
-    if (!confirm('تأكيد: إلغاء هذا الطلب المعلّق؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.')) return;
+    const ok = await confirm({
+      title: 'تأكيد الإلغاء',
+      description: 'تأكيد: إلغاء هذا الطلب المعلّق؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.',
+      confirmLabel: 'إلغاء الطلب',
+      cancelLabel: 'تراجع',
+      variant: 'destructive',
+    });
+    if (!ok) return;
     setActioningOrderId(orderId);
     try {
       const res = await fetch(`/api/teacher/orders/${orderId}/cancel`, {
@@ -386,6 +401,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

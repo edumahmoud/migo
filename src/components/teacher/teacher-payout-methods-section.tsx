@@ -60,6 +60,7 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
@@ -131,6 +132,7 @@ export default function TeacherPayoutMethodsSection() {
 
   // Data state
   const [methods, setMethods] = useState<PayoutMethod[]>([]);
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [providers, setProviders] = useState<ProviderSchema[]>([]);
   const [loading, setLoading] = useState(true);
   const [providersLoading, setProvidersLoading] = useState(true);
@@ -327,7 +329,8 @@ export default function TeacherPayoutMethodsSection() {
   };
 
   const handleDisable = async (id: string) => {
-    if (!confirm(t('payoutMethods.confirm.disable'))) return;
+    const okDisable = await confirm({ title: 'تعطيل الوسيلة', description: 'هل تريد تعطيل هذه الوسيلة؟', confirmLabel: 'تعطيل', cancelLabel: 'تراجع', variant: 'destructive' });
+    if (!okDisable) return;
     try {
       const res = await fetch(`/api/teacher/payout-methods/${id}`, {
         method: 'DELETE',
@@ -365,7 +368,8 @@ export default function TeacherPayoutMethodsSection() {
 
   // Hard-delete payout method (permanently remove)
   const handleDelete = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الوسيلة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    const okDelete = await confirm({ title: 'حذف وسيلة الاستلام', description: 'هل أنت متأكد من حذف هذه الوسيلة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.', confirmLabel: 'حذف نهائي', cancelLabel: 'تراجع', variant: 'destructive' });
+    if (!okDelete) return;
     try {
       const res = await fetch(`/api/teacher/payout-methods/${id}`, {
         method: 'DELETE',
@@ -883,6 +887,7 @@ export default function TeacherPayoutMethodsSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </div>
   );
 }
