@@ -32,6 +32,7 @@ import AppSidebar from '@/components/shared/app-sidebar';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
+import StudentSuspensionOverlay from '@/components/shared/student-suspension-overlay';
 import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
 import PlatformAnnouncementOverlay, { useLoginAnnouncement, AnnouncementBrandingPanel } from '@/components/shared/platform-announcement-overlay';
 import PlatformAnnouncementPopup from '@/components/shared/platform-announcement-popup';
@@ -1092,10 +1093,12 @@ onSignOut={async () => {
 
     const studentContent = (
       <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
-        <StudentDashboard
-          profile={user}
-          onSignOut={handleSignOut}
-        />
+        <StudentSuspensionOverlay>
+          <StudentDashboard
+            profile={user}
+            onSignOut={handleSignOut}
+          />
+        </StudentSuspensionOverlay>
       </DashboardErrorBoundary>
     );
     return isBannedUser ? <BannedUserOverlay>{studentContent}</BannedUserOverlay> : studentContent;

@@ -21,6 +21,7 @@ import {
   BarChart3,
   Award,
   ClipboardList,
+  Ban,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -28,6 +29,7 @@ import { escapePostgrestIlike } from '@/lib/api-security';
 import { toast } from 'sonner';
 import type { UserProfile, Subject } from '@/lib/types';
 import StudentProfileModal from '@/components/course/tabs/student-profile-modal';
+import StudentSuspendDialog from '@/components/course/tabs/student-suspend-dialog';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useTranslations } from '@/i18n/use-translations';
@@ -153,8 +155,9 @@ function ConfirmDialog({
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
+export default function StudentsTab({ profile, subjectId, subject }: StudentsTabProps) {
   const { t, direction, locale } = useTranslations();
+  const role = profile.role;
   // Students state
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,6 +168,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
 
   // Pending requests state
   const [pendingRequests, setPendingRequests] = useState<PendingStudent[]>([]);
+  const [suspendStudentId, setSuspendStudentId] = useState<string | null>(null);
+  const [suspendStudentName, setSuspendStudentName] = useState<string>('');
   const [loadingPending, setLoadingPending] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -892,6 +897,18 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                   >
                     <Users className="h-3.5 w-3.5" />
                   </button>
+                  {role === 'teacher' && (
+                    <button
+                      onClick={() => {
+                        setSuspendStudentId(student.id);
+                        setSuspendStudentName(student.name ?? student.email ?? '—');
+                      }}
+                      className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                      title="إيقاف / تفعيل"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setRemoveConfirmId(student.id)}
                     disabled={removingId === student.id}
@@ -1008,6 +1025,18 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
         onCancel={() => setRejectAllConfirmOpen(false)}
         variant="danger"
       />
+
+      {/* v115: Suspend / Activate dialog (teacher only) */}
+      {role === 'teacher' && (
+        <StudentSuspendDialog
+          open={suspendStudentId !== null}
+          studentId={suspendStudentId}
+          studentName={suspendStudentName}
+          subjectId={subjectId}
+          subjectName={subject.name}
+          onClose={() => setSuspendStudentId(null)}
+        />
+      )}
 
       {/* Student Performance Modal */}
       <AnimatePresence>

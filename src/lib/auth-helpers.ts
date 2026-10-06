@@ -199,7 +199,12 @@ export async function requireAgent(
 ): Promise<
   | (AuthResult & {
       role: 'registration_agent';
-      agent: { id: string; source_id: string | null; teacher_id: string };
+      agent: {
+        id: string;
+        source_id: string | null;
+        teacher_id: string;
+        allowed_sections: string[] | null; // v114: null = all teacher sections allowed
+      };
       sourceTeacherId: string; // kept for backward compat with existing routes
     })
   | AuthError
@@ -222,7 +227,7 @@ export async function requireAgent(
   const { data: agentRow, error } = await supabaseServer
     .from('registration_agents')
     .select(
-      'id, source_id, teacher_id, ' +
+      'id, source_id, teacher_id, allowed_sections, ' +
         'source:registration_sources(teacher_id)'
     )
     .eq('user_id', authResult.user.id)
@@ -241,6 +246,7 @@ export async function requireAgent(
     id: string;
     source_id: string | null;
     teacher_id: string | null;
+    allowed_sections: string[] | null;
     source: { teacher_id: string } | null;
   };
 
@@ -263,6 +269,7 @@ export async function requireAgent(
       id: row.id,
       source_id: row.source_id,
       teacher_id: sourceTeacherId,
+      allowed_sections: row.allowed_sections,
     },
     sourceTeacherId,
   };

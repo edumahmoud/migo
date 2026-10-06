@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     .from('registration_agents')
     .select(
       'id, user_id, teacher_id, source_id, display_name, kind, ' +
-        'contact_email, contact_phone, address, is_active, created_at, ' +
+        'contact_email, contact_phone, address, is_active, allowed_sections, created_at, ' +
         'user:users!user_id(id, email, name, username)'
     )
     .eq('teacher_id', teacherId)
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       is_active: true,
       created_by: auth.user.id,
     })
-    .select('id, user_id, teacher_id, display_name, kind, contact_email, contact_phone, address, is_active, created_at')
+    .select('id, user_id, teacher_id, display_name, kind, contact_email, contact_phone, address, is_active, allowed_sections, created_at')
     .single();
 
   if (agentErr) {

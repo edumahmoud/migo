@@ -20,6 +20,16 @@ const PatchSchema = z.object({
   contact_phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(300).optional(),
   is_active: z.boolean().optional(),
+  // v114: per-agent section permissions.
+  //   null  = all teacher sections allowed (reset to default)
+  //   []    = no teacher sections visible
+  //   ['subjects','students',...] = explicit allow-list
+  allowed_sections: z
+    .union([
+      z.null(),
+      z.array(z.string().min(1).max(60)),
+    ])
+    .optional(),
 });
 
 interface RouteContext {
@@ -30,7 +40,7 @@ async function fetchOwnedAgent(id: string, teacherId: string) {
   // v65 path: agent.teacher_id is the direct ownership check.
   const { data, error } = await supabaseServer
     .from('registration_agents')
-    .select('id, user_id, teacher_id, source_id, is_active, created_at, display_name, kind')
+    .select('id, user_id, teacher_id, source_id, is_active, created_at, display_name, kind, allowed_sections')
     .eq('id', id)
     .single();
 
@@ -95,13 +105,18 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   if (parsed.data.contact_phone !== undefined) updates.contact_phone = parsed.data.contact_phone;
   if (parsed.data.address !== undefined) updates.address = parsed.data.address;
   if (parsed.data.is_active !== undefined) updates.is_active = parsed.data.is_active;
+  if (parsed.data.allowed_sections !== undefined) {
+    // Supabase expects null for SQL NULL, or a JSON array literal for the JSONB column.
+    updates.allowed_sections =
+      parsed.data.allowed_sections === null ? null : parsed.data.allowed_sections;
+  }
 
   const { data, error } = await supabaseServer
     .from('registration_agents')
     .update(updates)
     .eq('id', id)
     .select(
-      'id, user_id, teacher_id, display_name, kind, contact_email, contact_phone, address, is_active, created_at, updated_at'
+      'id, user_id, teacher_id, display_name, kind, contact_email, contact_phone, address, is_active, allowed_sections, created_at, updated_at'
     )
     .single();
 

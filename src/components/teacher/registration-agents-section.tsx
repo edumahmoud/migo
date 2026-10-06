@@ -25,6 +25,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +73,8 @@ interface RegistrationAgent {
   students_count?: number;              // legacy alias of registrations_count
   registrations_count?: number;        // rows in subject_students (one per course enrollment)
   unique_students_count?: number;       // distinct student_id values
+  // v114: per-agent allowed teacher sections. null = all allowed.
+  allowed_sections?: string[] | null;
   user?: { id: string; email: string; name: string | null; username: string | null } | null;
 }
 
@@ -106,6 +110,29 @@ const KIND_LABEL: Record<Kind, string> = {
   other: 'أخرى',
 };
 
+// v114: Teacher sections that can be exposed per-agent in their Teacher View.
+// These match the IDs used in app-sidebar.tsx teacherNavItems.
+const TEACHER_SECTION_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: 'dashboard',           label: 'الرئيسية' },
+  { id: 'subjects',             label: 'المقررات' },
+  { id: 'students',             label: 'الطلاب' },
+  { id: 'tracking',             label: 'التتبع' },
+  { id: 'summaries',            label: 'الملخصات' },
+  { id: 'questionBank',         label: 'بنك الأسئلة' },
+  { id: 'scormLibrary',         label: 'مكتبة SCORM' },
+  { id: 'pendingOrders',        label: 'طلبات معلّقة' },
+  { id: 'financialManagement',  label: 'الإدارة المالية' },
+  { id: 'chat',                 label: 'المحادثة' },
+  { id: 'videos',               label: 'الفيديوهات' },
+  { id: 'files',                label: 'الملفات' },
+  { id: 'todos',                label: 'المهام' },
+  { id: 'calendar',             label: 'التقويم' },
+  { id: 'reports',              label: 'البلاغات' },
+  { id: 'analytics',            label: 'التحليلات' },
+  { id: 'notifications',        label: 'الإشعارات' },
+  { id: 'registration',         label: 'وكلاء التسجيل' },
+];
+
 export default function RegistrationAgentsSection() {
   const { t } = useTranslations();
 
@@ -140,6 +167,11 @@ export default function RegistrationAgentsSection() {
     contact_phone: '',
     address: '',
   });
+  // v114: per-agent allowed_sections editing state.
+  //   allowAll = true  → reset allowed_sections to null (all allowed)
+  //   allowAll = false → use the Set to pick specific sections
+  const [editAllowAll, setEditAllowAll] = useState(true);
+  const [editAllowedSet, setEditAllowedSet] = useState<Set<string>>(new Set());
   const [editSaving, setEditSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<RegistrationAgent | null>(null);
@@ -261,6 +293,12 @@ export default function RegistrationAgentsSection() {
       contact_phone: a.contact_phone ?? '',
       address: a.address ?? '',
     });
+    // v114: initialize permission editor state.
+    //   null  = all allowed → allowAll=true, empty set
+    //   array = restrict   → allowAll=false, set from array
+    const arr = a.allowed_sections ?? null;
+    setEditAllowAll(arr === null);
+    setEditAllowedSet(new Set(arr ?? []));
   };
 
   const submitEdit = async () => {
@@ -271,10 +309,14 @@ export default function RegistrationAgentsSection() {
     }
     setEditSaving(true);
     try {
+      // v114: include allowed_sections in the PATCH body.
+      //   allowAll=true  → null  (resets to "all sections allowed")
+      //   allowAll=false → sorted array (empty array means no teacher sections)
+      const allowedSections = editAllowAll ? null : Array.from(editAllowedSet).sort();
       const res = await fetch(`/api/teacher/registration-agents/${editTarget.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ ...editForm, allowed_sections: allowedSections }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -599,6 +641,18 @@ export default function RegistrationAgentsSection() {
                     </div>
                   </div>
 
+                  {/* v114: permission badge */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                    <Badge
+                      variant={a.allowed_sections === null || a.allowed_sections === undefined ? 'default' : 'secondary'}
+                      className="text-[10px]"
+                    >
+                      {a.allowed_sections === null || a.allowed_sections === undefined
+                        ? 'كل أقسام المعلم'
+                        : `${a.allowed_sections.length} قسم مسموح`}
+                    </Badge>
+                  </div>
+
                   {/* Action buttons */}
                   <div className="flex gap-1.5 flex-wrap">
                     <Button
@@ -831,6 +885,87 @@ export default function RegistrationAgentsSection() {
                   maxLength={300}
                 />
               </div>
+            </div>
+
+            {/* v114: per-agent permission editor */}
+            <div className="border-t pt-3 mt-2 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">صلاحيات عرض أقسام المعلم</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    تحكم في أي أقسام يرى الوكيل في صفحة «عرض المعلم» بملفه الشخصي.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="allow-all-switch" className="text-xs cursor-pointer">
+                    كل الأقسام
+                  </Label>
+                  <Switch
+                    id="allow-all-switch"
+                    checked={editAllowAll}
+                    onCheckedChange={setEditAllowAll}
+                  />
+                </div>
+              </div>
+
+              {!editAllowAll && (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      الأقسام المسموح بها: <span className="font-medium">{editAllowedSet.size}</span> من {TEACHER_SECTION_OPTIONS.length}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm" variant="ghost"
+                        className="h-6 text-[11px]"
+                        onClick={() => setEditAllowedSet(new Set(TEACHER_SECTION_OPTIONS.map(s => s.id)))}
+                      >
+                        تحديد الكل
+                      </Button>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="h-6 text-[11px]"
+                        onClick={() => setEditAllowedSet(new Set())}
+                      >
+                        مسح الكل
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto rounded-md border border-border/60 p-2">
+                    {TEACHER_SECTION_OPTIONS.map((sec) => {
+                      const checked = editAllowedSet.has(sec.id);
+                      return (
+                        <label
+                          key={sec.id}
+                          className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-pointer transition-colors ${
+                            checked
+                              ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(c) => {
+                              setEditAllowedSet((prev) => {
+                                const next = new Set(prev);
+                                if (c) next.add(sec.id);
+                                else next.delete(sec.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="truncate">{sec.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {editAllowedSet.size === 0 && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      لن يرى الوكيل أي قسم من أقسام المعلم — سيظهر له تنبيه بطلب الصلاحية من المعلم.
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>

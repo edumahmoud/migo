@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   // Fetch the agent's own display_name + kind + the teacher's name.
   const { data: agentRow, error } = await supabaseServer
     .from('registration_agents')
-    .select('id, display_name, kind, contact_email, contact_phone, source_id')
+    .select('id, display_name, kind, contact_email, contact_phone, source_id, allowed_sections')
     .eq('id', agent.id)
     .single();
 
@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
       contact_email: (agentRow as { contact_email: string | null }).contact_email,
       contact_phone: (agentRow as { contact_phone: string | null }).contact_phone,
       source_id: (agentRow as { source_id: string | null }).source_id,
+      // v114: per-agent allowed teacher-sections. null = all allowed.
+      allowed_sections: (agentRow as { allowed_sections: string[] | null }).allowed_sections,
     },
     teacher: teacherRow
       ? {
