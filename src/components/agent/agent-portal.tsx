@@ -25,7 +25,7 @@ interface Subscription {
 interface PendingOrder {
   id: string; subject_id: string; amount: number; currency: string; status: string; created_at: string;
   provider_order_ref?: string | null;
-  subject: { id: string; name: string } | null;
+  subject: { id: string; name: string; price?: number } | null;
 }
 
 export default function AgentPortal() {

@@ -3873,7 +3873,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         role={profile.role as 'student' | 'teacher' | 'admin'}
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
-        customNavItems={adminNavItemDefs.map(item => ({ ...item, label: t(item.labelKey) })).filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')}
+        customNavItems={adminNavItemDefs
+          // v113: filter to show only agent-relevant sections:
+          // dashboard, users (students), subjects (courses),
+          // financialManagement (operations/activation/cancellation),
+          // settings. All other admin sections are hidden.
+          .filter(item => ['dashboard', 'users', 'subjects', 'financialManagement', 'settings'].includes(item.id))
+          .map(item => ({ ...item, label: t(item.labelKey) }))
+          .filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')
+        }
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
