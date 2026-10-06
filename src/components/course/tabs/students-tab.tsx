@@ -213,7 +213,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
     try {
       const { data, error } = await supabase
         .from('subject_students')
-        .select('student_id, status, created_at, users(*)')
+        .select('student_id, status, created_at, student:users!student_id(*)')
         .eq('subject_id', subjectId)
         .eq('status', 'pending');
 
@@ -225,7 +225,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
 
       if (data && data.length > 0) {
         const pendingStudents: PendingStudent[] = data.map((d: Record<string, unknown>) => ({
-          ...((d.users || {}) as UserProfile),
+          ...((d.student || {}) as UserProfile),
           enrollment_status: d.status as string,
           enrollment_date: d.created_at as string,
         }));
@@ -249,7 +249,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
     try {
       let query = supabase
         .from('subject_students')
-        .select('student_id, status, users(*)')
+        .select('student_id, status, student:users!student_id(*)')
         .eq('subject_id', subjectId);
 
       if (statusColumnExists) {
@@ -262,7 +262,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
         console.error('Error fetching enrollments:', enrollErr);
         setStudents([]);
       } else if (enrollments && enrollments.length > 0) {
-        const studentsData = enrollments.map((e: Record<string, unknown>) => e.users as UserProfile).filter(Boolean);
+        const studentsData = enrollments.map((e: Record<string, unknown>) => e.student as UserProfile).filter(Boolean);
         setStudents(studentsData);
       } else {
         setStudents([]);

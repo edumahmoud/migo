@@ -249,6 +249,16 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [newSubjectLevel, setNewSubjectLevel] = useState('');
   const [newSubjectSubLevel, setNewSubjectSubLevel] = useState('');
   const [newSubjectPrice, setNewSubjectPrice] = useState('0');
+  // v116: in-create-subject subscription plans. Each plan has
+  // period_type/period_label/duration_days/price. The teacher can
+  // add up to 4 plans (monthly/term/yearly/custom). When the subject
+  // is created, we INSERT all plans + set subject.price = monthly
+  // plan's price (or 0 if no monthly plan).
+  const [newSubjectPlans, setNewSubjectPlans] = useState<
+    Array<{ period_type: 'monthly' | 'term' | 'yearly' | 'custom'; period_label: string; duration_days: number; price: string }>
+  >([
+    { period_type: 'monthly', period_label: '', duration_days: 30, price: '0' },
+  ]);
   const [creatingSubject, setCreatingSubject] = useState(false);
   const [newSubjectThumb, setNewSubjectThumb] = useState<File | null>(null);
   const newSubjectThumbRef = useRef<HTMLInputElement>(null);
@@ -856,6 +866,35 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       toast.error(t('course.subjectName') + ': ' + t('common.required'));
       return;
     }
+
+    // v116: validate plans — at least one plan, prices must be >= 0.
+    if (newSubjectPlans.length === 0) {
+      toast.error('يجب إضافة خطة اشتراك واحدة على الأقل');
+      return;
+    }
+    for (const p of newSubjectPlans) {
+      const pprice = Number(p.price);
+      if (isNaN(pprice) || pprice < 0) {
+        toast.error(`سعر غير صالح لخطة ${p.period_type}`);
+        return;
+      }
+      if (p.duration_days <= 0 || p.duration_days > 3650) {
+        toast.error(`مدة غير صالحة لخطة ${p.period_type} (1-3650 يوم)`);
+        return;
+      }
+    }
+    // Each period_type must be unique (UNIQUE constraint in DB).
+    const types = newSubjectPlans.map(p => p.period_type);
+    if (new Set(types).size !== types.length) {
+      toast.error('لا يمكن تكرار نوع الخطة (شهري/ترمي/سنوي/مخصص) — كل نوع مرة واحدة');
+      return;
+    }
+
+    // v116: subject.price is now derived from the monthly plan's price
+    // (or 0 if no monthly plan). The teacher no longer sets it directly.
+    const monthlyPlan = newSubjectPlans.find(p => p.period_type === 'monthly');
+    const derivedSubjectPrice = monthlyPlan ? Math.max(0, Number(monthlyPlan.price) || 0) : 0;
+
     setCreatingSubject(true);
     try {
       const joinCode = generateJoinCode();
@@ -889,7 +928,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           sub_level: newSubjectSubLevel || null,
           category_id: newSubjectCategory || null,
           thumbnail_url: thumbnailUrl,
-          price: Math.max(0, Number(newSubjectPrice) || 0),
+          price: derivedSubjectPrice,
           currency: 'EGP',
         })
         .select()
@@ -912,7 +951,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               sub_level: newSubjectSubLevel || null,
               category_id: newSubjectCategory || null,
               thumbnail_url: thumbnailUrl,
-              price: Math.max(0, Number(newSubjectPrice) || 0),
+              price: derivedSubjectPrice,
               currency: 'EGP',
             })
             .select()
@@ -932,6 +971,33 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           toast.error(t('common.unexpectedError'));
         }
       } else {
+        // v116: insert all subscription plans for the new subject.
+        // Use the authenticated supabase client (RLS allows the
+        // teacher to insert plans for their own subject).
+        const subjectId = (data as { id: string }).id;
+        const plansInsert = newSubjectPlans.map((p, idx) => ({
+          subject_id: subjectId,
+          period_type: p.period_type,
+          period_label: p.period_label.trim(),
+          duration_days: p.duration_days,
+          price: Math.max(0, Number(p.price) || 0),
+          currency: 'EGP',
+          is_active: true,
+          sort_order: idx,
+        }));
+        if (plansInsert.length > 0) {
+          const { error: plansErr } = await supabase
+            .from('subject_subscription_plans')
+            .insert(plansInsert);
+          if (plansErr) {
+            // Subject was created but plans failed — log loudly but
+            // don't fail the whole operation. The teacher can add
+            // plans later from the subscription-plans section.
+            console.error('Plans insert failed (subject already created):', plansErr.message);
+            toast.warning('تم إنشاء المقرر لكن فشل إضافة بعض الخطط — يمكنك إضافتها يدوياً من إعدادات المقرر.');
+          }
+        }
+
         toast.success(t('course.subjectCreated'));
         setCreateSubjectOpen(false);
         setNewSubjectName('');
@@ -940,6 +1006,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         setNewSubjectLevel('');
         setNewSubjectSubLevel('');
         setNewSubjectPrice('0');
+        // v116: reset plans to default (1 monthly plan with price 0)
+        setNewSubjectPlans([{ period_type: 'monthly', period_label: '', duration_days: 30, price: '0' }]);
         setNewSubjectCategory('');
         setNewSubjectThumb(null);
         if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = '';
@@ -2566,24 +2634,131 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   </div>
                 </div>
 
-                {/* v69/v70: Course monthly subscription price (EGP/month). Server-side validated; default 0 = free. */}
+                {/* v116: subscription plans editor (replaces the old monthly price input).
+                    The teacher MUST define at least one plan. subject.price is
+                    derived from the monthly plan's price (or 0 if no monthly plan). */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground">
-                    رسوم الاشتراك الشهري (ج.م/شهر)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={newSubjectPrice}
-                    onChange={(e) => setNewSubjectPrice(e.target.value)}
-                    placeholder="0 = مجاناً"
-                    className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                    dir="ltr"
-                    disabled={creatingSubject}
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-foreground">
+                      خطط الاشتراك
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newSubjectPlans.length >= 4) return;
+                        const usedTypes = new Set(newSubjectPlans.map(p => p.period_type));
+                        const nextType = (['monthly', 'term', 'yearly', 'custom'] as const).find(t => !usedTypes.has(t)) ?? 'custom';
+                        const defaultDuration = nextType === 'monthly' ? 30 : nextType === 'term' ? 120 : nextType === 'yearly' ? 365 : 30;
+                        setNewSubjectPlans(prev => [...prev, { period_type: nextType, period_label: '', duration_days: defaultDuration, price: '0' }]);
+                      }}
+                      disabled={creatingSubject || newSubjectPlans.length >= 4}
+                      className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 font-medium transition-colors disabled:opacity-50"
+                    >
+                      <Plus className="h-3 w-3" />
+                      إضافة خطة
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {newSubjectPlans.map((plan, idx) => {
+                      const labelMap: Record<string, string> = { monthly: 'شهري', term: 'ترمي', yearly: 'سنوي', custom: 'مخصص' };
+                      const onTypeChange = (newType: 'monthly' | 'term' | 'yearly' | 'custom') => {
+                        setNewSubjectPlans(prev => prev.map((p, i) =>
+                          i === idx
+                            ? { ...p, period_type: newType, duration_days: newType === 'monthly' ? 30 : newType === 'term' ? 120 : newType === 'yearly' ? 365 : p.duration_days }
+                            : p
+                        ));
+                      };
+                      const onPriceChange = (val: string) => {
+                        setNewSubjectPlans(prev => prev.map((p, i) => i === idx ? { ...p, price: val } : p));
+                      };
+                      const onLabelChange = (val: string) => {
+                        setNewSubjectPlans(prev => prev.map((p, i) => i === idx ? { ...p, period_label: val } : p));
+                      };
+                      const onDurationChange = (val: string) => {
+                        const n = parseInt(val, 10);
+                        setNewSubjectPlans(prev => prev.map((p, i) => i === idx ? { ...p, duration_days: isNaN(n) || n <= 0 ? 30 : Math.min(n, 3650) } : p));
+                      };
+                      const remove = () => {
+                        if (newSubjectPlans.length <= 1) return;
+                        setNewSubjectPlans(prev => prev.filter((_, i) => i !== idx));
+                      };
+
+                      return (
+                        <div key={idx} className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <select
+                              value={plan.period_type}
+                              onChange={(e) => onTypeChange(e.target.value as 'monthly' | 'term' | 'yearly' | 'custom')}
+                              disabled={creatingSubject}
+                              className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
+                            >
+                              <option value="monthly">{labelMap.monthly}</option>
+                              <option value="term">{labelMap.term}</option>
+                              <option value="yearly">{labelMap.yearly}</option>
+                              <option value="custom">{labelMap.custom}</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={remove}
+                              disabled={creatingSubject || newSubjectPlans.length <= 1}
+                              className="text-rose-600 hover:text-rose-700 disabled:opacity-40"
+                              title="حذف الخطة"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] text-muted-foreground">السعر (ج.م)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={plan.price}
+                                onChange={(e) => onPriceChange(e.target.value)}
+                                placeholder="0 = مجاني"
+                                className="w-full rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
+                                dir="ltr"
+                                disabled={creatingSubject}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-muted-foreground">المدة (أيام)</label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="3650"
+                                value={plan.duration_days}
+                                onChange={(e) => onDurationChange(e.target.value)}
+                                className="w-full rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
+                                dir="ltr"
+                                disabled={creatingSubject || plan.period_type !== 'custom'}
+                              />
+                            </div>
+                          </div>
+                          {plan.period_type === 'custom' && (
+                            <div>
+                              <label className="text-[10px] text-muted-foreground">تسمية الخطة (اختياري)</label>
+                              <input
+                                type="text"
+                                value={plan.period_label}
+                                onChange={(e) => onLabelChange(e.target.value)}
+                                placeholder="مثال: ترم أول 2025"
+                                className="w-full rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
+                                maxLength={60}
+                                disabled={creatingSubject}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   <p className="text-xs text-muted-foreground">
-                    الاشتراك شهري — يدفع الطالب هذا المبلغ كل شهر. اتركه 0 إذا كانت الدورة مجانية. لا يمكن للطالب تعديل هذا السعر.
+                    حدد خطط الاشتراك للمقرر. سعر المقرر في الكتالوج = سعر الخطة الشهرية (أو 0 إذا لم توجد).
+                    اترك السعر 0 لخطة مجانية — الطالب يختارها وتُفعّل بعد موافقة الوكيل/المعلم.
                   </p>
                 </div>
 

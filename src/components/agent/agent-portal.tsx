@@ -43,6 +43,7 @@ import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import StudentSubscriptionsLog from '@/components/agent/student-subscriptions-log';
+import AgentStudentSuspendDialog from '@/components/agent/agent-student-suspend-dialog';
 
 // ─── Types ───
 interface StudentResult {
@@ -131,6 +132,12 @@ export default function AgentPortal({
   const [self, setSelf] = useState<AgentSelf | null>(null);
   const [teacher, setTeacher] = useState<TeacherInfo | null>(null);
   const [selfError, setSelfError] = useState<string | null>(null);
+  // v115: agent suspend/activate dialog state. Tracks which student is being
+  // suspended/activated + the subjects available for selection (the student's
+  // enrolled subjects in this agent's teacher's courses).
+  const [suspendStudentId, setSuspendStudentId] = useState<string | null>(null);
+  const [suspendStudentName, setSuspendStudentName] = useState<string>('');
+  const [suspendSubjects, setSuspendSubjects] = useState<Array<{ id: string; name: string }>>([]);
   const [teacherViewSection, setTeacherViewSection] = useState<string>('dashboard');
   const { confirmDialog, confirm } = useConfirmDialog();
 
@@ -383,14 +390,44 @@ export default function AgentPortal({
               {/* Student info */}
               <Card>
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="font-bold">{studentResult.student.name ?? '—'}</p>
-                      <p className="text-xs text-muted-foreground">{studentResult.student.email}</p>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold truncate">{studentResult.student.name ?? '—'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{studentResult.student.email}</p>
                     </div>
-                    <Badge variant={studentResult.student.account_status === 'active' ? 'default' : 'secondary'}>
-                      {studentResult.student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
-                    </Badge>
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                      <Badge variant={studentResult.student.account_status === 'active' ? 'default' : 'secondary'}>
+                        {studentResult.student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => {
+                          setSuspendStudentId(studentResult.student.id);
+                          setSuspendStudentName(studentResult.student.name ?? studentResult.student.email ?? '—');
+                          // Build the subjects list from the student's enrolled + pending-order subjects
+                          const enrolled = (studentResult.subscriptions ?? [])
+                            .map(s => s.subject)
+                            .filter((s): s is { id: string; name: string } => !!s && !!s.id && !!s.name);
+                          const pendingSubjects = (studentResult.pending_orders ?? [])
+                            .map(o => o.subject)
+                            .filter((s): s is { id: string; name: string } => !!s && !!s.id && !!s.name);
+                          // Merge + dedupe
+                          const all = [...enrolled, ...pendingSubjects];
+                          const seen = new Set<string>();
+                          const unique = all.filter(s => {
+                            if (seen.has(s.id)) return false;
+                            seen.add(s.id);
+                            return true;
+                          });
+                          setSuspendSubjects(unique.length > 0 ? unique : []);
+                        }}
+                      >
+                        <Ban className="h-3.5 w-3.5 me-1" />
+                        إيقاف / تنشيط
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -540,6 +577,16 @@ export default function AgentPortal({
           isRTL={isRTL}
         />
       )}
+
+      {/* v115: Agent-side student suspend/activate dialog */}
+      <AgentStudentSuspendDialog
+        open={suspendStudentId !== null}
+        studentId={suspendStudentId}
+        studentName={suspendStudentName}
+        subjects={suspendSubjects}
+        onClose={() => setSuspendStudentId(null)}
+        onChanged={() => { /* refetch student search to update badges */ if (searchCode.trim()) searchStudent(); }}
+      />
     </div>
   );
 }
