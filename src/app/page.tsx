@@ -1030,7 +1030,7 @@ onSignOut={async () => {
               titleId={user.title_id}
               avatarUrl={user.avatar_url ?? undefined}
               onSignOut={handleSignOut}
-              onOpenSettings={() => {}}
+              onOpenSettings={() => setAgentSection('settings')}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
               sidebarCollapsed={!sidebarOpen}
             />

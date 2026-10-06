@@ -2979,10 +2979,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             (o: { status?: string; free?: boolean; amount?: number }) => o.status === 'pending' && !o.free && Number(o.amount ?? 0) > 0
                           );
                           const freeCreated = (json.created_orders ?? []).filter(
-                            (o: { free?: boolean }) => o.free
+                            (o: { free?: boolean; amount?: number; status?: string }) => o.free || (o.status === 'pending' && Number(o.amount ?? 0) === 0)
                           );
                           if (freeCreated.length > 0) {
-                            toast.success(`تم الاشتراك في ${freeCreated.length} مقرر مجاني بنجاح.`);
+                            toast.success(`تم إنشاء ${freeCreated.length} طلب اشتراك مجاني. سيتم التفعيل بعد موافقة الوكيل/المعلم.`);
                           }
                           if (paidCreated.length === 1) {
                             const o = paidCreated[0];
@@ -3189,14 +3189,18 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                               });
                                               const json = await res.json();
                                               if (json.success) {
-                                                const freeOrder = (json.created_orders ?? []).find(
-                                                  (o: { subject_id?: string; error?: string; free?: boolean }) => o.subject_id === c.id
+                                                const createdOrder = (json.created_orders ?? []).find(
+                                                  (o: { subject_id?: string; error?: string; free?: boolean; amount?: number; status?: string }) => o.subject_id === c.id
                                                 );
-                                                if (c.price === 0) {
-                                                  if (freeOrder && freeOrder.error) {
-                                                    toast.error('فشل تفعيل المقرر المجاني: ' + freeOrder.error);
+                                                // v113: check effective price (plan price or subject price)
+                                                const selectedPlan = subjectPlans[c.id]?.find(p => p.id === selectedPlanIds[c.id]);
+                                                const effectivePrice = selectedPlan ? selectedPlan.price : c.price;
+                                                if (effectivePrice === 0) {
+                                                  // Free course — order created as 'pending' (agent must approve)
+                                                  if (createdOrder && createdOrder.error) {
+                                                    toast.error('فشل إنشاء الطلب: ' + createdOrder.error);
                                                   } else {
-                                                    toast.success('تم الاشتراك في المقرر المجاني بنجاح.');
+                                                    toast.success('تم إنشاء طلب الاشتراك المجاني. سيتم تفعيله بعد موافقة الوكيل/المعلم.');
                                                     setAvailableCoursesOpen(false);
                                                     fetchSubjects();
                                                   }
