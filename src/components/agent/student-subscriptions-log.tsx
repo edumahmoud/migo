@@ -138,7 +138,7 @@ export default function StudentSubscriptionsLog() {
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="ابحث باسم الطالب أو الكود أو المقرر..."
+              placeholder="ابحث باسم الطالب أو رقم العملية أو المقرر..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="ps-9 h-10"

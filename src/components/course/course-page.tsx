@@ -42,6 +42,7 @@ import { toast } from 'sonner';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectTeacher, CourseTab, Category } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import SubscriptionPlansSection from '@/components/teacher/subscription-plans-section';
 
 // -------------------------------------------------------
 // Lazy-load tab components for performance
@@ -1222,6 +1223,16 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       الاشتراك شهري — يدفع الطالب كل شهر. 0 = مجاناً. لا يمكن للطالب تعديل السعر — يُقرأ من قاعدة البيانات.
                     </p>
                   </div>
+                )}
+
+                {/* v113: Subscription plans (monthly/term/yearly) */}
+                {role === 'teacher' && (
+                  <SubscriptionPlansSection
+                    subjectId={subject.id}
+                    subjectName={subject.name}
+                    defaultPrice={subject.price ?? 0}
+                    currency={subject.currency ?? 'EGP'}
+                  />
                 )}
 
                 {/* Category selector */}

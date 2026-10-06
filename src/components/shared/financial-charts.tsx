@@ -332,14 +332,18 @@ export function ChartViewToggle({
   view: ChartView;
   onChange: (v: ChartView) => void;
 }) {
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
+  const isRTL = direction === 'rtl';
   const buttons: Array<{ id: ChartView; labelKey: 'cards' | 'barChart' | 'lineChart' }> = [
     { id: 'cards', labelKey: 'cards' },
     { id: 'bar', labelKey: 'barChart' },
     { id: 'line', labelKey: 'lineChart' },
   ];
   return (
-    <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5 gap-0.5">
+    <div
+      className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5 gap-0.5"
+      dir={direction}
+    >
       {buttons.map((b) => {
         const isActive = view === b.id;
         const label = t(`financial.viewToggle.${b.labelKey}`)

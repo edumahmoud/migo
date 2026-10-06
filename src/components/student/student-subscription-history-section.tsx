@@ -191,7 +191,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث بالكود (SUB-XXXX) أو اسم المقرر..."
+                placeholder="ابحث برقم العملية أو اسم المقرر..."
                 className="ps-8"
               />
             </div>

@@ -634,7 +634,7 @@ export default function TeacherFinancialSection() {
                   type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('financial.search.placeholder') || 'ابحث بكود العملية أو الطلب أو الطالب...'}
+                  placeholder={t('financial.search.placeholder') || 'ابحث برقم العملية أو رقم الطلب أو الطالب...'}
                   className="h-9 ps-8"
                   aria-label={t('financial.search.label') || 'بحث'}
                 />

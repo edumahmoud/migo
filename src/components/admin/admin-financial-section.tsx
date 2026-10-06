@@ -918,7 +918,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                   type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('adminFinancial.search.placeholder') || 'ابحث بكود العملية أو الطلب أو الطالب...'}
+                  placeholder={t('adminFinancial.search.placeholder') || 'ابحث برقم العملية أو رقم الطلب أو الطالب...'}
                   className="h-9 ps-8"
                   aria-label={t('adminFinancial.search.label') || 'بحث'}
                 />

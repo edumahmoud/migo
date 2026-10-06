@@ -106,7 +106,7 @@ export default function PaymentCodeSearchBox() {
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="ابحث بكود العملية (مثال: SUB-73998EA0)"
+              placeholder="ابحث برقم العملية أو اسم الطالب..."
               className="ps-8"
               disabled={searching}
               dir="ltr"
@@ -229,7 +229,7 @@ export default function PaymentCodeSearchBox() {
         {/* Hint when empty */}
         {!result && (
           <p className="mt-3 text-xs text-muted-foreground">
-            💡 اكتب كود العملية (مثال: <span className="font-mono">SUB-73998EA0</span>) لتبحث عن تفاصيلها وحالتها.
+            💡 اكتب رقم العملية لتبحث عن تفاصيلها وحالتها.
           </p>
         )}
       </CardContent>
