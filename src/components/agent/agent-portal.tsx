@@ -11,6 +11,7 @@ import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { generatePaymentCode } from '@/lib/payment/utils';
 import StudentSubscriptionsLog from '@/components/agent/student-subscriptions-log';
 import PaymentCodeSearchBox from '@/components/shared/payment-code-search-box';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 interface StudentResult {
   id: string; email: string; name: string | null; username: string | null;
