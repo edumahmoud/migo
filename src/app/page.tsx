@@ -585,8 +585,11 @@ function HomeContent() {
               toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
                 duration: 4000,
               });
-              // Force IMMEDIATE page refresh (no delay) — the
-              // student needs to see the activated courses right away
+              // v113: Clear ALL Paymob query params from the URL before
+              // reloading — prevents loading issues when the app re-reads
+              // the URL on mount. Replace state to the clean root URL,
+              // then reload.
+              window.history.replaceState({}, '', window.location.pathname);
               window.location.reload();
               return true;
             }
