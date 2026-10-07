@@ -106,16 +106,9 @@ export async function POST(request: NextRequest) {
   }
 
   // v116 FIX: if NO plans were explicitly selected (allPlanIdsToFetch is
-  // empty), auto-fetch each subject's DEFAULT plan (monthly type, or the
-  // first active plan if no monthly exists). This ensures the API uses the
-  // plan's price — not the stale subject.price — when the student subscribes
-  // without picking from the dropdown (which doesn't show for single-plan
-  // courses per the user's request "dropdown only when 2+ plans").
-  //
-  // Without this fix: course has subject.price=100 (pre-v116) + a free
-  // monthly plan (price=0). Student subscribes without planId → API uses
-  // subject.price=100 → creates a PAID order instead of a FREE one.
+  // empty), auto-fetch each subject's DEFAULT plan.
   if (allPlanIdsToFetch.size === 0 && requestedSubjectIds.length > 0) {
+    console.log('[student/orders] AUTO-FETCH: no planId sent, fetching default plans for subjects:', requestedSubjectIds);
     const { data: defaultPlans } = await supabaseServer
       .from('subject_subscription_plans')
       .select('id, subject_id, period_type, period_label, duration_days, price, is_active')
@@ -127,9 +120,8 @@ export async function POST(request: NextRequest) {
       id: string; subject_id: string; period_type: string;
       period_label: string; duration_days: number; price: number; is_active: boolean;
     }>) {
-      // Only set if not already set (first plan per subject wins —
-      // sort_order=0 is typically the monthly plan).
       if (!plansBySubjectId.has(p.subject_id)) {
+        console.log('[student/orders] AUTO-FETCH: found plan for subject', p.subject_id, '→ price:', p.price, 'type:', p.period_type);
         plansBySubjectId.set(p.subject_id, {
           id: p.id,
           price: Number(p.price),
@@ -273,6 +265,8 @@ export async function POST(request: NextRequest) {
     const effectivePeriodType = subjectPlan?.period_type ?? planPeriodType ?? null;
     const effectivePeriodLabel = subjectPlan?.period_label ?? planPeriodLabel ?? null;
 
+    console.log('[student/orders] SUBJECT', subjectId, '→ subject.price:', subject.price, 'effectivePriceOverride:', effectivePriceOverride, 'subjectPlan:', subjectPlan ? `found (price=${subjectPlan.price})` : 'NOT FOUND');
+
     if (subject.price === 0) {
       // v113: FREE course — create 'pending' order, do NOT auto-activate.
       const orderRef = `free_${randomUUID()}`;
@@ -320,7 +314,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (freeOrder) {
+        console.log('[student/orders] ✅ FREE ORDER CREATED:', freeOrder.id, 'for subject', subjectId);
         createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: freeOrder.id });
+      } else {
+        console.error('[student/orders] ❌ FREE ORDER NOT CREATED — INSERT returned null for subject', subjectId);
       }
     } else if (effectivePriceOverride === 0) {
       // v116: PAID subject + FREE plan (e.g., scholarship plan with price=0).
@@ -363,6 +360,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (freeOrder) {
+        console.log('[student/orders] ✅ FREE PLAN ORDER CREATED:', freeOrder.id, 'for subject', subjectId);
         createdOrders.push({
           subject_id: subjectId,
           subject_name: subject.name,
@@ -376,8 +374,9 @@ export async function POST(request: NextRequest) {
         });
       }
     } else {
-      // PAID course — create 'pending' order. The order will be
-      // activated later ONLY via /api/payment/webhook (called by
+      // PAID course — this branch fires when subject.price > 0 AND
+      // effectivePriceOverride !== 0 (no free plan found).
+      console.log('[student/orders] ⚠️ PAID BRANCH for subject', subjectId, '→ subject.price:', subject.price, 'effectivePriceOverride:', effectivePriceOverride);
       // Paymob after a real successful payment). There is NO manual
       // approval path, NO proof submission, NO admin bypass.
       //
