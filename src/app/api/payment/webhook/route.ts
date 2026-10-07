@@ -52,6 +52,10 @@ interface OrderRow {
   currency: string;
   status: string;
   gateway_id: string | null;
+  // v118: needed for the session-expansion path (when a single order
+  // is part of a multi-subject checkout session, we need to know the
+  // session_id to fetch + activate all the session's sibling orders).
+  checkout_session_id?: string | null;
 }
 
 /**
@@ -165,7 +169,8 @@ export async function POST(request: NextRequest) {
     if (orderRef) {
       const { data: order } = await supabaseServer
         .from('orders')
-        .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id')
+        // v118: include checkout_session_id for the session-expansion path
+        .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id')
         .eq('id', orderRef)
         .maybeSingle();
 
@@ -256,7 +261,8 @@ export async function POST(request: NextRequest) {
 
     const { data: order, error: orderErr } = await supabaseServer
       .from('orders')
-      .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id')
+      // v118: include checkout_session_id for the session-expansion path
+      .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id')
       .eq('id', webhookResult.orderId)
       .maybeSingle();
 
