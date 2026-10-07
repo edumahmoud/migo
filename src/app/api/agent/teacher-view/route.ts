@@ -110,11 +110,20 @@ export async function GET(request: NextRequest) {
         return await handleScormLibrary(teacherId, limit, offset);
       case 'financialManagement':
         return await handleFinancial(teacherId);
+      case 'videos':
+        return await handleVideos(teacherId, limit, offset);
+      case 'files':
+        return await handleFiles(teacherId, limit, offset);
+      case 'todos':
+        return await handleTodos(teacherId, limit, offset);
+      case 'notifications':
+        return await handleNotifications(teacherId, limit, offset);
+      case 'analytics':
+        return await handleAnalytics(teacherId);
       default:
         // Sections that require complex joins or are not data-bearing
-        // (videos/files/todos/calendar/reports/analytics/notifications/chat)
-        // return an empty payload so the client UI can render a
-        // "preview only" placeholder.
+        // (tracking/calendar/reports/chat) return an empty payload so
+        // the client UI can render a "preview only" placeholder.
         return NextResponse.json({
           success: true,
           section,
@@ -489,5 +498,148 @@ async function handleFinancial(teacherId: string) {
       currency,
       ...agg,
     })),
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
+// v116: additional section handlers — videos, files, todos,
+// notifications, analytics. These give the agent READ-ONLY access
+// to the teacher's content for these sections (when the teacher has
+// allowed them in allowed_sections).
+// ──────────────────────────────────────────────────────────────
+
+async function handleVideos(teacherId: string, limit: number, offset: number) {
+  // Fetch videos uploaded for the teacher's subjects. The videos table
+  // is named 'videos' with a subject_id FK to subjects.
+  const { data: videos, error } = await supabaseServer
+    .from('videos')
+    .select(`
+      id, title, duration_seconds, created_at,
+      subject:subjects!inner(id, name, teacher_id)
+    `)
+    .eq('subject.teacher_id', teacherId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  const items = (videos ?? []) as unknown as Array<{ id: string }>;
+  return NextResponse.json({
+    success: true,
+    section: 'videos',
+    items: videos ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
+  });
+}
+
+async function handleFiles(teacherId: string, limit: number, offset: number) {
+  // Fetch files uploaded for the teacher's subjects.
+  const { data: files, error } = await supabaseServer
+    .from('files')
+    .select(`
+      id, name, file_type, file_size, created_at,
+      subject:subjects!inner(id, name, teacher_id)
+    `)
+    .eq('subject.teacher_id', teacherId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  const items = (files ?? []) as unknown as Array<{ id: string }>;
+  return NextResponse.json({
+    success: true,
+    section: 'files',
+    items: files ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
+  });
+}
+
+async function handleTodos(teacherId: string, limit: number, offset: number) {
+  // Fetch the teacher's todos.
+  const { data: todos, error } = await supabaseServer
+    .from('todos')
+    .select('id, title, completed, due_date, created_at')
+    .eq('user_id', teacherId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  const items = (todos ?? []) as unknown as Array<{ id: string }>;
+  return NextResponse.json({
+    success: true,
+    section: 'todos',
+    items: todos ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
+  });
+}
+
+async function handleNotifications(teacherId: string, limit: number, offset: number) {
+  // Fetch the teacher's recent notifications.
+  const { data: notifs, error } = await supabaseServer
+    .from('notifications')
+    .select('id, title, body, type, is_read, created_at')
+    .eq('user_id', teacherId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  const items = (notifs ?? []) as unknown as Array<{ id: string }>;
+  return NextResponse.json({
+    success: true,
+    section: 'notifications',
+    items: notifs ?? [],
+    total_count: items.length,
+    has_more: false,
+    limit,
+    offset,
+  });
+}
+
+async function handleAnalytics(teacherId: string) {
+  // Aggregate basic analytics: total enrollments, active subscriptions,
+  // pending orders, paid orders — same as dashboard but framed as
+  // analytics (the agent's analytics section is a stats summary).
+  const { data: teacherSubjects } = await supabaseServer
+    .from('subjects')
+    .select('id')
+    .eq('teacher_id', teacherId);
+  const teacherSubjectIds = (teacherSubjects ?? []).map((s: { id: string }) => s.id);
+
+  if (teacherSubjectIds.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'analytics',
+      stats: { total_enrollments: 0, active_subscriptions: 0, pending_orders: 0, paid_orders: 0 },
+    });
+  }
+
+  const [{ count: totalEnrollments }, { count: activeSubs }, { count: pendingCount }, { count: paidCount }] = await Promise.all([
+    supabaseServer.from('subject_students').select('id', { count: 'exact', head: true }).in('subject_id', teacherSubjectIds),
+    supabaseServer.from('subject_students').select('id', { count: 'exact', head: true }).in('subject_id', teacherSubjectIds).eq('status', 'approved'),
+    supabaseServer.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'pending').in('subject_id', teacherSubjectIds),
+    supabaseServer.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'paid').in('subject_id', teacherSubjectIds),
+  ]);
+
+  return NextResponse.json({
+    success: true,
+    section: 'analytics',
+    stats: {
+      total_enrollments: totalEnrollments ?? 0,
+      active_subscriptions: activeSubs ?? 0,
+      pending_orders: pendingCount ?? 0,
+      paid_orders: paidCount ?? 0,
+    },
   });
 }

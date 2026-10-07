@@ -1027,6 +1027,16 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
       return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد عناصر" />;
     case 'financialManagement':
       return <FinancialView data={data} />;
+    case 'videos':
+      return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد فيديوهات" />;
+    case 'files':
+      return <ItemsListView data={data} idField="id" titleField="name" subtitleField="subject.name" emptyMsg="لا توجد ملفات" />;
+    case 'todos':
+      return <TodosView data={data} />;
+    case 'notifications':
+      return <NotificationsView data={data} />;
+    case 'analytics':
+      return <AnalyticsView data={data} />;
     default:
       return (
         <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-muted-foreground">
@@ -1036,6 +1046,88 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
         </div>
       );
   }
+}
+
+// ──────────────────────────────────────────────────────────────
+// v116: per-section views for the newly-added handlers
+// ──────────────────────────────────────────────────────────────
+
+function TodosView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string; title: string; completed: boolean;
+    due_date: string | null; created_at: string;
+  }>;
+  if (items.length === 0) return <EmptyState label="لا توجد مهام" />;
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((t) => (
+        <div key={t.id} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className={`font-medium truncate ${t.completed ? 'line-through text-muted-foreground' : ''}`}>
+                {t.title}
+              </span>
+              {t.completed && (
+                <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                  مكتمل
+                </Badge>
+              )}
+            </div>
+            {t.due_date && (
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                ينتهي: {new Date(t.due_date).toLocaleDateString('ar-EG')}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NotificationsView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string; title: string; body: string | null;
+    type: string | null; is_read: boolean; created_at: string;
+  }>;
+  if (items.length === 0) return <EmptyState label="لا توجد إشعارات" />;
+  return (
+    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+      {items.map((n) => (
+        <div key={n.id} className={`p-2.5 text-xs ${!n.is_read ? 'bg-sky-50/40 dark:bg-sky-900/15' : ''}`}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium truncate">{n.title || '—'}</span>
+            {!n.is_read && (
+              <Badge variant="default" className="text-[9px] bg-sky-100 text-sky-700 border-sky-200">جديد</Badge>
+            )}
+          </div>
+          {n.body && (
+            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+          )}
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {new Date(n.created_at).toLocaleString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AnalyticsView({ data }: { data: Record<string, unknown> }) {
+  const stats = (data.stats ?? {}) as {
+    total_enrollments: number;
+    active_subscriptions: number;
+    pending_orders: number;
+    paid_orders: number;
+  };
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <StatTile label="إجمالي التسجيلات" value={stats.total_enrollments ?? 0} color="sky" icon={<Users className="h-3.5 w-3.5" />} />
+      <StatTile label="اشتراكات نشطة" value={stats.active_subscriptions ?? 0} color="teal" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+      <StatTile label="طلبات معلّقة" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
+      <StatTile label="طلبات مدفوعة" value={stats.paid_orders ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+    </div>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────
