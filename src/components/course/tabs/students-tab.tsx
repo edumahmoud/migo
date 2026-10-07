@@ -243,37 +243,61 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
 
   // -------------------------------------------------------
   // Fetch enrolled (approved) students
-  // -------------------------------------------------------
+  // v116: fetch ALL students — approved + pending enrollments + pending orders.
+  // Before this fix: only status='approved' showed → students who just
+  // subscribed (pending order, not yet activated) were invisible →
+  // "لا يوجد طلاب مسجلون" even though the student HAD subscribed.
   const fetchStudents = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      let query = supabase
+      // 1. Fetch ALL subject_students rows (any status).
+      const { data: enrollments, error: enrollErr } = await supabase
         .from('subject_students')
         .select('student_id, status, student:users!student_id(*)')
         .eq('subject_id', subjectId);
 
-      if (statusColumnExists) {
-        query = query.eq('status', 'approved');
-      }
-
-      const { data: enrollments, error: enrollErr } = await query;
-
       if (enrollErr) {
         console.error('Error fetching enrollments:', enrollErr);
-        setStudents([]);
-      } else if (enrollments && enrollments.length > 0) {
-        const studentsData = enrollments.map((e: Record<string, unknown>) => e.student as UserProfile).filter(Boolean);
-        setStudents(studentsData);
-      } else {
-        setStudents([]);
       }
+
+      const seenStudentIds = new Set<string>();
+      const studentsData: UserProfile[] = [];
+      for (const e of (enrollments ?? []) as Array<Record<string, unknown>>) {
+        const student = e.student as UserProfile | null;
+        if (student && student.id && !seenStudentIds.has(student.id)) {
+          seenStudentIds.add(student.id);
+          studentsData.push(student);
+        }
+      }
+
+      // 2. ALSO fetch pending orders — students who subscribed via the
+      //    payment flow but don't have a subject_students row yet.
+      const { data: pendingOrders, error: ordersErr } = await supabase
+        .from('orders')
+        .select('student_id, student:users!student_id(id, name, email, username, student_code, account_status, avatar_url, gender, role, created_at)')
+        .eq('subject_id', subjectId)
+        .eq('status', 'pending');
+
+      if (ordersErr) {
+        console.error('Error fetching pending orders:', ordersErr);
+      }
+
+      for (const o of (pendingOrders ?? []) as Array<Record<string, unknown>>) {
+        const student = o.student as UserProfile | null;
+        if (student && student.id && !seenStudentIds.has(student.id)) {
+          seenStudentIds.add(student.id);
+          studentsData.push(student);
+        }
+      }
+
+      setStudents(studentsData);
     } catch (err) {
       console.error('Fetch students error:', err);
       setStudents([]);
     } finally {
       setLoading(false);
     }
-  }, [subjectId, statusColumnExists]);
+  }, [subjectId]);
 
   // Initial fetch
   useEffect(() => {

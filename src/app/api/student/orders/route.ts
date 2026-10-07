@@ -276,43 +276,91 @@ export async function POST(request: NextRequest) {
     if (subject.price === 0) {
       // v113: FREE course — create 'pending' order, do NOT auto-activate.
       const orderRef = `free_${randomUUID()}`;
-      const { data: freeOrder } = await supabaseServer
+      // v116 FIX: try INSERT with plan_id/plan_duration_days first.
+      // If the v116 migration hasn't been applied (columns don't exist),
+      // the INSERT fails → retry WITHOUT those columns so the order is
+      // still created (just without the plan snapshot).
+      let freeOrder: { id: string } | null = null;
+      const insertData: Record<string, unknown> = {
+        student_id: studentId,
+        subject_id: subjectId,
+        amount: 0,
+        currency: subject.currency,
+        provider: 'free',
+        provider_order_ref: orderRef,
+        status: 'pending',
+        plan_id: effectivePlanId,
+        plan_duration_days: effectiveDurationDays,
+      };
+      const { data: ins1, error: err1 } = await supabaseServer
         .from('orders')
-        .insert({
-          student_id: studentId,
-          subject_id: subjectId,
-          amount: 0,
-          currency: subject.currency,
-          provider: 'free',
-          provider_order_ref: orderRef,
-          status: 'pending',
-          plan_id: effectivePlanId,
-          plan_duration_days: effectiveDurationDays,
-        })
+        .insert(insertData)
         .select('id')
         .single();
+      if (err1) {
+        // Fallback: retry WITHOUT plan_id + plan_duration_days (v116
+        // migration might not be applied yet).
+        console.warn('[student/orders] free INSERT with plan columns failed, retrying without:', err1.message);
+        const { data: ins2 } = await supabaseServer
+          .from('orders')
+          .insert({
+            student_id: studentId,
+            subject_id: subjectId,
+            amount: 0,
+            currency: subject.currency,
+            provider: 'free',
+            provider_order_ref: orderRef,
+            status: 'pending',
+          })
+          .select('id')
+          .single();
+        freeOrder = ins2 as { id: string } | null;
+      } else {
+        freeOrder = ins1 as { id: string } | null;
+      }
 
       if (freeOrder) {
-        createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: (freeOrder as { id: string }).id });
+        createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: freeOrder.id });
       }
     } else if (effectivePriceOverride === 0) {
       // v116: PAID subject + FREE plan (e.g., scholarship plan with price=0).
       const orderRef = `free_${randomUUID()}`;
-      const { data: freeOrder } = await supabaseServer
+      let freeOrder: { id: string } | null = null;
+      const insertData: Record<string, unknown> = {
+        student_id: studentId,
+        subject_id: subjectId,
+        amount: 0,
+        currency: subject.currency,
+        provider: 'free',
+        provider_order_ref: orderRef,
+        status: 'pending',
+        plan_id: effectivePlanId,
+        plan_duration_days: effectiveDurationDays,
+      };
+      const { data: ins1, error: err1 } = await supabaseServer
         .from('orders')
-        .insert({
-          student_id: studentId,
-          subject_id: subjectId,
-          amount: 0,
-          currency: subject.currency,
-          provider: 'free',
-          provider_order_ref: orderRef,
-          status: 'pending',
-          plan_id: effectivePlanId,
-          plan_duration_days: effectiveDurationDays,
-        })
+        .insert(insertData)
         .select('id')
         .single();
+      if (err1) {
+        console.warn('[student/orders] free-plan INSERT with plan columns failed, retrying without:', err1.message);
+        const { data: ins2 } = await supabaseServer
+          .from('orders')
+          .insert({
+            student_id: studentId,
+            subject_id: subjectId,
+            amount: 0,
+            currency: subject.currency,
+            provider: 'free',
+            provider_order_ref: orderRef,
+            status: 'pending',
+          })
+          .select('id')
+          .single();
+        freeOrder = ins2 as { id: string } | null;
+      } else {
+        freeOrder = ins1 as { id: string } | null;
+      }
 
       if (freeOrder) {
         createdOrders.push({
@@ -398,7 +446,7 @@ export async function POST(request: NextRequest) {
 
       const breakdown = calculateFees(basePrice, feeRows);
 
-      const { data: order, error: insertError } = await supabaseServer
+      let { data: order, error: insertError } = await supabaseServer
         .from('orders')
         .insert({
           student_id: studentId,
@@ -412,9 +460,6 @@ export async function POST(request: NextRequest) {
           provider: 'pending_gateway',
           provider_order_ref: `order_${randomUUID()}`,
           status: 'pending',
-          // v116: snapshot plan_id + plan_duration_days so the activation
-          // RPC can use the plan's actual duration (e.g., 365 for yearly)
-          // instead of the hardcoded 30-day default.
           plan_id: effectivePlanId,
           plan_duration_days: effectiveDurationDays,
         })
@@ -422,16 +467,42 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (insertError || !order) {
-        // v92+ — DON'T silently skip. Log the error AND add to
-        // not_available so the UI shows a meaningful message.
-        console.error('[student/orders] order INSERT failed:', insertError?.message, {
-          subjectId, studentId, amount: breakdown.grand_total,
-        });
-        notAvailableSubjects.push({
+        // v116 FIX: if the INSERT failed because plan_id/plan_duration_days
+        // columns don't exist (v116 migration not applied), retry WITHOUT
+        // those columns so the order is still created.
+        console.warn('[student/orders] paid INSERT with plan columns failed, retrying without:', insertError?.message);
+        const retryInsert: Record<string, unknown> = {
+          student_id: studentId,
           subject_id: subjectId,
-          reason: `تعذّر إنشاء الطلب: ${insertError?.message ?? 'خطأ غير معروف'}`,
-        });
-        continue;
+          amount: breakdown.grand_total,
+          base_amount: breakdown.base_total,
+          fees_total: breakdown.fees_total,
+          grand_total: breakdown.grand_total,
+          fees_breakdown: breakdownToJsonb(breakdown),
+          currency: subject.currency,
+          provider: 'pending_gateway',
+          provider_order_ref: `order_${randomUUID()}`,
+          status: 'pending',
+        };
+        const { data: retryOrder, error: retryErr } = await supabaseServer
+          .from('orders')
+          .insert(retryInsert)
+          .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at, fees_breakdown')
+          .single();
+        if (retryErr || !retryOrder) {
+          console.error('[student/orders] order INSERT failed (retry):', retryErr?.message, {
+            subjectId, studentId, amount: breakdown.grand_total,
+          });
+          notAvailableSubjects.push({
+            subject_id: subjectId,
+            reason: `تعذّر إنشاء الطلب: ${insertError?.message ?? 'خطأ غير معروف'}`,
+          });
+          continue;
+        }
+        // Retry succeeded — use the retry order.
+        order = retryOrder as typeof order;
+      } else {
+        // Original INSERT succeeded.
       }
 
       {
