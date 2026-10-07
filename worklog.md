@@ -613,3 +613,33 @@ Stage Summary:
   per-row snapshot; the PATCH endpoint touches ONLY
   users.commission_percentage; existing ledger rows are NEVER
   recalculated.
+
+---
+Task ID: v117-push-to-github
+Agent: main-agent
+Task: Push the v117 comprehensive fix to GitHub (main branch).
+
+Work Log:
+- Re-cloned the repository from commit 878a761 (working directory had
+  been wiped between sessions).
+- Re-applied all P1–P6 changes (9 modified files + 2 new files):
+  - P1 UI: student-activation-page.tsx, subjects-section.tsx
+  - P2 API: api/student/orders/route.ts, api/student/orders/[id]/route.ts
+  - P3 + P4: api/agent/subscriptions/activate/route.ts,
+    api/teacher/subscriptions/activate/route.ts
+  - P6 API: api/agent/orders/route.ts, api/agent/student-subscriptions/route.ts
+  - P6 UI: components/agent/student-subscriptions-log.tsx
+  - new file: src/lib/payment/ledger-fallback.ts
+  - new file: supabase/migrations/v117_comprehensive_fix.sql
+- Created branch fix/v117-comprehensive, committed with full message.
+- Pushed the branch to origin (GitHub accepted it).
+- Fast-forward merged the branch into main.
+- Pushed main to origin (commit hash ebe473d8).
+
+Stage Summary:
+- GitHub repo: https://github.com/edumahmoud/migo
+- Latest commit on main: ebe473d8cb2af8a6e7c7524a5db543f838b1749a
+- 11 files changed, 811 insertions(+), 145 deletions(-)
+- The v117 SQL migration file is now committed alongside the code
+  changes — operators can apply it manually via Supabase SQL Editor.
+- Ready for Vercel auto-deploy (if configured) or manual deploy.
