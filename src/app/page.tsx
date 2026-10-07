@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, School, Layers } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
@@ -1046,8 +1046,8 @@ onSignOut={async () => {
                 customNavItems={[
                   { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
                   { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-                  { id: 'teacherView', label: 'عرض المعلم', icon: <LayoutDashboard className="h-5 w-5" /> },
-                  { id: 'profile', label: 'الملف الشخصي', icon: <Users className="h-5 w-5" /> },
+                  { id: 'teacherView', label: 'عرض المعلم', icon: <School className="h-5 w-5" /> },
+                  { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
                 ]}
               />
               <main
@@ -1087,8 +1087,8 @@ onSignOut={async () => {
               customNavItems={[
                 { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
                 { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-                { id: 'teacherView', label: 'عرض المعلم', icon: <LayoutDashboard className="h-5 w-5" /> },
-                { id: 'profile', label: 'الملف الشخصي', icon: <Users className="h-5 w-5" /> },
+                { id: 'teacherView', label: 'عرض المعلم', icon: <School className="h-5 w-5" /> },
+                { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
               ]}
             />
             <main

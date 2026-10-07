@@ -29,7 +29,7 @@ import {
   LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronLeft, ChevronRight, ChevronDown,
-  AlertCircle, Gift, Tag,
+  AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, UserCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,6 @@ import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
-import StudentSubscriptionsLog from '@/components/agent/student-subscriptions-log';
 import AgentStudentSuspendDialog from '@/components/agent/agent-student-suspend-dialog';
 
 // ─── Types ───
@@ -113,7 +112,11 @@ const TEACHER_SECTION_DEFS: Array<{
   { id: 'registration',         label: 'وكلاء التسجيل',   icon: <UserCog className="h-5 w-5" /> },
 ];
 
-type AgentSection = 'search' | 'pending' | 'students' | 'settings';
+// v116 fix: the actual sidebar items are now search/pending/teacherView/profile.
+// 'students' + 'settings' were removed in the v116 restructure but the type
+// wasn't updated. The 'profile' section is handled OUTSIDE AgentPortal (in
+// page.tsx → UserProfilePage), so AgentPortal only handles these 3.
+type AgentSection = 'search' | 'pending' | 'teacherView';
 
 export default function AgentPortal({
   activeSection = 'search',
@@ -336,10 +339,14 @@ export default function AgentPortal({
     return TEACHER_SECTION_DEFS.filter(def => self.allowed_sections!.includes(def.id));
   }, [self]);
 
-  // When entering settings, default the teacher-view sub-section to the
-  // first allowed section (or 'dashboard' if all are allowed).
+  // v116 fix: when entering 'teacherView', default the teacher-view sub-section
+  // to the first allowed section if the current selection isn't in the allowed
+  // list (e.g. default 'dashboard' but agent's allowed_sections doesn't include
+  // 'dashboard'). Before this fix the check was for 'settings' (the old name)
+  // → the auto-default NEVER fired → agent saw an empty/invalid preview when
+  // their first allowed section wasn't 'dashboard'.
   useEffect(() => {
-    if (activeSection !== 'settings') return;
+    if (activeSection !== 'teacherView') return;
     const allowed = visibleTeacherSections.map(s => s.id);
     if (allowed.length > 0 && !allowed.includes(teacherViewSection)) {
       setTeacherViewSection(allowed[0]);
@@ -399,34 +406,42 @@ export default function AgentPortal({
                       <Badge variant={studentResult.student.account_status === 'active' ? 'default' : 'secondary'}>
                         {studentResult.student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
                       </Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-                        onClick={() => {
-                          setSuspendStudentId(studentResult.student.id);
-                          setSuspendStudentName(studentResult.student.name ?? studentResult.student.email ?? '—');
-                          // Build the subjects list from the student's enrolled + pending-order subjects
-                          const enrolled = (studentResult.subscriptions ?? [])
-                            .map(s => s.subject)
-                            .filter((s): s is { id: string; name: string } => !!s && !!s.id && !!s.name);
-                          const pendingSubjects = (studentResult.pending_orders ?? [])
-                            .map(o => o.subject)
-                            .filter((s): s is { id: string; name: string } => !!s && !!s.id && !!s.name);
-                          // Merge + dedupe
-                          const all = [...enrolled, ...pendingSubjects];
-                          const seen = new Set<string>();
-                          const unique = all.filter(s => {
-                            if (seen.has(s.id)) return false;
-                            seen.add(s.id);
-                            return true;
-                          });
-                          setSuspendSubjects(unique.length > 0 ? unique : []);
-                        }}
-                      >
-                        <Ban className="h-3.5 w-3.5 me-1" />
-                        إيقاف / تنشيط
-                      </Button>
+                      {/* v116 (C7): hide the suspend/activate button entirely when
+                          the student has NO subjects (no enrollments + no pending
+                          orders). Before this fix, the button always showed →
+                          opening the dialog left the agent with an empty subject
+                          dropdown + the awkward "لا توجد مقررات متاحة" message. */}
+                      {(() => {
+                        const enrolled = (studentResult.subscriptions ?? [])
+                          .map(s => s.subject)
+                          .filter((s): s is { id: string; name: string } => !!s && !!s.id && !!s.name);
+                        const pendingSubjects = (studentResult.pending_orders ?? [])
+                          .map(o => o.subject)
+                          .filter((s): s is { id: string; name: string } => !!s && !!s.id && !!s.name);
+                        const all = [...enrolled, ...pendingSubjects];
+                        const seen = new Set<string>();
+                        const unique = all.filter(s => {
+                          if (seen.has(s.id)) return false;
+                          seen.add(s.id);
+                          return true;
+                        });
+                        if (unique.length === 0) return null;
+                        return (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                            onClick={() => {
+                              setSuspendStudentId(studentResult.student.id);
+                              setSuspendStudentName(studentResult.student.name ?? studentResult.student.email ?? '—');
+                              setSuspendSubjects(unique);
+                            }}
+                          >
+                            <PauseCircle className="h-3.5 w-3.5 me-1" />
+                            إيقاف / تنشيط
+                          </Button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </CardContent>
@@ -463,7 +478,7 @@ export default function AgentPortal({
                             </Button>
                             <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
                               disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
-                              <Ban className="h-3 w-3" />
+                              <XCircle className="h-3 w-3" />
                             </Button>
                           </div>
                         </div>
@@ -496,9 +511,6 @@ export default function AgentPortal({
                   </CardContent>
                 </Card>
               )}
-
-              {/* Student subscriptions log */}
-              <StudentSubscriptionsLog />
             </div>
           )}
         </>
@@ -552,7 +564,7 @@ export default function AgentPortal({
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
                           disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
-                          <Ban className="h-3 w-3" />
+                          <XCircle className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
