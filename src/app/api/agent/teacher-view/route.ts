@@ -278,6 +278,21 @@ async function handleStudents(teacherId: string, limit: number, offset: number) 
     enrollments: Array<{ subject_id: string; subject_name: string; status: string; enrolled_at: string | null }>;
   }>();
 
+  // v116 (C4): also collect PENDING enrollment rows so the agent can
+  // approve/reject them from the students section. The UI will render
+  // a "Pending Enrollment Requests" card at the top of the students view.
+  const pendingEnrollments: Array<{
+    enrollment_id: string;
+    student_id: string;
+    student_name: string | null;
+    student_email: string;
+    student_code: string | null;
+    subject_id: string;
+    subject_name: string;
+    enrollment_method: string;
+    enrolled_at: string | null;
+  }> = [];
+
   for (const r of (rows ?? []) as unknown as Row[]) {
     if (!r.student) continue;
     const sid = r.student.id;
@@ -298,6 +313,20 @@ async function handleStudents(teacherId: string, limit: number, offset: number) 
       status: r.status,
       enrolled_at: r.enrolled_at,
     });
+
+    if (r.status === 'pending') {
+      pendingEnrollments.push({
+        enrollment_id: r.id,
+        student_id: sid,
+        student_name: r.student.name,
+        student_email: r.student.email,
+        student_code: r.student.student_code,
+        subject_id: r.subject?.id ?? '',
+        subject_name: r.subject?.name ?? '—',
+        enrollment_method: r.enrollment_method,
+        enrolled_at: r.enrolled_at,
+      });
+    }
   }
 
   const total = totalCount ?? 0;
@@ -306,6 +335,8 @@ async function handleStudents(teacherId: string, limit: number, offset: number) 
     success: true,
     section: 'students',
     items: studentItems,
+    pending_enrollments: pendingEnrollments,
+    pending_enrollments_count: pendingEnrollments.length,
     total_count: total,
     has_more: offset + studentItems.length < total,
     limit,

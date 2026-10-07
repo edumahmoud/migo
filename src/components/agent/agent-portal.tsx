@@ -933,6 +933,51 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
     return () => { cancelled = true; };
   }, [sectionId]);
 
+  // v116: listen for 'agent-teacher-view-refresh' events dispatched by
+  // child views (StudentsView approve/reject, PendingOrdersView activate/
+  // cancel, AgentStudentSuspendDialog onChanged). When the event fires,
+  // we re-fetch the current section's data so the UI reflects the change
+  // immediately (e.g., an approved enrollment disappears from the pending
+  // list, an activated order disappears from the pending orders list).
+  useEffect(() => {
+    const handler = () => {
+      // Reset + refetch.
+      setItems([]);
+      setOffset(0);
+      setHasMore(false);
+      setTotalCount(0);
+      setData(null);
+      setError(null);
+      setLoading(true);
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await fetch(
+            `/api/agent/teacher-view?section=${encodeURIComponent(sectionId)}&limit=${LIMIT}&offset=0`,
+            { headers: await getCachedAuthHeaders() },
+          );
+          const json = await res.json();
+          if (cancelled) return;
+          if (json.success) {
+            setData(json);
+            setItems(Array.isArray(json.items) ? json.items : []);
+            setHasMore(!!json.has_more);
+            setTotalCount(Number(json.total_count ?? (Array.isArray(json.items) ? json.items.length : 0)));
+            setOffset(LIMIT);
+          } else {
+            setError(json.error || 'تعذّر تحميل البيانات');
+          }
+        } catch {
+          if (!cancelled) setError('تعذّر الاتصال بالخادم');
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+    };
+    window.addEventListener('agent-teacher-view-refresh', handler);
+    return () => window.removeEventListener('agent-teacher-view-refresh', handler);
+  }, [sectionId]);
+
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -1216,43 +1261,208 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
     account_status: string | null;
     enrollments: Array<{ subject_id: string; subject_name: string; status: string; enrolled_at: string | null }>;
   }>;
-  if (items.length === 0) return <EmptyState label="لا يوجد طلاب" />;
+
+  // v116 (C4): pending enrollment requests — extract from the data
+  // fetched by handleStudents (which now includes pending_enrollments).
+  const pendingEnrollments = (data.pending_enrollments ?? []) as Array<{
+    enrollment_id: string;
+    student_id: string;
+    student_name: string | null;
+    student_email: string;
+    student_code: string | null;
+    subject_id: string;
+    subject_name: string;
+    enrollment_method: string;
+    enrolled_at: string | null;
+  }>;
+
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string; subjects: Array<{ id: string; name: string }> } | null>(null);
+
+  const handleApprove = async (subjectId: string, studentId: string, enrollmentId: string) => {
+    setActioningId(enrollmentId);
+    try {
+      const res = await fetch('/api/agent/enrollment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ action: 'approve', subjectId, studentId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`تم قبول الطلب (${json.affected} طالب)`);
+        // Reload the section data — the parent TeacherSectionPreview will refetch.
+        window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
+      } else {
+        toast.error(json.error || 'فشل قبول الطلب');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleReject = async (subjectId: string, studentId: string, enrollmentId: string) => {
+    setActioningId(enrollmentId);
+    try {
+      const res = await fetch('/api/agent/enrollment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ action: 'reject', subjectId, studentId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`تم رفض الطلب`);
+        window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
+      } else {
+        toast.error(json.error || 'فشل رفض الطلب');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setActioningId(null);
+    }
+  };
 
   return (
-    <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
-      {items.map((s) => (
-        <div key={s.id} className="p-2.5 text-xs space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium truncate">{s.name ?? '—'}</span>
-                {s.student_code && (
-                  <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
-                )}
-              </div>
-              <div className="text-[10px] text-muted-foreground truncate" dir="ltr">{s.email}</div>
-            </div>
-            <Badge
-              variant={s.account_status === 'active' ? 'default' : 'secondary'}
-              className="text-[9px] shrink-0"
-            >
-              {s.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
-            </Badge>
-          </div>
-          {s.enrollments.length > 0 && (
-            <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-              {s.enrollments.slice(0, 5).map((e, idx) => (
-                <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted px-1.5 py-0.5">
-                  {e.subject_name} · {e.status}
-                </span>
+    <div className="space-y-3">
+      {/* ─── Pending enrollment requests (C4) — show at the top ─── */}
+      {pendingEnrollments.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-600" />
+              طلبات الانضمام المعلّقة ({pendingEnrollments.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {pendingEnrollments.map((req) => (
+                <div key={req.enrollment_id} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium truncate">{req.student_name ?? '—'}</span>
+                      {req.student_code && (
+                        <span className="font-mono text-[10px] text-muted-foreground">({req.student_code})</span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5 truncate">{req.subject_name}</div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm" variant="outline"
+                      className="h-7 text-[10px] border-emerald-300 text-emerald-700"
+                      disabled={actioningId === req.enrollment_id}
+                      onClick={() => handleApprove(req.subject_id, req.student_id, req.enrollment_id)}
+                    >
+                      {actioningId === req.enrollment_id
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <BadgeCheck className="h-3 w-3" />}
+                      قبول
+                    </Button>
+                    <Button
+                      size="sm" variant="outline"
+                      className="h-7 text-[10px] text-rose-600"
+                      disabled={actioningId === req.enrollment_id}
+                      onClick={() => handleReject(req.subject_id, req.student_id, req.enrollment_id)}
+                    >
+                      {actioningId === req.enrollment_id
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <XCircle className="h-3 w-3" />}
+                      رفض
+                    </Button>
+                  </div>
+                </div>
               ))}
-              {s.enrollments.length > 5 && (
-                <span className="text-[9px]">+{s.enrollments.length - 5} أخرى</span>
-              )}
             </div>
-          )}
-        </div>
-      ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Enrolled students list (C3 — with "manage" button) ─── */}
+      {items.length === 0 && pendingEnrollments.length === 0 ? (
+        <EmptyState label="لا يوجد طلاب" />
+      ) : (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-teal-600" />
+              الطلاب المسجلون ({items.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y max-h-[400px] overflow-y-auto">
+              {items.map((s) => (
+                <div key={s.id} className="p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium truncate">{s.name ?? '—'}</span>
+                        {s.student_code && (
+                          <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate" dir="ltr">{s.email}</div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge
+                        variant={s.account_status === 'active' ? 'default' : 'secondary'}
+                        className="text-[9px]"
+                      >
+                        {s.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                      </Badge>
+                      {/* v116 (C3): "manage" button — opens the AgentStudentSuspendDialog
+                          with the student's subjects pre-populated. */}
+                      {(() => {
+                        const subjects = (s.enrollments ?? []).map(e => ({ id: e.subject_id, name: e.subject_name }));
+                        if (subjects.length === 0) return null;
+                        return (
+                          <Button
+                            size="sm" variant="outline"
+                            className="h-7 text-[10px] border-amber-300 text-amber-700"
+                            onClick={() => setSuspendTarget({
+                              id: s.id,
+                              name: s.name ?? s.email ?? '—',
+                              subjects,
+                            })}
+                          >
+                            <PauseCircle className="h-3 w-3 me-0.5" />
+                            إدارة
+                          </Button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  {s.enrollments.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+                      {s.enrollments.slice(0, 5).map((e, idx) => (
+                        <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted px-1.5 py-0.5">
+                          {e.subject_name} · {e.status}
+                        </span>
+                      ))}
+                      {s.enrollments.length > 5 && (
+                        <span className="text-[9px]">+{s.enrollments.length - 5} أخرى</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* v116 (C3): suspend/activate dialog for the selected student */}
+      {suspendTarget && (
+        <AgentStudentSuspendDialog
+          open={true}
+          studentId={suspendTarget.id}
+          studentName={suspendTarget.name}
+          subjects={suspendTarget.subjects}
+          onClose={() => setSuspendTarget(null)}
+          onChanged={() => window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'))}
+        />
+      )}
     </div>
   );
 }
@@ -1264,33 +1474,119 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
     student: { id: string; name: string | null; email: string; student_code: string | null } | null;
     subject: { id: string; name: string; price: number | null } | null;
   }>;
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const { confirm } = useConfirmDialog();
+
   if (items.length === 0) return <EmptyState label="لا توجد طلبات معلّقة" />;
   const formatDate = (iso: string) => {
     try { return new Date(iso).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }); }
     catch { return '—'; }
   };
+
+  const handleActivate = async (orderId: string) => {
+    const ok = await confirm({
+      title: 'تأكيد التفعيل',
+      description: 'سيتم تفعيل الاشتراك لهذا الطالب.',
+      confirmLabel: 'تفعيل', cancelLabel: 'تراجع',
+    });
+    if (!ok) return;
+    setActioningId(orderId);
+    try {
+      const res = await fetch('/api/agent/subscriptions/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+        body: JSON.stringify({ orderId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم تفعيل الاشتراك');
+        window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
+      } else {
+        toast.error(json.error || 'فشل التفعيل');
+      }
+    } catch {
+      toast.error('حدث خطأ');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleCancel = async (orderId: string) => {
+    const ok = await confirm({
+      title: 'تأكيد الإلغاء',
+      description: 'إلغاء هذا الطلب؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.',
+      confirmLabel: 'إلغاء', cancelLabel: 'تراجع', variant: 'destructive',
+    });
+    if (!ok) return;
+    setActioningId(orderId);
+    try {
+      const res = await fetch(`/api/agent/orders/${orderId}/cancel`, {
+        method: 'POST', headers: { ...(await getCachedAuthHeaders()) },
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(json.message || 'تم إلغاء الطلب');
+        window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
+      } else {
+        toast.error(json.error || 'فشل الإلغاء');
+      }
+    } catch {
+      toast.error('حدث خطأ');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
   return (
     <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
       {items.map((o) => {
         const isFree = !o.amount || o.amount === 0;
         return (
-          <div key={o.id} className="p-2.5 text-xs flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium truncate">{o.subject?.name ?? '—'}</span>
-                <Badge variant="secondary" className="text-[9px]">{o.student?.name ?? '—'}</Badge>
+          <div key={o.id} className="p-2.5 text-xs space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium truncate">{o.subject?.name ?? '—'}</span>
+                  <Badge variant="secondary" className="text-[9px]">{o.student?.name ?? '—'}</Badge>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{formatDate(o.created_at)}</div>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">{formatDate(o.created_at)}</div>
+              <div className="flex items-center gap-1 shrink-0">
+                {isFree ? (
+                  <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
+                    <Gift className="h-2.5 w-2.5 me-0.5" />مجاني
+                  </Badge>
+                ) : (
+                  <span className="font-medium text-emerald-700 dark:text-emerald-300">
+                    {Number(o.amount).toFixed(2)} {o.currency}
+                  </span>
+                )}
+              </div>
             </div>
-            {isFree ? (
-              <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
-                <Gift className="h-2.5 w-2.5 me-0.5" />مجاني
-              </Badge>
-            ) : (
-              <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                {Number(o.amount).toFixed(2)} {o.currency}
-              </span>
-            )}
+            {/* v116 (C2): activate/cancel buttons — same as the search section's
+                pending orders card, but inside the Teacher View's pendingOrders
+                section. Uses the same /api/agent/subscriptions/activate +
+                /api/agent/orders/[id]/cancel endpoints. */}
+            <div className="flex items-center gap-1.5 pt-1 border-t border-border/40">
+              <Button
+                size="sm" variant="outline"
+                className="h-7 text-[10px] border-emerald-300 text-emerald-700"
+                disabled={actioningId === o.id}
+                onClick={() => handleActivate(o.id)}
+              >
+                {actioningId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
+                تفعيل
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="h-7 text-[10px] text-rose-600"
+                disabled={actioningId === o.id}
+                onClick={() => handleCancel(o.id)}
+              >
+                {actioningId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                إلغاء
+              </Button>
+            </div>
           </div>
         );
       })}
