@@ -125,13 +125,24 @@ export function PaymentSummaryDialog({
   // For single-order mode, the dialog fetches /api/student/orders/[id]
   // separately to populate feesData — subject_price is the order.amount
   // fallback (since base_amount IS the plan price when a plan was used).
+  //
+  // v116 fix: the per-item `amount` shown to the user is the BASE price
+  // (= base_amount OR subject_price OR grand_total as last-resort fallback),
+  // NOT the grand_total. The grand_total appears in the breakdown section
+  // below (base + fees = grand_total). Showing grand_total per-item would
+  // double-count the fees (the user would see X+fees per item, then base
+  // + fees = grand total AGAIN at the bottom).
   const items: Array<{ subjectName: string; amount: number; currency: string; subjectPrice?: number }> = isMultiMode
-    ? (sessionItems as CheckoutSessionItem[]).map((it) => ({
-        subjectName: it.subject_name,
-        amount: Number(it.amount),
-        currency: it.currency,
-        subjectPrice: it.subject_price !== undefined ? Number(it.subject_price) : undefined,
-      }))
+    ? (sessionItems as CheckoutSessionItem[]).map((it) => {
+        const baseAmount = it.base_amount !== undefined ? Number(it.base_amount)
+          : (it.subject_price !== undefined ? Number(it.subject_price) : Number(it.amount));
+        return {
+          subjectName: it.subject_name,
+          amount: baseAmount,
+          currency: it.currency,
+          subjectPrice: it.subject_price !== undefined ? Number(it.subject_price) : undefined,
+        };
+      })
     // v88+ — show the BASE price (subscription cost) as the item amount,
     // NOT the grand_total. The grand_total appears in the breakdown section
     // below (base + fees = grand_total). Showing grand_total here would
@@ -185,18 +196,68 @@ export function PaymentSummaryDialog({
     return () => { cancelled = true; };
   }, [open, isMultiMode, order?.orderId]);
 
-  // Use fetched data if available, otherwise fall back to props
-  const feesBreakdown = feesData.feesBreakdown ?? order?.feesBreakdown ?? [];
+  // Use fetched data if available, otherwise fall back to props.
+  // v116: in MULTI-MODE, `order` is null + the useEffect above SKIPS
+  // fetching feesData (because there's no single order_id to fetch).
+  // That left baseSubtotal = 0 + feesBreakdown = [] → the breakdown
+  // section showed "+0.00" and a misleading "no fees" message even
+  // though the items DID carry per-order fee amounts (amount - base).
+  //
+  // Now: compute the multi-mode aggregates from the items themselves.
+  // Each CheckoutSessionItem has:
+  //   - amount       = order.amount (= grand_total = base + fees)
+  //   - base_amount? = order.base_amount (the plan or subject price)
+  //   - subject_price? = subjects.price (the original monthly catalog)
+  // We sum base_amount (fallback subject_price → amount) to get the
+  // base subtotal, and the residual (sum(amount) - sum(base)) becomes
+  // the aggregate fees total. We also synthesize a single "رسوم إضافية"
+  // row so the breakdown UI has something to render (instead of the
+  // empty-state "+0.00" placeholder).
+  const multiBaseFromSession = isMultiMode
+    ? (sessionItems as CheckoutSessionItem[]).reduce((sum, it) => {
+        const b = it.base_amount !== undefined ? Number(it.base_amount)
+          : (it.subject_price !== undefined ? Number(it.subject_price) : Number(it.amount));
+        return sum + b;
+      }, 0)
+    : 0;
+
+  const multiGrandTotal = isMultiMode
+    ? (sessionItems as CheckoutSessionItem[]).reduce((sum, it) => sum + Number(it.amount), 0)
+    : 0;
+
+  const multiFeesTotal = isMultiMode
+    ? Math.max(0, multiGrandTotal - multiBaseFromSession)
+    : 0;
+
+  // Synthetic fees row for multi-mode (so the breakdown section doesn't
+  // show the empty "+0.00" placeholder when there ARE fees aggregated).
+  const multiFeesBreakdown = isMultiMode && multiFeesTotal > 0
+    ? [{
+        code: 'aggregated_fees',
+        name_ar: 'رسوم إضافية',
+        name_en: 'Additional fees',
+        fee_kind: 'flat' as const,
+        value: 0,
+        base_amount: multiBaseFromSession,
+        calculated_amount: multiFeesTotal,
+      }]
+    : [];
+
+  const feesBreakdown = isMultiMode
+    ? multiFeesBreakdown
+    : (feesData.feesBreakdown ?? order?.feesBreakdown ?? []);
   const hasFees = feesBreakdown.length > 0;
-  const baseSubtotal = feesData.baseAmount ?? order?.baseAmount ?? Number(order?.amount ?? 0);
-  const feesTotal = feesData.feesTotal ?? order?.feesTotal ?? 0;
-  const grandTotal = feesData.grandTotal ?? order?.grandTotal ?? Number(order?.amount ?? 0);
+  const baseSubtotal = isMultiMode ? multiBaseFromSession
+    : (feesData.baseAmount ?? order?.baseAmount ?? Number(order?.amount ?? 0));
+  const feesTotal = isMultiMode ? multiFeesTotal
+    : (feesData.feesTotal ?? order?.feesTotal ?? 0);
+  const grandTotal = isMultiMode
+    ? multiGrandTotal
+    : (feesData.grandTotal ?? order?.grandTotal ?? Number(order?.amount ?? 0));
 
   const totalAmount = useMemo(
-    () => isMultiMode
-      ? items.reduce((sum, it) => sum + Number(it.amount), 0)
-      : grandTotal,
-    [items, grandTotal],
+    () => isMultiMode ? multiGrandTotal : grandTotal,
+    [isMultiMode, multiGrandTotal, grandTotal],
   );
   const currency = items[0]?.currency ?? 'EGP';
 
