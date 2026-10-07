@@ -616,8 +616,10 @@ export default function AgentPortal({
 //   teacher's allowed sections:
 //     Stage 1: A grid of section cards (Dashboard, Students, Subjects, …).
 //              The agent picks one to drill down.
-//     Stage 2: The selected section's content (read-only preview) with
-//              a back button to return to the grid.
+//     Stage 2: The selected section's content with a back button to
+//              return to the grid. Some sections include actions
+//              (approve/reject enrollments, activate/cancel orders,
+//              suspend/activate students) — not purely read-only.
 //
 //   Before this restructure, all 18 section buttons + the preview were
 //   crammed into ONE page → very long + hard to navigate. The 2-stage
@@ -722,7 +724,7 @@ function TeacherViewSection({
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold truncate">{selectedSection.label}</h1>
-            <p className="text-sm text-muted-foreground truncate">عرض المعلم — قراءة فقط</p>
+            <p className="text-sm text-muted-foreground truncate">عرض المعلم</p>
           </div>
         </header>
 

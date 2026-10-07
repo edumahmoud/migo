@@ -268,6 +268,12 @@ export default function AppHeader({
                       <UserCircle className="h-4 w-4 text-muted-foreground" />
                       {t('nav.profile')}
                     </button>
+                    {/* v116: hide the "Settings" button for registration_agent role.
+                        The agent's sidebar has 'profile' which is the same target as
+                        onOpenSettings() for agents — so showing both "Profile" + "Settings"
+                        in the dropdown is redundant + confusing (the user clicks
+                        "Settings" and gets the profile page, not a settings page). */}
+                    {userRole !== 'registration_agent' && (
                     <button
                       onClick={() => {
                         setDropdownOpen(false);
@@ -278,6 +284,7 @@ export default function AppHeader({
                       <Settings className="h-4 w-4 text-muted-foreground" />
                       {t('nav.settings')}
                     </button>
+                    )}
                     <ThemeToggle />
 
                     {/* Language Switcher */}
