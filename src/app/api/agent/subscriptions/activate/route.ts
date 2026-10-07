@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
+// v117: shared ledger fallback helper
+import { createFinancialLedgerFallback } from '@/lib/payment/ledger-fallback';
 
 /**
  * POST /api/agent/subscriptions/activate
@@ -55,10 +57,14 @@ export async function POST(request: NextRequest) {
   //    v116: also fetch plan_id + plan_duration_days so the activation
   //    RPC uses the plan's actual duration (e.g., 365 for yearly)
   //    instead of the hardcoded 30-day default.
+  //    v117: also fetch base_amount + grand_total for the financial
+  //    ledger split (was missing — agent fallback path didn't create
+  //    a ledger row at all).
   const { data: order, error: orderErr } = await supabaseServer
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
+      base_amount, fees_total, grand_total,
       plan_id, plan_duration_days,
       subjects:subject_id (teacher_id)
     `)
@@ -72,6 +78,9 @@ export async function POST(request: NextRequest) {
   const o = order as unknown as {
     id: string; student_id: string; subject_id: string;
     amount: number; currency: string; status: string;
+    base_amount: number | null;
+    fees_total: number | null;
+    grand_total: number | null;
     plan_id: string | null;
     plan_duration_days: number | null;
     subjects: { teacher_id: string } | null;
@@ -142,6 +151,12 @@ export async function POST(request: NextRequest) {
       .eq('status', 'pending');
 
     // UPSERT enrollment
+    // v117: use base_amount (the plan/subject price) for monthly_price
+    // instead of o.amount (= grand_total = base + fees). This matches
+    // what the student actually pays for the subscription itself.
+    const monthlyPriceForEnrollment = o.base_amount !== null && o.base_amount !== undefined
+      ? Number(o.base_amount)
+      : Number(o.amount);
     const { error: enrollErr } = await supabaseServer
       .from('subject_students')
       .upsert({
@@ -150,7 +165,7 @@ export async function POST(request: NextRequest) {
         status: 'approved',
         enrollment_method: 'self_paid',
         enrolled_at: now,
-        monthly_price: Number(o.amount),
+        monthly_price: monthlyPriceForEnrollment,
         current_period_start: now,
         current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
         next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
@@ -173,6 +188,7 @@ export async function POST(request: NextRequest) {
       .in('account_status', ['pending', 'pending_verification', null]);
 
     // Insert payment record (best effort)
+    let fallbackPaymentId: string | null = null;
     await supabaseServer
       .from('payments')
       .insert({
@@ -190,9 +206,33 @@ export async function POST(request: NextRequest) {
         },
         confirmed_by: agentId,
       })
-      .then(({ error }) => {
+      .select('id')
+      .single()
+      .then(({ data, error }) => {
         if (error) console.warn('[agent:activate] payment insert failed', error.message);
+        else fallbackPaymentId = (data as { id: string }).id;
       });
+
+    // v117: create financial_ledger row using the shared helper.
+    // Previously the agent fallback path skipped this entirely, leaving
+    // the teacher's revenue stats missing this activation.
+    if (fallbackPaymentId) {
+      const ledgerResult = await createFinancialLedgerFallback({
+        orderId,
+        paymentId: fallbackPaymentId,
+        providerPaymentId: manualPaymentId,
+        studentId: o.student_id,
+        subjectId: o.subject_id,
+        currency: o.currency,
+        grossAmount: Number(o.grand_total ?? o.amount),
+        baseAmount: o.base_amount,
+        activatedBy: agentId,
+        activatedByRole: 'registration_agent',
+      });
+      if (!ledgerResult.success) {
+        console.warn('[agent:activate] ledger fallback failed (non-critical)', ledgerResult.error);
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -223,6 +263,12 @@ export async function POST(request: NextRequest) {
     });
 
     const now = new Date().toISOString();
+    // v117: use base_amount (the plan/subject price) for monthly_price
+    // instead of o.amount (= grand_total = base + fees). This matches
+    // what the student actually pays for the subscription itself.
+    const monthlyPriceForEnrollment = o.base_amount !== null && o.base_amount !== undefined
+      ? Number(o.base_amount)
+      : Number(o.amount);
     const { error: enrollErr } = await supabaseServer
       .from('subject_students')
       .upsert({
@@ -231,7 +277,7 @@ export async function POST(request: NextRequest) {
         status: 'approved',
         enrollment_method: 'self_paid',
         enrolled_at: now,
-        monthly_price: Number(o.amount),
+        monthly_price: monthlyPriceForEnrollment,
         current_period_start: now,
         current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
         next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
@@ -251,6 +297,57 @@ export async function POST(request: NextRequest) {
       .update({ account_status: 'active', updated_at: now })
       .eq('id', o.student_id)
       .in('account_status', ['pending', 'pending_verification', null]);
+
+    // v117: verify-fallback path — also create payment + financial_ledger
+    // if they don't exist yet (mirrors the teacher activate route).
+    const verifyPaymentId = `verify_agent_${orderId}`;
+    const { data: existingPayment } = await supabaseServer
+      .from('payments')
+      .select('id')
+      .eq('provider_payment_id', verifyPaymentId)
+      .maybeSingle();
+    let paymentIdForLedger: string | null = null;
+    if (!existingPayment) {
+      const { data: newPayment } = await supabaseServer
+        .from('payments')
+        .insert({
+          order_id: orderId,
+          provider_payment_id: verifyPaymentId,
+          amount: Number(o.amount),
+          currency: o.currency,
+          status: 'paid',
+          raw_payload: {
+            verify_fallback: true,
+            activated_by: agentId,
+            activated_by_role: 'registration_agent',
+            reason: 'Verify-fallback after RPC succeeded but enrollment missing',
+          },
+          confirmed_by: agentId,
+        })
+        .select('id')
+        .single();
+      paymentIdForLedger = (newPayment as { id: string } | null)?.id ?? null;
+    } else {
+      paymentIdForLedger = (existingPayment as { id: string }).id;
+    }
+
+    if (paymentIdForLedger) {
+      const ledgerResult = await createFinancialLedgerFallback({
+        orderId,
+        paymentId: paymentIdForLedger,
+        providerPaymentId: verifyPaymentId,
+        studentId: o.student_id,
+        subjectId: o.subject_id,
+        currency: o.currency,
+        grossAmount: Number(o.grand_total ?? o.amount),
+        baseAmount: o.base_amount,
+        activatedBy: agentId,
+        activatedByRole: 'registration_agent',
+      });
+      if (!ledgerResult.success) {
+        console.warn('[agent:activate] verify-fallback ledger failed (non-critical)', ledgerResult.error);
+      }
+    }
   }
 
   return NextResponse.json({

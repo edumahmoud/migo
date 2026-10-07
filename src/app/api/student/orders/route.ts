@@ -231,6 +231,36 @@ export async function POST(request: NextRequest) {
   //      happen ONLY when the payment gateway calls /api/payment/webhook
   //      after a real successful payment. Until then, the order stays
   //      'pending' and the student sees it in their pending list.
+  //
+  // v117: if no active fee_catalog rows exist at all, synthesize a 0%
+  // platform_commission fee so the order always has a fees_breakdown
+  // snapshot. This fixes the "fees show 0" bug when the admin hasn't
+  // configured fee_catalog yet — the student sees a real breakdown row
+  // instead of an empty placeholder.
+  let activeFees = (await supabaseServer
+    .from('fee_catalog')
+    .select('id, code, name_ar, name_en, fee_kind, value, sort_order')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })) as { data: Array<{
+      id: string; code: string; name_ar: string; name_en: string;
+      fee_kind: 'percentage' | 'flat'; value: number; sort_order: number;
+    }> | null; };
+
+  if (!activeFees.data || activeFees.data.length === 0) {
+    // v117: synthesize a 0% platform_commission placeholder so the order
+    // always has a fees_breakdown snapshot. This will be replaced by
+    // real fee_catalog rows when the admin configures them.
+    activeFees.data = [{
+      id: 'synthetic-platform-commission',
+      code: 'platform_commission',
+      name_ar: 'عمولة المنصة',
+      name_en: 'Platform Commission',
+      fee_kind: 'percentage',
+      value: 0,
+      sort_order: 0,
+    }];
+  }
+  const feeRowsForAll = activeFees.data;
   const createdOrders: Array<Record<string, unknown>> = [];
   const skippedOrders: Array<{ subject_id: string; order_id: string; amount: number; base_amount: number | null; fees_total: number | null; grand_total: number | null; currency: string }> = [];
   for (const subjectId of requestedSubjectIds) {
@@ -400,11 +430,11 @@ export async function POST(request: NextRequest) {
       //      calculated_amount is snapshotted into order_fees.
       //   7. NO existing order or order_fees row is modified — this
       //      flow only applies to NEW orders being created right now.
-      const { data: activeFees } = await supabaseServer
-        .from('fee_catalog')
-        .select('id, code, name_ar, name_en, fee_kind, value, sort_order')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+      //
+      // v117 — feeRows are now fetched ONCE outside the loop
+      // (feeRowsForAll) so we don't repeat the query per subject.
+      // The synthetic 0% platform_commission fallback is already
+      // applied if no rows exist.
 
       // Look up the teacher's per-teacher commission_rate override.
       // subject.teacher_id is already in scope from the subjectsMap.
@@ -428,10 +458,9 @@ export async function POST(request: NextRequest) {
 
       // v116: use per-subject plan price override when available
       const basePrice = effectivePriceOverride !== null ? effectivePriceOverride : Number(subject.price);
-      const feeRows = (activeFees ?? []) as Array<{
-        id: string; code: string; name_ar: string; name_en: string;
-        fee_kind: 'percentage' | 'flat'; value: number; sort_order: number;
-      }>;
+      // v117: clone the shared feeRows so per-teacher override doesn't
+      // leak to the next iteration (feeRowsForAll is shared).
+      const feeRows = feeRowsForAll.map(f => ({ ...f }));
 
       // Apply per-teacher override IN-PLACE on the in-memory feeRows
       // (the DB fee_catalog row is NOT modified — we only override the

@@ -3357,30 +3357,35 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                         );
                                       })()}
                                       {/* v113: plan selector — shows when plans exist */}
-                                      {/* v116: plan selector — shows ONLY when there are 2+ plans */}
-                                      {(subjectPlans[c.id]?.length ?? 0) > 1 && !isSubActive && (
-                                        <select
-                                          value={selectedPlanIds[c.id] || ''}
-                                          onChange={(e) => {
-                                            const val = e.target.value;
-                                            // v116: synthetic fallback plans have IDs starting
-                                            // with 'default-monthly-'. Don't send these as
-                                            // planId to the API — the API will fall back to
-                                            // subject.price when planId is null.
-                                            const safeVal = val.startsWith('default-monthly-') ? '' : val;
-                                            setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
-                                          }}
-                                          className="text-[10px] mt-1 rounded border bg-background px-1.5 py-0.5 cursor-pointer"
-                                          dir={direction}
-                                        >
-                                          <option value="">افتراضي (شهري)</option>
-                                          {subjectPlans[c.id].map(p => (
-                                            <option key={p.id} value={p.id}>
-                                              {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      )}
+                                      {/* v117: show whenever the course has at least ONE
+                                          stored (non-synthetic) plan. Previously required
+                                          2+ plans, hiding the dropdown for courses with
+                                          a single monthly plan — making the student
+                                          believe "no plans exist" even though the API
+                                          resolves the plan server-side. */}
+                                      {(() => {
+                                        const realPlans = (subjectPlans[c.id] ?? []).filter(p => !p.id.startsWith('default-monthly-'));
+                                        if (realPlans.length === 0 || isSubActive) return null;
+                                        return (
+                                          <select
+                                            value={selectedPlanIds[c.id] || ''}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              const safeVal = val.startsWith('default-monthly-') ? '' : val;
+                                              setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
+                                            }}
+                                            className="text-[10px] mt-1 rounded border bg-background px-1.5 py-0.5 cursor-pointer"
+                                            dir={direction}
+                                          >
+                                            {realPlans.length > 1 && <option value="">افتراضي (شهري)</option>}
+                                            {realPlans.map(p => (
+                                              <option key={p.id} value={p.id}>
+                                                {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        );
+                                      })()}
                                       {!isSubActive && (
                                         <button
                                           onClick={async () => {

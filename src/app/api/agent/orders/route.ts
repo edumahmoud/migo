@@ -23,6 +23,10 @@ interface OrderRow {
   student_id: string;
   subject_id: string;
   amount: number;
+  base_amount: number | null;
+  fees_total: number | null;
+  grand_total: number | null;
+  fees_breakdown: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> | null;
   currency: string;
   status: string;
   provider_order_ref: string | null;
@@ -40,11 +44,15 @@ export async function GET(request: NextRequest) {
 
   // Fetch all pending orders, then filter to those whose subject
   // belongs to this agent's teacher.
-  // (Supabase JS can't filter on nested fields, so we filter in JS.)
+  // v117: include base_amount + fees_total + grand_total + fees_breakdown
+  // so the agent UI can show the full payment breakdown (was missing —
+  // the agent only saw `amount` which is the grand total, with no way
+  // to see commission/tax/other fees breakdown).
   const { data: orders, error: ordersErr } = await supabaseServer
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
+      base_amount, fees_total, grand_total, fees_breakdown,
       provider_order_ref, checkout_session_id, created_at,
       subjects:subject_id ( id, name, teacher_id, price ),
       users:student_id ( id, name, email, student_code )
@@ -72,6 +80,11 @@ export async function GET(request: NextRequest) {
       student_id: o.student_id,
       subject_id: o.subject_id,
       amount: o.amount,
+      // v117: expose the v88 fees-on-top breakdown fields
+      base_amount: o.base_amount !== null && o.base_amount !== undefined ? Number(o.base_amount) : null,
+      fees_total: o.fees_total !== null && o.fees_total !== undefined ? Number(o.fees_total) : null,
+      grand_total: o.grand_total !== null && o.grand_total !== undefined ? Number(o.grand_total) : null,
+      fees_breakdown: o.fees_breakdown ?? [],
       currency: o.currency,
       status: o.status,
       provider_order_ref: o.provider_order_ref,

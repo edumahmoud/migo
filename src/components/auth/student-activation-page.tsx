@@ -520,29 +520,40 @@ export default function StudentActivationPage() {
                             <Badge variant="default" className="text-[10px] bg-emerald-600">نشط حتى {new Date(sub.current_period_end).toLocaleDateString('ar-EG')}</Badge>
                           )}
                         </div>
-                        {/* v116: plan selector — shows ONLY when there are 2+ plans
-                            (single plan = no choice to make, dropdown is noise). */}
-                        {plans && plans.length > 1 && !isSubActive && (
-                          <select
-                            value={selectedPlanId}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              const val = e.target.value;
-                              const safeVal = val.startsWith('default-monthly-') ? '' : val;
-                              setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[10px] mt-1.5 rounded border bg-background px-1.5 py-0.5 cursor-pointer max-w-[200px]"
-                            dir={direction}
-                          >
-                            <option value="">افتراضي (شهري)</option>
-                            {plans.map(p => (
-                              <option key={p.id} value={p.id}>
-                                {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                        {/* v117: plan selector — shows whenever the course has at
+                            least ONE stored (non-synthetic) plan, even if only one.
+                            Previously required 2+ plans, which meant courses with
+                            a single monthly plan showed no dropdown at all — making
+                            the student think "no plans exist" even though the API
+                            would still resolve the plan server-side. */}
+                        {(() => {
+                          const realPlans = (plans ?? []).filter(p => !p.id.startsWith('default-monthly-'));
+                          if (realPlans.length === 0 || isSubActive) return null;
+                          return (
+                            <select
+                              value={selectedPlanId}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const val = e.target.value;
+                                const safeVal = val.startsWith('default-monthly-') ? '' : val;
+                                setSelectedPlanIds(prev => ({ ...prev, [c.id]: safeVal }));
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[10px] mt-1.5 rounded border bg-background px-1.5 py-0.5 cursor-pointer max-w-[200px]"
+                              dir={direction}
+                            >
+                              {/* v117: don't show "افتراضي (شهري)" if there's only
+                                  one real plan — the student shouldn't be able to
+                                  pick "default" when there is no other option. */}
+                              {realPlans.length > 1 && <option value="">افتراضي (شهري)</option>}
+                              {realPlans.map(p => (
+                                <option key={p.id} value={p.id}>
+                                  {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
+                                </option>
+                              ))}
+                            </select>
+                          );
+                        })()}
                       </div>
                       <div className="text-end shrink-0 font-bold text-emerald-700">
                         {displayPrice === 0 ? 'مجاناً' : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}

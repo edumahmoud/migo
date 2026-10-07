@@ -38,6 +38,13 @@ interface SubscriptionRow {
   monthly_price: number | null;
   currency: string;
   enrolled_at: string | null;
+  // v117: financial breakdown from financial_ledger
+  gross_amount: number | null;
+  platform_share: number | null;
+  teacher_share: number | null;
+  net_amount: number | null;
+  commission_rate: number | null;
+  fees_breakdown: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
 }
 
 export default function StudentSubscriptionsLog() {
@@ -256,6 +263,35 @@ export default function StudentSubscriptionsLog() {
                       </div>
                     )}
                   </div>
+
+                  {/* v117: financial breakdown — show platform_share, teacher_share,
+                      commission_rate, and the per-fee breakdown when available. */}
+                  {sub.gross_amount !== null && sub.gross_amount > 0 && (
+                    <div className="mt-2 rounded-md bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/40 p-2 text-xs space-y-1">
+                      <div className="flex justify-between text-sky-800 dark:text-sky-200 font-semibold">
+                        <span>الإجمالي المُحصَّل</span>
+                        <span className="font-mono">{Number(sub.gross_amount).toFixed(2)} {sub.currency || 'EGP'}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>نصيب المنصة ({Number(sub.commission_rate ?? 0).toFixed(2)}%)</span>
+                        <span className="font-mono text-rose-600 dark:text-rose-400">−{Number(sub.platform_share ?? 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>نصيب المعلم</span>
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400">+{Number(sub.teacher_share ?? 0).toFixed(2)}</span>
+                      </div>
+                      {sub.fees_breakdown && sub.fees_breakdown.length > 0 && (
+                        <div className="pt-1 border-t border-sky-200 dark:border-sky-900/40 space-y-0.5">
+                          {sub.fees_breakdown.map((fee, fi) => (
+                            <div key={fi} className="flex justify-between text-[10px] text-muted-foreground/80">
+                              <span>{fee.name_ar} ({fee.fee_kind === 'percentage' ? `${fee.value}%` : `${fee.value} ${sub.currency || 'EGP'}`})</span>
+                              <span className="font-mono">+{Number(fee.calculated_amount).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               );
             })}

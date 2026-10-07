@@ -110,6 +110,50 @@ export async function GET(request: NextRequest) {
     )
   );
 
+  // v117: fetch financial_ledger rows for these subjects so the agent
+  // can see platform_share + teacher_share + commission_rate next to
+  // each subscription. This was missing entirely — the agent could
+  // only see the gross amount (monthly_price) with no financial
+  // breakdown.
+  const { data: ledgerRows } = await supabaseServer
+    .from('financial_ledger')
+    .select('id, subject_id, student_id, currency, gross_amount, platform_share, teacher_share, net_amount, commission_rate, status, fees_breakdown, created_at')
+    .in('subject_id', subjectIds)
+    .order('created_at', { ascending: false })
+    .limit(2000);
+
+  // Map: (subject_id, student_id) → latest ledger row
+  const ledgerMap = new Map<string, {
+    gross_amount: number;
+    platform_share: number;
+    teacher_share: number;
+    net_amount: number;
+    commission_rate: number;
+    fees_breakdown: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+    currency: string;
+  }>();
+  for (const l of (ledgerRows ?? []) as Array<{
+    subject_id: string; student_id: string; currency: string;
+    gross_amount: number; platform_share: number; teacher_share: number;
+    net_amount: number; commission_rate: number;
+    fees_breakdown: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+    status: string;
+  }>) {
+    if (l.status !== 'paid') continue;
+    const key = `${l.subject_id}:${l.student_id}`;
+    if (!ledgerMap.has(key)) {
+      ledgerMap.set(key, {
+        gross_amount: Number(l.gross_amount) || 0,
+        platform_share: Number(l.platform_share) || 0,
+        teacher_share: Number(l.teacher_share) || 0,
+        net_amount: Number(l.net_amount) || 0,
+        commission_rate: Number(l.commission_rate) || 0,
+        fees_breakdown: l.fees_breakdown ?? [],
+        currency: l.currency,
+      });
+    }
+  }
+
   // 5. Combine into a flat list.
   const subscriptions = (enrollmentRows as Array<{
     id: string;
@@ -125,6 +169,8 @@ export async function GET(request: NextRequest) {
   }>).map((e) => {
     const subject = subjectMap.get(e.subject_id);
     const student = studentMap.get(e.student_id);
+    const ledgerKey = `${e.subject_id}:${e.student_id}`;
+    const ledger = ledgerMap.get(ledgerKey);
     return {
       id: e.id,
       student_id: e.student_id,
@@ -141,6 +187,13 @@ export async function GET(request: NextRequest) {
       monthly_price: e.monthly_price !== null && e.monthly_price !== undefined ? Number(e.monthly_price) : null,
       currency: subject?.currency ?? 'EGP',
       enrolled_at: e.enrolled_at,
+      // v117: financial breakdown from financial_ledger
+      gross_amount: ledger?.gross_amount ?? null,
+      platform_share: ledger?.platform_share ?? null,
+      teacher_share: ledger?.teacher_share ?? null,
+      net_amount: ledger?.net_amount ?? null,
+      commission_rate: ledger?.commission_rate ?? null,
+      fees_breakdown: ledger?.fees_breakdown ?? [],
     };
   });
 

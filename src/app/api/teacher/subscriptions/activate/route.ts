@@ -4,7 +4,8 @@ import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 // v112: per-teacher commission resolver + v88 fees-on-top split helper
-import { getEffectiveCommissionRate, calculateSharesFromOrderFees, OrderFeesSnapshotError } from '@/lib/payment/commission';
+// v117: shared ledger fallback helper (replaces inline ledger insert)
+import { createFinancialLedgerFallback } from '@/lib/payment/ledger-fallback';
 
 /**
  * POST /api/teacher/subscriptions/activate
@@ -143,6 +144,12 @@ export async function POST(request: NextRequest) {
       .eq('status', 'pending');
 
     // UPSERT enrollment (status='approved')
+    // v117: use base_amount (the plan/subject price) for monthly_price
+    // instead of o.amount (= grand_total = base + fees). This matches
+    // what the student actually pays for the subscription itself.
+    const monthlyPriceForEnrollment = o.base_amount !== null && o.base_amount !== undefined
+      ? Number(o.base_amount)
+      : Number(o.amount);
     const { error: enrollmentErr } = await supabaseServer
       .from('subject_students')
       .upsert({
@@ -151,7 +158,7 @@ export async function POST(request: NextRequest) {
         status: 'approved',
         enrollment_method: 'self_paid',
         enrolled_at: now,
-        monthly_price: Number(o.amount),
+        monthly_price: monthlyPriceForEnrollment,
         current_period_start: now,
         current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
         next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
@@ -178,6 +185,7 @@ export async function POST(request: NextRequest) {
       .in('account_status', ['pending', 'pending_verification', null]);
 
     // Insert payment record (best effort — non-critical)
+    let fallbackPaymentId: string | null = null;
     await supabaseServer
       .from('payments')
       .insert({
@@ -194,11 +202,31 @@ export async function POST(request: NextRequest) {
         },
         confirmed_by: teacherId,
       })
-      .then(({ error }) => {
-        if (error) {
-          console.warn('[teacher:activate] payment insert failed (non-critical)', error.message);
-        }
+      .select('id')
+      .single()
+      .then(({ data, error }) => {
+        if (error) console.warn('[teacher:activate] payment insert failed (non-critical)', error.message);
+        else fallbackPaymentId = (data as { id: string }).id;
       });
+
+    // v117: create financial_ledger row using the shared helper.
+    if (fallbackPaymentId) {
+      const ledgerResult = await createFinancialLedgerFallback({
+        orderId,
+        paymentId: fallbackPaymentId,
+        providerPaymentId: manualPaymentId,
+        studentId: o.student_id,
+        subjectId: o.subject_id,
+        currency: o.currency,
+        grossAmount: Number(o.grand_total ?? o.amount),
+        baseAmount: o.base_amount,
+        activatedBy: teacherId,
+        activatedByRole: 'teacher',
+      });
+      if (!ledgerResult.success) {
+        console.warn('[teacher:activate] ledger fallback failed (non-critical)', ledgerResult.error);
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -232,6 +260,10 @@ export async function POST(request: NextRequest) {
     });
 
     const now = new Date().toISOString();
+    // v117: use base_amount (the plan/subject price) for monthly_price.
+    const monthlyPriceForEnrollment = o.base_amount !== null && o.base_amount !== undefined
+      ? Number(o.base_amount)
+      : Number(o.amount);
     const { error: enrollErr } = await supabaseServer
       .from('subject_students')
       .upsert({
@@ -240,7 +272,7 @@ export async function POST(request: NextRequest) {
         status: 'approved',
         enrollment_method: 'self_paid',
         enrolled_at: now,
-        monthly_price: Number(o.amount),
+        monthly_price: monthlyPriceForEnrollment,
         current_period_start: now,
         current_period_end: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
         next_billing_at: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString(),
@@ -264,91 +296,49 @@ export async function POST(request: NextRequest) {
       .in('account_status', ['pending', 'pending_verification', null]);
 
     // ── Also create payments + financial_ledger (verify-fallback path) ──
-    // This ensures the teacher's revenue stats include this activation.
+    // v117: use the shared helper instead of inline logic.
     const verifyPaymentId = `verify_${orderId}`;
-    await supabaseServer
-      .from('payments')
-      .insert({
-        order_id: orderId,
-        provider_payment_id: verifyPaymentId,
-        amount: Number(o.amount),
-        currency: o.currency,
-        status: 'paid',
-        raw_payload: { verify_fallback: true, activated_by: teacherId, reason: 'Verify-fallback after RPC succeeded but enrollment missing' },
-        confirmed_by: teacherId,
-      })
-      .then(({ error }) => {
-        if (error) console.warn('[teacher:activate] verify-fallback payments insert failed (non-critical)', error.message);
-      });
-
-    // Create financial_ledger (best effort)
-    const { data: subjectRow } = await supabaseServer
-      .from('subjects')
-      .select('teacher_id')
-      .eq('id', o.subject_id)
-      .maybeSingle();
-    const ledgerTeacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id ?? teacherId;
-    // v112: per-teacher commission resolution (falls back to global rate).
-    // Snapshot is preserved in financial_ledger.commission_rate.
-    const commissionResolution = await getEffectiveCommissionRate(ledgerTeacherId);
-    const commissionRate = commissionResolution.rate;
-    // v112: v88 fees-on-top split (from order_fees snapshot when
-    // present). For pre-v88 orders, falls back to legacy
-    // calculateShares() inside the helper.
-    const grossAmount = Number(o.grand_total ?? o.amount);
-    const baseAmount = o.base_amount ?? null;
-    let splitResult: Awaited<ReturnType<typeof calculateSharesFromOrderFees>> | undefined;
-    try {
-      splitResult = await calculateSharesFromOrderFees(orderId, grossAmount, baseAmount, commissionRate);
-    } catch (err) {
-      if (err instanceof OrderFeesSnapshotError) {
-        // Fail safely — log + skip ledger insert.
-        console.warn('[teacher:activate] verify-fallback: order_fees snapshot invalid', {
-          orderId,
-          reason: err.reason,
-        });
-      } else {
-        throw err;
-      }
-    }
-
-    const { data: paymentRow } = await supabaseServer
+    const { data: existingPayment } = await supabaseServer
       .from('payments')
       .select('id')
       .eq('provider_payment_id', verifyPaymentId)
       .maybeSingle();
-    const paymentId = (paymentRow as { id: string } | null)?.id;
-    if (paymentId && splitResult) {
-      const insertPayload: Record<string, unknown> = {
-        payment_id: paymentId,
-        order_id: orderId,
-        student_id: o.student_id,
-        subject_id: o.subject_id,
-        teacher_id: ledgerTeacherId,
-        gateway_id: null,
-        provider_payment_id: verifyPaymentId,
+    let paymentIdForLedger: string | null = null;
+    if (!existingPayment) {
+      const { data: newPayment } = await supabaseServer
+        .from('payments')
+        .insert({
+          order_id: orderId,
+          provider_payment_id: verifyPaymentId,
+          amount: Number(o.amount),
+          currency: o.currency,
+          status: 'paid',
+          raw_payload: { verify_fallback: true, activated_by: teacherId, reason: 'Verify-fallback after RPC succeeded but enrollment missing' },
+          confirmed_by: teacherId,
+        })
+        .select('id')
+        .single();
+      paymentIdForLedger = (newPayment as { id: string } | null)?.id ?? null;
+    } else {
+      paymentIdForLedger = (existingPayment as { id: string }).id;
+    }
+
+    if (paymentIdForLedger) {
+      const ledgerResult = await createFinancialLedgerFallback({
+        orderId,
+        paymentId: paymentIdForLedger,
+        providerPaymentId: verifyPaymentId,
+        studentId: o.student_id,
+        subjectId: o.subject_id,
         currency: o.currency,
-        gross_amount: splitResult.grossAmount,
-        platform_share: splitResult.platformShare,
-        teacher_share: splitResult.teacherShare,
-        gateway_fee: 0,
-        net_amount: splitResult.netAmount,
-        commission_rate: commissionRate,
-        status: 'paid',
-      };
-      if (splitResult.kind === 'v88') {
-        insertPayload.subscription_total = splitResult.subscriptionTotal;
-        insertPayload.tax_amount = splitResult.taxAmount;
-        insertPayload.other_fees_amount = splitResult.otherFeesAmount;
-        insertPayload.fees_breakdown = splitResult.feesBreakdown;
+        grossAmount: Number(o.grand_total ?? o.amount),
+        baseAmount: o.base_amount,
+        activatedBy: teacherId,
+        activatedByRole: 'teacher',
+      });
+      if (!ledgerResult.success) {
+        console.warn('[teacher:activate] verify-fallback ledger failed (non-critical)', ledgerResult.error);
       }
-      await supabaseServer
-        .from('financial_ledger')
-        .insert(insertPayload)
-        .then(({ error }) => {
-          if (error) console.warn('[teacher:activate] verify-fallback financial_ledger insert failed (non-critical)', error.message);
-          else console.info('[teacher:activate] financial_ledger created (verify-fallback)', { orderId, paymentId, splitSource: splitResult!.kind });
-        });
     }
 
     return NextResponse.json({
