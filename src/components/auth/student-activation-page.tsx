@@ -304,7 +304,13 @@ export default function StudentActivationPage() {
           // No NEW paid orders were created. Check if any were skipped
           // (already had pending orders from a previous attempt):
           const skippedSubjectIds: string[] = Array.isArray(json.skipped) ? json.skipped : [];
-          if (skippedSubjectIds.length > 0) {
+          // v118: check if any orders failed to create (not_available)
+          const notAvailable: Array<{ subject_id?: string; reason?: string }> = Array.isArray(json.not_available) ? json.not_available : [];
+          if (notAvailable.length > 0) {
+            // Some orders failed to create — show error
+            const reasons = notAvailable.map(n => n.reason).filter(Boolean).join(' • ');
+            toast.error(reasons || 'تعذّر إنشاء بعض الطلبات — حاول مرة أخرى');
+          } else if (skippedSubjectIds.length > 0) {
             // Orders already exist for these subjects — show a message
             // telling the user to complete payment from the pending list
             toast.info('لديك طلبات معلّقة. استكمل الدفع من قائمة "قيد الدفع" أدناه.');
@@ -315,12 +321,29 @@ export default function StudentActivationPage() {
         } else if (paidOrders.length === 1) {
           // Single paid order — open the single-order Payment Summary
           const o = paidOrders[0];
+          // v118 FIX: find the subject's original catalog price from
+          // available_courses so we have a reliable fallback when
+          // base_amount is NULL (which happens when the order was
+          // created by a code path that didn't set base_amount, or
+          // when the v88 columns don't exist yet).
+          // OLD behavior: baseAmount = o.base_amount ?? o.amount
+          //   → if base_amount is null, falls back to grand_total
+          //   → the dialog shows "course price = grand_total" with
+          //     no fees breakdown → confusing
+          // NEW behavior: baseAmount = o.base_amount ?? subjectPrice ?? o.amount
+          //   → if base_amount is null, uses the subject's catalog price
+          //   → the dialog shows the correct base price + fees breakdown
+          const subj = data?.available_courses.find(c => c.id === o.subject_id);
+          const subjectPrice = subj?.price;
+          const baseAmountFallback = (o as { base_amount?: number }).base_amount != null
+            ? Number((o as { base_amount?: number }).base_amount)
+            : (subjectPrice != null ? Number(subjectPrice) : Number(o.amount ?? 0));
           setPaymentSummaryOrder({
             orderId: String(o.id),
             subjectName: String(o.subject_name ?? '—'),
             amount: Number((o as { grand_total?: number }).grand_total ?? o.amount),
             currency: String(o.currency ?? 'EGP'),
-            baseAmount: Number((o as { base_amount?: number }).base_amount ?? o.amount),
+            baseAmount: baseAmountFallback,
             feesTotal: Number((o as { fees_total?: number }).fees_total ?? 0),
             grandTotal: Number((o as { grand_total?: number }).grand_total ?? o.amount),
             feesBreakdown: (o as { fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> }).fees_breakdown ?? [],

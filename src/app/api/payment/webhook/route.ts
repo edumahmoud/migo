@@ -571,6 +571,102 @@ export async function POST(request: NextRequest) {
     o = order as OrderRow;
   }
 
+  // v118 FIX: if the resolved single order is part of a multi-subject
+  // checkout session, expand to ALL the session's pending orders and
+  // activate them all. Without this, only the first order (the one
+  // whose provider_order_ref was stored on Paymob) gets activated —
+  // the other orders in the session stay 'pending' forever.
+  // This happens because the Paymob callback sometimes returns the
+  // first order's UUID (stored in provider_order_ref) instead of the
+  // session_id (set as special_reference). The webhook finds the
+  // single order but doesn't know about the session siblings.
+  if (o.checkout_session_id && webhookResult.status === 'paid') {
+    console.info('[webhook:v118] single order is part of a checkout session — expanding to all session orders', {
+      orderId: o.id,
+      sessionId: o.checkout_session_id,
+    });
+
+    const { data: sessionOrders, error: sessionErr } = await supabaseServer
+      .from('orders')
+      .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id')
+      .eq('checkout_session_id', o.checkout_session_id)
+      .eq('status', 'pending');
+
+    if (sessionErr) {
+      console.error('[webhook:v118] failed to fetch session orders', sessionErr.message);
+    } else if (sessionOrders && sessionOrders.length > 1) {
+      // Activate ALL session orders (not just the first one)
+      const sessOrders = sessionOrders as Array<{
+        id: string; student_id: string; subject_id: string;
+        amount: number; base_amount: number | null; fees_total: number | null;
+        grand_total: number | null; currency: string; status: string;
+        gateway_id: string | null; checkout_session_id: string | null;
+      }>;
+
+      const basePaymobTxId = webhookResult.providerTransactionId || `gateway_${randomUUID()}`;
+      const activationResults: Array<{ order_id: string; success: boolean; error?: string }> = [];
+
+      for (const sessOrder of sessOrders) {
+        if (sessOrder.status !== 'pending') {
+          activationResults.push({ order_id: sessOrder.id, success: false, error: `status=${sessOrder.status}` });
+          continue;
+        }
+
+        const perOrderPaymentId = `${basePaymobTxId}:${sessOrder.id}`;
+        const { data: rpcResult, error: rpcErr } = await supabaseServer.rpc(
+          'activate_subscription_after_payment',
+          {
+            p_order_id: sessOrder.id,
+            p_provider_payment_id: perOrderPaymentId,
+            p_amount: Number(sessOrder.grand_total ?? sessOrder.amount),
+            p_currency: sessOrder.currency,
+            p_status: 'paid',
+            p_raw_payload: {
+              ...webhookResult.metadata,
+              checkout_session_id: o.checkout_session_id,
+              paymob_transaction_id: basePaymobTxId,
+              v18_expansion: true,
+            },
+            p_confirmed_by: null,
+          },
+        );
+
+        if (rpcErr) {
+          console.error('[webhook:v118] RPC failed for session order', {
+            orderId: sessOrder.id,
+            error: rpcErr.message,
+          });
+          activationResults.push({ order_id: sessOrder.id, success: false, error: rpcErr.message });
+          continue;
+        }
+
+        const result = (rpcResult as { success?: boolean; error?: string; already_paid?: boolean }) ?? {};
+        activationResults.push({
+          order_id: sessOrder.id,
+          success: result.success === true,
+          error: result.error,
+        });
+      }
+
+      logPaymentEvent({
+        level: 'info',
+        operation: 'handleWebhook',
+        provider: webhookResult.provider,
+        orderId: o.id,
+        success: true,
+        message: `[v118] Session expansion activated ${activationResults.filter(r => r.success).length}/${sessOrders.length} orders`,
+        durationMs: Date.now() - startTime,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        success: true,
+        session_id: o.checkout_session_id,
+        activated_orders: activationResults,
+      });
+    }
+  }
+
   // 6. Validate amount + currency match the internal order
   //    v88 — compare against grand_total (= base_amount + fees_total)
   //    which is what we sent to Paymob. Fall back to orders.amount for

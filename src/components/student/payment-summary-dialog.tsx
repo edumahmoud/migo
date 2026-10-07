@@ -247,13 +247,42 @@ export function PaymentSummaryDialog({
     ? multiFeesBreakdown
     : (feesData.feesBreakdown ?? order?.feesBreakdown ?? []);
   const hasFees = feesBreakdown.length > 0;
-  const baseSubtotal = isMultiMode ? multiBaseFromSession
-    : (feesData.baseAmount ?? order?.baseAmount ?? Number(order?.amount ?? 0));
-  const feesTotal = isMultiMode ? multiFeesTotal
+  // v118 FIX: if baseAmount is null/undefined, DON'T fall back to
+  // order.amount (which is grand_total = base + fees). This was causing
+  // the dialog to show "course price = grand_total" with no fees
+  // breakdown — the student saw the total (with fees included) as the
+  // "base price" and the fees section showed "+0.00".
+  // Now: if baseAmount is null, use 0 as the display value. The grand
+  // total is shown separately below. The fees breakdown (if present
+  // from the server) is displayed correctly.
+  // If feesBreakdown is empty BUT feesTotal > 0, synthesize a single
+  // "رسوم إضافية" row so the breakdown section doesn't show the empty
+  // placeholder.
+  const rawBaseSubtotal = isMultiMode ? multiBaseFromSession
+    : (feesData.baseAmount ?? order?.baseAmount ?? 0);
+  const rawFeesTotal = isMultiMode ? multiFeesTotal
     : (feesData.feesTotal ?? order?.feesTotal ?? 0);
   const grandTotal = isMultiMode
     ? multiGrandTotal
     : (feesData.grandTotal ?? order?.grandTotal ?? Number(order?.amount ?? 0));
+
+  // v118: if feesBreakdown is empty but feesTotal > 0, synthesize a row
+  const feesBreakdownWithFallback = feesBreakdown.length > 0
+    ? feesBreakdown
+    : (rawFeesTotal > 0
+      ? [{
+          code: 'additional_fees',
+          name_ar: 'رسوم إضافية',
+          name_en: 'Additional fees',
+          fee_kind: 'flat' as const,
+          value: 0,
+          base_amount: rawBaseSubtotal,
+          calculated_amount: rawFeesTotal,
+        }]
+      : []);
+
+  const baseSubtotal = rawBaseSubtotal;
+  const feesTotal = rawFeesTotal;
 
   const totalAmount = useMemo(
     () => isMultiMode ? multiGrandTotal : grandTotal,
@@ -536,8 +565,8 @@ export function PaymentSummaryDialog({
               <span className="font-mono">{baseSubtotal.toFixed(2)} {currency}</span>
             </div>
             {/* Fees breakdown (tax, VAT, platform commission, etc.) */}
-            {feesBreakdown.length > 0 ? (
-              feesBreakdown.map((fee, i) => (
+            {feesBreakdownWithFallback.length > 0 ? (
+              feesBreakdownWithFallback.map((fee, i) => (
                 <div key={i} className="flex justify-between text-muted-foreground">
                   <span>
                     {fee.name_ar}{' '}

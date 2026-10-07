@@ -348,6 +348,11 @@ export async function POST(request: NextRequest) {
         createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: freeOrder.id });
       } else {
         console.error('[student/orders] ❌ FREE ORDER NOT CREATED — INSERT returned null for subject', subjectId);
+        // v118: report the failure so the UI can show an error
+        notAvailableSubjects.push({
+          subject_id: subjectId,
+          reason: 'تعذّر إنشاء الطلب المجاني — حاول مرة أخرى',
+        });
       }
     } else if (effectivePriceOverride === 0) {
       // v116: PAID subject + FREE plan (e.g., scholarship plan with price=0).
@@ -401,6 +406,13 @@ export async function POST(request: NextRequest) {
           plan_period_type: effectivePeriodType,
           plan_period_label: effectivePeriodLabel,
           order_id: (freeOrder as { id: string }).id,
+        });
+      } else {
+        console.error('[student/orders] ❌ FREE PLAN ORDER NOT CREATED — INSERT returned null for subject', subjectId);
+        // v118: report the failure so the UI can show an error
+        notAvailableSubjects.push({
+          subject_id: subjectId,
+          reason: 'تعذّر إنشاء الطلب للخطة المجانية — حاول مرة أخرى',
         });
       }
     } else {
