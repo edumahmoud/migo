@@ -807,7 +807,11 @@ function TeacherViewSection({
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
-              {visibleTeacherSections.map((sec) => (
+              {visibleTeacherSections.map((sec) => {
+                // v116: sections with action buttons — show a badge so the
+                // agent knows which sections they can DO things in (not just view).
+                const hasActions = sec.id === 'students' || sec.id === 'pendingOrders';
+                return (
                 <button
                   key={sec.id}
                   onClick={() => setTeacherViewSection(sec.id)}
@@ -818,11 +822,18 @@ function TeacherViewSection({
                   <span className="shrink-0 text-sky-600 dark:text-sky-400">{sec.icon}</span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{sec.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">عرض البيانات</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {hasActions ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">إجراءات متاحة</span>
+                      ) : (
+                        'عرض البيانات'
+                      )}
+                    </div>
                   </div>
                   <ArrowRight className={`h-3 w-3 shrink-0 self-center text-muted-foreground ${isRTL ? 'rotate-180' : ''}`} />
                 </button>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
