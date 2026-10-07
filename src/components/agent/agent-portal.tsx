@@ -127,6 +127,11 @@ export default function AgentPortal({
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
   const [studentResult, setStudentResult] = useState<StudentResult | null>(null);
+  // v116: student performance view — when the agent clicks "عرض الأداء"
+  // on a searched student, this state is set + the search section switches
+  // to showing the full performance data instead of the basic search results.
+  const [viewingStudentId, setViewingStudentId] = useState<string | null>(null);
+  const [viewingStudentName, setViewingStudentName] = useState<string>('');
   const [actioningOrderId, setActioningOrderId] = useState<string | null>(null);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
@@ -404,8 +409,14 @@ export default function AgentPortal({
             </CardContent>
           </Card>
 
-          {/* Search results */}
-          {studentResult && (
+          {/* Search results OR student performance view */}
+          {viewingStudentId ? (
+            <StudentPerformanceView
+              studentId={viewingStudentId}
+              studentName={viewingStudentName}
+              onBack={() => { setViewingStudentId(null); setViewingStudentName(''); }}
+            />
+          ) : studentResult && (
             <div className="space-y-3">
               {/* Student info */}
               <Card>
@@ -455,6 +466,21 @@ export default function AgentPortal({
                           </Button>
                         );
                       })()}
+                      {/* v116: "عرض الأداء" button — opens the full performance
+                          view for this student (enrollments, assignments, quizzes,
+                          attendance, lesson progress). */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs border-sky-300 text-sky-700 hover:bg-sky-50"
+                        onClick={() => {
+                          setViewingStudentId(studentResult.student.id);
+                          setViewingStudentName(studentResult.student.name ?? studentResult.student.email ?? '—');
+                        }}
+                      >
+                        <Activity className="h-3.5 w-3.5 me-1" />
+                        عرض الأداء
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -1748,6 +1774,309 @@ function EmptyState({ label }: { label: string }) {
   return (
     <div className="rounded-md border border-dashed border-border/60 p-6 text-center text-xs text-muted-foreground">
       {label}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// StudentPerformanceView — v116
+//   Full performance view for a single student. Shown when the
+//   agent clicks "عرض الأداء" on a searched student.
+//   Fetches: enrollments, assignments (submitted + not), quizzes
+//   (completed + not), attendance, lesson progress.
+// ──────────────────────────────────────────────────────────────
+function StudentPerformanceView({ studentId, studentName, onBack }: {
+  studentId: string;
+  studentName: string;
+  onBack: () => void;
+}) {
+  const { direction, isRTL } = useTranslations();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setData(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/agent/student-performance/${studentId}`, {
+          headers: await getCachedAuthHeaders(),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success) {
+          setData(json);
+        } else {
+          setError(json.error || 'تعذّر تحميل البيانات');
+        }
+      } catch {
+        if (!cancelled) setError('تعذّر الاتصال بالخادم');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [studentId]);
+
+  const formatDate = (iso: string | null | undefined) => {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return '—'; }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-rose-700 dark:text-rose-300">تعذّر تحميل الأداء</p>
+              <p className="text-xs text-muted-foreground mt-1">{error}</p>
+            </div>
+          </div>
+          <Button onClick={onBack} variant="outline" size="sm">
+            <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
+            رجوع
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) return null;
+
+  const student = data.student as { name: string | null; email: string; student_code: string | null; account_status: string | null };
+  const enrollments = (data.enrollments ?? []) as Array<{
+    subject_name: string; status: string; enrollment_method: string;
+    current_period_start: string | null; current_period_end: string | null; monthly_price: number | null;
+  }>;
+  const assignmentsSubmitted = ((data.assignments as Record<string, unknown>)?.submitted ?? []) as Array<Record<string, unknown>>;
+  const assignmentsNotSubmitted = ((data.assignments as Record<string, unknown>)?.not_submitted ?? []) as Array<Record<string, unknown>>;
+  const quizzesCompleted = ((data.quizzes as Record<string, unknown>)?.completed ?? []) as Array<Record<string, unknown>>;
+  const quizzesNotCompleted = ((data.quizzes as Record<string, unknown>)?.not_completed ?? []) as Array<Record<string, unknown>>;
+  const attendance = (data.attendance ?? []) as Array<Record<string, unknown>>;
+  const lessonProgress = (data.lesson_progress ?? []) as Array<Record<string, unknown>>;
+
+  return (
+    <div className="space-y-3" dir={direction}>
+      {/* Header with back button */}
+      <header className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="shrink-0 flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs hover:bg-muted transition-colors"
+          title="رجوع"
+        >
+          <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
+        </button>
+        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center shadow-lg shrink-0">
+          <Activity className="h-5 w-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold truncate">{studentName}</h1>
+          <p className="text-sm text-muted-foreground truncate">أداء الطالب — متابعة شاملة</p>
+        </div>
+        <Badge variant={student.account_status === 'active' ? 'default' : 'secondary'} className="text-xs shrink-0">
+          {student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+        </Badge>
+      </header>
+
+      {/* Enrollments */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-sky-600" />
+            الاشتراكات ({enrollments.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {enrollments.length === 0 ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اشتراكات</div>
+          ) : (
+            <div className="divide-y max-h-[200px] overflow-y-auto">
+              {enrollments.map((e, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{e.subject_name}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {e.current_period_end ? `ينتهي: ${formatDate(e.current_period_end)}` : 'دائم'}
+                    </p>
+                  </div>
+                  <Badge variant={e.status === 'approved' ? 'default' : 'secondary'} className="text-[9px] shrink-0">
+                    {e.status === 'approved' ? 'نشط' : e.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Assignments */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="h-4 w-4 text-amber-600" />
+            التكليفات (مسلّمة: {assignmentsSubmitted.length} — غير مسلّمة: {assignmentsNotSubmitted.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {assignmentsSubmitted.length === 0 && assignmentsNotSubmitted.length === 0 ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد تكليفات</div>
+          ) : (
+            <div className="divide-y max-h-[250px] overflow-y-auto">
+              {assignmentsSubmitted.map((a, i) => (
+                <div key={`s${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-emerald-50/30">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{String(a.title ?? "—")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{String(a.subject_name ?? "—")}</p>
+                  </div>
+                  <div className="shrink-0 text-end">
+                    <span className="font-mono text-emerald-700 dark:text-emerald-300">
+                      {Number(a.score ?? 0).toFixed(0)}/{Number(a.max_score ?? 0)}
+                    </span>
+                    <Badge variant="outline" className="text-[9px] ms-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+                      مسلّمة
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              {assignmentsNotSubmitted.map((a, i) => (
+                <div key={`n${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-rose-50/30">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{String(a.title ?? "—")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {String(a.subject_name ?? "—")}
+                      {a.due_date ? ` · يستحق تسليم: ${formatDate(a.due_date as string)}` : ''}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
+                    غير مسلّمة
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quizzes */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Database className="h-4 w-4 text-purple-600" />
+            الاختبارات (مكتملة: {quizzesCompleted.length} — غير مكتملة: {quizzesNotCompleted.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {quizzesCompleted.length === 0 && quizzesNotCompleted.length === 0 ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اختبارات</div>
+          ) : (
+            <div className="divide-y max-h-[250px] overflow-y-auto">
+              {quizzesCompleted.map((q, i) => (
+                <div key={`q${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-emerald-50/30">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{String(q.title ?? "—")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
+                  </div>
+                  <div className="shrink-0 text-end">
+                    <span className="font-mono text-emerald-700 dark:text-emerald-300">
+                      {Number(q.score ?? 0).toFixed(0)}/{Number(q.max_score ?? 0)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {quizzesNotCompleted.map((q, i) => (
+                <div key={`qn${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-rose-50/30">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{String(q.title ?? "—")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
+                    لم يؤدها
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Attendance */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-teal-600" />
+            الحضور ({attendance.length} مقرر)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {attendance.length === 0 ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات حضور</div>
+          ) : (
+            <div className="divide-y">
+              {attendance.map((a, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{String(a.subject_name ?? "—")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      حاضر: {Number(a.present ?? 0)} · متأخر: {Number(a.late ?? 0)} · غائب: {Number(a.absent ?? 0)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant={Number(a.percentage ?? 0) >= 75 ? 'default' : 'destructive'}
+                    className="text-[9px] shrink-0"
+                  >
+                    {Number(a.percentage ?? 0)}%
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Lesson Progress */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-indigo-600" />
+            تقدم الدروس ({lessonProgress.length} مقرر)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {lessonProgress.length === 0 ? (
+            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات تقدم</div>
+          ) : (
+            <div className="divide-y">
+              {lessonProgress.map((lp, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate">{String(lp.subject_name ?? "—")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      أكمل: {Number(lp.completed_lessons ?? 0)} من {Number(lp.total_lessons ?? 0)} درس
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] shrink-0">
+                    {Number(lp.percentage ?? 0)}%
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
