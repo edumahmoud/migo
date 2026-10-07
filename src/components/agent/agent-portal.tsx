@@ -25,18 +25,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2, Ban, BadgeCheck, Clock, RefreshCw, Search, Users,
-  Settings, Inbox, BookOpen, Power, PowerOff, ShieldCheck,
+  Settings, Inbox, BookOpen, ShieldCheck,
   LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
-  ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronLeft, ChevronRight, ChevronDown,
-  AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, UserCircle,
+  ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronRight, ChevronDown,
+  AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
@@ -174,9 +172,18 @@ export default function AgentPortal({
     }
   }, []);
 
+  // v116 fix (A5): fetch /api/agent/me LAZILY — only when the user opens
+  // the 'teacherView' section. Before this fix, the call fired on every
+  // mount, including when the agent was just using 'search' or 'pending'.
+  // The 'teacherView' is the only consumer of `self` + `teacher`, so
+  // lazy-loading avoids an unnecessary API call on first paint.
   useEffect(() => {
+    if (activeSection !== 'teacherView') return;
+    // Only fetch when self is null (first open) — avoids refetching on
+    // every re-render within the same 'teacherView' session.
+    if (self !== null || selfError !== null) return;
     fetchSelf();
-  }, [fetchSelf]);
+  }, [activeSection, self, selfError, fetchSelf]);
 
   // ─── Search student by code ───
   const searchStudent = async () => {
@@ -578,7 +585,7 @@ export default function AgentPortal({
 
       {/* ════════ Section: TEACHER VIEW (top-level, replaces old "Settings + students") ════════ */}
       {activeSection === 'teacherView' && (
-        <SettingsSection
+        <TeacherViewSection
           self={self}
           teacher={teacher}
           selfError={selfError}
@@ -604,9 +611,18 @@ export default function AgentPortal({
 }
 
 // ──────────────────────────────────────────────────────────────
-// SettingsSection — v114
-//   Shows the agent's own profile + a Teacher View that exposes
-//   the teacher's sidebar (filtered by allowed_sections).
+// TeacherViewSection — v116 (was SettingsSection — renamed for clarity)
+//   Shows the agent's own profile + a 2-stage navigation for the
+//   teacher's allowed sections:
+//     Stage 1: A grid of section cards (Dashboard, Students, Subjects, …).
+//              The agent picks one to drill down.
+//     Stage 2: The selected section's content (read-only preview) with
+//              a back button to return to the grid.
+//
+//   Before this restructure, all 18 section buttons + the preview were
+//   crammed into ONE page → very long + hard to navigate. The 2-stage
+//   approach gives the agent a clean "home" view + a dedicated page
+//   per section.
 //
 //   If fetchSelf failed (e.g., the agent's row was deactivated or
 //   deleted by the teacher, leaving role='registration_agent' but
@@ -614,7 +630,7 @@ export default function AgentPortal({
 //   card with the actual server-side error message + a Retry
 //   button — instead of an infinite spinner.
 // ──────────────────────────────────────────────────────────────
-function SettingsSection({
+function TeacherViewSection({
   self,
   teacher,
   selfError,
@@ -683,7 +699,43 @@ function SettingsSection({
 
   const allowedIsAll = self.allowed_sections === null;
   const allowedCount = self.allowed_sections?.length ?? 0;
+  const selectedSection = visibleTeacherSections.find(s => s.id === teacherViewSection);
 
+  // ─── Stage 2: section detail view (when a section is selected) ───
+  // Render a dedicated "page" for the selected section with a back
+  // button at the top. This is much cleaner than the old layout that
+  // crammed the section grid + the preview on one page.
+  if (selectedSection) {
+    return (
+      <>
+        <header className="flex items-center gap-3">
+          <button
+            onClick={() => setTeacherViewSection('')}
+            className="shrink-0 flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs hover:bg-muted transition-colors"
+            title="رجوع لقائمة الأقسام"
+            aria-label="رجوع"
+          >
+            <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
+          </button>
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
+            {selectedSection.icon}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold truncate">{selectedSection.label}</h1>
+            <p className="text-sm text-muted-foreground truncate">عرض المعلم — قراءة فقط</p>
+          </div>
+        </header>
+
+        <Card>
+          <CardContent className="space-y-2">
+            <TeacherSectionPreview sectionId={selectedSection.id} />
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
+
+  // ─── Stage 1: section grid (no section selected) ───
   return (
     <>
       <header className="flex items-center gap-3">
@@ -692,11 +744,11 @@ function SettingsSection({
         </div>
         <div>
           <h1 className="text-xl font-bold">عرض المعلم</h1>
-          <p className="text-sm text-muted-foreground">أقسام المعلم المرئية لك — قراءة فقط</p>
+          <p className="text-sm text-muted-foreground">أقسام المعلم المرئية لك — اختر قسماً للمتابعة</p>
         </div>
       </header>
 
-      {/* Agent profile card */}
+      {/* Agent profile summary (compact) */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -742,34 +794,33 @@ function SettingsSection({
         </CardContent>
       </Card>
 
-      {/* Teacher View navigation */}
+      {/* Teacher View section grid — bigger cards, each one a clear CTA */}
       {visibleTeacherSections.length > 0 ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <LayoutDashboard className="h-4 w-4 text-sky-600" />
-              عرض المعلم — اختر قسماً
+              الأقسام المسموحة لك ({visibleTeacherSections.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 p-2">
-              {visibleTeacherSections.map((sec) => {
-                const active = teacherViewSection === sec.id;
-                return (
-                  <button
-                    key={sec.id}
-                    onClick={() => setTeacherViewSection(sec.id)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                      active
-                        ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
-                        : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300'
-                    } ${isRTL ? 'flex-row-reverse' : ''}`}
-                  >
-                    <span className="shrink-0">{sec.icon}</span>
-                    <span className="truncate">{sec.label}</span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
+              {visibleTeacherSections.map((sec) => (
+                <button
+                  key={sec.id}
+                  onClick={() => setTeacherViewSection(sec.id)}
+                  className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-start text-xs font-medium transition-all ${
+                    isRTL ? 'flex-row-reverse text-end' : ''
+                  } border-border hover:bg-sky-50 hover:border-sky-300 dark:hover:bg-sky-900/20 dark:hover:border-sky-700 text-slate-700 dark:text-slate-300 hover:text-sky-700 dark:hover:text-sky-300`}
+                >
+                  <span className="shrink-0 text-sky-600 dark:text-sky-400">{sec.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold">{sec.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">عرض البيانات</div>
+                  </div>
+                  <ArrowRight className={`h-3 w-3 shrink-0 self-center text-muted-foreground ${isRTL ? 'rotate-180' : ''}`} />
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -780,25 +831,6 @@ function SettingsSection({
             <p className="text-sm text-muted-foreground">
               المعلم لم يمنحك صلاحية الوصول لأي قسم من أقسامه. تواصل معه لتفعيل الصلاحيات.
             </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Teacher section preview (read-only — points user to teacher dashboard for full view) */}
-      {visibleTeacherSections.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              {visibleTeacherSections.find(s => s.id === teacherViewSection)?.icon}
-              {visibleTeacherSections.find(s => s.id === teacherViewSection)?.label ?? '—'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              هذه نسخة معاينة من قسم المعلم. للوصول إلى الإجراءات الكاملة (تعديل، إضافة، حذف)،
-              يحتاج المعلم إلى تسجيل الدخول بنفسه. الوكيل يرى البيانات فقط.
-            </p>
-            <TeacherSectionPreview sectionId={teacherViewSection} />
           </CardContent>
         </Card>
       )}
