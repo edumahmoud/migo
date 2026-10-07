@@ -105,6 +105,42 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // v116 FIX: if NO plans were explicitly selected (allPlanIdsToFetch is
+  // empty), auto-fetch each subject's DEFAULT plan (monthly type, or the
+  // first active plan if no monthly exists). This ensures the API uses the
+  // plan's price — not the stale subject.price — when the student subscribes
+  // without picking from the dropdown (which doesn't show for single-plan
+  // courses per the user's request "dropdown only when 2+ plans").
+  //
+  // Without this fix: course has subject.price=100 (pre-v116) + a free
+  // monthly plan (price=0). Student subscribes without planId → API uses
+  // subject.price=100 → creates a PAID order instead of a FREE one.
+  if (allPlanIdsToFetch.size === 0 && requestedSubjectIds.length > 0) {
+    const { data: defaultPlans } = await supabaseServer
+      .from('subject_subscription_plans')
+      .select('id, subject_id, period_type, period_label, duration_days, price, is_active')
+      .in('subject_id', requestedSubjectIds)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    for (const p of (defaultPlans ?? []) as Array<{
+      id: string; subject_id: string; period_type: string;
+      period_label: string; duration_days: number; price: number; is_active: boolean;
+    }>) {
+      // Only set if not already set (first plan per subject wins —
+      // sort_order=0 is typically the monthly plan).
+      if (!plansBySubjectId.has(p.subject_id)) {
+        plansBySubjectId.set(p.subject_id, {
+          id: p.id,
+          price: Number(p.price),
+          duration_days: p.duration_days,
+          period_type: p.period_type,
+          period_label: p.period_label,
+        });
+      }
+    }
+  }
+
   // Legacy single-planId support: if planId is provided, use it for ALL
   // subjects (backward compat with old callers that send a single planId).
   // But only if the plan's subject is in the requested list.
