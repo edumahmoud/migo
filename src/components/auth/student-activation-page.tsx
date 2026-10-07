@@ -255,30 +255,27 @@ export default function StudentActivationPage() {
     if (selectedCourses.size === 0) { toast.error('اختر مقرراً واحداً على الأقل'); return; }
     setSubmitting(true);
     try {
-      // v116: For unified multi-subject subscription, plan selection is
-      // per-subject in the UI but the /api/student/orders endpoint only
-      // accepts a SINGLE planId that must belong to ONE of the selected
-      // subjects. Sending that planId for OTHER subjects produces wrong
-      // prices + plan_id FK violations.
-      //
-      // Surgical fix: send planId ONLY when exactly ONE subject is
-      // selected. For multi-subject subscriptions, send NO planId —
-      // each subject uses its own default monthly price (subject.price).
-      // This preserves the unified subscription: all subjects get
-      // pending orders, the multi-checkout session groups them, the
-      // student pays for all in one Paymob Intention, the webhook
-      // activates all when payment is confirmed.
+      // v116 fix: send per-subject planIds so each subject uses its own
+      // selected plan (e.g., subject A with free plan, subject B with yearly).
+      // Before this fix, only a SINGLE planId was sent (for single-subject
+      // subscriptions). Multi-subject subscriptions used subject.price for
+      // ALL subjects → free plans were ignored → all orders became paid.
+      // Now: build a { subjectId: planId } map from selectedPlanIds,
+      // stripping synthetic 'default-monthly-' IDs.
       const selectedSubjectIds = Array.from(selectedCourses);
-      let planId: string | undefined;
-      if (selectedSubjectIds.length === 1) {
-        const pid = selectedPlanIds[selectedSubjectIds[0]];
+      const planIds: Record<string, string> = {};
+      for (const sid of selectedSubjectIds) {
+        const pid = selectedPlanIds[sid];
         if (pid && !pid.startsWith('default-monthly-')) {
-          planId = pid;
+          planIds[sid] = pid;
         }
       }
       const res = await fetch('/api/student/orders', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({ subjectIds: selectedSubjectIds, ...(planId ? { planId } : {}) }),
+        body: JSON.stringify({
+          subjectIds: selectedSubjectIds,
+          ...(Object.keys(planIds).length > 0 ? { planIds } : {}),
+        }),
       });
       const json = await res.json();
       if (json.success) {

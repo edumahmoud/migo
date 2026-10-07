@@ -35,8 +35,14 @@ import { calculateFees, breakdownToJsonb } from '@/lib/fees/calculator';
  */
 const BodySchema = z.object({
   subjectIds: z.array(z.string().uuid()).min(1),
-  // v113: optional subscription plan ID (monthly/term/yearly)
+  // v113: optional subscription plan ID (monthly/term/yearly) — used when
+  // the student subscribes to ONE subject with a specific plan.
   planId: z.string().uuid().optional(),
+  // v116: per-subject plan assignments — used when the student subscribes
+  // to MULTIPLE subjects at once, each with its own selected plan.
+  // Format: { "subjectId1": "planId1", "subjectId2": "planId2", ... }
+  // The API validates each planId belongs to the specified subjectId.
+  planIds: z.record(z.string().uuid(), z.string().uuid()).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -56,37 +62,74 @@ export async function POST(request: NextRequest) {
   const studentId = auth.user.id;
   const requestedSubjectIds = Array.from(new Set(parsed.data.subjectIds));
   const planId = parsed.data.planId;
+  const planIdsMap = parsed.data.planIds ?? {};
 
-  // v113: If planId is provided, fetch the plan to use its price + duration
-  // instead of the default subject.price. The plan must be active and belong
-  // to one of the requested subjects.
+  // v116: fetch ALL plans referenced in either planId (single) or planIds
+  // (per-subject map) in ONE query. This replaces the old single-planId-only
+  // fetch + allows the activation page to send per-subject plan assignments
+  // when the student subscribes to multiple subjects at once (each with its
+  // own plan — e.g., subject A with yearly plan, subject B with free plan).
+  const allPlanIdsToFetch = new Set<string>();
+  if (planId) allPlanIdsToFetch.add(planId);
+  for (const pid of Object.values(planIdsMap)) allPlanIdsToFetch.add(pid);
+
+  // Map: subjectId → plan details (price, duration, etc.)
+  const plansBySubjectId = new Map<string, {
+    id: string; price: number; duration_days: number;
+    period_type: string; period_label: string;
+  }>();
+
+  if (allPlanIdsToFetch.size > 0) {
+    const { data: plansData, error: plansErr } = await supabaseServer
+      .from('subject_subscription_plans')
+      .select('id, subject_id, period_type, period_label, duration_days, price, is_active')
+      .in('id', Array.from(allPlanIdsToFetch));
+
+    if (plansErr || !plansData) {
+      return NextResponse.json(
+        { success: false, error: 'تعذّر جلب بيانات خطط الاشتراك' },
+        { status: 500 },
+      );
+    }
+
+    for (const p of plansData as Array<{ id: string; subject_id: string; period_type: string; period_label: string; duration_days: number; price: number; is_active: boolean }>) {
+      if (!p.is_active) continue;
+      if (!requestedSubjectIds.includes(p.subject_id)) continue;
+      plansBySubjectId.set(p.subject_id, {
+        id: p.id,
+        price: Number(p.price),
+        duration_days: p.duration_days,
+        period_type: p.period_type,
+        period_label: p.period_label,
+      });
+    }
+  }
+
+  // Legacy single-planId support: if planId is provided, use it for ALL
+  // subjects (backward compat with old callers that send a single planId).
+  // But only if the plan's subject is in the requested list.
   let planPriceOverride: number | null = null;
   let planDurationDays: number | null = null;
   let planPeriodType: string | null = null;
   let planPeriodLabel: string | null = null;
+  let legacyPlanId: string | null = null;
   if (planId) {
-    const { data: plan } = await supabaseServer
-      .from('subject_subscription_plans')
-      .select('id, subject_id, period_type, period_label, duration_days, price, is_active')
-      .eq('id', planId)
-      .maybeSingle();
-    if (!plan || !(plan as { is_active: boolean }).is_active) {
+    for (const [sid, p] of plansBySubjectId.entries()) {
+      if (p.id === planId) {
+        legacyPlanId = planId;
+        planPriceOverride = p.price;
+        planDurationDays = p.duration_days;
+        planPeriodType = p.period_type;
+        planPeriodLabel = p.period_label;
+        break;
+      }
+    }
+    if (!legacyPlanId) {
       return NextResponse.json(
-        { success: false, error: 'خطة الاشتراك غير موجودة أو غير مفعّلة' },
+        { success: false, error: 'خطة الاشتراك غير موجودة أو غير مفعّلة أو لا تنتمي لأحد المقررات المطلوبة' },
         { status: 400 },
       );
     }
-    const planRow = plan as { subject_id: string; period_type: string; period_label: string; duration_days: number; price: number };
-    if (!requestedSubjectIds.includes(planRow.subject_id)) {
-      return NextResponse.json(
-        { success: false, error: 'خطة الاشتراك لا تنتمي لأحد المقررات المطلوبة' },
-        { status: 400 },
-      );
-    }
-    planPriceOverride = Number(planRow.price);
-    planDurationDays = planRow.duration_days;
-    planPeriodType = planRow.period_type;
-    planPeriodLabel = planRow.period_label;
   }
 
   // 1. Fetch subjects (server-side price source of truth).
@@ -182,11 +225,20 @@ export async function POST(request: NextRequest) {
     const subject = subjectsMap.get(subjectId);
     if (!subject) continue;
 
+    // v116: resolve the per-subject plan (from planIds map) OR fall back
+    // to the legacy single planId (applied to all subjects). This ensures
+    // each subject uses its own selected plan — critical for multi-subject
+    // subscriptions where subject A might have a free plan and subject B
+    // might have a yearly plan.
+    const subjectPlan = plansBySubjectId.get(subjectId);
+    const effectivePlanId = subjectPlan?.id ?? legacyPlanId ?? null;
+    const effectivePriceOverride = subjectPlan?.price ?? planPriceOverride ?? null;
+    const effectiveDurationDays = subjectPlan?.duration_days ?? planDurationDays ?? null;
+    const effectivePeriodType = subjectPlan?.period_type ?? planPeriodType ?? null;
+    const effectivePeriodLabel = subjectPlan?.period_label ?? planPeriodLabel ?? null;
+
     if (subject.price === 0) {
       // v113: FREE course — create 'pending' order, do NOT auto-activate.
-      // The agent/teacher must approve the subscription manually.
-      // (Previously the system auto-activated free courses via the RPC.
-      // Now the order stays 'pending' until the agent approves it.)
       const orderRef = `free_${randomUUID()}`;
       const { data: freeOrder } = await supabaseServer
         .from('orders')
@@ -198,10 +250,8 @@ export async function POST(request: NextRequest) {
           provider: 'free',
           provider_order_ref: orderRef,
           status: 'pending',
-          // v116: snapshot plan_id + plan_duration_days so the activation
-          // flow knows which plan was selected (and uses its duration).
-          plan_id: planId ?? null,
-          plan_duration_days: planDurationDays,
+          plan_id: effectivePlanId,
+          plan_duration_days: effectiveDurationDays,
         })
         .select('id')
         .single();
@@ -209,13 +259,8 @@ export async function POST(request: NextRequest) {
       if (freeOrder) {
         createdOrders.push({ subject_id: subjectId, subject_name: subject.name, amount: 0, status: 'pending', free: true, order_id: (freeOrder as { id: string }).id });
       }
-    } else if (planPriceOverride === 0) {
+    } else if (effectivePriceOverride === 0) {
       // v116: PAID subject + FREE plan (e.g., scholarship plan with price=0).
-      // Route through the FREE branch so the agent can activate the order
-      // directly without payment gateway involvement. Without this, the
-      // order would go through the PAID branch and the agent would see
-      // an order with amount=0 in the pending list but no way to
-      // activate it (the gateway never fires for amount=0).
       const orderRef = `free_${randomUUID()}`;
       const { data: freeOrder } = await supabaseServer
         .from('orders')
@@ -227,8 +272,8 @@ export async function POST(request: NextRequest) {
           provider: 'free',
           provider_order_ref: orderRef,
           status: 'pending',
-          plan_id: planId ?? null,
-          plan_duration_days: planDurationDays,
+          plan_id: effectivePlanId,
+          plan_duration_days: effectiveDurationDays,
         })
         .select('id')
         .single();
@@ -241,8 +286,8 @@ export async function POST(request: NextRequest) {
           status: 'pending',
           free: true,
           free_plan: true,
-          plan_period_type: planPeriodType,
-          plan_period_label: planPeriodLabel,
+          plan_period_type: effectivePeriodType,
+          plan_period_label: effectivePeriodLabel,
           order_id: (freeOrder as { id: string }).id,
         });
       }
@@ -298,8 +343,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // v113: use plan price override when available
-      const basePrice = planPriceOverride !== null ? planPriceOverride : Number(subject.price);
+      // v116: use per-subject plan price override when available
+      const basePrice = effectivePriceOverride !== null ? effectivePriceOverride : Number(subject.price);
       const feeRows = (activeFees ?? []) as Array<{
         id: string; code: string; name_ar: string; name_en: string;
         fee_kind: 'percentage' | 'flat'; value: number; sort_order: number;
@@ -334,8 +379,8 @@ export async function POST(request: NextRequest) {
           // v116: snapshot plan_id + plan_duration_days so the activation
           // RPC can use the plan's actual duration (e.g., 365 for yearly)
           // instead of the hardcoded 30-day default.
-          plan_id: planId ?? null,
-          plan_duration_days: planDurationDays,
+          plan_id: effectivePlanId,
+          plan_duration_days: effectiveDurationDays,
         })
         .select('id, subject_id, amount, base_amount, fees_total, grand_total, currency, provider, status, created_at, fees_breakdown')
         .single();
