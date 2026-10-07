@@ -139,7 +139,13 @@ export default function AgentPortal({
   const [suspendStudentId, setSuspendStudentId] = useState<string | null>(null);
   const [suspendStudentName, setSuspendStudentName] = useState<string>('');
   const [suspendSubjects, setSuspendSubjects] = useState<Array<{ id: string; name: string }>>([]);
-  const [teacherViewSection, setTeacherViewSection] = useState<string>('dashboard');
+  // v116 fix: initial state is '' (empty) so the GRID shows first when
+  // the user opens Teacher View. Before this fix, the initial state was
+  // 'dashboard' → the component skipped the grid and went straight to
+  // the dashboard detail view (which is read-only) → the user never
+  // saw the grid with the "إجراءات متاحة" badges → they thought the
+  // whole Teacher View was read-only.
+  const [teacherViewSection, setTeacherViewSection] = useState<string>('');
   const { confirmDialog, confirm } = useConfirmDialog();
 
   // ─── Fetch agent profile (for allowed_sections + display) ───
@@ -346,17 +352,17 @@ export default function AgentPortal({
     return TEACHER_SECTION_DEFS.filter(def => self.allowed_sections!.includes(def.id));
   }, [self]);
 
-  // v116 fix: when entering 'teacherView', default the teacher-view sub-section
-  // to the first allowed section if the current selection isn't in the allowed
-  // list (e.g. default 'dashboard' but agent's allowed_sections doesn't include
-  // 'dashboard'). Before this fix the check was for 'settings' (the old name)
-  // → the auto-default NEVER fired → agent saw an empty/invalid preview when
-  // their first allowed section wasn't 'dashboard'.
+  // v116 fix: when entering 'teacherView', if the current section selection
+  // is NOT in the allowed list (and is not '' = grid view), reset to '' so
+  // the grid shows. Don't auto-default to the first allowed section — that
+  // would skip the grid and go straight to a detail view, which is how the
+  // bug manifested (user never saw the grid with "إجراءات متاحة" badges).
   useEffect(() => {
     if (activeSection !== 'teacherView') return;
+    if (teacherViewSection === '') return; // empty = grid view, don't touch
     const allowed = visibleTeacherSections.map(s => s.id);
     if (allowed.length > 0 && !allowed.includes(teacherViewSection)) {
-      setTeacherViewSection(allowed[0]);
+      setTeacherViewSection(''); // reset to grid
     }
   }, [activeSection, visibleTeacherSections, teacherViewSection]);
 
@@ -1488,9 +1494,14 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
     subject: { id: string; name: string; price: number | null } | null;
   }>;
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const { confirm } = useConfirmDialog();
+  // v116 fix: MUST destructure + render `confirmDialog` — the hook returns
+  // a JSX element that renders the AlertDialog. Without rendering it, the
+  // `confirm()` promise never resolves (the dialog is never shown) → the
+  // activate/cancel actions hang forever → the user thinks the buttons
+  // don't work.
+  const { confirmDialog: pendingConfirmDialog, confirm } = useConfirmDialog();
 
-  if (items.length === 0) return <EmptyState label="لا توجد طلبات معلّقة" />;
+  if (items.length === 0) return <>{pendingConfirmDialog}<EmptyState label="لا توجد طلبات معلّقة" /></>;
   const formatDate = (iso: string) => {
     try { return new Date(iso).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }); }
     catch { return '—'; }
@@ -1551,6 +1562,7 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
   };
 
   return (
+    <>
     <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
       {items.map((o) => {
         const isFree = !o.amount || o.amount === 0;
@@ -1604,6 +1616,10 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
         );
       })}
     </div>
+    {/* v116 fix: render the confirm dialog — without this, the confirm()
+        promise never resolves and the actions hang. */}
+    {pendingConfirmDialog}
+    </>
   );
 }
 
