@@ -161,40 +161,137 @@ export function PaymentSummaryDialog({
   }>({});
 
   // Fetch the FULL order details (including fees_breakdown) from the
-  // server when the dialog opens in single-order mode. This makes the
-  // dialog self-sufficient — it doesn't depend on the caller passing
-  // the fees fields through props (which was unreliable).
+  // server when the dialog opens. This makes the dialog self-sufficient
+  // — it doesn't depend on the caller passing the fees fields through
+  // props (which was unreliable).
+  //
+  // v121 FIX: in multi-mode, fetch details for EACH order in the session
+  // (not just skip the fetch). This gives us the per-order fees_breakdown
+  // (platform_commission %, tax, processing_fee, etc.) so the dialog can
+  // show DETAILED fee rows instead of a single "رسوم إضافية" aggregate.
+  const [multiFeesData, setMultiFeesData] = useState<{
+    baseTotal: number;
+    feesTotal: number;
+    grandTotal: number;
+    feesBreakdown: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+  } | null>(null);
+
   useEffect(() => {
-    if (!open || isMultiMode || !order?.orderId) {
+    if (!open) {
       setFeesData({});
+      setMultiFeesData(null);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const headers = await getCachedAuthHeaders();
-        const res = await fetch(`/api/student/orders/${order!.orderId}`, { headers });
-        const json = await res.json();
-        if (cancelled || !json.success || !json.order) return;
-        const o = json.order as {
-          amount?: number | string;
-          base_amount?: number | string | null;
-          fees_total?: number | string | null;
-          grand_total?: number | string | null;
-          fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
-        };
-        setFeesData({
-          baseAmount: o.base_amount != null ? Number(o.base_amount) : undefined,
-          feesTotal: o.fees_total != null ? Number(o.fees_total) : undefined,
-          grandTotal: o.grand_total != null ? Number(o.grand_total) : undefined,
-          feesBreakdown: o.fees_breakdown ?? [],
-        });
-      } catch {
-        // Network error — fall back to props data
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [open, isMultiMode, order?.orderId]);
+
+    // Single-order mode: fetch the one order
+    if (!isMultiMode && order?.orderId) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const headers = await getCachedAuthHeaders();
+          const res = await fetch(`/api/student/orders/${order!.orderId}`, { headers });
+          const json = await res.json();
+          if (cancelled || !json.success || !json.order) return;
+          const o = json.order as {
+            amount?: number | string;
+            base_amount?: number | string | null;
+            fees_total?: number | string | null;
+            grand_total?: number | string | null;
+            fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+          };
+          setFeesData({
+            baseAmount: o.base_amount != null ? Number(o.base_amount) : undefined,
+            feesTotal: o.fees_total != null ? Number(o.fees_total) : undefined,
+            grandTotal: o.grand_total != null ? Number(o.grand_total) : undefined,
+            feesBreakdown: o.fees_breakdown ?? [],
+          });
+        } catch {
+          // Network error — fall back to props data
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+
+    // Multi-mode: v121 — fetch details for ALL session orders in parallel
+    if (isMultiMode && sessionItems && sessionItems.length > 0) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const headers = await getCachedAuthHeaders();
+          const results = await Promise.all(
+            sessionItems.map(async (it) => {
+              try {
+                const res = await fetch(`/api/student/orders/${it.order_id}`, { headers });
+                const json = await res.json();
+                if (!json.success || !json.order) return null;
+                return json.order as {
+                  base_amount?: number | string | null;
+                  fees_total?: number | string | null;
+                  grand_total?: number | string | null;
+                  fees_breakdown?: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }>;
+                };
+              } catch {
+                return null;
+              }
+            })
+          );
+
+          if (cancelled) return;
+
+          // Aggregate per-order fees_breakdown by summing calculated_amount
+          // for each unique fee code.
+          const feesByCode = new Map<string, {
+            code: string; name_ar: string; name_en: string;
+            fee_kind: string; value: number;
+            base_amount: number; calculated_amount: number;
+          }>();
+
+          let baseTotal = 0;
+          let feesTotal = 0;
+          let grandTotal = 0;
+
+          for (const o of results) {
+            if (!o) continue;
+            const baseAmt = o.base_amount != null ? Number(o.base_amount) : 0;
+            const feesT = o.fees_total != null ? Number(o.fees_total) : 0;
+            const grandT = o.grand_total != null ? Number(o.grand_total) : 0;
+            baseTotal += baseAmt;
+            feesTotal += feesT;
+            grandTotal += grandT;
+
+            const breakdown = o.fees_breakdown ?? [];
+            for (const fee of breakdown) {
+              const existing = feesByCode.get(fee.code);
+              if (existing) {
+                existing.calculated_amount += Number(fee.calculated_amount) || 0;
+                existing.base_amount += Number(fee.base_amount) || 0;
+              } else {
+                feesByCode.set(fee.code, {
+                  code: fee.code,
+                  name_ar: fee.name_ar,
+                  name_en: fee.name_en,
+                  fee_kind: fee.fee_kind,
+                  value: Number(fee.value) || 0,
+                  base_amount: Number(fee.base_amount) || 0,
+                  calculated_amount: Number(fee.calculated_amount) || 0,
+                });
+              }
+            }
+          }
+
+          setMultiFeesData({
+            baseTotal,
+            feesTotal,
+            grandTotal,
+            feesBreakdown: Array.from(feesByCode.values()),
+          });
+        } catch {
+          // Network error — fall back to the synthetic aggregate
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+  }, [open, isMultiMode, order?.orderId, sessionItems]);
 
   // Use fetched data if available, otherwise fall back to props.
   // v116: in MULTI-MODE, `order` is null + the useEffect above SKIPS
@@ -213,34 +310,41 @@ export function PaymentSummaryDialog({
   // the aggregate fees total. We also synthesize a single "رسوم إضافية"
   // row so the breakdown UI has something to render (instead of the
   // empty-state "+0.00" placeholder).
+  // v121: in multi-mode, prefer the fetched multiFeesData (detailed
+  // per-fee breakdown) over the synthetic aggregate. Fall back to the
+  // synthetic aggregate only if the fetch failed.
   const multiBaseFromSession = isMultiMode
-    ? (sessionItems as CheckoutSessionItem[]).reduce((sum, it) => {
+    ? (multiFeesData?.baseTotal ?? (sessionItems as CheckoutSessionItem[]).reduce((sum, it) => {
         const b = it.base_amount !== undefined ? Number(it.base_amount)
           : (it.subject_price !== undefined ? Number(it.subject_price) : Number(it.amount));
         return sum + b;
-      }, 0)
+      }, 0))
     : 0;
 
   const multiGrandTotal = isMultiMode
-    ? (sessionItems as CheckoutSessionItem[]).reduce((sum, it) => sum + Number(it.amount), 0)
+    ? (multiFeesData?.grandTotal ?? (sessionItems as CheckoutSessionItem[]).reduce((sum, it) => sum + Number(it.amount), 0))
     : 0;
 
   const multiFeesTotal = isMultiMode
-    ? Math.max(0, multiGrandTotal - multiBaseFromSession)
+    ? (multiFeesData?.feesTotal ?? Math.max(0, multiGrandTotal - multiBaseFromSession))
     : 0;
 
-  // Synthetic fees row for multi-mode (so the breakdown section doesn't
-  // show the empty "+0.00" placeholder when there ARE fees aggregated).
-  const multiFeesBreakdown = isMultiMode && multiFeesTotal > 0
-    ? [{
-        code: 'aggregated_fees',
-        name_ar: 'رسوم إضافية',
-        name_en: 'Additional fees',
-        fee_kind: 'flat' as const,
-        value: 0,
-        base_amount: multiBaseFromSession,
-        calculated_amount: multiFeesTotal,
-      }]
+  // v121: use detailed fees_breakdown from multiFeesData if available;
+  // otherwise fall back to the synthetic single-row aggregate.
+  const multiFeesBreakdown = isMultiMode
+    ? (multiFeesData?.feesBreakdown && multiFeesData.feesBreakdown.length > 0
+      ? multiFeesData.feesBreakdown
+      : (multiFeesTotal > 0
+        ? [{
+            code: 'aggregated_fees',
+            name_ar: 'رسوم إضافية',
+            name_en: 'Additional fees',
+            fee_kind: 'flat' as const,
+            value: 0,
+            base_amount: multiBaseFromSession,
+            calculated_amount: multiFeesTotal,
+          }]
+        : []))
     : [];
 
   const feesBreakdown = isMultiMode

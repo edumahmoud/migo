@@ -56,6 +56,10 @@ interface StudentResult {
   pending_orders: Array<{
     id: string; subject_id: string; amount: number; currency: string;
     status: string; created_at: string; provider_order_ref: string | null;
+    // v121: add v88 fees-on-top fields
+    base_amount?: number | null;
+    fees_total?: number | null;
+    grand_total?: number | null;
     subject: { id: string; name: string; price?: number } | null;
   }>;
 }
@@ -63,6 +67,10 @@ interface StudentResult {
 interface PendingOrder {
   id: string; subject_id: string; amount: number; currency: string;
   status: string; created_at: string; provider_order_ref: string | null;
+  // v121: add v88 fees-on-top fields (returned by /api/agent/orders since v117)
+  base_amount?: number | null;
+  fees_total?: number | null;
+  grand_total?: number | null;
   student: { id: string; name: string | null; email: string; student_code: string | null } | null;
   subject: { id: string; name: string; price?: number } | null;
 }
@@ -303,55 +311,63 @@ export default function AgentPortal({
   };
 
   // ─── Format price display ───
-  // Shows the original subject price (catalog price) separately
-  // from the order's actual amount (the total the student paid/will pay).
-  // When amount=0 → the order is free (e.g., free subscription plan),
-  // so we show a "مجاني" badge so the agent can confidently activate
-  // the order without hesitation.
-  // v120 FIX: removed the DollarSign icon — it was confusing because it
-  // looked like a "$" currency symbol next to EGP amounts. Now we just
-  // show the number + currency code (e.g., "714.00 EGP") without any
-  // icon prefix.
+  // v121 FIX: completely rewrote the price display logic for pending
+  // orders. The old logic showed the original subject price (catalog
+  // price) with strikethrough + the grand total next to it — this was
+  // confusing because it looked like a "discount" or "price change"
+  // when in reality the difference is the platform fees (commission +
+  // tax + processing).
+  //
+  // New logic:
+  //   - Free orders (amount=0): show "مجاني" badge
+  //   - Paid orders: show base_amount + fees_total = grand_total
+  //     in a clean vertical layout (no strikethrough, no confusion)
+  //
+  // The function now accepts base_amount + fees_total + grand_total
+  // (all available from the /api/agent/orders response since v117)
+  // instead of just originalPrice + amount.
   const renderPriceBlock = (
-    originalPrice: number | undefined | null,
+    baseAmount: number | undefined | null,
+    feesTotal: number | undefined | null,
+    grandTotal: number | undefined | null,
     amount: number,
     currency: string,
   ) => {
     const isFree = !amount || amount === 0;
-    const hasOriginalPrice = originalPrice !== undefined && originalPrice !== null && originalPrice > 0;
-    const originalDifferentFromTotal = hasOriginalPrice && originalPrice !== amount;
 
     if (isFree) {
       return (
-        <div className="flex items-center gap-2 flex-wrap">
-          {originalDifferentFromTotal && (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground line-through decoration-muted-foreground/40">
-              <Tag className="h-3 w-3" />
-              {Number(originalPrice).toFixed(2)} {currency}
-            </span>
-          )}
-          <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
-            <Gift className="h-3 w-3 me-1" />
-            مجاني
-          </Badge>
+        <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
+          <Gift className="h-3 w-3 me-1" />
+          مجاني
+        </Badge>
+      );
+    }
+
+    // v121: prefer the v88 fees-on-top fields if available
+    const base = baseAmount != null ? Number(baseAmount) : null;
+    const fees = feesTotal != null ? Number(feesTotal) : null;
+    const grand = grandTotal != null ? Number(grandTotal) : Number(amount);
+
+    // If we have the breakdown (base + fees = grand), show it cleanly
+    if (base !== null && fees !== null && fees > 0) {
+      return (
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {base.toFixed(2)} + {fees.toFixed(2)} {currency}
+          </span>
+          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
+            {grand.toFixed(2)} {currency}
+          </span>
         </div>
       );
     }
 
-    // Paid order — show original price (if different) + total
-    // v120: removed DollarSign icon — just show the amount + currency
+    // No breakdown available (pre-v88 order or fees=0) — just show the total
     return (
-      <div className="flex items-center gap-2 flex-wrap">
-        {originalDifferentFromTotal && (
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground line-through decoration-muted-foreground/40">
-            <Tag className="h-3 w-3" />
-            {Number(originalPrice).toFixed(2)} {currency}
-          </span>
-        )}
-        <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
-          {Number(amount).toFixed(2)} {currency}
-        </span>
-      </div>
+      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
+        {grand.toFixed(2)} {currency}
+      </span>
     );
   };
 
@@ -506,7 +522,7 @@ export default function AgentPortal({
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{o.subject?.name ?? '—'}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                              {renderPriceBlock(o.subject?.price, o.amount, o.currency)}
+                              {renderPriceBlock(o.base_amount, o.fees_total, o.grand_total, o.amount, o.currency)}
                               <span>·</span>
                               <span>{formatDate(o.created_at)}</span>
                               <span>·</span>
@@ -592,7 +608,7 @@ export default function AgentPortal({
                           <Badge variant="secondary" className="text-[10px]">{o.student?.name ?? '—'}</Badge>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                          {renderPriceBlock(o.subject?.price, o.amount, o.currency)}
+                          {renderPriceBlock(o.base_amount, o.fees_total, o.grand_total, o.amount, o.currency)}
                           <span>·</span>
                           <span>{formatDate(o.created_at)}</span>
                           <span>·</span>
