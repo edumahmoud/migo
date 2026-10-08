@@ -62,6 +62,8 @@ interface StudentResult {
     grand_total?: number | null;
     // v123: add checkout_session_id
     checkout_session_id?: string | null;
+    // v126: add plan_duration_days
+    plan_duration_days?: number | null;
     subject: { id: string; name: string; price?: number } | null;
   }>;
 }
@@ -75,6 +77,8 @@ interface PendingOrder {
   grand_total?: number | null;
   // v123: add checkout_session_id for multi-checkout session detection
   checkout_session_id?: string | null;
+  // v126: add plan_duration_days for free plan duration display
+  plan_duration_days?: number | null;
   student: { id: string; name: string | null; email: string; student_code: string | null } | null;
   subject: { id: string; name: string; price?: number } | null;
 }
@@ -400,6 +404,7 @@ export default function AgentPortal({
   // For multi-checkout sessions: ALL orders in the session are considered
   // "paid" if the FIRST order has provider_order_ref (Paymob ID), even if
   // the other orders don't have their own provider_order_ref.
+  // v126: for FREE orders, show "مجاني" badge + plan duration + timestamp.
   // Shows: badge + payment reference number + timestamp.
   const renderPaymentStatus = (
     order: {
@@ -407,11 +412,32 @@ export default function AgentPortal({
       checkout_session_id?: string | null;
       created_at: string;
       amount: number;
+      plan_duration_days?: number | null;
     },
     sessionFirstOrderRef?: string | null,
   ) => {
     const isFree = !order.amount || order.amount === 0;
-    if (isFree) return null;
+
+    // v126: for free orders, show "مجاني" badge + duration + timestamp
+    if (isFree) {
+      const timestamp = new Date(order.created_at).toLocaleString('ar-EG', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      });
+      const durationDays = order.plan_duration_days ?? 30;
+      const durationLabel = durationDays >= 365 ? 'سنوي' :
+        durationDays >= 120 ? 'ترم' :
+        durationDays >= 60 ? 'فصلين' :
+        'شهري';
+      return (
+        <div className="flex flex-col items-end gap-0.5">
+          <Badge variant="outline" className="text-[9px] border-sky-400 text-sky-700 bg-sky-50">
+            <Gift className="h-2.5 w-2.5 me-0.5" />
+            مجاني ({durationLabel})
+          </Badge>
+          <span className="text-[9px] text-muted-foreground">{timestamp}</span>
+        </div>
+      );
+    }
 
     // Check if THIS order has a real Paymob ref
     const hasOwnRef = !!order.provider_order_ref &&

@@ -28,11 +28,16 @@ interface OrderRow {
   student_id: string;
   subject_id: string;
   amount: number;
+  base_amount?: number | null;
+  fees_total?: number | null;
+  grand_total?: number | null;
   currency: string;
   status: string;
   provider_order_ref: string | null;
   checkout_session_id: string | null;
   created_at: string;
+  plan_id?: string | null;
+  plan_duration_days?: number | null;
   subjects: { id: string; name: string; teacher_id: string } | null;
   users: { id: string; name: string | null; email: string; student_code: string | null } | null;
 }
@@ -49,7 +54,9 @@ export async function GET(request: NextRequest) {
     .from('orders')
     .select(`
       id, student_id, subject_id, amount, currency, status,
+      base_amount, fees_total, grand_total,
       provider_order_ref, checkout_session_id, created_at,
+      plan_id, plan_duration_days,
       subjects:subject_id ( id, name, teacher_id ),
       users:student_id ( id, name, email, student_code )
     `)
@@ -78,6 +85,11 @@ export async function GET(request: NextRequest) {
       student_id: o.student_id,
       subject_id: o.subject_id,
       amount: Number(o.amount),
+      // v126: expose v88 + plan fields
+      base_amount: o.base_amount !== null && o.base_amount !== undefined ? Number(o.base_amount) : null,
+      fees_total: o.fees_total !== null && o.fees_total !== undefined ? Number(o.fees_total) : null,
+      grand_total: o.grand_total !== null && o.grand_total !== undefined ? Number(o.grand_total) : null,
+      plan_duration_days: o.plan_duration_days ?? null,
       currency: o.currency,
       status: o.status,
       provider_order_ref: o.provider_order_ref,

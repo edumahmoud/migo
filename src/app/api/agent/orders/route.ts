@@ -27,10 +27,12 @@ interface OrderRow {
   fees_total: number | null;
   grand_total: number | null;
   fees_breakdown: Array<{ code: string; name_ar: string; name_en: string; fee_kind: string; value: number; base_amount: number; calculated_amount: number }> | null;
+  plan_id?: string | null;
+  plan_duration_days?: number | null;
+  checkout_session_id?: string | null;
   currency: string;
   status: string;
   provider_order_ref: string | null;
-  checkout_session_id: string | null;
   created_at: string;
   subjects: { id: string; name: string; teacher_id: string; price: number | null } | null;
   users: { id: string; name: string | null; email: string; student_code: string | null } | null;
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest) {
       id, student_id, subject_id, amount, currency, status,
       base_amount, fees_total, grand_total, fees_breakdown,
       provider_order_ref, checkout_session_id, created_at,
+      plan_id, plan_duration_days,
       subjects:subject_id ( id, name, teacher_id, price ),
       users:student_id ( id, name, email, student_code )
     `)
@@ -85,6 +88,9 @@ export async function GET(request: NextRequest) {
       fees_total: o.fees_total !== null && o.fees_total !== undefined ? Number(o.fees_total) : null,
       grand_total: o.grand_total !== null && o.grand_total !== undefined ? Number(o.grand_total) : null,
       fees_breakdown: o.fees_breakdown ?? [],
+      // v126: expose plan_duration_days for free plan duration display
+      plan_duration_days: o.plan_duration_days ?? null,
+      checkout_session_id: o.checkout_session_id ?? null,
       currency: o.currency,
       status: o.status,
       provider_order_ref: o.provider_order_ref,

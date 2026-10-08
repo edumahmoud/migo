@@ -24,6 +24,8 @@ interface PendingOrder {
   provider_order_ref: string | null;
   checkout_session_id: string | null;
   created_at: string;
+  // v126: add plan_duration_days for free plan duration display
+  plan_duration_days?: number | null;
   subject: { id: string; name: string } | null;
   student: { id: string; name: string | null; email: string; student_code: string | null } | null;
 }
@@ -341,14 +343,20 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
 
                   {/* Right: amount + payment status + actions */}
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    {/* v123: show base + fees = total (when available) */}
+                    {/* v123/v126: show base + fees = total (when available) */}
                     {(() => {
                       const isFree = !o.amount || o.amount === 0;
                       if (isFree) {
+                        // v126: show "مجاني" + plan duration
+                        const durationDays = o.plan_duration_days ?? 30;
+                        const durationLabel = durationDays >= 365 ? 'سنوي' :
+                          durationDays >= 120 ? 'ترم' :
+                          durationDays >= 60 ? 'فصلين' :
+                          'شهري';
                         return (
                           <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
                             <Gift className="h-3 w-3 me-1" />
-                            مجاني
+                            مجاني ({durationLabel})
                           </Badge>
                         );
                       }

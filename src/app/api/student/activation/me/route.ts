@@ -114,10 +114,12 @@ export async function GET(request: NextRequest) {
     // v123: add subject name (subjects.name) so the activation page can
     // display the course name even after the order is paid (when the
     // course is no longer in available_courses)
-    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref, subjects:subject_id(name)')
+    // v126: also add plan_duration_days so the UI can show the free plan duration
+    // v126: increase limit to 50 (was 10 — free orders could be pushed out by paid orders)
+    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref, plan_id, plan_duration_days, subjects:subject_id(name, price)')
     .eq('student_id', studentId)
     .order('created_at', { ascending: false })
-    .limit(10);
+    .limit(50);
 
   // 5. Existing subscriptions (for showing period/expiry on the activation page).
   const { data: subscriptions } = await supabaseServer

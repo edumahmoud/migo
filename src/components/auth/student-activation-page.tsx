@@ -393,16 +393,22 @@ export default function StudentActivationPage() {
     if (data) {
       // v123: add available courses
       data.available_courses.forEach(c => m.set(c.id, c.name));
-      // v123: also add from recent_orders (for orders that became paid
+      // v123/v126: also add from recent_orders (for orders that became paid
       // and are no longer in available_courses — prevents "مقرر غير معروف")
+      // v126: handle both object and array forms of subjects (Supabase
+      // sometimes returns array for !inner joins)
       data.recent_orders.forEach((o: any) => {
         // Try o.subject_name first (if the API returns it)
         if (o.subject_id && o.subject_name && !m.has(o.subject_id)) {
           m.set(o.subject_id, o.subject_name);
         }
         // Try nested subjects.name (from the JOIN in the API)
-        if (o.subject_id && o.subjects?.name && !m.has(o.subject_id)) {
-          m.set(o.subject_id, o.subjects.name);
+        // subjects could be { name: "..." } OR [{ name: "..." }] (array)
+        if (o.subject_id && o.subjects) {
+          const subj = Array.isArray(o.subjects) ? o.subjects[0] : o.subjects;
+          if (subj?.name && !m.has(o.subject_id)) {
+            m.set(o.subject_id, subj.name);
+          }
         }
       });
     }
@@ -772,6 +778,12 @@ export default function StudentActivationPage() {
                 // v116: detect FREE orders (amount=0 OR provider='free') and show
                 // a different badge — they don't need payment, just agent approval.
                 const isFreeOrder = Number(o.amount) === 0 || o.provider === 'free';
+                // v126: compute plan duration label for free orders
+                const planDurationDays = (o as any).plan_duration_days ?? 30;
+                const durationLabel = planDurationDays >= 365 ? 'سنوي' :
+                  planDurationDays >= 120 ? 'ترم' :
+                  planDurationDays >= 60 ? 'فصلين' :
+                  'شهري';
                 return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -780,12 +792,11 @@ export default function StudentActivationPage() {
                   </div>
                   <div className="text-end shrink-0 flex items-center gap-2">
                     {isFreeOrder ? (
-                      // Free order — show "مجاني" badge + "بانتظار تفعيل الوكيل/المعلم"
-                      // (NOT "استكمال الدفع" — there's no payment to complete)
+                      // v126: Free order — show "مجاني (duration)" badge + "بانتظار تفعيل"
                       <>
                         <Badge variant="outline" className="text-xs border-sky-300 text-sky-700 bg-sky-50">
                           <Gift className="h-3 w-3 me-1" />
-                          مجاني
+                          مجاني ({durationLabel})
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           <Clock className="h-3 w-3 me-1" />
