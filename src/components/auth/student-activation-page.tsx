@@ -391,24 +391,12 @@ export default function StudentActivationPage() {
   const courseNameById = useMemo(() => {
     const m = new Map<string, string>();
     if (data) {
-      // v123: add available courses
       data.available_courses.forEach(c => m.set(c.id, c.name));
-      // v123/v126: also add from recent_orders (for orders that became paid
-      // and are no longer in available_courses — prevents "مقرر غير معروف")
-      // v126: handle both object and array forms of subjects (Supabase
-      // sometimes returns array for !inner joins)
+      // v128: use subject_name directly (from the separate query in the API,
+      // not from a JOIN that might fail due to RLS)
       data.recent_orders.forEach((o: any) => {
-        // Try o.subject_name first (if the API returns it)
         if (o.subject_id && o.subject_name && !m.has(o.subject_id)) {
           m.set(o.subject_id, o.subject_name);
-        }
-        // Try nested subjects.name (from the JOIN in the API)
-        // subjects could be { name: "..." } OR [{ name: "..." }] (array)
-        if (o.subject_id && o.subjects) {
-          const subj = Array.isArray(o.subjects) ? o.subjects[0] : o.subjects;
-          if (subj?.name && !m.has(o.subject_id)) {
-            m.set(o.subject_id, subj.name);
-          }
         }
       });
     }
@@ -785,14 +773,12 @@ export default function StudentActivationPage() {
                   planDurationDays >= 60 ? 'فصلين' :
                   planDurationDays === 30 ? 'شهري' :
                   `${planDurationDays} يوم`;
-                // v127: get the official subject price (from subjects join)
-                const subjData = (o as any).subjects;
-                const subjInfo = Array.isArray(subjData) ? subjData[0] : subjData;
-                const officialPrice = subjInfo?.price != null ? Number(subjInfo.price) : null;
+                // v128: get the official subject price directly from the API
+                const officialPrice = (o as any).subject_price != null ? Number((o as any).subject_price) : null;
                 return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? subjInfo?.name ?? '—'}</div>
+                    <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? (o as any).subject_name ?? '—'}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
                       <span>{new Date(o.created_at).toLocaleString('ar-EG')}</span>
                       {officialPrice != null && officialPrice > 0 && (

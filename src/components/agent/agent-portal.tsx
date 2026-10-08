@@ -1654,6 +1654,7 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
   const items = (data.items ?? []) as Array<{
     id: string; amount: number; currency: string; status: string; created_at: string;
     provider_order_ref: string | null;
+    plan_duration_days?: number | null;
     student: { id: string; name: string | null; email: string; student_code: string | null } | null;
     subject: { id: string; name: string; price: number | null } | null;
   }>;
@@ -1742,9 +1743,19 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {isFree ? (
-                  <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
-                    <Gift className="h-2.5 w-2.5 me-0.5" />مجاني
-                  </Badge>
+                  (() => {
+                    const dDays = o.plan_duration_days ?? 30;
+                    const dLabel = dDays >= 365 ? 'سنوي' :
+                      dDays >= 120 ? 'ترم' :
+                      dDays >= 60 ? 'فصلين' :
+                      dDays === 30 ? 'شهري' :
+                      `${dDays} يوم`;
+                    return (
+                      <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
+                        <Gift className="h-2.5 w-2.5 me-0.5" />مجاني ({dLabel})
+                      </Badge>
+                    );
+                  })()
                 ) : (
                   <span className="font-medium text-emerald-700 dark:text-emerald-300">
                     {Number(o.amount).toFixed(2)} {o.currency}
