@@ -302,21 +302,42 @@ export async function POST(request: NextRequest) {
         .eq('checkout_session_id', webhookResult.orderId);
 
       if (sessionErr || !sessionOrders || sessionOrders.length === 0) {
-        // Not a single order, not a session — give up.
-        logPaymentEvent({
-          level: 'warn',
-          operation: 'handleWebhook',
-          provider: webhookResult.provider,
-          orderId: webhookResult.orderId,
-          success: false,
-          errorCode: 'ORDER_NOT_FOUND',
-          message: `Order/session not found: ${webhookResult.orderId}`,
-          durationMs: Date.now() - startTime,
-        });
-        return NextResponse.json({ ok: true, ignored: 'order_not_found' });
-      }
+        // v124 FIX: THIRD fallback — search by provider_order_ref.
+        // Paymob sometimes returns its own numeric Order ID (e.g.,
+        // "628045496") as merchant_order_id instead of our sessionId.
+        // In multi-checkout, provider_order_ref is stored on the FIRST
+        // order only. If we find that order, the v118 expansion logic
+        // below will expand to all session siblings via checkout_session_id.
+        const { data: orderByRef, error: refErr } = await supabaseServer
+          .from('orders')
+          .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id')
+          .eq('provider_order_ref', webhookResult.orderId)
+          .maybeSingle();
 
-      // Multi-subject session path
+        if (refErr || !orderByRef) {
+          // Not found by id, session_id, or provider_order_ref — give up.
+          logPaymentEvent({
+            level: 'warn',
+            operation: 'handleWebhook',
+            provider: webhookResult.provider,
+            orderId: webhookResult.orderId,
+            success: false,
+            errorCode: 'ORDER_NOT_FOUND',
+            message: `Order/session/ref not found: ${webhookResult.orderId}`,
+            durationMs: Date.now() - startTime,
+          });
+          return NextResponse.json({ ok: true, ignored: 'order_not_found' });
+        }
+
+        // Found by provider_order_ref — use as `o` and let the v118
+        // session-expansion logic below handle the siblings.
+        console.info('[webhook:v124] found order by provider_order_ref, expanding session', {
+          orderId: (orderByRef as { id: string }).id,
+          sessionId: (orderByRef as { checkout_session_id: string | null }).checkout_session_id,
+        });
+        o = orderByRef as OrderRow;
+        // Fall through to the v118 expansion + single-order activation below.
+      } else {
       const sessOrders = sessionOrders as Array<{
         id: string;
         student_id: string;
@@ -572,9 +593,29 @@ export async function POST(request: NextRequest) {
 
       // Pending or other — no action
       return NextResponse.json({ ok: true, status: webhookResult.status });
-    }
+      } // end else (session path)
 
-    o = order as OrderRow;
+    // v124: if we found the order by provider_order_ref above, `o` is
+    // already set. Only set from `order` if it was found by orders.id.
+    if (order) {
+      o = order as OrderRow;
+    }
+    } // end if (!o)
+  }
+
+  // v124: if o is still null at this point, we couldn't find the order
+  if (!o) {
+    logPaymentEvent({
+      level: 'warn',
+      operation: 'handleWebhook',
+      provider: webhookResult.provider,
+      orderId: webhookResult.orderId,
+      success: false,
+      errorCode: 'ORDER_NOT_FOUND',
+      message: `Order could not be resolved: ${webhookResult.orderId}`,
+      durationMs: Date.now() - startTime,
+    });
+    return NextResponse.json({ ok: true, ignored: 'order_not_found' });
   }
 
   // v118 FIX: if the resolved single order is part of a multi-subject
@@ -586,7 +627,7 @@ export async function POST(request: NextRequest) {
   // first order's UUID (stored in provider_order_ref) instead of the
   // session_id (set as special_reference). The webhook finds the
   // single order but doesn't know about the session siblings.
-  if (o.checkout_session_id && webhookResult.status === 'paid') {
+  if (o && o.checkout_session_id && webhookResult.status === 'paid') {
     console.info('[webhook:v118] single order is part of a checkout session — expanding to all session orders', {
       orderId: o.id,
       sessionId: o.checkout_session_id,
@@ -824,3 +865,4 @@ export async function POST(request: NextRequest) {
   // Pending or other status — no action
   return NextResponse.json({ ok: true, status: webhookResult.status });
 }
+
