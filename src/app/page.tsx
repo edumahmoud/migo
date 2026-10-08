@@ -496,6 +496,23 @@ function HomeContent() {
   useEffect(() => {
     const paymentCallback = searchParams.get('payment_callback');
     if (paymentCallback === 'success' || paymentCallback === 'cancelled') {
+      // v122 FIX: Clean the URL IMMEDIATELY (before any async work) so the
+      // browser address bar shows the original app URL, not Paymob's redirect
+      // URL with all its params (id, hmac, order_id, etc.).
+      // We capture ALL Paymob params FIRST (for the verify-after-redirect
+      // call below), THEN clean the URL.
+      const allParams: Record<string, string> = {};
+      const urlForCapture = new URL(window.location.href);
+      urlForCapture.searchParams.forEach((value, key) => {
+        allParams[key] = value;
+      });
+      // Re-add payment_callback (it's part of the HMAC signature)
+      allParams.payment_callback = paymentCallback;
+
+      // NOW clean the URL — replace with just the origin + pathname (no params)
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+
       import('sonner').then(({ toast }) => {
         if (paymentCallback === 'success') {
           // Informational message — NOT a success claim. The actual
@@ -512,36 +529,12 @@ function HomeContent() {
           });
         }
       });
-      // Clean the query param from the URL (so a refresh doesn't
-      // re-trigger the toast).
-      const url = new URL(window.location.href);
-      url.searchParams.delete('payment_callback');
-      window.history.replaceState({}, '', url.toString());
 
       // If success → call the verify-after-redirect endpoint to
       // manually verify the payment via Paymob and activate the
       // subscription immediately. This is a fallback for when the
       // webhook doesn't fire (common in sandbox/test mode).
       if (paymentCallback === 'success') {
-        // Capture ALL URL params from the Paymob redirect URL.
-        // Paymob adds its own params to the redirect URL — different params
-        // for different API versions (id, txn_id, transaction_id,
-        // order_id, merchant_order_id, hmac, success, etc.)
-        const allParams: Record<string, string> = {};
-        // url.searchParams had payment_callback deleted above (line 515),
-        // but all other Paymob params are still there.
-        url.searchParams.forEach((value, key) => {
-          allParams[key] = value;
-        });
-        // v110: CRITICAL — re-add payment_callback to allParams.
-        // Paymob computed the redirect HMAC over ALL query params in the
-        // redirect URL, INCLUDING payment_callback (which is part of the
-        // redirection_url we sent to Paymob). We deleted it from the URL
-        // object for clean browser history, but we MUST include it in the
-        // params sent to the backend — otherwise the HMAC validation will
-        // NEVER match and the student sees "لم يتم العثور على معاملة ناجحة".
-        allParams.payment_callback = paymentCallback;
-
         // Try to extract the transaction ID from multiple possible param names
         const transactionId = allParams.id
           || allParams.txn_id
@@ -588,11 +581,7 @@ function HomeContent() {
               toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
                 duration: 4000,
               });
-              // v113: Clear ALL Paymob query params from the URL before
-              // reloading — prevents loading issues when the app re-reads
-              // the URL on mount. Replace state to the clean root URL,
-              // then reload.
-              window.history.replaceState({}, '', window.location.pathname);
+              // v122: URL is already clean (cleaned above). Just reload.
               window.location.reload();
               return true;
             }

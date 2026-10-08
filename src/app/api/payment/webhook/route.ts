@@ -600,8 +600,13 @@ export async function POST(request: NextRequest) {
 
     if (sessionErr) {
       console.error('[webhook:v118] failed to fetch session orders', sessionErr.message);
-    } else if (sessionOrders && sessionOrders.length > 1) {
-      // Activate ALL session orders (not just the first one)
+    } else if (sessionOrders && sessionOrders.length >= 1) {
+      // v122 FIX: changed 'length > 1' to 'length >= 1'. Even if only 1
+      // pending order remains in the session (the others were already
+      // activated by a previous webhook), we still need to activate it.
+      // The 'length > 1' check was preventing the last pending order in
+      // a session from being activated when the first webhook already
+      // activated some of the siblings.
       const sessOrders = sessionOrders as Array<{
         id: string; student_id: string; subject_id: string;
         amount: number; base_amount: number | null; fees_total: number | null;

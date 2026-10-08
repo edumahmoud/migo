@@ -29,7 +29,7 @@ import {
   LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronRight, ChevronDown,
-  AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight,
+  AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -311,25 +311,13 @@ export default function AgentPortal({
   };
 
   // ─── Format price display ───
-  // v121 FIX: completely rewrote the price display logic for pending
-  // orders. The old logic showed the original subject price (catalog
-  // price) with strikethrough + the grand total next to it — this was
-  // confusing because it looked like a "discount" or "price change"
-  // when in reality the difference is the platform fees (commission +
-  // tax + processing).
-  //
-  // New logic:
-  //   - Free orders (amount=0): show "مجاني" badge
-  //   - Paid orders: show base_amount + fees_total = grand_total
-  //     in a clean vertical layout (no strikethrough, no confusion)
-  //
-  // The function now accepts base_amount + fees_total + grand_total
-  // (all available from the /api/agent/orders response since v117)
-  // instead of just originalPrice + amount.
+  // v122 FIX: completely simplified. Pending orders should NOT show
+  // any fee breakdown (no base + fees, no strikethrough, no percentages).
+  // Just show the total amount the student needs to pay.
+  // For free orders, show "مجاني" badge.
+  // Payment status (paid on Paymob vs not yet paid) is shown separately
+  // via a badge, along with the payment reference number + timestamp.
   const renderPriceBlock = (
-    baseAmount: number | undefined | null,
-    feesTotal: number | undefined | null,
-    grandTotal: number | undefined | null,
     amount: number,
     currency: string,
   ) => {
@@ -344,30 +332,56 @@ export default function AgentPortal({
       );
     }
 
-    // v121: prefer the v88 fees-on-top fields if available
-    const base = baseAmount != null ? Number(baseAmount) : null;
-    const fees = feesTotal != null ? Number(feesTotal) : null;
-    const grand = grandTotal != null ? Number(grandTotal) : Number(amount);
+    // Paid order — just show the total amount, NO breakdown
+    return (
+      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
+        {Number(amount).toFixed(2)} {currency}
+      </span>
+    );
+  };
 
-    // If we have the breakdown (base + fees = grand), show it cleanly
-    if (base !== null && fees !== null && fees > 0) {
+  // ─── Format payment status badge ───
+  // v122: shows whether the student has already paid on Paymob (but the
+  // webhook hasn't activated the subscription yet) or hasn't paid yet.
+  // For paid orders: shows "تم الدفع" badge + payment reference + timestamp.
+  // For unpaid orders: shows "بانتظار الدفع" badge.
+  const renderPaymentStatus = (
+    order: { provider_order_ref: string | null; created_at: string; amount: number },
+  ) => {
+    const isFree = !order.amount || order.amount === 0;
+    if (isFree) return null;
+
+    const paymentInitiated = !!order.provider_order_ref &&
+      order.provider_order_ref.length > 5 &&
+      !order.provider_order_ref.startsWith('order_') &&
+      !order.provider_order_ref.startsWith('free_');
+
+    if (paymentInitiated) {
+      // Student paid on Paymob — show payment ref + timestamp
+      const ref = order.provider_order_ref!;
+      const timestamp = new Date(order.created_at).toLocaleString('ar-EG', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+      });
       return (
         <div className="flex flex-col items-end gap-0.5">
-          <span className="text-[10px] text-muted-foreground font-mono">
-            {base.toFixed(2)} + {fees.toFixed(2)} {currency}
+          <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 bg-emerald-50">
+            <CheckCircle2 className="h-2.5 w-2.5 me-0.5" />
+            تم الدفع
+          </Badge>
+          <span className="text-[9px] text-muted-foreground font-mono" dir="ltr">
+            {ref.length > 20 ? ref.slice(0, 20) + '…' : ref}
           </span>
-          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
-            {grand.toFixed(2)} {currency}
-          </span>
+          <span className="text-[9px] text-muted-foreground">{timestamp}</span>
         </div>
       );
     }
 
-    // No breakdown available (pre-v88 order or fees=0) — just show the total
+    // Not yet paid
     return (
-      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
-        {grand.toFixed(2)} {currency}
-      </span>
+      <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 bg-amber-50">
+        <Clock className="h-2.5 w-2.5 me-0.5" />
+        بانتظار الدفع
+      </Badge>
     );
   };
 
@@ -522,23 +536,24 @@ export default function AgentPortal({
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{o.subject?.name ?? '—'}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                              {renderPriceBlock(o.base_amount, o.fees_total, o.grand_total, o.amount, o.currency)}
+                              {renderPriceBlock(o.amount, o.currency)}
                               <span>·</span>
                               <span>{formatDate(o.created_at)}</span>
-                              <span>·</span>
-                              <span className="font-mono" dir="ltr">{resolveOrderId(o.provider_order_ref)}</span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
-                              disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
-                              {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
-                              تفعيل
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
-                              disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
-                              <XCircle className="h-3 w-3" />
-                            </Button>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {renderPaymentStatus(o)}
+                            <div className="flex items-center gap-1">
+                              <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
+                                disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
+                                {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
+                                تفعيل
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
+                                disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
+                                <XCircle className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -608,23 +623,24 @@ export default function AgentPortal({
                           <Badge variant="secondary" className="text-[10px]">{o.student?.name ?? '—'}</Badge>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                          {renderPriceBlock(o.base_amount, o.fees_total, o.grand_total, o.amount, o.currency)}
+                          {renderPriceBlock(o.amount, o.currency)}
                           <span>·</span>
                           <span>{formatDate(o.created_at)}</span>
-                          <span>·</span>
-                          <span className="font-mono" dir="ltr">{resolveOrderId(o.provider_order_ref)}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
-                          disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
-                          {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
-                          تفعيل
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
-                          disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
-                          <XCircle className="h-3 w-3" />
-                        </Button>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {renderPaymentStatus(o)}
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
+                            disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
+                            {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
+                            تفعيل
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
+                            disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
+                            <XCircle className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

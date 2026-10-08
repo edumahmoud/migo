@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy, Search } from 'lucide-react';
+import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy, Search, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -336,64 +336,74 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                     </div>
                   </div>
 
-                  {/* Right: amount + actions */}
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                    <div className="text-end">
-                      <div className="text-sm font-mono font-semibold">
-                        {Number(o.amount).toFixed(2)} {o.currency}
-                      </div>
+                  {/* Right: amount + payment status + actions */}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {/* v122: show amount (no breakdown, no strikethrough) */}
+                    <div className="text-sm font-mono font-semibold">
+                      {Number(o.amount).toFixed(2)} {o.currency}
                     </div>
-                    {/* If payment was initiated on Paymob (provider_order_ref is numeric),
-                        show a clear "تم الدفع على Paymob" badge so the teacher knows
-                        the student already paid — don't use "Cancel" in this case
-                        (the student paid!). Use "تفعيل يدوي" only if the webhook
-                        didn't fire automatically. */}
+                    {/* v122: payment status badge (paid on Paymob vs awaiting payment) */}
                     {(() => {
+                      const isFree = !o.amount || o.amount === 0;
+                      if (isFree) return null;
                       const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
-                      return (
-                        <>
-                          <Badge variant="secondary" className="text-xs">قيد الدفع</Badge>
-                          {paymentInitiated && (
-                            <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/15">
-                              تم الدفع على Paymob
+                      if (paymentInitiated) {
+                        const timestamp = new Date(o.created_at).toLocaleString('ar-EG', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        });
+                        return (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 bg-emerald-50">
+                              <CheckCircle2 className="h-2.5 w-2.5 me-0.5" />
+                              تم الدفع
                             </Badge>
-                          )}
+                            <span className="text-[9px] text-muted-foreground font-mono" dir="ltr">
+                              {o.provider_order_ref!.length > 20 ? o.provider_order_ref!.slice(0, 20) + '…' : o.provider_order_ref}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground">{timestamp}</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 bg-amber-50">
+                          <Clock className="h-2.5 w-2.5 me-0.5" />
+                          بانتظار الدفع
+                        </Badge>
+                      );
+                    })()}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                        disabled={actioningOrderId === o.id}
+                        onClick={() => activateOrder(o.id)}
+                        title="تفعيل يدوي (تم استلام المبلغ خارج النظام)"
+                      >
+                        {actioningOrderId === o.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <BadgeCheck className="h-3.5 w-3.5" />
+                        )}
+                        تفعيل يدوي
+                      </Button>
+                      {(() => {
+                        const pi = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
+                        return !pi ? (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 px-3 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                            className="h-8 px-3 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
                             disabled={actioningOrderId === o.id}
-                            onClick={() => activateOrder(o.id)}
-                            title={paymentInitiated
-                              ? 'الطالب دفع على Paymob — اضغط هنا لتفعيل الاشتراك يدويًا (الـ webhook لم يصل)'
-                              : 'تفعيل يدوي (تم استلام المبلغ خارج النظام)'}
+                            onClick={() => cancelOrder(o.id)}
+                            title="إلغاء الطلب المعلّق"
                           >
-                            {actioningOrderId === o.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <BadgeCheck className="h-3.5 w-3.5" />
-                            )}
-                            تفعيل يدوي
+                            <Ban className="h-3.5 w-3.5" />
+                            إلغاء
                           </Button>
-                          {!paymentInitiated && (
-                            // Only show "Cancel" if the student did NOT pay yet
-                            // (if payment was initiated on Paymob, cancelling would
-                            // be wrong — the student already paid)
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-3 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
-                              disabled={actioningOrderId === o.id}
-                              onClick={() => cancelOrder(o.id)}
-                              title="إلغاء الطلب المعلّق"
-                            >
-                              <Ban className="h-3.5 w-3.5" />
-                              إلغاء
-                            </Button>
-                          )}
-                        </>
-                      );
-                    })()}
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
                 </div>
               ))}

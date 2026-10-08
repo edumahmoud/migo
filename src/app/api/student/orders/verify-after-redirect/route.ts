@@ -156,9 +156,55 @@ export async function POST(request: NextRequest) {
            !o.provider_order_ref.startsWith('free_'),
   );
 
+  // v122 FIX: also look for PENDING orders that are part of a checkout
+  // session but DON'T have their own provider_order_ref. In multi-subject
+  // checkout, only the FIRST order gets provider_order_ref (UNIQUE constraint).
+  // The other orders in the session have checkout_session_id but no
+  // provider_order_ref. If the first order was already activated (status='paid'),
+  // we need to find the session_id from the PAID order, then activate the
+  // remaining PENDING siblings.
+  const pendingSessionOrders = pendingList.filter(
+    (o) => o.checkout_session_id &&
+           (!o.provider_order_ref ||
+            o.provider_order_ref.startsWith('order_') ||
+            o.provider_order_ref.startsWith('free_')),
+  );
+
+  // For each pending session order, find the session's first order (which
+  // has the provider_order_ref) — even if it's already paid — and use its
+  // provider_order_ref to query Paymob.
+  const sessionIdsToCheck = new Set<string>();
+  for (const o of pendingSessionOrders) {
+    if (o.checkout_session_id) sessionIdsToCheck.add(o.checkout_session_id);
+  }
+
+  // Also check paid orders that have provider_order_ref (the first order in
+  // a session that was already activated) — their session siblings may still
+  // be pending.
+  if (sessionIdsToCheck.size > 0) {
+    const { data: paidSessionOrders } = await supabaseServer
+      .from('orders')
+      .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref')
+      .in('checkout_session_id', Array.from(sessionIdsToCheck))
+      .eq('status', 'paid')
+      .not('provider_order_ref', 'is', null);
+
+    for (const o of (paidSessionOrders ?? []) as OrderRow[]) {
+      if (o.provider_order_ref &&
+          o.provider_order_ref.length > 5 &&
+          !o.provider_order_ref.startsWith('order_') &&
+          !o.provider_order_ref.startsWith('free_') &&
+          !ordersWithPaymobRef.some(existing => existing.id === o.id)) {
+        ordersWithPaymobRef.push(o);
+      }
+    }
+  }
+
   console.info('[verify-after-redirect:debug] found pending orders', {
     total: pendingList.length,
     withPaymobRef: ordersWithPaymobRef.length,
+    pendingSessionOrders: pendingSessionOrders.length,
+    sessionIdsToCheck: sessionIdsToCheck.size,
   });
 
   if (ordersWithPaymobRef.length > 0) {
