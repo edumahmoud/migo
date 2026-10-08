@@ -52,56 +52,28 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
+      // v129: use the server-side API endpoint instead of direct supabase
+      // query. The API uses supabaseServer (service role) which bypasses
+      // RLS on the subjects table — this fixes "مقرر غير معروف" where
+      // students couldn't see subject names because RLS blocked the
+      // subjects SELECT for students without enrollment.
+      const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+      const headers = await getCachedAuthHeaders();
+      const res = await fetch('/api/student/orders/history', { headers });
+      const json = await res.json();
 
-      // Step 1: Fetch orders WITHOUT subject JOIN (RLS on subjects table
-      // might block the JOIN for students with pending orders but no
-      // enrollment yet). Fetch subject data SEPARATELY in step 2.
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select(`
-          id, subject_id, amount, currency, status,
-          provider_order_ref, checkout_session_id,
-          created_at, paid_at, activated_at, plan_duration_days
-        `)
-        .eq('student_id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (ordersError) {
-        console.error('[sub-history] fetch error:', ordersError);
-        toast.error('تعذّر جلب سجل الاشتراكات');
+      if (!json.success) {
+        toast.error(json.error || 'تعذّر جلب سجل الاشتراكات');
         return;
       }
 
-      if (!ordersData || ordersData.length === 0) {
+      const ordersData = json.orders ?? [];
+      if (ordersData.length === 0) {
         setOrders([]);
         return;
       }
 
-      // Step 2: Fetch subject data SEPARATELY using the subject_ids
-      // from orders (avoids RLS issues with nested JOIN)
-      const subjectIds = [...new Set(ordersData.map((o) => o.subject_id))];
-      const { data: subjectsData } = await supabase
-        .from('subjects')
-        .select('id, name, price')
-        .in('id', subjectIds);
-
-      // Build subject lookup map
-      const subjectMap = new Map<string, { id: string; name: string; price: number }>();
-      if (subjectsData) {
-        for (const s of subjectsData as Array<{ id: string; name: string; price: number }>) {
-          subjectMap.set(s.id, s);
-        }
-      }
-
-      // Merge: attach subject to each order
-      const mergedOrders = ordersData.map((o) => ({
-        ...o,
-        subject: subjectMap.get(o.subject_id) ?? null,
-      }));
-
-      setOrders(mergedOrders as unknown as OrderHistory[]);
+      setOrders(ordersData as OrderHistory[]);
     } catch (err) {
       console.error('[sub-history] fetch failed:', err);
       toast.error('حدث خطأ غير متوقع');
