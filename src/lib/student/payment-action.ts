@@ -396,6 +396,15 @@ export async function createCheckoutSession(
       subject_name: String(i.subject_name),
       amount: Number(i.amount),
       currency: String(i.currency),
+      // v120 FIX: read base_amount + subject_price from the server response.
+      // Without these, the payment dialog in multi-mode falls back to
+      // using `amount` (= grand_total = base + fees) as the base price,
+      // making the fees section show "+0.00" and the base price appear
+      // inflated by the fees amount.
+      base_amount: i.base_amount !== undefined && i.base_amount !== null
+        ? Number(i.base_amount) : undefined,
+      subject_price: i.subject_price !== undefined && i.subject_price !== null
+        ? Number(i.subject_price) : undefined,
     };
   });
   const totalAmount =
@@ -702,6 +711,11 @@ export async function removeCheckoutSessionItem(
       subject_name: String(i.subject_name),
       amount: Number(i.amount),
       currency: String(i.currency),
+      // v120 FIX: preserve base_amount + subject_price (same fix as createCheckoutSession)
+      base_amount: i.base_amount !== undefined && i.base_amount !== null
+        ? Number(i.base_amount) : undefined,
+      subject_price: i.subject_price !== undefined && i.subject_price !== null
+        ? Number(i.subject_price) : undefined,
     };
   });
   const totalAmount =

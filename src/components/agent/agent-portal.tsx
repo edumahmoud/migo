@@ -308,6 +308,10 @@ export default function AgentPortal({
   // When amount=0 → the order is free (e.g., free subscription plan),
   // so we show a "مجاني" badge so the agent can confidently activate
   // the order without hesitation.
+  // v120 FIX: removed the DollarSign icon — it was confusing because it
+  // looked like a "$" currency symbol next to EGP amounts. Now we just
+  // show the number + currency code (e.g., "714.00 EGP") without any
+  // icon prefix.
   const renderPriceBlock = (
     originalPrice: number | undefined | null,
     amount: number,
@@ -335,6 +339,7 @@ export default function AgentPortal({
     }
 
     // Paid order — show original price (if different) + total
+    // v120: removed DollarSign icon — just show the amount + currency
     return (
       <div className="flex items-center gap-2 flex-wrap">
         {originalDifferentFromTotal && (
@@ -343,8 +348,7 @@ export default function AgentPortal({
             {Number(originalPrice).toFixed(2)} {currency}
           </span>
         )}
-        <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-          <DollarSign className="h-3 w-3" />
+        <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
           {Number(amount).toFixed(2)} {currency}
         </span>
       </div>

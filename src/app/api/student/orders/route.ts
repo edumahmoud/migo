@@ -304,11 +304,18 @@ export async function POST(request: NextRequest) {
       // If the v116 migration hasn't been applied (columns don't exist),
       // the INSERT fails → retry WITHOUT those columns so the order is
       // still created (just without the plan snapshot).
+      // v120 FIX: include base_amount + fees_total + grand_total (all = 0
+      // for free orders). These columns are NOT NULL since v88, so without
+      // them the INSERT fails silently and the order never appears in the
+      // pending list at the teacher/agent.
       let freeOrder: { id: string } | null = null;
       const insertData: Record<string, unknown> = {
         student_id: studentId,
         subject_id: subjectId,
         amount: 0,
+        base_amount: 0,
+        fees_total: 0,
+        grand_total: 0,
         currency: subject.currency,
         provider: 'free',
         provider_order_ref: orderRef,
@@ -331,6 +338,9 @@ export async function POST(request: NextRequest) {
             student_id: studentId,
             subject_id: subjectId,
             amount: 0,
+            base_amount: 0,
+            fees_total: 0,
+            grand_total: 0,
             currency: subject.currency,
             provider: 'free',
             provider_order_ref: orderRef,
@@ -357,11 +367,16 @@ export async function POST(request: NextRequest) {
     } else if (effectivePriceOverride === 0) {
       // v116: PAID subject + FREE plan (e.g., scholarship plan with price=0).
       const orderRef = `free_${randomUUID()}`;
+      // v120 FIX: include base_amount + fees_total + grand_total (all = 0
+      // for free-plan orders). Same reason as the subject.price===0 branch.
       let freeOrder: { id: string } | null = null;
       const insertData: Record<string, unknown> = {
         student_id: studentId,
         subject_id: subjectId,
         amount: 0,
+        base_amount: 0,
+        fees_total: 0,
+        grand_total: 0,
         currency: subject.currency,
         provider: 'free',
         provider_order_ref: orderRef,
@@ -382,6 +397,9 @@ export async function POST(request: NextRequest) {
             student_id: studentId,
             subject_id: subjectId,
             amount: 0,
+            base_amount: 0,
+            fees_total: 0,
+            grand_total: 0,
             currency: subject.currency,
             provider: 'free',
             provider_order_ref: orderRef,
