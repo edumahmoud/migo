@@ -21,6 +21,7 @@ interface OrderHistory {
   created_at: string;
   paid_at: string | null;
   activated_at: string | null;
+  plan_duration_days?: number | null;
   subject: { id: string; name: string; price: number } | null;
 }
 
@@ -61,7 +62,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
         .select(`
           id, subject_id, amount, currency, status,
           provider_order_ref, checkout_session_id,
-          created_at, paid_at, activated_at
+          created_at, paid_at, activated_at, plan_duration_days
         `)
         .eq('student_id', profile.id)
         .order('created_at', { ascending: false })
@@ -245,6 +246,13 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                   : (o.id.length >= 8 ? o.id.slice(0, 8).toUpperCase() : o.id);
                 const subjectPrice = Number(o.subject?.price ?? 0);
                 const totalPaid = Number(o.amount ?? 0);
+                // v127: compute plan duration label
+                const durationDays = o.plan_duration_days ?? 30;
+                const durationLabel = durationDays >= 365 ? 'سنوي' :
+                  durationDays >= 120 ? 'ترم' :
+                  durationDays >= 60 ? 'فصلين' :
+                  durationDays === 30 ? 'شهري' :
+                  `${durationDays} يوم`;
                 return (
                   <div
                     key={o.id}
@@ -310,6 +318,11 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                           <p className="font-medium">دفعة موحدة</p>
                         </div>
                       )}
+                      {/* v127: Plan duration */}
+                      <div>
+                        <span className="text-muted-foreground">مدة الاشتراك</span>
+                        <p className="font-medium">{durationLabel}</p>
+                      </div>
                     </div>
                   </div>
                 );

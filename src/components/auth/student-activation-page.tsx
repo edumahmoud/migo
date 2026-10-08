@@ -778,17 +778,27 @@ export default function StudentActivationPage() {
                 // v116: detect FREE orders (amount=0 OR provider='free') and show
                 // a different badge — they don't need payment, just agent approval.
                 const isFreeOrder = Number(o.amount) === 0 || o.provider === 'free';
-                // v126: compute plan duration label for free orders
+                // v127: compute plan duration label — use actual days for custom durations
                 const planDurationDays = (o as any).plan_duration_days ?? 30;
                 const durationLabel = planDurationDays >= 365 ? 'سنوي' :
                   planDurationDays >= 120 ? 'ترم' :
                   planDurationDays >= 60 ? 'فصلين' :
-                  'شهري';
+                  planDurationDays === 30 ? 'شهري' :
+                  `${planDurationDays} يوم`;
+                // v127: get the official subject price (from subjects join)
+                const subjData = (o as any).subjects;
+                const subjInfo = Array.isArray(subjData) ? subjData[0] : subjData;
+                const officialPrice = subjInfo?.price != null ? Number(subjInfo.price) : null;
                 return (
                 <div key={o.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? '—'}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleString('ar-EG')}</div>
+                    <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? subjInfo?.name ?? '—'}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                      <span>{new Date(o.created_at).toLocaleString('ar-EG')}</span>
+                      {officialPrice != null && officialPrice > 0 && (
+                        <span className="text-[10px] text-muted-foreground/70">· سعر المقرر: {officialPrice.toFixed(2)} {o.currency}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-end shrink-0 flex items-center gap-2">
                     {isFreeOrder ? (

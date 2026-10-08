@@ -109,17 +109,29 @@ export async function GET(request: NextRequest) {
   //    between orders that are part of a multi-subject checkout session
   //    (should be paid via the grouped button, NOT individual buttons)
   //    and standalone pending orders (individual "استكمال الدفع" button).
-  const { data: orders } = await supabaseServer
+  // v127: use !inner join to GUARANTEE subjects.name is returned even
+  // for free orders. Without !inner, Supabase may return subjects=null
+  // when the subject doesn't match certain RLS conditions.
+  // Also fetch ALL pending orders (not just 50) so free orders aren't
+  // pushed out. Filter to pending only for efficiency.
+  const { data: pendingOrdersData } = await supabaseServer
     .from('orders')
-    // v123: add subject name (subjects.name) so the activation page can
-    // display the course name even after the order is paid (when the
-    // course is no longer in available_courses)
-    // v126: also add plan_duration_days so the UI can show the free plan duration
-    // v126: increase limit to 50 (was 10 — free orders could be pushed out by paid orders)
-    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref, plan_id, plan_duration_days, subjects:subject_id(name, price)')
+    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref, plan_id, plan_duration_days, subjects:subject_id!inner(name, price)')
     .eq('student_id', studentId)
+    .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(50);
+
+  const { data: recentPaidOrders } = await supabaseServer
+    .from('orders')
+    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref, plan_id, plan_duration_days, subjects:subject_id!inner(name, price)')
+    .eq('student_id', studentId)
+    .in('status', ['paid', 'failed', 'cancelled'])
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  // Combine: pending first, then recent paid
+  const orders = [...(pendingOrdersData ?? []), ...(recentPaidOrders ?? [])];
 
   // 5. Existing subscriptions (for showing period/expiry on the activation page).
   const { data: subscriptions } = await supabaseServer

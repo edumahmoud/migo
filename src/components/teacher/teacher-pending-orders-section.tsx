@@ -347,12 +347,13 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                     {(() => {
                       const isFree = !o.amount || o.amount === 0;
                       if (isFree) {
-                        // v126: show "مجاني" + plan duration
+                        // v127: show "مجاني" + plan duration (actual days for custom)
                         const durationDays = o.plan_duration_days ?? 30;
                         const durationLabel = durationDays >= 365 ? 'سنوي' :
                           durationDays >= 120 ? 'ترم' :
                           durationDays >= 60 ? 'فصلين' :
-                          'شهري';
+                          durationDays === 30 ? 'شهري' :
+                          `${durationDays} يوم`;
                         return (
                           <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
                             <Gift className="h-3 w-3 me-1" />

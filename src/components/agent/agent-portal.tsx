@@ -423,11 +423,13 @@ export default function AgentPortal({
       const timestamp = new Date(order.created_at).toLocaleString('ar-EG', {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
       });
+      // v127: use actual days for custom durations (e.g., 3 days ≠ شهري)
       const durationDays = order.plan_duration_days ?? 30;
       const durationLabel = durationDays >= 365 ? 'سنوي' :
         durationDays >= 120 ? 'ترم' :
         durationDays >= 60 ? 'فصلين' :
-        'شهري';
+        durationDays === 30 ? 'شهري' :
+        `${durationDays} يوم`;
       return (
         <div className="flex flex-col items-end gap-0.5">
           <Badge variant="outline" className="text-[9px] border-sky-400 text-sky-700 bg-sky-50">
