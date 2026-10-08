@@ -703,10 +703,43 @@ export async function POST(request: NextRequest) {
         count: oldOrders.length,
       });
 
-      // Activate each old pending order — try RPC FIRST (creates financial_ledger atomically),
+      // v125 FIX: expand each order to its session siblings before activating.
+      // In multi-checkout, only the FIRST order has provider_order_ref (Paymob ID).
+      // The other orders in the session have provider_order_ref = "order_<uuid>"
+      // and are filtered out by the oldOrders filter above. We need to find
+      // them via checkout_session_id and add them to the activation list.
+      const ordersToActivate: OrderRow[] = [];
+      const addedOrderIds = new Set<string>();
+      for (const ord of oldOrders) {
+        if (!addedOrderIds.has(ord.id)) {
+          ordersToActivate.push(ord);
+          addedOrderIds.add(ord.id);
+        }
+        // If this order is part of a session, find ALL pending siblings
+        if (ord.checkout_session_id) {
+          const { data: sessionSiblings } = await supabaseServer
+            .from('orders')
+            .select('id, student_id, subject_id, amount, base_amount, fees_total, grand_total, currency, status, gateway_id, checkout_session_id, provider_order_ref, created_at')
+            .eq('checkout_session_id', ord.checkout_session_id)
+            .eq('status', 'pending');
+          for (const sib of (sessionSiblings ?? []) as OrderRow[]) {
+            if (!addedOrderIds.has(sib.id) && sib.student_id === studentId) {
+              ordersToActivate.push(sib);
+              addedOrderIds.add(sib.id);
+            }
+          }
+        }
+      }
+
+      console.info('[verify-after-redirect:debug] Strategy 2: expanded to orders (including session siblings)', {
+        originalCount: oldOrders.length,
+        expandedCount: ordersToActivate.length,
+      });
+
+      // Activate each order — try RPC FIRST (creates financial_ledger atomically),
       // then fall back to direct enrollment if RPC fails.
       const results: Array<{ order_id: string; success: boolean; error?: string }> = [];
-      for (const ord of oldOrders) {
+      for (const ord of ordersToActivate) {
         try {
           const now = new Date().toISOString();
           const fallbackPaymentId = `timefallback_${ord.id}`;
