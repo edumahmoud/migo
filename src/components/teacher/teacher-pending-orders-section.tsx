@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy, Search, CheckCircle2 } from 'lucide-react';
+import { Loader2, Ban, BadgeCheck, Clock, RefreshCw, Inbox, User, BookOpen, Copy, Search, CheckCircle2, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,9 @@ interface PendingOrder {
   student_id: string;
   subject_id: string;
   amount: number;
+  base_amount?: number | null;
+  fees_total?: number | null;
+  grand_total?: number | null;
   currency: string;
   status: string;
   provider_order_ref: string | null;
@@ -338,16 +341,68 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
 
                   {/* Right: amount + payment status + actions */}
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    {/* v122: show amount (no breakdown, no strikethrough) */}
-                    <div className="text-sm font-mono font-semibold">
-                      {Number(o.amount).toFixed(2)} {o.currency}
-                    </div>
-                    {/* v122: payment status badge (paid on Paymob vs awaiting payment) */}
+                    {/* v123: show base + fees = total (when available) */}
+                    {(() => {
+                      const isFree = !o.amount || o.amount === 0;
+                      if (isFree) {
+                        return (
+                          <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
+                            <Gift className="h-3 w-3 me-1" />
+                            مجاني
+                          </Badge>
+                        );
+                      }
+                      const base = o.base_amount != null ? Number(o.base_amount) : null;
+                      const fees = o.fees_total != null ? Number(o.fees_total) : null;
+                      if (base !== null && fees !== null && fees > 0) {
+                        return (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-[9px] text-muted-foreground font-mono">
+                              أصل: {base.toFixed(2)} + رسوم: {fees.toFixed(2)}
+                            </span>
+                            <span className="text-sm font-mono font-semibold">
+                              {Number(o.amount).toFixed(2)} {o.currency}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <span className="text-sm font-mono font-semibold">
+                          {Number(o.amount).toFixed(2)} {o.currency}
+                        </span>
+                      );
+                    })()}
+                    {/* v123: payment status badge with session awareness */}
                     {(() => {
                       const isFree = !o.amount || o.amount === 0;
                       if (isFree) return null;
-                      const paymentInitiated = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
+                      // v123: check if THIS order has a real Paymob ref
+                      const hasOwnRef = !!o.provider_order_ref &&
+                        o.provider_order_ref.length > 5 &&
+                        !o.provider_order_ref.startsWith('order_') &&
+                        !o.provider_order_ref.startsWith('free_');
+                      // v123: check if this order is part of a session where
+                      // another order (the first one) has a Paymob ref
+                      const hasSessionRef = !!o.checkout_session_id && orders.some(other =>
+                        other.checkout_session_id === o.checkout_session_id &&
+                        other.id !== o.id &&
+                        !!other.provider_order_ref &&
+                        other.provider_order_ref.length > 5 &&
+                        !other.provider_order_ref.startsWith('order_') &&
+                        !other.provider_order_ref.startsWith('free_')
+                      );
+                      const paymentInitiated = hasOwnRef || hasSessionRef;
                       if (paymentInitiated) {
+                        const sessionOrder = orders.find(other =>
+                          other.checkout_session_id === o.checkout_session_id &&
+                          other.id !== o.id &&
+                          !!other.provider_order_ref &&
+                          other.provider_order_ref.length > 5 &&
+                          !other.provider_order_ref.startsWith('order_') &&
+                          !other.provider_order_ref.startsWith('free_')
+                        );
+                        const ref = hasOwnRef ? o.provider_order_ref! : (sessionOrder?.provider_order_ref ?? '—');
+                        const refLabel = hasOwnRef ? 'رقم العملية' : 'رقم العملية (جلسة)';
                         const timestamp = new Date(o.created_at).toLocaleString('ar-EG', {
                           day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                         });
@@ -357,8 +412,8 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                               <CheckCircle2 className="h-2.5 w-2.5 me-0.5" />
                               تم الدفع
                             </Badge>
-                            <span className="text-[9px] text-muted-foreground font-mono" dir="ltr">
-                              {o.provider_order_ref!.length > 20 ? o.provider_order_ref!.slice(0, 20) + '…' : o.provider_order_ref}
+                            <span className="text-[9px] text-muted-foreground font-mono" dir="ltr" title={ref || ''}>
+                              {refLabel}: {ref && ref.length > 18 ? ref.slice(0, 18) + '…' : ref}
                             </span>
                             <span className="text-[9px] text-muted-foreground">{timestamp}</span>
                           </div>

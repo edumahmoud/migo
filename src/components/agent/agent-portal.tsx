@@ -60,6 +60,8 @@ interface StudentResult {
     base_amount?: number | null;
     fees_total?: number | null;
     grand_total?: number | null;
+    // v123: add checkout_session_id
+    checkout_session_id?: string | null;
     subject: { id: string; name: string; price?: number } | null;
   }>;
 }
@@ -71,6 +73,8 @@ interface PendingOrder {
   base_amount?: number | null;
   fees_total?: number | null;
   grand_total?: number | null;
+  // v123: add checkout_session_id for multi-checkout session detection
+  checkout_session_id?: string | null;
   student: { id: string; name: string | null; email: string; student_code: string | null } | null;
   subject: { id: string; name: string; price?: number } | null;
 }
@@ -310,14 +314,46 @@ export default function AgentPortal({
     return ref;
   };
 
+  // v123: build a map of checkout_session_id → first order's provider_order_ref.
+  // This lets us show "تم الدفع" for ALL orders in a multi-checkout session,
+  // even those that don't have their own provider_order_ref.
+  const sessionFirstRefMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    // From pendingOrders
+    for (const o of pendingOrders) {
+      if (o.checkout_session_id) {
+        const hasOwnRef = !!o.provider_order_ref &&
+          o.provider_order_ref.length > 5 &&
+          !o.provider_order_ref.startsWith('order_') &&
+          !o.provider_order_ref.startsWith('free_');
+        if (hasOwnRef && !m.has(o.checkout_session_id)) {
+          m.set(o.checkout_session_id, o.provider_order_ref);
+        }
+      }
+    }
+    // From studentResult.pending_orders
+    if (studentResult?.pending_orders) {
+      for (const o of studentResult.pending_orders) {
+        if (o.checkout_session_id) {
+          const hasOwnRef = !!o.provider_order_ref &&
+            o.provider_order_ref.length > 5 &&
+            !o.provider_order_ref.startsWith('order_') &&
+            !o.provider_order_ref.startsWith('free_');
+          if (hasOwnRef && !m.has(o.checkout_session_id)) {
+            m.set(o.checkout_session_id, o.provider_order_ref);
+          }
+        }
+      }
+    }
+    return m;
+  }, [pendingOrders, studentResult]);
+
   // ─── Format price display ───
-  // v122 FIX: completely simplified. Pending orders should NOT show
-  // any fee breakdown (no base + fees, no strikethrough, no percentages).
-  // Just show the total amount the student needs to pay.
-  // For free orders, show "مجاني" badge.
-  // Payment status (paid on Paymob vs not yet paid) is shown separately
-  // via a badge, along with the payment reference number + timestamp.
+  // v123: show base_amount (أصل سعر المقرر) + fees (النسب) = grand_total
+  // in a clean vertical layout. For free orders, show "مجاني" badge.
   const renderPriceBlock = (
+    baseAmount: number | undefined | null,
+    feesTotal: number | undefined | null,
     amount: number,
     currency: string,
   ) => {
@@ -332,33 +368,71 @@ export default function AgentPortal({
       );
     }
 
-    // Paid order — just show the total amount, NO breakdown
+    const base = baseAmount != null ? Number(baseAmount) : null;
+    const fees = feesTotal != null ? Number(feesTotal) : null;
+    const grand = Number(amount);
+
+    // If we have the breakdown, show it cleanly: base + fees = total
+    if (base !== null && fees !== null && fees > 0) {
+      return (
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-[9px] text-muted-foreground font-mono">
+            أصل: {base.toFixed(2)} + رسوم: {fees.toFixed(2)}
+          </span>
+          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
+            {grand.toFixed(2)} {currency}
+          </span>
+        </div>
+      );
+    }
+
+    // No breakdown available — just show the total
     return (
       <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
-        {Number(amount).toFixed(2)} {currency}
+        {grand.toFixed(2)} {currency}
       </span>
     );
   };
 
   // ─── Format payment status badge ───
-  // v122: shows whether the student has already paid on Paymob (but the
+  // v123: shows whether the student has already paid on Paymob (but the
   // webhook hasn't activated the subscription yet) or hasn't paid yet.
-  // For paid orders: shows "تم الدفع" badge + payment reference + timestamp.
-  // For unpaid orders: shows "بانتظار الدفع" badge.
+  // For multi-checkout sessions: ALL orders in the session are considered
+  // "paid" if the FIRST order has provider_order_ref (Paymob ID), even if
+  // the other orders don't have their own provider_order_ref.
+  // Shows: badge + payment reference number + timestamp.
   const renderPaymentStatus = (
-    order: { provider_order_ref: string | null; created_at: string; amount: number },
+    order: {
+      provider_order_ref: string | null;
+      checkout_session_id?: string | null;
+      created_at: string;
+      amount: number;
+    },
+    sessionFirstOrderRef?: string | null,
   ) => {
     const isFree = !order.amount || order.amount === 0;
     if (isFree) return null;
 
-    const paymentInitiated = !!order.provider_order_ref &&
+    // Check if THIS order has a real Paymob ref
+    const hasOwnRef = !!order.provider_order_ref &&
       order.provider_order_ref.length > 5 &&
       !order.provider_order_ref.startsWith('order_') &&
       !order.provider_order_ref.startsWith('free_');
 
+    // Check if this order is part of a session where the FIRST order
+    // has a Paymob ref (meaning the student paid for the whole session)
+    const hasSessionRef = !!order.checkout_session_id &&
+      !!sessionFirstOrderRef &&
+      sessionFirstOrderRef.length > 5 &&
+      !sessionFirstOrderRef.startsWith('order_') &&
+      !sessionFirstOrderRef.startsWith('free_');
+
+    const paymentInitiated = hasOwnRef || hasSessionRef;
+
     if (paymentInitiated) {
       // Student paid on Paymob — show payment ref + timestamp
-      const ref = order.provider_order_ref!;
+      const ref = hasOwnRef ? order.provider_order_ref! : sessionFirstOrderRef!;
+      const refLabel = hasOwnRef ? 'رقم العملية' : 'رقم العملية (جلسة)';
       const timestamp = new Date(order.created_at).toLocaleString('ar-EG', {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
       });
@@ -368,8 +442,8 @@ export default function AgentPortal({
             <CheckCircle2 className="h-2.5 w-2.5 me-0.5" />
             تم الدفع
           </Badge>
-          <span className="text-[9px] text-muted-foreground font-mono" dir="ltr">
-            {ref.length > 20 ? ref.slice(0, 20) + '…' : ref}
+          <span className="text-[9px] text-muted-foreground font-mono" dir="ltr" title={ref}>
+            {refLabel}: {ref.length > 18 ? ref.slice(0, 18) + '…' : ref}
           </span>
           <span className="text-[9px] text-muted-foreground">{timestamp}</span>
         </div>
@@ -536,13 +610,13 @@ export default function AgentPortal({
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{o.subject?.name ?? '—'}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                              {renderPriceBlock(o.amount, o.currency)}
+                              {renderPriceBlock(o.base_amount, o.fees_total, o.amount, o.currency)}
                               <span>·</span>
                               <span>{formatDate(o.created_at)}</span>
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
-                            {renderPaymentStatus(o)}
+                            {renderPaymentStatus(o, o.checkout_session_id ? sessionFirstRefMap.get(o.checkout_session_id) : undefined)}
                             <div className="flex items-center gap-1">
                               <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
                                 disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
@@ -623,13 +697,13 @@ export default function AgentPortal({
                           <Badge variant="secondary" className="text-[10px]">{o.student?.name ?? '—'}</Badge>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                          {renderPriceBlock(o.amount, o.currency)}
+                          {renderPriceBlock(o.base_amount, o.fees_total, o.amount, o.currency)}
                           <span>·</span>
                           <span>{formatDate(o.created_at)}</span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        {renderPaymentStatus(o)}
+                        {renderPaymentStatus(o, o.checkout_session_id ? sessionFirstRefMap.get(o.checkout_session_id) : undefined)}
                         <div className="flex items-center gap-1">
                           <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
                             disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>

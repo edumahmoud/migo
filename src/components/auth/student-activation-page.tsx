@@ -390,7 +390,22 @@ export default function StudentActivationPage() {
 
   const courseNameById = useMemo(() => {
     const m = new Map<string, string>();
-    if (data) data.available_courses.forEach(c => m.set(c.id, c.name));
+    if (data) {
+      // v123: add available courses
+      data.available_courses.forEach(c => m.set(c.id, c.name));
+      // v123: also add from recent_orders (for orders that became paid
+      // and are no longer in available_courses — prevents "مقرر غير معروف")
+      data.recent_orders.forEach((o: any) => {
+        // Try o.subject_name first (if the API returns it)
+        if (o.subject_id && o.subject_name && !m.has(o.subject_id)) {
+          m.set(o.subject_id, o.subject_name);
+        }
+        // Try nested subjects.name (from the JOIN in the API)
+        if (o.subject_id && o.subjects?.name && !m.has(o.subject_id)) {
+          m.set(o.subject_id, o.subjects.name);
+        }
+      });
+    }
     return m;
   }, [data]);
 

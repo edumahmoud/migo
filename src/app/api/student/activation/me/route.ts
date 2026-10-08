@@ -111,7 +111,10 @@ export async function GET(request: NextRequest) {
   //    and standalone pending orders (individual "استكمال الدفع" button).
   const { data: orders } = await supabaseServer
     .from('orders')
-    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref')
+    // v123: add subject name (subjects.name) so the activation page can
+    // display the course name even after the order is paid (when the
+    // course is no longer in available_courses)
+    .select('id, subject_id, amount, currency, provider, status, created_at, paid_at, checkout_session_id, provider_order_ref, subjects:subject_id(name)')
     .eq('student_id', studentId)
     .order('created_at', { ascending: false })
     .limit(10);
