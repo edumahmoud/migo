@@ -84,6 +84,7 @@ import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
+import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useAppStore } from '@/stores/app-store';
