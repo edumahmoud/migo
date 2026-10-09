@@ -76,13 +76,17 @@ export interface DisciplineMetrics {
   deadlineRespectRate: number;
 }
 
-/** Growth metrics: trend over time */
+/** Growth metrics: trend over time.
+ *  Note: `growthIndex` and `improvementPercentage` are `null` when the
+ *  earliest average is 0 — ratio-based growth is undefined in that case.
+ *  Consumers should render "تحسن مطلق / Absolute improvement" with the
+ *  point difference (`recentAvg - earliestAvg`) instead of a numeric ratio. */
 export interface GrowthMetrics {
-  growthIndex: number;
+  growthIndex: number | null;
   growthTrend: GrowthTrend;
   recentAvg: number;
   earliestAvg: number;
-  improvementPercentage: number;
+  improvementPercentage: number | null;
 }
 
 /** Risk metrics: early risk detection */

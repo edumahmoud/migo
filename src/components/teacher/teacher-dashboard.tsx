@@ -55,7 +55,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { computeAllMetrics, calculatePercentile, getPerformanceLevelConfig, type PerformanceLevel, type StudentPerformanceMetrics } from '@/lib/performance-calculator';
+import { computeAllMetrics, calculatePercentile, getPerformanceLevelConfig, type PerformanceLevel, type StudentPerformanceMetrics, formatGrowthIndex } from '@/lib/performance-calculator';
 import { useLocaleStore } from '@/i18n/locale-store';
 import { Badge } from '@/components/ui/badge';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -845,7 +845,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           'Efficiency': metrics.efficiency.toFixed(1),
           'Efficiency Level': metrics.efficiencyLevel,
           'Discipline Score': metrics.disciplineScore.toFixed(1),
-          'Growth Index': metrics.growthIndex.toFixed(2),
+          'Growth Index': metrics.growthIndex !== null ? metrics.growthIndex.toFixed(2) : (locale === 'ar' ? 'تحسن مطلق' : 'N/A'),
           'Growth Trend': metrics.growthTrend,
           'Risk Level': metrics.riskLevel,
           'Risk Reasons': metrics.riskReasons.join(', '),

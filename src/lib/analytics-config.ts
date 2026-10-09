@@ -207,3 +207,53 @@ export const GROWTH_TRENDS: GrowthTrendConfig[] = [
   { key: 'stable', color: 'bg-sky-500', textColor: 'text-sky-600 dark:text-sky-500', icon: '→' },
   { key: 'declining', color: 'bg-rose-500', textColor: 'text-rose-600 dark:text-rose-500', icon: '↓' },
 ];
+
+// -------------------------------------------------------
+// Growth Index Display Helpers
+// Used by all UI consumers (teacher dashboard, student dashboard,
+// student profile modal, CSV exports) to render `growthIndex`
+// consistently. Returns "تحسن مطلق" / "Absolute improvement" when
+// `growthIndex` is null and trend is improving (zero-baseline case),
+// otherwise a numeric string with the requested precision.
+// -------------------------------------------------------
+
+/** Returns a display string for `growthIndex` that never produces "Infinity".
+ *  - When `index` is null AND trend is 'improving' → "تحسن مطلق" / "Absolute"
+ *  - When `index` is null otherwise → "—"
+ *  - When `index` is a number → `index.toFixed(digits)`
+ */
+export function formatGrowthIndex(
+  index: number | null,
+  trend: GrowthTrend,
+  digits: number = 2,
+  locale: 'ar' | 'en' = 'en',
+): string {
+  if (index === null) {
+    if (trend === 'improving') {
+      return locale === 'ar' ? 'تحسن مطلق' : 'Absolute';
+    }
+    return '—';
+  }
+  return index.toFixed(digits);
+}
+
+/** Returns a display string for the growth percentage change.
+ *  - When `index` is null AND trend is 'improving' → "تحسن مطلق" / "Absolute"
+ *  - When `index` is null otherwise → "—"
+ *  - When `index` is a number → computed percentage with arrow
+ */
+export function formatGrowthPercentage(
+  index: number | null,
+  trend: GrowthTrend,
+  locale: 'ar' | 'en' = 'en',
+): string {
+  if (index === null) {
+    if (trend === 'improving') {
+      return locale === 'ar' ? 'تحسن مطلق' : 'Absolute';
+    }
+    return '—';
+  }
+  const pct = Math.round(index >= 1 ? (index - 1) * 100 : (1 - index) * 100);
+  const arrow = trend === 'improving' ? '↑' : trend === 'declining' ? '↓' : '→';
+  return `${pct}% ${arrow}`;
+}

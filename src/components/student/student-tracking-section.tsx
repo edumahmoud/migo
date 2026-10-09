@@ -62,6 +62,8 @@ import {
   type GrowthTrend,
   GROWTH_TRENDS,
   getGrowthTrendConfig,
+  formatGrowthIndex,
+  formatGrowthPercentage,
   calculatePercentile,
   getPercentileLabel,
   DEFAULT_WEIGHTS,
@@ -922,7 +924,7 @@ export default function StudentTrackingSection({
               </div>
               <p className="text-[10px] font-medium text-muted-foreground">{t('student.trackingGrowthIndex')}</p>
             </div>
-            <p className={`text-2xl font-bold ${growthConfig.textColor}`}>{metrics.growthIndex.toFixed(2)}</p>
+            <p className={`text-2xl font-bold ${growthConfig.textColor}`}>{formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 2, locale)}</p>
             <Badge className={`mt-1 text-[8px] px-1.5 py-0 border-0 ${growthConfig.key === 'improving' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : growthConfig.key === 'stable' ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'}`}>
               {growthConfig.icon} {getGrowthTrendLabel(metrics.growthTrend)}
             </Badge>

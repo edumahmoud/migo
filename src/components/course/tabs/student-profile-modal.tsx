@@ -38,9 +38,11 @@ import {
   getEfficiencyLevelConfig,
   getRiskLevelConfig,
   getGrowthTrendConfig,
+  formatGrowthIndex,
   DEFAULT_WEIGHTS,
 } from '@/lib/performance-calculator';
 import { useTranslations } from '@/i18n/use-translations';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 // -------------------------------------------------------
 // Props
@@ -175,6 +177,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
   const efficiencyConfig = metrics ? getEfficiencyLevelConfig(metrics.efficiencyLevel) : null;
   const riskConfig = metrics ? getRiskLevelConfig(metrics.riskLevel) : null;
   const growthConfig = metrics ? getGrowthTrendConfig(metrics.growthTrend) : null;
+  const locale = useLocaleStore((s) => s.locale);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -326,7 +329,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                     {metrics.growthTrend === 'improving' ? t('teacher.trackingGrowthImproving') :
                      metrics.growthTrend === 'stable' ? t('teacher.trackingGrowthStable') : t('teacher.trackingGrowthDeclining')}
                     {' · '}
-                    {metrics.growthIndex.toFixed(2)}x
+                    {formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 2, locale)}{metrics.growthIndex !== null ? 'x' : ''}
                   </p>
                 </div>
               </div>

@@ -26,6 +26,8 @@ import {
   RISK_THRESHOLDS,
   GROWTH_THRESHOLDS,
   RANKING_BANDS,
+  formatGrowthIndex,
+  formatGrowthPercentage,
 } from '../analytics-config';
 
 // -------------------------------------------------------
@@ -450,8 +452,12 @@ describe('calculateAssignmentCompliance', () => {
     expect(result.value).toBe(100);
   });
 
-  // ── NEW: due_date = null treated as due immediately ──
-  test('due_date null treated as due immediately', () => {
+  // ── FIX: due_date = null means "no deadline" (excluded from calculations) ──
+  // Per project workflow (assignments-tab.tsx): "No due date = active, never expired".
+  // Previously the calculator treated null as "due immediately", which unfairly
+  // penalised students for optional/practice assignments. Now null assignments
+  // are excluded from the denominator entirely.
+  test('due_date null excluded from compliance (no deadline = not counted)', () => {
     const assignments = [
       { id: 'a1', due_date: undefined },
       { id: 'a2', due_date: undefined },
@@ -464,9 +470,29 @@ describe('calculateAssignmentCompliance', () => {
       assignments,
       studentId: 'stu1',
     });
-    expect(result.total).toBe(2);
+    // No assignments have deadlines → total = 0 → compliance undefined (signalled via total=0).
+    expect(result.total).toBe(0);
+    expect(result.completed).toBe(0);
+    expect(result.value).toBe(0);
+  });
+
+  // ── NEW: mixed null + past due assignments ──
+  test('mixed null and past-due assignments — only past-due counted', () => {
+    const assignments = [
+      { id: 'a1', due_date: '2024-01-01T00:00:00Z' },  // past due
+      { id: 'a2', due_date: undefined },                 // no deadline — excluded
+    ];
+    const submissions = [
+      { assignment_id: 'a1', student_id: 'stu1', status: 'graded' },
+    ];
+    const result = calculateAssignmentCompliance({
+      submissions,
+      assignments,
+      studentId: 'stu1',
+    });
+    expect(result.total).toBe(1);  // only a1
     expect(result.completed).toBe(1);
-    expect(result.value).toBe(50);
+    expect(result.value).toBe(100);
   });
 
   // ── NEW: returned counts as submitted ──
@@ -521,12 +547,13 @@ describe('calculateAssignmentQuality', () => {
       { assignment_id: 'a3', score: 20, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-25T10:00:00Z' },
     ];
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
-    // totalEarned = 80 + 40 + 20 = 140
-    // totalPossible = 100 + 50 + 25 = 175
-    // value = (140 / 175) * 100 = 80
+    // a3 has no due_date → excluded entirely. Only a1 + a2 count.
+    // totalEarned = 80 + 40 = 120
+    // totalPossible = 100 + 50 = 150
+    // value = (120 / 150) * 100 = 80
     expect(result.value).toBeCloseTo(80, 3);
-    expect(result.totalEarned).toBe(140);
-    expect(result.totalPossible).toBe(175);
+    expect(result.totalEarned).toBe(120);
+    expect(result.totalPossible).toBe(150);
     expect(result.missedDeadlines).toBe(0);
   });
 
@@ -548,13 +575,14 @@ describe('calculateAssignmentQuality', () => {
       { assignment_id: 'a1', score: 70, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-16T10:00:00Z' },
       // a2: on time
       { assignment_id: 'a2', score: 45, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-19T10:00:00Z' },
-      // a3: no due_date, so never late
+      // a3: no due_date → excluded entirely (no missed-deadline check)
       { assignment_id: 'a3', score: 20, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-25T10:00:00Z' },
     ];
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
+    // a3 excluded → only a1 + a2 counted.
     expect(result.missedDeadlines).toBe(1); // only a1 was late
-    expect(result.totalEarned).toBe(135);
-    expect(result.totalPossible).toBe(175);
+    expect(result.totalEarned).toBe(115);   // 70 + 45
+    expect(result.totalPossible).toBe(150); // 100 + 50
   });
 
   test('late submissions — past deadline but still graded', () => {
@@ -565,10 +593,10 @@ describe('calculateAssignmentQuality', () => {
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
     // a1: late (submitted 20th, due 15th) — graded, contributes to quality
     // a2: late (submitted 25th, due 20th) — submitted but ungraded, does NOT contribute to quality
-    // a3: no submission, no due_date → counts as missed + zero earned
-    expect(result.missedDeadlines).toBe(3); // a1 late, a2 late, a3 missed (no due_date → due immediately → no submission → missed)
-    expect(result.totalEarned).toBe(90); // only a1's graded score
-    expect(result.totalPossible).toBe(125); // a1 (100) + a3 (25), NOT a2 (excluded)
+    // a3: no due_date → excluded entirely (not counted as missed, not in possible)
+    expect(result.missedDeadlines).toBe(2); // a1 late, a2 late
+    expect(result.totalEarned).toBe(90);    // only a1's graded score
+    expect(result.totalPossible).toBe(100); // only a1, NOT a2 (ungraded) or a3 (no deadline)
   });
 
   test('unsubmitted assignment with past due_date counts as missed deadline', () => {
@@ -596,9 +624,9 @@ describe('calculateAssignmentQuality', () => {
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
     // a1: graded but score is null → excluded from quality (not earned=0, not in possible)
     // a2: no submission → missed + possible
-    // a3: no submission, no due_date → missed + possible
+    // a3: no due_date → excluded entirely
     expect(result.totalEarned).toBe(0);
-    expect(result.totalPossible).toBe(75); // a2 (50) + a3 (25), NOT a1 (excluded)
+    expect(result.totalPossible).toBe(50); // only a2, NOT a1 (null) or a3 (no deadline)
   });
 
   test('draft status submissions are not counted', () => {
@@ -607,9 +635,10 @@ describe('calculateAssignmentQuality', () => {
     ];
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
     // a1: draft → goes to else branch (not graded/submitted)
+    // a3: no due_date → excluded
     expect(result.totalEarned).toBe(0);
-    // totalPossible still counts all assignments
-    expect(result.totalPossible).toBe(175);
+    // totalPossible counts only a1 + a2 (a3 excluded due to no due_date)
+    expect(result.totalPossible).toBe(150);
   });
 
   // ── NEW: submitted but ungraded excluded from quality ──
@@ -895,10 +924,14 @@ describe('calculateGrowthIndex', () => {
     // third = 1
     // earliest: [0%] = 0
     // recent: [50%] = 50
-    // earliestAvg = 0, recentAvg > 0 → index = Infinity (absolute improvement)
-    expect(result.index).toBe(Infinity);
+    // earliestAvg = 0, recentAvg > 0 → ratio undefined (div by zero).
+    // FIX: index = null, improvementPercentage = null, trend = 'improving'.
+    // UI should render "تحسن مطلق" with point difference (recentAvg - earliestAvg = 50).
+    expect(result.index).toBeNull();
     expect(result.trend).toBe('improving');
-    expect(result.improvementPercentage).toBe(100); // 100% improvement from zero baseline
+    expect(result.improvementPercentage).toBeNull();
+    expect(result.recentAvg).toBe(50);
+    expect(result.earliestAvg).toBe(0);
   });
 
   test('edge case with 0 earliest avg and 0 recent avg', () => {
@@ -908,7 +941,7 @@ describe('calculateGrowthIndex', () => {
       { completed_at: '2024-03-01T00:00:00Z', score: 0, total: 100 },
     ];
     const result = calculateGrowthIndex(scores);
-    // earliestAvg = 0, recentAvg = 0 → index = 1 (not 2, because recentAvg is also 0)
+    // earliestAvg = 0, recentAvg = 0 → no change. index = 1 (conventional).
     expect(result.index).toBe(1);
     expect(result.trend).toBe('stable');
   });
@@ -953,9 +986,171 @@ describe('calculateGrowthIndex', () => {
     // third = 1
     // earliest: [0/0 → 0%] = 0
     // recent: [90%] = 90
-    // earliestAvg = 0, recentAvg > 0 → index = Infinity (absolute improvement from zero)
-    expect(result.index).toBe(Infinity);
+    // earliestAvg = 0, recentAvg > 0 → ratio undefined. index = null.
+    expect(result.index).toBeNull();
     expect(result.trend).toBe('improving');
+  });
+
+  // ── NEW: Verify NO Infinity / NaN leaks into the result ──
+  test('zero-baseline improvement never returns Infinity or NaN', () => {
+    const scores = [
+      { completed_at: '2024-01-01T00:00:00Z', score: 0, total: 100 },
+      { completed_at: '2024-02-01T00:00:00Z', score: 0, total: 100 },
+      { completed_at: '2024-03-01T00:00:00Z', score: 100, total: 100 },
+    ];
+    const result = calculateGrowthIndex(scores);
+    expect(Number.isFinite(result.index as number)).toBe(false); // null is not finite
+    expect(result.index).toBeNull();                              // but it's null, not Infinity
+    expect(result.improvementPercentage).toBeNull();
+    // No "Infinity" string would be produced by .toFixed():
+    expect(String(result.index)).toBe('null');
+    expect(String(result.improvementPercentage)).toBe('null');
+  });
+
+  // ── NEW: improvementPercentage is null when baseline is 0 ──
+  test('improvementPercentage is null when baseline is 0 (not 0, not 100, not Infinity)', () => {
+    const scores = [
+      { completed_at: '2024-01-01T00:00:00Z', score: 0, total: 100 },
+      { completed_at: '2024-02-01T00:00:00Z', score: 0, total: 100 },
+      { completed_at: '2024-03-01T00:00:00Z', score: 30, total: 100 },
+    ];
+    const result = calculateGrowthIndex(scores);
+    expect(result.improvementPercentage).toBeNull();
+    expect(result.index).toBeNull();
+    expect(result.trend).toBe('improving');
+    // The UI can use recentAvg - earliestAvg = 30 as the absolute point gain.
+    expect(result.recentAvg - result.earliestAvg).toBe(30);
+  });
+
+  // ── NEW: large recent value with zero baseline still null ──
+  test('large recent value with zero baseline still returns null (no Infinity)', () => {
+    const scores = [
+      { completed_at: '2024-01-01T00:00:00Z', score: 0, total: 100 },
+      { completed_at: '2024-02-01T00:00:00Z', score: 0, total: 100 },
+      { completed_at: '2024-03-01T00:00:00Z', score: 100, total: 100 },
+      { completed_at: '2024-04-01T00:00:00Z', score: 100, total: 100 },
+      { completed_at: '2024-05-01T00:00:00Z', score: 100, total: 100 },
+      { completed_at: '2024-06-01T00:00:00Z', score: 100, total: 100 },
+    ];
+    const result = calculateGrowthIndex(scores);
+    expect(result.index).toBeNull();
+    expect(result.improvementPercentage).toBeNull();
+    expect(result.trend).toBe('improving');
+  });
+
+  // ── NEW: normal ratio path still works (no regression) ──
+  test('normal ratio path returns finite index and percentage', () => {
+    const scores = [
+      { completed_at: '2024-01-01T00:00:00Z', score: 50, total: 100 },
+      { completed_at: '2024-02-01T00:00:00Z', score: 50, total: 100 },
+      { completed_at: '2024-03-01T00:00:00Z', score: 75, total: 100 },
+    ];
+    const result = calculateGrowthIndex(scores);
+    expect(result.index).toBe(1.5);
+    expect(result.improvementPercentage).toBe(50);
+    expect(result.trend).toBe('improving');
+    expect(Number.isFinite(result.index as number)).toBe(true);
+  });
+});
+
+// =====================================================
+// 7b. formatGrowthIndex / formatGrowthPercentage (UI display helpers)
+// These helpers prevent "Infinity" from leaking into the UI when
+// `calculateGrowthIndex` returns null for the zero-baseline case.
+// =====================================================
+describe('formatGrowthIndex', () => {
+  test('null index with improving trend → "تحسن مطلق" (ar)', () => {
+    expect(formatGrowthIndex(null, 'improving', 2, 'ar')).toBe('تحسن مطلق');
+  });
+
+  test('null index with improving trend → "Absolute" (en)', () => {
+    expect(formatGrowthIndex(null, 'improving', 2, 'en')).toBe('Absolute');
+  });
+
+  test('null index with stable trend → "—" (no fabricated value)', () => {
+    expect(formatGrowthIndex(null, 'stable', 2, 'en')).toBe('—');
+    expect(formatGrowthIndex(null, 'stable', 2, 'ar')).toBe('—');
+  });
+
+  test('null index with declining trend → "—" (no fabricated value)', () => {
+    expect(formatGrowthIndex(null, 'declining', 2, 'en')).toBe('—');
+  });
+
+  test('numeric index → toFixed(digits)', () => {
+    expect(formatGrowthIndex(1.5, 'improving', 2, 'en')).toBe('1.50');
+    expect(formatGrowthIndex(1.5, 'improving', 1, 'en')).toBe('1.5');
+    expect(formatGrowthIndex(0.95, 'stable', 2, 'en')).toBe('0.95');
+  });
+
+  test('default digits = 2, default locale = en', () => {
+    expect(formatGrowthIndex(1.234, 'improving')).toBe('1.23');
+    expect(formatGrowthIndex(null, 'improving')).toBe('Absolute');
+  });
+
+  test('never returns "Infinity" string', () => {
+    // This is the core regression test: even if some upstream code passed
+    // Infinity by mistake, the helper would just call .toFixed on it.
+    // But since calculateGrowthIndex now returns null instead of Infinity,
+    // the realistic path is null → "تحسن مطلق" / "Absolute".
+    expect(formatGrowthIndex(null, 'improving', 2, 'en')).not.toBe('Infinity');
+    expect(formatGrowthIndex(null, 'improving', 2, 'ar')).not.toBe('Infinity');
+    expect(formatGrowthIndex(null, 'stable', 2, 'en')).not.toBe('Infinity');
+  });
+});
+
+describe('formatGrowthPercentage', () => {
+  test('null index with improving trend → "تحسن مطلق" (ar)', () => {
+    expect(formatGrowthPercentage(null, 'improving', 'ar')).toBe('تحسن مطلق');
+  });
+
+  test('null index with improving trend → "Absolute" (en)', () => {
+    expect(formatGrowthPercentage(null, 'improving', 'en')).toBe('Absolute');
+  });
+
+  test('null index with stable trend → "—" (no fabricated value)', () => {
+    expect(formatGrowthPercentage(null, 'stable', 'en')).toBe('—');
+  });
+
+  test('numeric index → percentage with arrow', () => {
+    // index = 1.5 → 50% improving ↑
+    expect(formatGrowthPercentage(1.5, 'improving', 'en')).toBe('50% ↑');
+    // index = 0.8 → 20% declining ↓
+    expect(formatGrowthPercentage(0.8, 'declining', 'en')).toBe('20% ↓');
+    // index = 1.0 → 0% stable →
+    expect(formatGrowthPercentage(1.0, 'stable', 'en')).toBe('0% →');
+  });
+
+  test('never returns "Infinity%" string', () => {
+    expect(formatGrowthPercentage(null, 'improving', 'en')).not.toBe('Infinity%');
+    expect(formatGrowthPercentage(null, 'improving', 'ar')).not.toBe('Infinity%');
+  });
+});
+
+// =====================================================
+// 7c. CSV / export safety: growthIndex never produces "Infinity"
+// Simulates what teacher-dashboard CSV export does when growthIndex is null.
+// =====================================================
+describe('CSV export safety with null growthIndex', () => {
+  test('null growthIndex produces "N/A" (en) / "تحسن مطلق" (ar), never "Infinity"', () => {
+    const metrics = { growthIndex: null as number | null, growthTrend: 'improving' as const };
+    const enCsvValue = metrics.growthIndex !== null
+      ? metrics.growthIndex.toFixed(2)
+      : 'N/A';
+    const arCsvValue = metrics.growthIndex !== null
+      ? metrics.growthIndex.toFixed(2)
+      : 'تحسن مطلق';
+    expect(enCsvValue).toBe('N/A');
+    expect(arCsvValue).toBe('تحسن مطلق');
+    expect(enCsvValue).not.toBe('Infinity');
+    expect(arCsvValue).not.toBe('Infinity');
+  });
+
+  test('numeric growthIndex produces numeric string', () => {
+    const metrics = { growthIndex: 1.5, growthTrend: 'improving' as const };
+    const csvValue = metrics.growthIndex !== null
+      ? metrics.growthIndex.toFixed(2)
+      : 'N/A';
+    expect(csvValue).toBe('1.50');
   });
 });
 

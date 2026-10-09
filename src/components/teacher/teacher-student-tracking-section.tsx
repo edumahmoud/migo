@@ -87,6 +87,8 @@ import {
   type GrowthTrend,
   GROWTH_TRENDS,
   getGrowthTrendConfig,
+  formatGrowthIndex,
+  formatGrowthPercentage,
   calculatePercentile,
   getPercentileLabel,
   type SubjectPerformanceData,
@@ -913,7 +915,9 @@ export default function TeacherStudentTrackingSection({
         case 'discipline':
           return b.metrics.disciplineScore - a.metrics.disciplineScore;
         case 'growth':
-          return b.metrics.growthIndex - a.metrics.growthIndex;
+          // null growthIndex (absolute improvement from zero) sorts highest;
+          // other nulls (none currently produced) sort lowest.
+          return (b.metrics.growthIndex ?? -1) - (a.metrics.growthIndex ?? -1);
         case 'risk': {
           const riskOrder: Record<RiskLevel, number> = { atRisk: 4, concern: 3, monitor: 2, healthy: 1 };
           return riskOrder[b.metrics.riskLevel] - riskOrder[a.metrics.riskLevel];
@@ -1006,7 +1010,7 @@ export default function TeacherStudentTrackingSection({
       Math.round(d.metrics.efficiency) + '%',
       efficiencyLabelMap[d.metrics.efficiencyLevel],
       Math.round(d.metrics.disciplineScore) + '%',
-      d.metrics.growthIndex.toFixed(2),
+      d.metrics.growthIndex !== null ? d.metrics.growthIndex.toFixed(2) : (locale === 'ar' ? 'تحسن مطلق' : 'N/A'),
       growthTrendLabelMap[d.metrics.growthTrend],
       riskLabelMap[d.metrics.riskLevel],
       d.metrics.riskReasons.map(r => riskReasonTranslationMap[r] || r).join('; '),
@@ -2244,7 +2248,7 @@ export default function TeacherStudentTrackingSection({
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
                                   <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
-                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {metrics.growthIndex.toFixed(1)}</span>
+                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 1, locale)}</span>
                                 </div>
                                 {metrics.riskLevel !== 'healthy' && (
                                   <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
@@ -2356,7 +2360,7 @@ export default function TeacherStudentTrackingSection({
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
                                   <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
                                   <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
-                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {metrics.growthIndex.toFixed(1)}</span>
+                                  <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 1, locale)}</span>
                                 </div>
                                 {metrics.riskLevel !== 'healthy' && (
                                   <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
@@ -3299,7 +3303,7 @@ function StudentCard({
       [],
       [locale === 'ar' ? 'الكفاءة' : 'Efficiency', `${Math.round(m.efficiency)}%`, efficiencyLabelMap[m.efficiencyLevel]],
       [locale === 'ar' ? 'درجة الانضباط' : 'Discipline Score', `${Math.round(m.disciplineScore)}%`],
-      [locale === 'ar' ? 'مؤشر النمو' : 'Growth Index', m.growthIndex.toFixed(2), growthLabelMap[m.growthTrend]],
+      [locale === 'ar' ? 'مؤشر النمو' : 'Growth Index', m.growthIndex !== null ? m.growthIndex.toFixed(2) : (locale === 'ar' ? 'تحسن مطلق' : 'N/A'), growthLabelMap[m.growthTrend]],
       [locale === 'ar' ? 'مستوى الخطورة' : 'Risk Level', riskLabelMap[m.riskLevel]],
       ...(m.riskReasons.length > 0 ? [[locale === 'ar' ? 'أسباب الخطورة' : 'Risk Reasons', m.riskReasons.map(r => riskReasonTranslationMap[r] || r).join('; ')]] : []),
     ];
@@ -3428,7 +3432,7 @@ function StudentCard({
         {/* Growth mini indicator */}
         <div className="hidden md:flex flex-col items-center gap-0.5 shrink-0">
           <span className={`text-sm font-bold ${growthConfig.textColor}`}>
-            {growthConfig.icon} {metrics.growthIndex.toFixed(1)}
+            {growthConfig.icon} {formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 1, locale)}
           </span>
           <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingGrowthIndex')}</span>
         </div>
@@ -3648,7 +3652,7 @@ function StudentCard({
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span className={`text-2xl font-bold ${growthConfig.textColor}`}>
-                      {growthConfig.icon} {metrics.growthIndex.toFixed(2)}
+                      {growthConfig.icon} {formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 2, locale)}
                     </span>
                     <Badge
                       variant="secondary"
@@ -3663,7 +3667,7 @@ function StudentCard({
                   <div className="mt-2 flex items-center gap-4 text-[10px] text-muted-foreground">
                     <span>{t('teacher.trackingRecentVsEarliest') || 'Recent vs Earliest'}:</span>
                     <span className="font-medium text-gray-700 dark:text-foreground">
-                      {Math.round(metrics.growthIndex >= 1 ? (metrics.growthIndex - 1) * 100 : (1 - metrics.growthIndex) * 100)}% {metrics.growthTrend === 'improving' ? '↑' : metrics.growthTrend === 'declining' ? '↓' : '→'}
+                      {formatGrowthPercentage(metrics.growthIndex, metrics.growthTrend, locale)}
                     </span>
                   </div>
                 )}
@@ -4198,7 +4202,7 @@ function CourseRankingCard({
                           <span className="text-muted-foreground">{locale === 'ar' ? 'الانضباط' : 'Discipline'}:</span>
                           <span className="font-bold text-foreground">{Math.round(metrics.disciplineScore)}%</span>
                           <span className="text-muted-foreground">{locale === 'ar' ? 'النمو' : 'Growth'}:</span>
-                          <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {metrics.growthIndex.toFixed(1)}</span>
+                          <span className={`font-bold ${growthCfg.textColor}`}>{growthCfg.icon} {formatGrowthIndex(metrics.growthIndex, metrics.growthTrend, 1, locale)}</span>
                         </div>
                         {metrics.riskLevel !== 'healthy' && (
                           <div className="flex items-center gap-1.5 flex-wrap text-[10px]">

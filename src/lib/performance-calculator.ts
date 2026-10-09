@@ -36,6 +36,9 @@ import {
   type RiskLevelConfig,
   type GrowthTrend,
   type GrowthTrendConfig,
+  // Import growth display helpers so they can be re-exported below.
+  formatGrowthIndex,
+  formatGrowthPercentage,
 } from './analytics-config';
 
 // =====================================================
@@ -63,6 +66,9 @@ export {
   type RiskLevelConfig,
   type GrowthTrend,
   type GrowthTrendConfig,
+  // Re-export growth display helpers (handle null growthIndex)
+  formatGrowthIndex,
+  formatGrowthPercentage,
 };
 
 // -------------------------------------------------------
@@ -136,7 +142,7 @@ export interface StudentPerformanceMetrics {
   disciplineScore: number;
 
   // ── Growth ──
-  growthIndex: number;
+  growthIndex: number | null;
   growthTrend: GrowthTrend;
 
   // ── Risk ──
@@ -216,7 +222,11 @@ export function calculateAttendanceScore(params: {
 // Measures commitment: did the student submit?
 // FIX: Exclude future assignments (due_date > now) from the denominator.
 // FIX: Count 'returned' as submitted (student did submit, then it was returned).
-// FIX: due_date = null/undefined → treated as due immediately (conservative).
+// FIX: due_date = null/undefined → assignment has no deadline, so it is
+//      excluded from compliance calculations entirely (per project workflow:
+//      assignments-tab.tsx treats null as "no due date = active, never expired").
+//      Previously the calculator treated null as "due immediately", which
+//      unfairly penalised students for optional/practice assignments.
 // FIX: When no due assignments exist, return value 0 but signal via total=0
 //      so computeAllMetrics can pass undefined to calculateOverallPerformance.
 // -------------------------------------------------------
@@ -228,9 +238,10 @@ export function calculateAssignmentCompliance(params: {
   const { submissions, assignments, studentId } = params;
   const now = new Date();
 
-  // Only count assignments that are due (or have no due_date → due immediately)
+  // Only count assignments that have a deadline AND whose deadline has passed.
+  // Assignments with no due_date are excluded (optional / practice).
   const dueAssignments = assignments.filter(a =>
-    !a.due_date || new Date(a.due_date) <= now
+    a.due_date && new Date(a.due_date) <= now
   );
   const dueAssignmentIds = new Set(dueAssignments.map(a => a.id));
 
@@ -253,11 +264,19 @@ export function calculateAssignmentCompliance(params: {
 // FIX: Exclude 'returned' from BOTH numerator and denominator —
 //      returned means the submission was sent back; no graded score exists.
 // FIX: Only 'graded' submissions with non-null score contribute to quality.
-// FIX: due_date = null → treated as due immediately.
-// FIX: Only count missedDeadline for assignments that are past due AND unsubmitted.
-// FIX: Date comparison uses end-of-day for due_date to avoid marking
-//      same-day submissions as late (due_date is TIMESTAMPTZ but may be
-//      stored as date-only midnight in some cases).
+// FIX: due_date = null → assignment has no deadline (excluded from quality
+//      entirely), per project workflow (see compliance comment above).
+// FIX: Only count missedDeadline for assignments that have a deadline, are
+//      past due, AND have no submission.
+// NOTE: Date comparison uses the raw timestamp directly. If the production
+//      `assignments.due_date` column is still DATE (not TIMESTAMPTZ), a
+//      date-only value like "2024-01-15" is parsed as midnight UTC, which
+//      may cause same-day submissions to appear late in timezones behind UTC.
+//      The project provides `/api/migrate/assignments-due-date` to convert
+//      the column to TIMESTAMPTZ; this calculator intentionally does NOT
+//      apply end-of-day heuristics because (a) it would diverge from the
+//      raw timestamp semantics, and (b) the migration is the project's
+//      chosen fix. See BLOCKER note in worklog.
 // -------------------------------------------------------
 export function calculateAssignmentQuality(params: {
   submissions: Array<{ assignment_id: string; score: number | null; status: string; student_id: string; submitted_at: string }>;
@@ -271,9 +290,10 @@ export function calculateAssignmentQuality(params: {
   let totalPossible = 0;
   let missedDeadlines = 0;
 
-  // Only process assignments that are due (or have no due_date → due immediately)
+  // Only process assignments that have a deadline AND whose deadline has passed.
+  // Assignments with no due_date are excluded (optional / practice).
   const dueAssignments = assignments.filter(a =>
-    !a.due_date || new Date(a.due_date) <= now
+    a.due_date && new Date(a.due_date) <= now
   );
 
   dueAssignments.forEach(assignment => {
@@ -393,7 +413,7 @@ export function calculateDisciplineScore(params: {
 // -------------------------------------------------------
 export function calculateGrowthIndex(
   scores: Array<{ completed_at: string; score: number; total: number }>
-): { index: number; trend: GrowthTrend; recentAvg: number; earliestAvg: number; improvementPercentage: number } {
+): { index: number | null; trend: GrowthTrend; recentAvg: number; earliestAvg: number; improvementPercentage: number | null } {
   if (scores.length < 2) {
     return { index: 1, trend: 'stable', recentAvg: 0, earliestAvg: 0, improvementPercentage: 0 };
   }
@@ -409,33 +429,44 @@ export function calculateGrowthIndex(
   const earliestAvg = earliest.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / earliest.length;
   const recentAvg = recent.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / recent.length;
 
-  // FIX: When earliestAvg is 0, division would produce Infinity or NaN.
-  // A zero baseline means the student started from zero — if they later
-  // scored above zero, that is genuine improvement (not insufficient data).
-  // We use absolute difference instead of ratio when baseline is 0.
-  let index: number;
-  let improvementPercentage: number;
+  // FIX: When earliestAvg is 0, ratio-based growth is mathematically undefined
+  // (division by zero) and any numeric value would be misleading. We expose
+  // null for `index` and `improvementPercentage` so the UI can render
+  // "تحسن مطلق / Absolute improvement" with the actual point difference
+  // (recentAvg - earliestAvg) instead of "Infinity" or a fabricated ratio.
+  // The `trend` is still derived from the actual change, so risk detection
+  // and other downstream consumers continue to work.
+  let index: number | null;
+  let improvementPercentage: number | null;
 
   if (earliestAvg > 0) {
-    // Normal case: ratio-based growth
+    // Normal case: ratio-based growth is well-defined.
     index = recentAvg / earliestAvg;
     improvementPercentage = ((recentAvg - earliestAvg) / earliestAvg) * 100;
   } else if (recentAvg > 0) {
-    // Zero baseline with improvement: student went from 0 to positive
-    // Use Infinity to signal "absolute improvement from zero" — UI should
-    // display "تحسن مطلق" / "Absolute improvement" instead of a number.
-    index = Infinity;
-    improvementPercentage = 100; // 100% improvement from zero
+    // Zero baseline with absolute improvement: signal via null + trend.
+    // UI should display "تحسن مطلق" + the point difference (recentAvg).
+    index = null;
+    improvementPercentage = null;
   } else {
-    // Both zero: no change
+    // Both zero: no change, no ratio — but index=1 is well-defined here
+    // (0/0 is conventionally 1 in this library's "no change" sense).
     index = 1;
     improvementPercentage = 0;
   }
 
+  // Derive trend from the actual data, including the null-index case.
   let trend: GrowthTrend;
-  if (index >= GROWTH_THRESHOLDS.improving) trend = 'improving';
-  else if (index >= GROWTH_THRESHOLDS.stable) trend = 'stable';
-  else trend = 'declining';
+  if (index === null) {
+    // Absolute improvement from zero baseline.
+    trend = 'improving';
+  } else if (index >= GROWTH_THRESHOLDS.improving) {
+    trend = 'improving';
+  } else if (index >= GROWTH_THRESHOLDS.stable) {
+    trend = 'stable';
+  } else {
+    trend = 'declining';
+  }
 
   return { index, trend, recentAvg, earliestAvg, improvementPercentage };
 }
@@ -559,9 +590,10 @@ export function computeAllMetrics(params: {
 
   // 7. Discipline Score
   // FIX: Count 'returned' as submitted for on-time calculation.
-  // FIX: Use only due assignments for totalAssignments in discipline.
+  // FIX: Use only assignments with a past deadline for totalAssignments in
+  //      discipline. Assignments with no due_date are excluded.
   const dueAssignmentsForDiscipline = assignments.filter(a =>
-    !a.due_date || new Date(a.due_date) <= new Date()
+    a.due_date && new Date(a.due_date) <= new Date()
   );
   const onTimeSubmissions = submissions.filter(
     s => s.student_id === studentId &&
@@ -582,10 +614,11 @@ export function computeAllMetrics(params: {
   const growth = calculateGrowthIndex(studentScores);
 
   // 9. Risk Detection
-  // FIX: Only check assignments that are past due for missed streak
+  // FIX: Only check assignments with a past deadline for missed streak.
+  //      Assignments with no due_date are excluded.
   const now = new Date();
   const dueAssignmentsForRisk = assignments.filter(a =>
-    !a.due_date || new Date(a.due_date) <= now
+    a.due_date && new Date(a.due_date) <= now
   );
   const recentAssignments = [...dueAssignmentsForRisk]
     .sort((a, b) => {
