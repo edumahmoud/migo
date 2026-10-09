@@ -652,7 +652,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   }, [fetchWithTimeout, getAuthToken]);
 
-  const handleChangeRole = async (userId: string, newRole: 'student' | 'teacher' | 'admin' | 'superadmin' | 'registration_agent') => {
+  const handleChangeRole = async (userId: string, newRole: 'student' | 'teacher' | 'admin' | 'superadmin') => {
     setChangingRole(true);
     try {
       const token = await getAuthToken();
@@ -873,7 +873,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       const matchesSearch =
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        ((u as { student_code?: string | null }).student_code ?? '').toLowerCase().includes(q);
+        ((u as { student_code?: string | null }).student_code ?? '').toLowerCase().includes(q) ||
+        ((u as { teacher_code?: string | null }).teacher_code ?? '').toLowerCase().includes(q) ||
+        ((u as { registration_code?: string | null }).registration_code ?? '').toLowerCase().includes(q);
       return matchesRole && matchesSearch;
     })
     .sort((a, b) => {
@@ -1977,7 +1979,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {t('admin.changeUserRoleDesc')}
                     </p>
                     <div className="flex gap-2 flex-wrap">
-                      {(['student', 'registration_agent', 'teacher', 'admin', 'superadmin'] as const)
+                      {(['student', 'teacher', 'admin', 'superadmin'] as const)
                         .filter((role) => {
                           if (profile.role === 'superadmin') return true;
                           if (profile.role === 'admin') return role !== 'superadmin' && role !== 'admin';

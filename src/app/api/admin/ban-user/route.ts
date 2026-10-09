@@ -249,6 +249,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // v130 Request 6: Cascade suspension when banning a TEACHER
+    // When a teacher is banned:
+    //   - Deactivate all their registration_agents (is_active = false)
+    //   - Pause all subjects they own (is_paused = true)
+    //   - Do NOT touch subjects where they are only a co_teacher
+    //     (those belong to other teachers)
+    // Note: this is SUSPEND only — no deletion. The teacher's account,
+    // agents, and subjects all remain in the database, just inactive.
+    // If the ban is lifted (unban), the admin must manually re-activate
+    // agents and un-pause subjects.
+    // ═══════════════════════════════════════════════════════════
+    if (userRecord.role === 'teacher') {
+      // Deactivate all agents belonging to this teacher
+      const { error: agentUpdateError } = await supabaseServer
+        .from('registration_agents')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('teacher_id', userId)
+        .eq('is_active', true);
+
+      if (agentUpdateError) {
+        console.error('[ban-user] Failed to deactivate agents for banned teacher:', agentUpdateError.message);
+        // Non-fatal — ban already succeeded
+      }
+
+      // Pause all subjects OWNED by this teacher
+      const { error: subjectUpdateError } = await supabaseServer
+        .from('subjects')
+        .update({ is_paused: true, updated_at: new Date().toISOString() })
+        .eq('teacher_id', userId)
+        .eq('is_paused', false);
+
+      if (subjectUpdateError) {
+        console.error('[ban-user] Failed to pause subjects for banned teacher:', subjectUpdateError.message);
+        // Non-fatal — ban already succeeded
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Ban user error:', error);

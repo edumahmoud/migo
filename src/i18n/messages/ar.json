@@ -349,7 +349,7 @@
       "female": "معلمة"
     },
     "admin": "مدير",
-    "superadmin": "مشرف المنصة",
+    "superadmin": "مدير المنصة",
     "supervisor": "مشرف",
     "registration_agent": "وكيل",
     "registration_agentWithGender": {
@@ -361,7 +361,7 @@
     "associateProfessorFemale": "أستاذة مشاركة",
     "adminFemale": "مديرة",
     "studentFemale": "طالبة",
-    "superadminFemale": "مشرفة المنصة",
+    "superadminFemale": "مديرة المنصة",
     "teacherFemale": "معلمة",
     "registration_agentFemale": "وكيلة"
   },
