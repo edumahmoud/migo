@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
         const agentTeacherIdMap: Record<string, string> = {};
         // agentUserId → display_name
         const agentDisplayNameMap: Record<string, string> = {};
-        // teacherId → count of active agents
+        // teacherId → count of all agents (active + inactive)
         const teacherAgentCountMap: Record<string, number> = {};
         if (agentsData.data) {
           for (const row of agentsData.data) {
@@ -97,7 +97,9 @@ export async function GET(request: NextRequest) {
               agentTeacherIdMap[row.user_id] = row.teacher_id;
               if (row.display_name) agentDisplayNameMap[row.user_id] = row.display_name;
             }
-            if (row.teacher_id && row.is_active) {
+            // v130 fix: count ALL agents (active + inactive) so the stat
+            // matches the agents list shown in the teacher detail panel.
+            if (row.teacher_id) {
               teacherAgentCountMap[row.teacher_id] = (teacherAgentCountMap[row.teacher_id] || 0) + 1;
             }
           }

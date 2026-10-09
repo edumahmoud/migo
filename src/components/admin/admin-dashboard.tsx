@@ -17,6 +17,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Mail,
   Calendar,
   Shield,
@@ -85,6 +86,7 @@ import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useAppStore } from '@/stores/app-store';
@@ -246,6 +248,44 @@ function getRoleAccentClass(role: string): string {
     default:
       return 'bg-gray-400';
   }
+}
+
+// -------------------------------------------------------
+// CollapsibleAgentList — expandable list of agents under a teacher
+// -------------------------------------------------------
+function CollapsibleAgentList({ agents, t }: { agents: UserWithMeta[]; t: (key: string) => string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button className="w-full flex items-center justify-between rounded-lg bg-violet-50/50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-900/60 p-3 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
+          <span className="text-xs font-semibold text-violet-700 dark:text-violet-400 flex items-center gap-1.5">
+            <UserCog className="h-3.5 w-3.5" />
+            {t('admin.agentsList')} ({agents.length})
+          </span>
+          <ChevronDown className={`h-4 w-4 text-violet-600 dark:text-violet-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-1.5 mt-2 max-h-[180px] overflow-y-auto">
+          {agents.map((agent) => (
+            <div key={agent.id} className="flex items-center gap-2 rounded-md bg-background/60 dark:bg-background/40 px-2 py-1.5">
+              <UserAvatar name={agent.name} avatarUrl={agent.avatar_url} size="xs" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{agent.email}</p>
+              </div>
+              {agent.agentDisplayName && (
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-200 dark:border-violet-900/60 text-violet-700 dark:text-violet-400">
+                  {agent.agentDisplayName}
+                </Badge>
+              )}
+            </div>
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 // -------------------------------------------------------
@@ -1873,35 +1913,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     </div>
                     {/* Supervisor links management */}
                     <SupervisorLinksManager teacherId={selectedUser.id} teacherName={selectedUser.name} />
-                    {/* Agents list for this teacher */}
+                    {/* Agents list for this teacher — collapsible */}
                     {(() => {
                       const teacherAgents = allUsers.filter(
                         (u) => u.role === 'registration_agent' && u.linkedTeacherId === selectedUser.id
                       );
                       if (teacherAgents.length === 0) return null;
                       return (
-                        <div className="rounded-lg bg-violet-50/50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-900/60 p-3">
-                          <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-1.5">
-                            <UserCog className="h-3.5 w-3.5" />
-                            {t('admin.agentsList')} ({teacherAgents.length})
-                          </p>
-                          <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
-                            {teacherAgents.map((agent) => (
-                              <div key={agent.id} className="flex items-center gap-2 rounded-md bg-background/60 dark:bg-background/40 px-2 py-1.5">
-                                <UserAvatar name={agent.name} avatarUrl={agent.avatar_url} size="xs" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
-                                  <p className="text-[10px] text-muted-foreground truncate">{agent.email}</p>
-                                </div>
-                                {agent.agentDisplayName && (
-                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-200 dark:border-violet-900/60 text-violet-700 dark:text-violet-400">
-                                    {agent.agentDisplayName}
-                                  </Badge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <CollapsibleAgentList agents={teacherAgents} t={t} />
                       );
                     })()}
                   </div>
@@ -1968,8 +1987,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   );
                 })()}
 
-                {/* Role change section - not for self */}
-                {!isSelf(selectedUser.id) && (
+                {/* Role change section - not for self, not for registration_agent */}
+                {!isSelf(selectedUser.id) && selectedUser.role !== 'registration_agent' && (
                   <div className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Shield className="h-4 w-4 text-sky-600 dark:text-sky-400" />
