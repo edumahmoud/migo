@@ -97,6 +97,9 @@ interface TeacherInfo {
   id: string;
   name: string | null;
   email: string | null;
+  // v130: ban status — used to show suspended-teacher modal
+  is_banned?: boolean;
+  ban_reason?: string | null;
 }
 
 // Teacher sections the agent may browse from their profile.
@@ -154,6 +157,12 @@ export default function AgentPortal({
   const [self, setSelf] = useState<AgentSelf | null>(null);
   const [teacher, setTeacher] = useState<TeacherInfo | null>(null);
   const [selfError, setSelfError] = useState<string | null>(null);
+  // v130: suspended-teacher modal state. When the teacher is banned, we show
+  // a non-dismissible modal on portal mount explaining the agent can't act.
+  const [teacherSuspended, setTeacherSuspended] = useState(false);
+  const [suspendedTeacherName, setSuspendedTeacherName] = useState<string>('');
+  const [suspendedReason, setSuspendedReason] = useState<string | null>(null);
+  const [checkingSuspension, setCheckingSuspension] = useState(true);
   // v115: agent suspend/activate dialog state. Tracks which student is being
   // suspended/activated + the subjects available for selection (the student's
   // enrolled subjects in this agent's teacher's courses).
@@ -211,6 +220,35 @@ export default function AgentPortal({
     if (self !== null || selfError !== null) return;
     fetchSelf();
   }, [activeSection, self, selfError, fetchSelf]);
+
+  // v130: Check on mount whether the teacher is banned/suspended.
+  // This runs IMMEDIATELY (not lazily) because the suspended-teacher modal
+  // must appear regardless of which section the agent is on.
+  // Reuses /api/agent/me (which now returns teacher.is_banned).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/agent/me', { headers: await getCachedAuthHeaders() });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success && json.teacher) {
+          const t = json.teacher as TeacherInfo;
+          if (t.is_banned) {
+            setTeacherSuspended(true);
+            setSuspendedTeacherName(t.name || 'المعلم');
+            setSuspendedReason(t.ban_reason || null);
+          }
+        }
+      } catch {
+        // Non-fatal — if the check fails, the agent can still use the portal.
+        // The ban check will retry on next mount.
+      } finally {
+        if (!cancelled) setCheckingSuspension(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ─── Search student by code ───
   const searchStudent = async () => {
@@ -510,6 +548,67 @@ export default function AgentPortal({
   return (
     <div className="space-y-4 p-3 sm:p-6 max-w-4xl mx-auto" dir={direction}>
       {confirmDialog}
+
+      {/* ════════ v130: Suspended-teacher modal (non-dismissible) ════════ */}
+      {teacherSuspended && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border-2 border-rose-200 dark:border-rose-900/60 bg-card shadow-2xl overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1.5 w-full bg-rose-500" />
+            <div className="p-6 text-center space-y-4">
+              {/* Icon */}
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30">
+                <Ban className="h-8 w-8 text-rose-600 dark:text-rose-400" />
+              </div>
+              {/* Title */}
+              <div>
+                <h2 className="text-lg font-bold text-rose-700 dark:text-rose-400">
+                  حساب المعلم موقوف
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  المعلم: <span className="font-semibold text-foreground">{suspendedTeacherName}</span>
+                </p>
+              </div>
+              {/* Body */}
+              <div className="rounded-lg bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-900/40 p-3">
+                <p className="text-sm text-rose-800 dark:text-rose-300 leading-relaxed">
+                  تم إيقاف حساب المعلم المرتبط بك مؤقتاً. لا يمكنك تسجيل طلاب جدد أو
+                  تفعيل اشتراكات أو إجراء أي مهام حتى يتم رفع الإيقاف.
+                </p>
+                {suspendedReason && (
+                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-rose-200 dark:border-rose-900/40">
+                    سبب الإيقاف: {suspendedReason}
+                  </p>
+                )}
+              </div>
+              {/* What you can still do */}
+              <div className="text-xs text-muted-foreground space-y-1 text-start">
+                <p className="font-medium text-foreground">ما يمكنك فعله الآن:</p>
+                <p>• تصفح بيانات الطلاب الحالية (للقراءة فقط)</p>
+                <p>• التواصل مع إدارة المنصة للاستفسار</p>
+              </div>
+              {/* Close button — dismisses the modal but shows a persistent banner */}
+              <Button
+                variant="outline"
+                className="w-full border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                onClick={() => setTeacherSuspended(false)}
+              >
+                فهمت، متابعة للقراءة فقط
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* v130: Persistent banner — always visible while teacher is banned (even after modal dismissed) */}
+      {!checkingSuspension && suspendedTeacherName && (
+        <div className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/10 px-3 py-2">
+          <Ban className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+          <p className="text-xs text-rose-700 dark:text-rose-400">
+            ⚠ حساب المعلم موقوف — يمكنك تصفح البيانات فقط (للقراءة فقط). تواصل مع إدارة المنصة لرفع الإيقاف.
+          </p>
+        </div>
+      )}
 
       {/* ════════ Section: SEARCH ════════ */}
       {activeSection === 'search' && (
