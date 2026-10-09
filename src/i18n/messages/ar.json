@@ -351,10 +351,10 @@
     "admin": "مدير",
     "superadmin": "مشرف المنصة",
     "supervisor": "مشرف",
-    "registration_agent": "وكيل تسجيل",
+    "registration_agent": "وكيل",
     "registration_agentWithGender": {
-      "male": "وكيل تسجيل",
-      "female": "وكيلة تسجيل"
+      "male": "وكيل",
+      "female": "وكيلة"
     },
     "doctorFemale": "دكتورة",
     "professorFemale": "أستاذة",
@@ -363,7 +363,7 @@
     "studentFemale": "طالبة",
     "superadminFemale": "مشرفة المنصة",
     "teacherFemale": "معلمة",
-    "registration_agentFemale": "وكيلة تسجيل"
+    "registration_agentFemale": "وكيلة"
   },
   "academicTitles": {
     "professor": "أ.د",

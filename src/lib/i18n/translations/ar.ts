@@ -268,9 +268,9 @@ export const ar: TranslationDict = {
     adminFemale: 'مشرفة',
     teacher: 'معلم',
     teacherFemale: 'معلمة',
-    registration_agent: 'وكيل تسجيل',
-    registration_agentFemale: 'وكيلة تسجيل',
-    'registration_agentWithGender': { male: 'وكيل تسجيل', female: 'وكيلة تسجيل' },
+    registration_agent: 'وكيل',
+    registration_agentFemale: 'وكيلة',
+    'registration_agentWithGender': { male: 'وكيل', female: 'وكيلة' },
   },
 
   // ─── Academic Titles ───

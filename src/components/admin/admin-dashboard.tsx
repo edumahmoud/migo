@@ -475,7 +475,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
   // ─── Users section state ───
   const [userSearch, setUserSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'teacher' | 'admin' | 'superadmin'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'teacher' | 'admin' | 'superadmin' | 'registration_agent'>('all');
   const [selectedUser, setSelectedUser] = useState<UserWithMeta | null>(null);
   const [userDetailOpen, setUserDetailOpen] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -1623,7 +1623,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(['all', 'student', 'teacher', 'admin', 'superadmin'] as const).map((role) => (
+          {(['all', 'student', 'teacher', 'admin', 'superadmin', 'registration_agent'] as const).map((role) => (
             <button
               key={role}
               onClick={() => { setRoleFilter(role); setUserPage(1); }}
@@ -1885,7 +1885,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {t('admin.changeUserRoleDesc')}
                     </p>
                     <div className="flex gap-2 flex-wrap">
-                      {(['student', 'teacher', 'admin', 'superadmin'] as const)
+                      {(['student', 'teacher', 'admin', 'superadmin', 'registration_agent'] as const)
                         .filter((role) => {
                           if (profile.role === 'superadmin') return true;
                           if (profile.role === 'admin') return role !== 'superadmin' && role !== 'admin';
