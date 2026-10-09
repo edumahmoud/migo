@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['student', 'teacher', 'admin', 'superadmin'].includes(newRole)) {
+    if (!['student', 'teacher', 'admin', 'superadmin', 'registration_agent'].includes(newRole)) {
       return NextResponse.json(
         { success: false, error: 'دور غير صالح' },
         { status: 400 }

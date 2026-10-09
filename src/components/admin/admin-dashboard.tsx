@@ -642,7 +642,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   }, [fetchWithTimeout, getAuthToken]);
 
-  const handleChangeRole = async (userId: string, newRole: 'student' | 'teacher' | 'admin' | 'superadmin') => {
+  const handleChangeRole = async (userId: string, newRole: 'student' | 'teacher' | 'admin' | 'superadmin' | 'registration_agent') => {
     setChangingRole(true);
     try {
       const token = await getAuthToken();
