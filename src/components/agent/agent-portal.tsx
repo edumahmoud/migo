@@ -30,6 +30,7 @@ import {
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronRight, ChevronDown,
   AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, CheckCircle2,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -549,67 +550,90 @@ export default function AgentPortal({
     <div className="space-y-4 p-3 sm:p-6 max-w-4xl mx-auto" dir={direction}>
       {confirmDialog}
 
-      {/* ════════ v130: Suspended-teacher modal (non-dismissible) ════════ */}
-      {teacherSuspended && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border-2 border-rose-200 dark:border-rose-900/60 bg-card shadow-2xl overflow-hidden">
-            {/* Top accent bar */}
-            <div className="h-1.5 w-full bg-rose-500" />
-            <div className="p-6 text-center space-y-4">
-              {/* Icon */}
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30">
-                <Ban className="h-8 w-8 text-rose-600 dark:text-rose-400" />
+      {/* ════════ v130: Suspended-teacher full-screen block ════════ */}
+      {/* If the teacher is banned, the agent sees a full-screen blocked page
+          (similar to the banned-user overlay) with a sign-out button.
+          The agent CANNOT use the portal at all while the teacher is suspended. */}
+      {teacherSuspended && !checkingSuspension && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-card shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-l from-rose-500 to-rose-600 p-6 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 mb-4">
+                <Ban className="h-10 w-10 text-white" />
               </div>
-              {/* Title */}
-              <div>
-                <h2 className="text-lg font-bold text-rose-700 dark:text-rose-400">
-                  حساب المعلم موقوف
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  المعلم: <span className="font-semibold text-foreground">{suspendedTeacherName}</span>
-                </p>
+              <h2 className="text-2xl font-bold text-white">حساب المعلم موقوف</h2>
+              <p className="text-rose-100 mt-2 text-sm">
+                المعلم: {suspendedTeacherName}
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              {/* Ban reason */}
+              {suspendedReason && (
+                <div className="rounded-lg bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-900/40 p-4">
+                  <p className="text-sm font-medium text-rose-700 dark:text-rose-400 mb-1">سبب الإيقاف</p>
+                  <p className="text-sm text-rose-600 dark:text-rose-500">{suspendedReason}</p>
+                </div>
+              )}
+
+              {/* Explanation */}
+              <div className="rounded-lg bg-muted/50 dark:bg-muted/20 border p-4">
+                <div className="flex items-center gap-3">
+                  <ShieldAlert className="h-5 w-5 text-rose-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">لا يمكنك استخدام البوابة</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      تم إيقاف حساب المعلم المرتبط بك. لا يمكنك تسجيل الطلاب أو تفعيل الاشتراكات
+                      أو استخدام أي ميزة في البوابة حتى يتم رفع الإيقاف عن المعلم.
+                    </p>
+                  </div>
+                </div>
               </div>
-              {/* Body */}
-              <div className="rounded-lg bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-900/40 p-3">
-                <p className="text-sm text-rose-800 dark:text-rose-300 leading-relaxed">
-                  تم إيقاف حساب المعلم المرتبط بك مؤقتاً. لا يمكنك تسجيل طلاب جدد أو
-                  تفعيل اشتراكات أو إجراء أي مهام حتى يتم رفع الإيقاف.
-                </p>
-                {suspendedReason && (
-                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-rose-200 dark:border-rose-900/40">
-                    سبب الإيقاف: {suspendedReason}
-                  </p>
-                )}
+
+              {/* Restrictions list */}
+              <div className="rounded-lg bg-muted/30 dark:bg-muted/10 border p-4">
+                <p className="text-sm font-medium text-foreground mb-2">القيود المفروضة:</p>
+                <ul className="space-y-1.5">
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
+                    لا يمكن تسجيل طلاب جدد
+                  </li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
+                    لا يمكن تفعيل أو إلغاء الاشتراكات
+                  </li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
+                    لا يمكن تصفح بيانات المعلم أو المقررات
+                  </li>
+                  <li className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
+                    تواصل مع إدارة المنصة للاستفسار عن رفع الإيقاف
+                  </li>
+                </ul>
               </div>
-              {/* What you can still do */}
-              <div className="text-xs text-muted-foreground space-y-1 text-start">
-                <p className="font-medium text-foreground">ما يمكنك فعله الآن:</p>
-                <p>• تصفح بيانات الطلاب الحالية (للقراءة فقط)</p>
-                <p>• التواصل مع إدارة المنصة للاستفسار</p>
-              </div>
-              {/* Close button — dismisses the modal but shows a persistent banner */}
-              <Button
-                variant="outline"
-                className="w-full border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                onClick={() => setTeacherSuspended(false)}
+
+              {/* Sign out button */}
+              <button
+                onClick={async () => {
+                  try { await supabase.auth.signOut(); } catch { /* ignore */ }
+                  window.location.href = '/auth/login';
+                }}
+                className="flex items-center justify-center gap-2 w-full rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
               >
-                فهمت، متابعة للقراءة فقط
-              </Button>
+                <LogOut className="h-4 w-4" />
+                تسجيل الخروج
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* v130: Persistent banner — always visible while teacher is banned (even after modal dismissed) */}
-      {!checkingSuspension && suspendedTeacherName && (
-        <div className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/10 px-3 py-2">
-          <Ban className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-          <p className="text-xs text-rose-700 dark:text-rose-400">
-            ⚠ حساب المعلم موقوف — يمكنك تصفح البيانات فقط (للقراءة فقط). تواصل مع إدارة المنصة لرفع الإيقاف.
-          </p>
-        </div>
-      )}
-
+      {/* If teacher is NOT suspended, render the portal normally */}
+      {!teacherSuspended && (
+        <>
       {/* ════════ Section: SEARCH ════════ */}
       {activeSection === 'search' && (
         <>
