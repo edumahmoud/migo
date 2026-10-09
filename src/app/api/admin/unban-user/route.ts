@@ -85,6 +85,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // v130: Reverse the cascade suspension that was applied when the
+    // teacher was banned. When a teacher was banned, we set:
+    //   - registration_agents.is_active = false
+    //   - subjects.is_paused = true
+    // Now that the ban is lifted, reverse both so the teacher + their
+    // agents + their courses are fully operational again.
+    // ═══════════════════════════════════════════════════════════
+    const lookupEmail = email || null;
+    if (lookupEmail) {
+      // Find the user by email to check if they're a teacher
+      const { data: unbannedUser } = await supabaseServer
+        .from('users')
+        .select('id, role')
+        .eq('email', lookupEmail)
+        .maybeSingle();
+
+      if (unbannedUser && unbannedUser.role === 'teacher') {
+        // Reactivate all agents belonging to this teacher
+        const { error: agentReactivateError } = await supabaseServer
+          .from('registration_agents')
+          .update({ is_active: true, updated_at: new Date().toISOString() })
+          .eq('teacher_id', unbannedUser.id)
+          .eq('is_active', false);
+
+        if (agentReactivateError) {
+          console.error('[unban-user] Failed to reactivate agents:', agentReactivateError.message);
+        }
+
+        // Unpause all subjects owned by this teacher
+        const { error: subjectUnpauseError } = await supabaseServer
+          .from('subjects')
+          .update({ is_paused: false, updated_at: new Date().toISOString() })
+          .eq('teacher_id', unbannedUser.id)
+          .eq('is_paused', true);
+
+        if (subjectUnpauseError) {
+          console.error('[unban-user] Failed to unpause subjects:', subjectUnpauseError.message);
+        }
+      }
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Unban user error:', error);
