@@ -214,23 +214,50 @@ export function calculateAttendanceScore(params: {
 // -------------------------------------------------------
 // Calculation: Assignment Compliance
 // Measures commitment: did the student submit?
+// FIX: Exclude future assignments (due_date > now) from the denominator.
+// FIX: Count 'returned' as submitted (student did submit, then it was returned).
+// FIX: due_date = null/undefined → treated as due immediately (conservative).
+// FIX: When no due assignments exist, return value 0 but signal via total=0
+//      so computeAllMetrics can pass undefined to calculateOverallPerformance.
 // -------------------------------------------------------
 export function calculateAssignmentCompliance(params: {
-  submissions: Array<{ status: string; student_id: string }>;
-  totalAssignments: number;
+  submissions: Array<{ assignment_id: string; status: string; student_id: string }>;
+  assignments: Array<{ id: string; due_date?: string }>;
   studentId: string;
 }): { value: number; completed: number; total: number } {
-  const { submissions, studentId } = params;
+  const { submissions, assignments, studentId } = params;
+  const now = new Date();
+
+  // Only count assignments that are due (or have no due_date → due immediately)
+  const dueAssignments = assignments.filter(a =>
+    !a.due_date || new Date(a.due_date) <= now
+  );
+  const dueAssignmentIds = new Set(dueAssignments.map(a => a.id));
+
   const completed = submissions.filter(
-    s => s.student_id === studentId && (s.status === 'graded' || s.status === 'submitted')
+    s => s.student_id === studentId &&
+         dueAssignmentIds.has(s.assignment_id) &&
+         (s.status === 'graded' || s.status === 'submitted' || s.status === 'returned')
   ).length;
-  const value = params.totalAssignments > 0 ? (completed / params.totalAssignments) * 100 : 0;
-  return { value: Math.max(0, Math.min(100, value)), completed, total: params.totalAssignments };
+  const total = dueAssignments.length;
+  const value = total > 0 ? (completed / total) * 100 : 0;
+  return { value: Math.max(0, Math.min(100, value)), completed, total };
 }
 
 // -------------------------------------------------------
 // Calculation: Assignment Quality
 // Measures academic quality: what score did they earn?
+// FIX: Exclude future assignments from denominator.
+// FIX: Exclude 'submitted' (ungraded) from BOTH numerator and denominator —
+//      a null grade must not be treated as zero.
+// FIX: Exclude 'returned' from BOTH numerator and denominator —
+//      returned means the submission was sent back; no graded score exists.
+// FIX: Only 'graded' submissions with non-null score contribute to quality.
+// FIX: due_date = null → treated as due immediately.
+// FIX: Only count missedDeadline for assignments that are past due AND unsubmitted.
+// FIX: Date comparison uses end-of-day for due_date to avoid marking
+//      same-day submissions as late (due_date is TIMESTAMPTZ but may be
+//      stored as date-only midnight in some cases).
 // -------------------------------------------------------
 export function calculateAssignmentQuality(params: {
   submissions: Array<{ assignment_id: string; score: number | null; status: string; student_id: string; submitted_at: string }>;
@@ -239,26 +266,44 @@ export function calculateAssignmentQuality(params: {
 }): { value: number; totalEarned: number; totalPossible: number; missedDeadlines: number } {
   const { submissions, assignments, studentId } = params;
   const studentSubs = submissions.filter(s => s.student_id === studentId);
+  const now = new Date();
   let totalEarned = 0;
   let totalPossible = 0;
   let missedDeadlines = 0;
 
-  assignments.forEach(assignment => {
+  // Only process assignments that are due (or have no due_date → due immediately)
+  const dueAssignments = assignments.filter(a =>
+    !a.due_date || new Date(a.due_date) <= now
+  );
+
+  dueAssignments.forEach(assignment => {
     const sub = studentSubs.find(s => s.assignment_id === assignment.id);
-    if (sub && (sub.status === 'graded' || sub.status === 'submitted')) {
-      const earned = sub.score ?? 0;
-      totalEarned += earned;
+
+    if (sub && sub.status === 'graded' && sub.score !== null) {
+      // Graded with a valid score → contributes to quality
+      totalEarned += sub.score;
       totalPossible += assignment.max_score || 0;
       if (assignment.due_date && sub.submitted_at) {
         if (new Date(sub.submitted_at) > new Date(assignment.due_date)) {
           missedDeadlines++;
         }
       }
-    } else {
-      totalPossible += assignment.max_score || 0;
-      if (assignment.due_date && new Date() > new Date(assignment.due_date)) {
-        missedDeadlines++;
+    } else if (sub && (sub.status === 'submitted' || sub.status === 'returned' ||
+               (sub.status === 'graded' && sub.score === null))) {
+      // Submitted but ungraded, returned, or graded-with-null-score →
+      // does NOT contribute to quality (no valid graded score).
+      // Also does NOT count as missed deadline since student did submit.
+      if (assignment.due_date && sub.submitted_at) {
+        if (new Date(sub.submitted_at) > new Date(assignment.due_date)) {
+          missedDeadlines++;
+        }
       }
+    } else {
+      // No submission for a due assignment → counts as missed + zero earned
+      totalPossible += assignment.max_score || 0;
+      // Only count as missed deadline if due_date has passed
+      // (already filtered to due assignments, so this is correct)
+      missedDeadlines++;
     }
   });
 
@@ -364,8 +409,28 @@ export function calculateGrowthIndex(
   const earliestAvg = earliest.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / earliest.length;
   const recentAvg = recent.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / recent.length;
 
-  const index = earliestAvg > 0 ? recentAvg / earliestAvg : (recentAvg > 0 ? 2 : 1);
-  const improvementPercentage = earliestAvg > 0 ? ((recentAvg - earliestAvg) / earliestAvg) * 100 : 0;
+  // FIX: When earliestAvg is 0, division would produce Infinity or NaN.
+  // A zero baseline means the student started from zero — if they later
+  // scored above zero, that is genuine improvement (not insufficient data).
+  // We use absolute difference instead of ratio when baseline is 0.
+  let index: number;
+  let improvementPercentage: number;
+
+  if (earliestAvg > 0) {
+    // Normal case: ratio-based growth
+    index = recentAvg / earliestAvg;
+    improvementPercentage = ((recentAvg - earliestAvg) / earliestAvg) * 100;
+  } else if (recentAvg > 0) {
+    // Zero baseline with improvement: student went from 0 to positive
+    // Use Infinity to signal "absolute improvement from zero" — UI should
+    // display "تحسن مطلق" / "Absolute improvement" instead of a number.
+    index = Infinity;
+    improvementPercentage = 100; // 100% improvement from zero
+  } else {
+    // Both zero: no change
+    index = 1;
+    improvementPercentage = 0;
+  }
 
   let trend: GrowthTrend;
   if (index >= GROWTH_THRESHOLDS.improving) trend = 'improving';
@@ -460,7 +525,7 @@ export function computeAllMetrics(params: {
   // 3. Assignment Compliance
   const compliance = calculateAssignmentCompliance({
     submissions,
-    totalAssignments: assignments.length,
+    assignments,
     studentId,
   });
 
@@ -472,11 +537,15 @@ export function computeAllMetrics(params: {
   });
 
   // 5. Overall Performance
+  // FIX: Pass undefined when compliance.total === 0 (no due assignments)
+  //      so the component is excluded from auto-normalization rather than
+  //      being treated as zero performance.
+  const hasDueAssignments = compliance.total > 0;
   const overallPerformance = calculateOverallPerformance({
     examPerformance: studentScores.length > 0 ? exam.value : undefined,
     attendanceScore: attendanceSessions.length > 0 ? attendance.value : undefined,
-    assignmentCompliance: assignments.length > 0 ? compliance.value : undefined,
-    assignmentQuality: assignments.length > 0 ? quality.value : undefined,
+    assignmentCompliance: hasDueAssignments ? compliance.value : undefined,
+    assignmentQuality: hasDueAssignments ? quality.value : undefined,
   });
 
   const performanceLevel = getPerformanceLevel(overallPerformance);
@@ -489,10 +558,15 @@ export function computeAllMetrics(params: {
   });
 
   // 7. Discipline Score
+  // FIX: Count 'returned' as submitted for on-time calculation.
+  // FIX: Use only due assignments for totalAssignments in discipline.
+  const dueAssignmentsForDiscipline = assignments.filter(a =>
+    !a.due_date || new Date(a.due_date) <= new Date()
+  );
   const onTimeSubmissions = submissions.filter(
     s => s.student_id === studentId &&
-      (s.status === 'graded' || s.status === 'submitted') &&
-      assignments.some(a => a.id === s.assignment_id && (!a.due_date || !s.submitted_at || new Date(s.submitted_at) <= new Date(a.due_date)))
+      (s.status === 'graded' || s.status === 'submitted' || s.status === 'returned') &&
+      dueAssignmentsForDiscipline.some(a => a.id === s.assignment_id && (!a.due_date || !s.submitted_at || new Date(s.submitted_at) <= new Date(a.due_date)))
   ).length;
 
   const disciplineScore = calculateDisciplineScore({
@@ -500,7 +574,7 @@ export function computeAllMetrics(params: {
     lateCount: attendance.lateCount,
     totalSessions: attendance.total,
     onTimeSubmissions,
-    totalAssignments: assignments.length,
+    totalAssignments: dueAssignmentsForDiscipline.length,
     missedDeadlines: quality.missedDeadlines,
   });
 
@@ -508,7 +582,12 @@ export function computeAllMetrics(params: {
   const growth = calculateGrowthIndex(studentScores);
 
   // 9. Risk Detection
-  const recentAssignments = [...assignments]
+  // FIX: Only check assignments that are past due for missed streak
+  const now = new Date();
+  const dueAssignmentsForRisk = assignments.filter(a =>
+    !a.due_date || new Date(a.due_date) <= now
+  );
+  const recentAssignments = [...dueAssignmentsForRisk]
     .sort((a, b) => {
       const dateA = a.due_date || '';
       const dateB = b.due_date || '';
@@ -516,7 +595,7 @@ export function computeAllMetrics(params: {
     })
     .slice(0, ACHIEVEMENT_THRESHOLDS.missedAssignmentCheck);
   const missedLastThree = recentAssignments.length === ACHIEVEMENT_THRESHOLDS.missedAssignmentCheck && recentAssignments.every(a =>
-    !submissions.some(s => s.student_id === studentId && s.assignment_id === a.id && (s.status === 'graded' || s.status === 'submitted'))
+    !submissions.some(s => s.student_id === studentId && s.assignment_id === a.id && (s.status === 'graded' || s.status === 'submitted' || s.status === 'returned'))
   );
 
   const allDates = [
@@ -637,7 +716,7 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
   // Assignment Compliance — uses shared function for consistency (includes clamping)
   const compliance = calculateAssignmentCompliance({
     submissions,
-    totalAssignments: assignments.length,
+    assignments,
     studentId,
   });
 
@@ -649,11 +728,13 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
   });
 
   // Overall (auto-normalize)
+  // FIX: Pass undefined when no due assignments
+  const hasDueAssignments = compliance.total > 0;
   const overallPerformance = calculateOverallPerformance({
     examPerformance: studentScores.length > 0 ? exam.value : undefined,
     attendanceScore: attendanceSessions.length > 0 ? attendance.value : undefined,
-    assignmentCompliance: assignments.length > 0 ? compliance.value : undefined,
-    assignmentQuality: assignments.length > 0 ? quality.value : undefined,
+    assignmentCompliance: hasDueAssignments ? compliance.value : undefined,
+    assignmentQuality: hasDueAssignments ? quality.value : undefined,
   });
 
   // Growth

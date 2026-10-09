@@ -330,29 +330,40 @@ describe('calculateAttendanceScore', () => {
 // 4. calculateAssignmentCompliance
 // =====================================================
 describe('calculateAssignmentCompliance', () => {
-  test('normal case — some submitted, some not', () => {
+  // Helper: create assignments with given IDs and due_dates
+  const makeAssignments = (specs: Array<{ id: string; due?: string }>) =>
+    specs.map(s => ({ id: s.id, due_date: s.due }));
+
+  test('normal case — some submitted, some not (all due)', () => {
+    const assignments = makeAssignments([
+      { id: 'a1', due: '2024-01-01T00:00:00Z' },
+      { id: 'a2', due: '2024-01-02T00:00:00Z' },
+      { id: 'a3', due: '2024-01-03T00:00:00Z' },
+      { id: 'a4', due: '2024-01-04T00:00:00Z' },
+      { id: 'a5', due: '2024-01-05T00:00:00Z' },
+    ]);
     const submissions = [
-      { student_id: 'stu1', status: 'graded' },
-      { student_id: 'stu1', status: 'submitted' },
-      { student_id: 'stu1', status: 'draft' },       // not counted
-      { student_id: 'other', status: 'graded' },      // different student
+      { assignment_id: 'a1', student_id: 'stu1', status: 'graded' },
+      { assignment_id: 'a2', student_id: 'stu1', status: 'submitted' },
+      { assignment_id: 'a3', student_id: 'stu1', status: 'draft' },       // not counted
+      { assignment_id: 'a1', student_id: 'other', status: 'graded' },   // different student
     ];
     const result = calculateAssignmentCompliance({
       submissions,
-      totalAssignments: 5,
+      assignments,
       studentId: 'stu1',
     });
-    // completed = 2 (graded + submitted)
+    // completed = 2 (graded + submitted), total = 5 (all due)
     // value = (2 / 5) * 100 = 40
     expect(result.value).toBe(40);
     expect(result.completed).toBe(2);
     expect(result.total).toBe(5);
   });
 
-  test('no assignments returns 0', () => {
+  test('no assignments returns 0 with total=0', () => {
     const result = calculateAssignmentCompliance({
       submissions: [],
-      totalAssignments: 0,
+      assignments: [],
       studentId: 'stu1',
     });
     expect(result.value).toBe(0);
@@ -361,14 +372,19 @@ describe('calculateAssignmentCompliance', () => {
   });
 
   test('all submitted — 100%', () => {
+    const assignments = makeAssignments([
+      { id: 'a1', due: '2024-01-01T00:00:00Z' },
+      { id: 'a2', due: '2024-01-02T00:00:00Z' },
+      { id: 'a3', due: '2024-01-03T00:00:00Z' },
+    ]);
     const submissions = [
-      { student_id: 'stu1', status: 'graded' },
-      { student_id: 'stu1', status: 'submitted' },
-      { student_id: 'stu1', status: 'graded' },
+      { assignment_id: 'a1', student_id: 'stu1', status: 'graded' },
+      { assignment_id: 'a2', student_id: 'stu1', status: 'submitted' },
+      { assignment_id: 'a3', student_id: 'stu1', status: 'graded' },
     ];
     const result = calculateAssignmentCompliance({
       submissions,
-      totalAssignments: 3,
+      assignments,
       studentId: 'stu1',
     });
     expect(result.value).toBeCloseTo(100, 5);
@@ -376,13 +392,19 @@ describe('calculateAssignmentCompliance', () => {
   });
 
   test('none submitted — 0%', () => {
+    const assignments = makeAssignments([
+      { id: 'a1', due: '2024-01-01T00:00:00Z' },
+      { id: 'a2', due: '2024-01-02T00:00:00Z' },
+      { id: 'a3', due: '2024-01-03T00:00:00Z' },
+      { id: 'a4', due: '2024-01-04T00:00:00Z' },
+    ]);
     const submissions = [
-      { student_id: 'stu1', status: 'draft' },
-      { student_id: 'stu1', status: 'missing' },
+      { assignment_id: 'a1', student_id: 'stu1', status: 'draft' },
+      { assignment_id: 'a2', student_id: 'stu1', status: 'missing' },
     ];
     const result = calculateAssignmentCompliance({
       submissions,
-      totalAssignments: 4,
+      assignments,
       studentId: 'stu1',
     });
     expect(result.value).toBe(0);
@@ -390,17 +412,95 @@ describe('calculateAssignmentCompliance', () => {
   });
 
   test('submissions from other students are ignored', () => {
+    const assignments = makeAssignments([
+      { id: 'a1', due: '2024-01-01T00:00:00Z' },
+      { id: 'a2', due: '2024-01-02T00:00:00Z' },
+    ]);
     const submissions = [
-      { student_id: 'other', status: 'graded' },
-      { student_id: 'other', status: 'submitted' },
+      { assignment_id: 'a1', student_id: 'other', status: 'graded' },
+      { assignment_id: 'a2', student_id: 'other', status: 'submitted' },
     ];
     const result = calculateAssignmentCompliance({
       submissions,
-      totalAssignments: 2,
+      assignments,
       studentId: 'stu1',
     });
     expect(result.value).toBe(0);
     expect(result.completed).toBe(0);
+  });
+
+  // ── NEW: Future assignments excluded ──
+  test('future assignments excluded from denominator', () => {
+    const future = new Date(Date.now() + 86400000).toISOString(); // tomorrow
+    const assignments = makeAssignments([
+      { id: 'a1', due: '2024-01-01T00:00:00Z' },  // past due
+      { id: 'a2', due: future },                    // future — excluded
+    ]);
+    const submissions = [
+      { assignment_id: 'a1', student_id: 'stu1', status: 'graded' },
+    ];
+    const result = calculateAssignmentCompliance({
+      submissions,
+      assignments,
+      studentId: 'stu1',
+    });
+    // total = 1 (only a1 is due), completed = 1 → 100%
+    expect(result.total).toBe(1);
+    expect(result.completed).toBe(1);
+    expect(result.value).toBe(100);
+  });
+
+  // ── NEW: due_date = null treated as due immediately ──
+  test('due_date null treated as due immediately', () => {
+    const assignments = [
+      { id: 'a1', due_date: undefined },
+      { id: 'a2', due_date: undefined },
+    ];
+    const submissions = [
+      { assignment_id: 'a1', student_id: 'stu1', status: 'graded' },
+    ];
+    const result = calculateAssignmentCompliance({
+      submissions,
+      assignments,
+      studentId: 'stu1',
+    });
+    expect(result.total).toBe(2);
+    expect(result.completed).toBe(1);
+    expect(result.value).toBe(50);
+  });
+
+  // ── NEW: returned counts as submitted ──
+  test('returned status counts as submitted', () => {
+    const assignments = makeAssignments([
+      { id: 'a1', due: '2024-01-01T00:00:00Z' },
+      { id: 'a2', due: '2024-01-02T00:00:00Z' },
+    ]);
+    const submissions = [
+      { assignment_id: 'a1', student_id: 'stu1', status: 'returned' },
+    ];
+    const result = calculateAssignmentCompliance({
+      submissions,
+      assignments,
+      studentId: 'stu1',
+    });
+    expect(result.completed).toBe(1);
+    expect(result.value).toBe(50);
+  });
+
+  // ── NEW: all future assignments → total=0 ──
+  test('all future assignments → total=0', () => {
+    const future = new Date(Date.now() + 86400000).toISOString();
+    const assignments = makeAssignments([
+      { id: 'a1', due: future },
+      { id: 'a2', due: future },
+    ]);
+    const result = calculateAssignmentCompliance({
+      submissions: [],
+      assignments,
+      studentId: 'stu1',
+    });
+    expect(result.total).toBe(0);
+    expect(result.value).toBe(0);
   });
 });
 
@@ -463,13 +563,12 @@ describe('calculateAssignmentQuality', () => {
       { assignment_id: 'a2', score: 50, status: 'submitted', student_id: 'stu1', submitted_at: '2024-01-25T10:00:00Z' },
     ];
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
-    // a1: late (submitted 20th, due 15th)
-    // a2: late (submitted 25th, due 20th)
-    // a3: no submission for a3 (past due? no due_date, so no missedDeadline from no-submission path)
-    // For a3: no due_date → the else branch adds max_score but doesn't increment missedDeadline
-    expect(result.missedDeadlines).toBe(2); // a1 and a2 both late
-    expect(result.totalEarned).toBe(140);
-    expect(result.totalPossible).toBe(175); // all 3 assignments counted
+    // a1: late (submitted 20th, due 15th) — graded, contributes to quality
+    // a2: late (submitted 25th, due 20th) — submitted but ungraded, does NOT contribute to quality
+    // a3: no submission, no due_date → counts as missed + zero earned
+    expect(result.missedDeadlines).toBe(3); // a1 late, a2 late, a3 missed (no due_date → due immediately → no submission → missed)
+    expect(result.totalEarned).toBe(90); // only a1's graded score
+    expect(result.totalPossible).toBe(125); // a1 (100) + a3 (25), NOT a2 (excluded)
   });
 
   test('unsubmitted assignment with past due_date counts as missed deadline', () => {
@@ -489,15 +588,17 @@ describe('calculateAssignmentQuality', () => {
     expect(result.value).toBe(0);
   });
 
-  test('null score treated as 0', () => {
+  // FIX: null score on graded submission is now excluded (not treated as 0)
+  test('null score on graded submission excluded from quality', () => {
     const submissions = [
       { assignment_id: 'a1', score: null, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-14T10:00:00Z' },
     ];
     const result = calculateAssignmentQuality({ submissions, assignments, studentId: 'stu1' });
-    // a1: score is null → earned = 0
-    // a2 and a3: no submission → else branch
+    // a1: graded but score is null → excluded from quality (not earned=0, not in possible)
+    // a2: no submission → missed + possible
+    // a3: no submission, no due_date → missed + possible
     expect(result.totalEarned).toBe(0);
-    expect(result.totalPossible).toBe(175); // all 3 counted
+    expect(result.totalPossible).toBe(75); // a2 (50) + a3 (25), NOT a1 (excluded)
   });
 
   test('draft status submissions are not counted', () => {
@@ -509,6 +610,86 @@ describe('calculateAssignmentQuality', () => {
     expect(result.totalEarned).toBe(0);
     // totalPossible still counts all assignments
     expect(result.totalPossible).toBe(175);
+  });
+
+  // ── NEW: submitted but ungraded excluded from quality ──
+  test('submitted but ungraded excluded from quality numerator and denominator', () => {
+    const pastAssignments = [
+      { id: 'a1', max_score: 100, due_date: '2024-01-15T23:59:00Z' },
+      { id: 'a2', max_score: 50, due_date: '2024-01-20T23:59:00Z' },
+    ];
+    const submissions = [
+      { assignment_id: 'a1', score: 80, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-14T10:00:00Z' },
+      { assignment_id: 'a2', score: null, status: 'submitted', student_id: 'stu1', submitted_at: '2024-01-19T10:00:00Z' },
+    ];
+    const result = calculateAssignmentQuality({ submissions, assignments: pastAssignments, studentId: 'stu1' });
+    // a1: graded → earned=80, possible=100
+    // a2: submitted but ungraded → excluded from both earned and possible
+    expect(result.totalEarned).toBe(80);
+    expect(result.totalPossible).toBe(100); // only a1, NOT a2
+    expect(result.value).toBe(80);
+  });
+
+  // ── NEW: returned excluded from quality ──
+  test('returned status excluded from quality', () => {
+    const pastAssignments = [
+      { id: 'a1', max_score: 100, due_date: '2024-01-15T23:59:00Z' },
+      { id: 'a2', max_score: 50, due_date: '2024-01-20T23:59:00Z' },
+    ];
+    const submissions = [
+      { assignment_id: 'a1', score: 80, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-14T10:00:00Z' },
+      { assignment_id: 'a2', score: 40, status: 'returned', student_id: 'stu1', submitted_at: '2024-01-19T10:00:00Z' },
+    ];
+    const result = calculateAssignmentQuality({ submissions, assignments: pastAssignments, studentId: 'stu1' });
+    // a1: graded → earned=80, possible=100
+    // a2: returned → excluded from quality (no graded score)
+    expect(result.totalEarned).toBe(80);
+    expect(result.totalPossible).toBe(100); // only a1
+    expect(result.value).toBe(80);
+  });
+
+  // ── NEW: graded with score=0 is a genuine zero ──
+  test('graded with score 0 is genuine zero (not excluded)', () => {
+    const pastAssignments = [
+      { id: 'a1', max_score: 100, due_date: '2024-01-15T23:59:00Z' },
+    ];
+    const submissions = [
+      { assignment_id: 'a1', score: 0, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-14T10:00:00Z' },
+    ];
+    const result = calculateAssignmentQuality({ submissions, assignments: pastAssignments, studentId: 'stu1' });
+    expect(result.totalEarned).toBe(0);
+    expect(result.totalPossible).toBe(100);
+    expect(result.value).toBe(0); // genuine zero, not missing data
+  });
+
+  // ── NEW: future assignments excluded from quality ──
+  test('future assignments excluded from quality', () => {
+    const future = new Date(Date.now() + 86400000).toISOString();
+    const mixedAssignments = [
+      { id: 'a1', max_score: 100, due_date: '2024-01-15T23:59:00Z' },  // past
+      { id: 'a2', max_score: 50, due_date: future },                     // future
+    ];
+    const submissions = [
+      { assignment_id: 'a1', score: 80, status: 'graded', student_id: 'stu1', submitted_at: '2024-01-14T10:00:00Z' },
+    ];
+    const result = calculateAssignmentQuality({ submissions, assignments: mixedAssignments, studentId: 'stu1' });
+    // a1: graded → earned=80, possible=100
+    // a2: future → excluded entirely
+    expect(result.totalEarned).toBe(80);
+    expect(result.totalPossible).toBe(100);
+    expect(result.value).toBe(80);
+  });
+
+  // ── NEW: no due assignments → value=0, totalPossible=0 ──
+  test('no due assignments → totalPossible=0', () => {
+    const future = new Date(Date.now() + 86400000).toISOString();
+    const allFuture = [
+      { id: 'a1', max_score: 100, due_date: future },
+    ];
+    const result = calculateAssignmentQuality({ submissions: [], assignments: allFuture, studentId: 'stu1' });
+    expect(result.totalPossible).toBe(0);
+    expect(result.totalEarned).toBe(0);
+    expect(result.value).toBe(0);
   });
 });
 
@@ -704,7 +885,7 @@ describe('calculateGrowthIndex', () => {
     expect(result1.trend).toBe('stable');
   });
 
-  test('edge case with 0 earliest avg but positive recent avg', () => {
+  test('edge case with 0 earliest avg but positive recent avg — absolute improvement', () => {
     const scores = [
       { completed_at: '2024-01-01T00:00:00Z', score: 0, total: 100 },
       { completed_at: '2024-02-01T00:00:00Z', score: 0, total: 100 },
@@ -714,10 +895,10 @@ describe('calculateGrowthIndex', () => {
     // third = 1
     // earliest: [0%] = 0
     // recent: [50%] = 50
-    // earliestAvg = 0, recentAvg > 0 → index = 2
-    expect(result.index).toBe(2);
+    // earliestAvg = 0, recentAvg > 0 → index = Infinity (absolute improvement)
+    expect(result.index).toBe(Infinity);
     expect(result.trend).toBe('improving');
-    expect(result.improvementPercentage).toBe(0); // earliestAvg is 0 → improvementPercentage = 0
+    expect(result.improvementPercentage).toBe(100); // 100% improvement from zero baseline
   });
 
   test('edge case with 0 earliest avg and 0 recent avg', () => {
@@ -772,8 +953,8 @@ describe('calculateGrowthIndex', () => {
     // third = 1
     // earliest: [0/0 → 0%] = 0
     // recent: [90%] = 90
-    // earliestAvg = 0, recentAvg > 0 → index = 2
-    expect(result.index).toBe(2);
+    // earliestAvg = 0, recentAvg > 0 → index = Infinity (absolute improvement from zero)
+    expect(result.index).toBe(Infinity);
     expect(result.trend).toBe('improving');
   });
 });
