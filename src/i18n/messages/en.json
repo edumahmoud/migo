@@ -351,13 +351,19 @@
     "admin": "Admin",
     "superadmin": "Platform Admin",
     "supervisor": "Supervisor",
+    "registration_agent": "Registration Agent",
+    "registration_agentWithGender": {
+      "male": "Registration Agent",
+      "female": "Registration Agent"
+    },
     "doctorFemale": "Dr. (F)",
     "professorFemale": "Prof. (F)",
     "associateProfessorFemale": "Assoc. Prof. (F)",
     "adminFemale": "Admin (F)",
     "studentFemale": "Student (F)",
     "superadminFemale": "Platform Admin (F)",
-    "teacherFemale": "Teacher (F)"
+    "teacherFemale": "Teacher (F)",
+    "registration_agentFemale": "Registration Agent (F)"
   },
   "academicTitles": {
     "professor": "Prof.",

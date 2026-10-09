@@ -256,6 +256,9 @@ export const en: TranslationDict = {
     adminFemale: 'Supervisor',
     teacher: 'Teacher',
     teacherFemale: 'Teacher',
+    registration_agent: 'Registration Agent',
+    registration_agentFemale: 'Registration Agent',
+    'registration_agentWithGender': { male: 'Registration Agent', female: 'Registration Agent' },
   },
 
   // ─── Academic Titles ───

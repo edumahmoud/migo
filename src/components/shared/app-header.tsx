@@ -128,11 +128,11 @@ export default function AppHeader({
   const roleLabel = userRole === 'student'
     ? (isFemale ? t('roles.studentWithGender.female') : t('roles.studentWithGender.male'))
     : userRole === 'superadmin'
-      ? (isFemale ? t('roles.supervisor') : t('roles.superadmin'))
+      ? (isFemale ? t('roles.superadminFemale') : t('roles.superadmin'))
       : userRole === 'admin'
         ? (isFemale ? t('roles.supervisor') : t('roles.admin'))
         : userRole === 'registration_agent'
-          ? (isFemale ? 'مشرفة' : 'مشرف')
+          ? (isFemale ? t('roles.registration_agentWithGender.female') : t('roles.registration_agentWithGender.male'))
           : (() => {
             // For teachers, show academic title if available, otherwise default
             const effectiveTitleId = titleId || 'teacher';

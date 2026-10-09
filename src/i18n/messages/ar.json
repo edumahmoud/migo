@@ -351,13 +351,19 @@
     "admin": "مدير",
     "superadmin": "مشرف المنصة",
     "supervisor": "مشرف",
+    "registration_agent": "وكيل تسجيل",
+    "registration_agentWithGender": {
+      "male": "وكيل تسجيل",
+      "female": "وكيلة تسجيل"
+    },
     "doctorFemale": "دكتورة",
     "professorFemale": "أستاذة",
     "associateProfessorFemale": "أستاذة مشاركة",
     "adminFemale": "مديرة",
     "studentFemale": "طالبة",
     "superadminFemale": "مشرفة المنصة",
-    "teacherFemale": "معلمة"
+    "teacherFemale": "معلمة",
+    "registration_agentFemale": "وكيلة تسجيل"
   },
   "academicTitles": {
     "professor": "أ.د",

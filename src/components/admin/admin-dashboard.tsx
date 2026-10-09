@@ -185,6 +185,8 @@ function getRoleLabel(role: string, translate: (key: string) => string): string 
       return translate('roles.teacher');
     case 'student':
       return translate('roles.student');
+    case 'registration_agent':
+      return translate('roles.registration_agent');
     default:
       return role;
   }
@@ -200,6 +202,8 @@ function getRoleBadgeClass(role: string): string {
       return 'bg-teal-100 dark:bg-teal-800/40 text-teal-700 dark:text-teal-500 border-teal-200 dark:border-teal-900/60';
     case 'student':
       return 'bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-sky-900/60';
+    case 'registration_agent':
+      return 'bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-900/60';
     default:
       return 'bg-gray-100 dark:bg-gray-800/40 text-gray-700 dark:text-gray-500 border-gray-200 dark:border-gray-800/60';
   }
