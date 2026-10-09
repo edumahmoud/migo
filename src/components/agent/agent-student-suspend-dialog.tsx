@@ -151,21 +151,44 @@ export default function AgentStudentSuspendDialog({
         setSubmitting(false);
         return;
       }
-      const res = await fetch(`/api/agent/students/${studentId}/suspend`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
-        body: JSON.stringify({
-          subjectId: selectedSubjectId,
-          durationHours: useCustom ? hours : durationHours,
-          reason: reason.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) {
-        toast.error(json.error || 'فشل إيقاف الطالب');
+
+      // v130: If "all courses" selected, loop through each subject
+      const targetSubjectIds = selectedSubjectId === '__all__'
+        ? subjects.map(s => s.id)
+        : [selectedSubjectId];
+
+      let successCount = 0;
+      let lastError = '';
+      for (const subjId of targetSubjectIds) {
+        const res = await fetch(`/api/agent/students/${studentId}/suspend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+          body: JSON.stringify({
+            subjectId: subjId,
+            durationHours: useCustom ? hours : durationHours,
+            reason: reason.trim() || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          successCount++;
+        } else {
+          lastError = json.error || 'فشل';
+        }
+      }
+
+      if (successCount === targetSubjectIds.length) {
+        toast.success(
+          selectedSubjectId === '__all__'
+            ? `تم إيقاف الطالب من جميع المقررات (${successCount})`
+            : 'تم إيقاف الطالب من المقرر المحدد'
+        );
+      } else if (successCount > 0) {
+        toast.success(`تم إيقاف الطالب من ${successCount} من ${targetSubjectIds.length} مقررات`);
+      } else {
+        toast.error(lastError || 'فشل إيقاف الطالب');
         return;
       }
-      toast.success('تم إيقاف الطالب من المقرر المحدد');
       await fetchActive(studentId);
       onChanged?.();
     } catch {
@@ -279,6 +302,9 @@ export default function AgentStudentSuspendDialog({
                     <SelectValue placeholder={subjects.length === 0 ? 'لا توجد مقررات متاحة' : 'اختر المقرر'} />
                   </SelectTrigger>
                   <SelectContent>
+                    {/* v130: "All courses" option — suspends the student from
+                        ALL of this teacher's courses at once */}
+                    <SelectItem value="__all__">جميع المقررات</SelectItem>
                     {subjects.map(s => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
