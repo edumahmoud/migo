@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/auth-store';
 import { useTranslations } from '@/i18n/use-translations';
 import AgentStudentSuspendDialog from '@/components/agent/agent-student-suspend-dialog';
 
@@ -144,6 +145,7 @@ export default function AgentPortal({
   onSectionChange?: (s: string) => void;
 }) {
   const { direction, isRTL } = useTranslations();
+  const { signOut } = useAuthStore();
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
   const [studentResult, setStudentResult] = useState<StudentResult | null>(null);
@@ -617,10 +619,7 @@ export default function AgentPortal({
 
               {/* Sign out button */}
               <button
-                onClick={async () => {
-                  try { await supabase.auth.signOut(); } catch { /* ignore */ }
-                  window.location.href = '/auth/login';
-                }}
+                onClick={() => signOut()}
                 className="flex items-center justify-center gap-2 w-full rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
@@ -631,8 +630,17 @@ export default function AgentPortal({
         </div>
       )}
 
-      {/* If teacher is NOT suspended, render the portal normally */}
-      {!teacherSuspended && (
+      {/* v130: While checking suspension status, show a loading spinner
+          instead of the portal content. This prevents the portal from
+          flashing briefly before the ban screen appears. */}
+      {checkingSuspension && (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {/* If teacher is NOT suspended AND check is done, render the portal normally */}
+      {!teacherSuspended && !checkingSuspension && (
         <>
       {/* ════════ Section: SEARCH ════════ */}
       {activeSection === 'search' && (
