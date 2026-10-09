@@ -47,6 +47,8 @@ import {
   Flag,
   MessageSquare,
   ShieldAlert,
+  Tag,
+  UserCog,
   PartyPopper,
   Bell,
   Wallet,
@@ -220,6 +222,8 @@ function getRoleCardClass(role: string): string {
       return 'border-teal-200 dark:border-teal-900/60 hover:border-teal-400';
     case 'student':
       return 'border-sky-200 dark:border-sky-900/60 hover:border-sky-400';
+    case 'registration_agent':
+      return 'border-violet-200 dark:border-violet-900/60 hover:border-violet-400';
     default:
       return 'border-border';
   }
@@ -236,6 +240,8 @@ function getRoleAccentClass(role: string): string {
       return 'bg-teal-500';
     case 'student':
       return 'bg-sky-500';
+    case 'registration_agent':
+      return 'bg-violet-500';
     default:
       return 'bg-gray-400';
   }
@@ -263,6 +269,9 @@ interface UserWithMeta extends UserProfile {
   subjectCount?: number;
   studentCount?: number;
   teacherCount?: number;
+  agentCount?: number;
+  linkedTeacherId?: string | null;
+  agentDisplayName?: string | null;
 }
 
 // -------------------------------------------------------
@@ -1623,7 +1632,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(['all', 'student', 'teacher', 'admin', 'superadmin', 'registration_agent'] as const).map((role) => (
+          {(['all', 'student', 'registration_agent', 'teacher', 'admin', 'superadmin'] as const).map((role) => (
             <button
               key={role}
               onClick={() => { setRoleFilter(role); setUserPage(1); }}
@@ -1845,7 +1854,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 {/* Stats for teacher */}
                 {selectedUser.role === 'teacher' && (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-900/60 p-3 text-center">
                         <p className="text-lg font-bold text-teal-700 dark:text-teal-500">{selectedUser.subjectCount ?? 0}</p>
                         <p className="text-xs text-teal-600 dark:text-teal-500">{t('admin.courseSubject')}</p>
@@ -1854,9 +1863,44 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <p className="text-lg font-bold text-teal-700 dark:text-teal-500">{selectedUser.studentCount ?? 0}</p>
                         <p className="text-xs text-teal-600 dark:text-teal-500">{t('admin.registeredStudent')}</p>
                       </div>
+                      <div className="rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-900/60 p-3 text-center">
+                        <p className="text-lg font-bold text-violet-700 dark:text-violet-500">{selectedUser.agentCount ?? 0}</p>
+                        <p className="text-xs text-violet-600 dark:text-violet-500">{t('admin.agentsCount')}</p>
+                      </div>
                     </div>
                     {/* Supervisor links management */}
                     <SupervisorLinksManager teacherId={selectedUser.id} teacherName={selectedUser.name} />
+                    {/* Agents list for this teacher */}
+                    {(() => {
+                      const teacherAgents = allUsers.filter(
+                        (u) => u.role === 'registration_agent' && u.linkedTeacherId === selectedUser.id
+                      );
+                      if (teacherAgents.length === 0) return null;
+                      return (
+                        <div className="rounded-lg bg-violet-50/50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-900/60 p-3">
+                          <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-1.5">
+                            <UserCog className="h-3.5 w-3.5" />
+                            {t('admin.agentsList')} ({teacherAgents.length})
+                          </p>
+                          <div className="space-y-1.5 max-h-[180px] overflow-y-auto">
+                            {teacherAgents.map((agent) => (
+                              <div key={agent.id} className="flex items-center gap-2 rounded-md bg-background/60 dark:bg-background/40 px-2 py-1.5">
+                                <UserAvatar name={agent.name} avatarUrl={agent.avatar_url} size="xs" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
+                                  <p className="text-[10px] text-muted-foreground truncate">{agent.email}</p>
+                                </div>
+                                {agent.agentDisplayName && (
+                                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-violet-200 dark:border-violet-900/60 text-violet-700 dark:text-violet-400">
+                                    {agent.agentDisplayName}
+                                  </Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -1874,6 +1918,53 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   </div>
                 )}
 
+                {/* Stats for registration_agent: linked teacher info + agent display name */}
+                {selectedUser.role === 'registration_agent' && (() => {
+                  const linkedTeacher = selectedUser.linkedTeacherId
+                    ? allUsers.find((u) => u.id === selectedUser.linkedTeacherId)
+                    : null;
+                  return (
+                    <div className="space-y-3">
+                      {/* Agent display name (if set in registration_agents table) */}
+                      {selectedUser.agentDisplayName && (
+                        <div className="flex items-center gap-3">
+                          <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm text-muted-foreground">
+                            {t('admin.agentDisplayName')}: <span className="font-bold text-foreground">{selectedUser.agentDisplayName}</span>
+                          </span>
+                        </div>
+                      )}
+                      {/* Linked teacher info */}
+                      <div className="rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-900/60 p-3">
+                        <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-2 flex items-center gap-1.5">
+                          <UserCog className="h-3.5 w-3.5" />
+                          {t('admin.linkedTeacher')}
+                        </p>
+                        {linkedTeacher ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <UserAvatar name={linkedTeacher.name} avatarUrl={linkedTeacher.avatar_url} size="xs" />
+                              <span className="text-sm font-medium text-foreground">{linkedTeacher.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              <span>{linkedTeacher.email}</span>
+                            </div>
+                            {linkedTeacher.teacher_code && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Hash className="h-3 w-3" />
+                                <span>{t('admin.teacherCode')}: <span className="font-mono font-bold text-foreground">{linkedTeacher.teacher_code}</span></span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">{t('admin.noLinkedTeacher')}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Role change section - not for self */}
                 {!isSelf(selectedUser.id) && (
                   <div className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-4">
@@ -1885,7 +1976,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {t('admin.changeUserRoleDesc')}
                     </p>
                     <div className="flex gap-2 flex-wrap">
-                      {(['student', 'teacher', 'admin', 'superadmin', 'registration_agent'] as const)
+                      {(['student', 'registration_agent', 'teacher', 'admin', 'superadmin'] as const)
                         .filter((role) => {
                           if (profile.role === 'superadmin') return true;
                           if (profile.role === 'admin') return role !== 'superadmin' && role !== 'admin';

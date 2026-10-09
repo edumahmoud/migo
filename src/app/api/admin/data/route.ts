@@ -24,9 +24,9 @@ export async function GET(request: NextRequest) {
         console.error('[admin/data] Error fetching users:', JSON.stringify(usersError));
         errors.push(`users: ${usersError.message} (code: ${usersError.code})`);
       } else {
-        // Batch enrichment: get subject/student/teacher counts
+        // Batch enrichment: get subject/student/teacher counts + agent-teacher links
         // Run batch queries in parallel
-        const [subjectsData, subjectStudentsData] = await Promise.all([
+        const [subjectsData, subjectStudentsData, agentsData] = await Promise.all([
           // Get all subjects with teacher_id (for teacher subject count + student enrichment)
           supabaseServer
             .from('subjects')
@@ -39,6 +39,13 @@ export async function GET(request: NextRequest) {
             .from('subject_students')
             .select('subject_id, student_id')
             .eq('status', 'approved'),
+          // Get all registration_agents (links agent user_id → teacher_id)
+          // Used by admin/supervisor user detail panel to show:
+          //   - For an agent: which teacher they belong to + teacher_code
+          //   - For a teacher: how many agents they have
+          supabaseServer
+            .from('registration_agents')
+            .select('user_id, teacher_id, display_name, is_active'),
         ]);
 
         // ─── Build maps from subjects ───
@@ -77,6 +84,25 @@ export async function GET(request: NextRequest) {
           }
         }
 
+        // ─── Build agent-teacher maps from registration_agents ───
+        // agentUserId → teacherId (for agent detail panel: "belongs to teacher X")
+        const agentTeacherIdMap: Record<string, string> = {};
+        // agentUserId → display_name
+        const agentDisplayNameMap: Record<string, string> = {};
+        // teacherId → count of active agents
+        const teacherAgentCountMap: Record<string, number> = {};
+        if (agentsData.data) {
+          for (const row of agentsData.data) {
+            if (row.user_id) {
+              agentTeacherIdMap[row.user_id] = row.teacher_id;
+              if (row.display_name) agentDisplayNameMap[row.user_id] = row.display_name;
+            }
+            if (row.teacher_id && row.is_active) {
+              teacherAgentCountMap[row.teacher_id] = (teacherAgentCountMap[row.teacher_id] || 0) + 1;
+            }
+          }
+        }
+
         // Merge counts into users
         const enrichedUsers = (users || []).map((u: Record<string, unknown>) => {
           const meta: Record<string, unknown> = { ...u };
@@ -84,10 +110,15 @@ export async function GET(request: NextRequest) {
           if (u.role === 'teacher') {
             meta.subjectCount = teacherSubjectCountMap[uid] || 0;
             meta.studentCount = teacherStudentsSetMap[uid]?.size || 0;
+            meta.agentCount = teacherAgentCountMap[uid] || 0;
           }
           if (u.role === 'student') {
             meta.subjectCount = studentSubjectsSetMap[uid]?.size || 0;
             meta.teacherCount = studentTeachersSetMap[uid]?.size || 0;
+          }
+          if (u.role === 'registration_agent') {
+            meta.linkedTeacherId = agentTeacherIdMap[uid] || null;
+            meta.agentDisplayName = agentDisplayNameMap[uid] || null;
           }
           return meta;
         });
