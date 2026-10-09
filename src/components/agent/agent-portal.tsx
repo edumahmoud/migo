@@ -899,6 +899,8 @@ export default function AgentPortal({
         onClose={() => setSuspendStudentId(null)}
         onChanged={() => { /* refetch student search to update badges */ if (searchCode.trim()) searchStudent(); }}
       />
+      </>
+      )}
     </div>
   );
 }
