@@ -39,6 +39,7 @@ import {
   getRiskLevelConfig,
   getGrowthTrendConfig,
   formatGrowthIndex,
+  RISK_ACTIONS,
   DEFAULT_WEIGHTS,
 } from '@/lib/performance-calculator';
 import { useTranslations } from '@/i18n/use-translations';
@@ -334,20 +335,46 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                 </div>
               </div>
 
-              {/* Risk Reasons */}
-              {metrics.riskReasons.length > 0 && (
+              {/* Risk Reasons + Suggested Actions (Phase 2A) */}
+              {(metrics.riskReasons.length > 0 || metrics.riskDataSufficiency === 'insufficient') && (
                 <div className="rounded-lg border border-rose-100 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-900/10 p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle className="h-4 w-4 text-rose-600" />
                     <span className="text-xs font-medium text-rose-700 dark:text-rose-500">{t('teacher.trackingRiskLevel')}</span>
                   </div>
+
+                  {/* Phase 2A: data insufficiency warning when no reasons but data insufficient */}
+                  {metrics.riskDataSufficiency === 'insufficient' && metrics.riskReasons.length === 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-500 flex items-center gap-1.5 mb-1">
+                      <span>⚠</span>
+                      <span>{t('teacher.trackingRiskDataInsufficient')}</span>
+                      <span className="text-muted-foreground" title={t('teacher.trackingRiskDataInsufficientTooltip')}>ⓘ</span>
+                    </p>
+                  )}
+
                   <ul className="space-y-1">
-                    {metrics.riskReasons.map((reason, idx) => (
-                      <li key={idx} className="text-xs text-rose-600 dark:text-rose-500 flex items-center gap-1.5">
-                        <span className="h-1 w-1 rounded-full bg-rose-400" />
-                        {t(`teacher.trackingRiskReason${reason.charAt(0).toUpperCase() + reason.slice(1)}` as Parameters<typeof t>[0])}
-                      </li>
-                    ))}
+                    {metrics.riskReasons.map((reason, idx) => {
+                      const ev = metrics.riskEvidence.find(e => e.key === reason);
+                      const action = RISK_ACTIONS[reason];
+                      const reasonLabel = t(`teacher.trackingRiskReason${reason.charAt(0).toUpperCase() + reason.slice(1)}` as Parameters<typeof t>[0]);
+                      return (
+                        <li key={idx} className="text-xs text-rose-600 dark:text-rose-500">
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-1 w-1 rounded-full bg-rose-400" />
+                            <span>{reasonLabel}</span>
+                            {ev && ev.value !== null && (
+                              <span className="opacity-70">({Math.round(ev.value)}%)</span>
+                            )}
+                          </div>
+                          {action && (
+                            <div className="ms-3 mt-0.5 text-[10px] text-foreground/80 leading-snug">
+                              <span className="text-muted-foreground">↳ {t('teacher.trackingRiskSuggestedAction')}:</span>{' '}
+                              <span>{locale === 'ar' ? action.ar : action.en}</span>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}

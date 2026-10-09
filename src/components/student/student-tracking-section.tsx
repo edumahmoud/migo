@@ -944,17 +944,27 @@ export default function StudentTrackingSection({
             <Badge className={`text-[10px] px-2.5 py-0.5 ${riskConfig.bgColor} ${riskConfig.textColor} ${riskConfig.borderColor} border`}>
               {getRiskLevelLabel(metrics.riskLevel)}
             </Badge>
+            {/* Phase 2A: data insufficiency notice for students with no risk reasons but insufficient data */}
+            {metrics.riskDataSufficiency === 'insufficient' && metrics.riskReasons.length === 0 && (
+              <p className="text-[9px] text-amber-600 dark:text-amber-500 mt-1.5 flex items-center gap-1">
+                <span>⚠</span>
+                <span>{t('student.trackingRiskDataInsufficient') as string}</span>
+              </p>
+            )}
             {metrics.riskReasons.length > 0 ? (
               <div className="mt-2 space-y-0.5">
-                {metrics.riskReasons.slice(0, 2).map((reason, idx) => (
-                  <p key={idx} className="text-[9px] text-muted-foreground/80 truncate">
-                    • {getRiskReasonLabel(reason)}
-                  </p>
-                ))}
+                {metrics.riskReasons.slice(0, 2).map((reason, idx) => {
+                  const ev = metrics.riskEvidence?.find(e => e.key === reason);
+                  return (
+                    <p key={idx} className="text-[9px] text-muted-foreground/80 truncate">
+                      • {getRiskReasonLabel(reason)}{ev && ev.value !== null ? ` (${Math.round(ev.value)}%)` : ''}
+                    </p>
+                  );
+                })}
               </div>
-            ) : (
+            ) : metrics.riskDataSufficiency === 'sufficient' ? (
               <p className="text-[9px] text-muted-foreground/60 mt-2">{t('student.trackingNoRiskReasons')}</p>
-            )}
+            ) : null}
           </div>
         </div>
         {/* Collapsible Charts */}

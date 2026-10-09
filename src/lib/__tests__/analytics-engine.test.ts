@@ -18,12 +18,15 @@ import {
   getPercentileLabel,
   computeCohortAnalytics,
   type StudentPerformanceMetrics,
+  type RiskEvidence,
 } from '../performance-calculator';
 
 import {
   ATTENDANCE_POINTS,
   PERFORMANCE_WEIGHTS,
   RISK_THRESHOLDS,
+  RISK_DATA_SUFFICIENCY,
+  RISK_ACTIONS,
   GROWTH_THRESHOLDS,
   RANKING_BANDS,
   formatGrowthIndex,
@@ -50,6 +53,10 @@ function makeMetrics(overrides: Partial<StudentPerformanceMetrics> = {}): Studen
     growthTrend: 'stable',
     riskLevel: 'healthy',
     riskReasons: [],
+    // Phase 2A defaults: assume sufficient data unless overridden.
+    // This preserves backward compat with existing cohort tests.
+    riskEvidence: [],
+    riskDataSufficiency: 'sufficient',
     totalEarnedMarks: 160,
     totalPossibleMarks: 200,
     attendedSessions: 9,
@@ -1298,6 +1305,345 @@ describe('calculateRiskLevel', () => {
 });
 
 // =====================================================
+// 8b. calculateRiskLevel — Phase 2A: evidence + dataSufficiency
+// Tests that the new structured evidence and data-sufficiency
+// guards work correctly, while preserving backward compatibility
+// with the existing `reasons: string[]` field.
+// =====================================================
+describe('calculateRiskLevel — Phase 2A evidence + dataSufficiency', () => {
+
+  // ── 1. New student with no data: should NOT be flagged as at-risk ──
+  test('new student with 0 attendance sessions + 0 performance parts → no reasons, insufficient', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 0,           // no sessions → value = 0
+      overallPerformance: 0,        // no parts → value = 0
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      // Phase 2A sample sizes
+      attendanceTotal: 0,
+      performancePartsCount: 0,
+      scoresCount: 0,
+      dueAssignmentsCount: 0,
+    });
+    // Without Phase 2A, this would trigger attendanceBelow50 (+3) AND
+    // performanceBelow60 (+3) = score 6 = atRisk — a false alarm.
+    // With Phase 2A, both are marked insufficient and contribute 0.
+    expect(result.score).toBe(0);
+    expect(result.level).toBe('healthy');
+    expect(result.reasons).toEqual([]);  // no reasons fired
+    expect(result.dataSufficiency).toBe('insufficient');  // but data IS insufficient
+    // Evidence array should contain 2 insufficient entries
+    const insufficientEvidence = result.evidence.filter(e => e.dataSufficiency === 'insufficient');
+    expect(insufficientEvidence.length).toBe(2);
+    expect(insufficientEvidence.some(e => e.key === 'attendanceBelow50')).toBe(true);
+    expect(insufficientEvidence.some(e => e.key === 'performanceBelow60')).toBe(true);
+  });
+
+  // ── 2. Insufficient attendance sample (< 3 sessions) ──
+  test('attendance below 50% with only 2 sessions → insufficient, no points added', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 25,          // would trigger attendanceBelow50
+      overallPerformance: 80,       // OK
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 2,           // below minSessions=3
+      performancePartsCount: 2,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.reasons).not.toContain('attendanceBelow50');
+    expect(result.score).toBe(0);
+    expect(result.level).toBe('healthy');
+    expect(result.dataSufficiency).toBe('insufficient');
+    const ev = result.evidence.find(e => e.key === 'attendanceBelow50');
+    expect(ev).toBeDefined();
+    expect(ev!.dataSufficiency).toBe('insufficient');
+    expect(ev!.triggered).toBe(false);
+    expect(ev!.value).toBe(25);
+    expect(ev!.threshold).toBe(RISK_THRESHOLDS.attendanceCritical);
+    expect(ev!.sampleSize).toBe(2);
+    expect(ev!.requiredSampleSize).toBe(RISK_DATA_SUFFICIENCY.attendanceMinSessions);
+  });
+
+  // ── 3. Sufficient attendance sample + low attendance → triggers with evidence ──
+  test('attendance below 50% with 8 sessions → sufficient, evidence has value=25, sampleSize=8', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 25,
+      overallPerformance: 80,
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 8,           // sufficient
+      performancePartsCount: 2,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.reasons).toContain('attendanceBelow50');
+    expect(result.score).toBe(RISK_THRESHOLDS.criticalContribution);  // +3
+    expect(result.level).toBe('monitor');  // score 2 < monitor threshold? Actually 3 >= monitor(2) < concern(4)
+    expect(result.dataSufficiency).toBe('sufficient');
+    const ev = result.evidence.find(e => e.key === 'attendanceBelow50');
+    expect(ev).toBeDefined();
+    expect(ev!.dataSufficiency).toBe('sufficient');
+    expect(ev!.triggered).toBe(true);
+    expect(ev!.value).toBe(25);
+    expect(ev!.threshold).toBe(50);
+    expect(ev!.sampleSize).toBe(8);
+    expect(ev!.requiredSampleSize).toBe(3);
+  });
+
+  // ── 4. Insufficient performance sample (0 parts) ──
+  test('performance below 60% with 0 parts → insufficient, no points added', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 80,
+      overallPerformance: 30,       // would trigger performanceBelow60
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 5,
+      performancePartsCount: 0,     // no data
+      scoresCount: 0,
+      dueAssignmentsCount: 0,
+    });
+    expect(result.reasons).not.toContain('performanceBelow60');
+    expect(result.dataSufficiency).toBe('insufficient');
+    const ev = result.evidence.find(e => e.key === 'performanceBelow60');
+    expect(ev).toBeDefined();
+    expect(ev!.dataSufficiency).toBe('insufficient');
+    expect(ev!.triggered).toBe(false);
+  });
+
+  // ── 5. Mixed: some sufficient + some insufficient ──
+  test('mixed: attendance triggers (sufficient) + performance insufficient → partial flag', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 30,          // triggers attendanceBelow50 (sufficient)
+      overallPerformance: 50,       // would trigger performanceBelow60 (insufficient)
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 8,           // sufficient
+      performancePartsCount: 0,     // insufficient
+      scoresCount: 0,
+      dueAssignmentsCount: 0,
+    });
+    // Only attendance reason fires
+    expect(result.reasons).toEqual(['attendanceBelow50']);
+    expect(result.score).toBe(RISK_THRESHOLDS.criticalContribution);  // +3
+    expect(result.dataSufficiency).toBe('insufficient');  // because performance was insufficient
+    // Evidence has both: 1 sufficient triggered + 1 insufficient not-triggered
+    const triggered = result.evidence.filter(e => e.triggered);
+    const notTriggered = result.evidence.filter(e => !e.triggered);
+    expect(triggered.length).toBe(1);
+    expect(triggered[0].key).toBe('attendanceBelow50');
+    expect(notTriggered.length).toBe(1);
+    expect(notTriggered[0].key).toBe('performanceBelow60');
+  });
+
+  // ── 6. All sufficient + multiple triggers → atRisk with full evidence ──
+  test('all sufficient + multiple triggers → atRisk with evidence for each', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 20,          // attendanceBelow50 (+3)
+      overallPerformance: 30,       // performanceBelow60 (+3)
+      missedLastThreeAssignments: true,  // (+2)
+      growthTrend: 'declining',     // (+2)
+      daysSinceLastActivity: 20,    // inactivity (+2)
+      attendanceTotal: 10,
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.level).toBe('atRisk');
+    expect(result.score).toBe(12);  // 3+3+2+2+2 = 12
+    expect(result.dataSufficiency).toBe('sufficient');
+    expect(result.evidence.length).toBe(5);
+    expect(result.evidence.every(e => e.triggered)).toBe(true);
+    expect(result.evidence.every(e => e.dataSufficiency === 'sufficient')).toBe(true);
+  });
+
+  // ── 7. Missed 3 with insufficient due assignments ──
+  test('missedLast3 with only 2 due assignments → insufficient, no points', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 90,
+      overallPerformance: 90,
+      missedLastThreeAssignments: true,  // caller passed true, but...
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 10,
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 2,       // below required 3
+    });
+    // ... we guard: insufficient → no points added
+    expect(result.reasons).not.toContain('missedLast3Assignments');
+    expect(result.score).toBe(0);
+    expect(result.dataSufficiency).toBe('insufficient');
+    const ev = result.evidence.find(e => e.key === 'missedLast3Assignments');
+    expect(ev).toBeDefined();
+    expect(ev!.dataSufficiency).toBe('insufficient');
+    expect(ev!.value).toBeNull();  // boolean indicator
+  });
+
+  // ── 8. Evidence for inactivity includes daysSinceLastActivity as value ──
+  test('inactivity evidence has value = daysSinceLastActivity', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 90,
+      overallPerformance: 90,
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: 30,    // > 14 threshold → triggers
+      attendanceTotal: 10,
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.reasons).toContain('inactivity');
+    const ev = result.evidence.find(e => e.key === 'inactivity');
+    expect(ev).toBeDefined();
+    expect(ev!.value).toBe(30);
+    expect(ev!.threshold).toBe(RISK_THRESHOLDS.inactivityDays);
+    expect(ev!.triggered).toBe(true);
+  });
+
+  // ── 9. daysSinceLastActivity = null → no inactivity reason, no evidence ──
+  test('daysSinceLastActivity null → no inactivity reason, no evidence entry', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 90,
+      overallPerformance: 90,
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 10,
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.reasons).not.toContain('inactivity');
+    expect(result.evidence.find(e => e.key === 'inactivity')).toBeUndefined();
+  });
+
+  // ── 10. decliningTrend always sufficient (growthIndex already guards < 2 scores) ──
+  test('decliningTrend with sufficient scores → triggers, evidence sufficient', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 90,
+      overallPerformance: 90,
+      missedLastThreeAssignments: false,
+      growthTrend: 'declining',
+      daysSinceLastActivity: null,
+      attendanceTotal: 10,
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.reasons).toContain('decliningTrend');
+    const ev = result.evidence.find(e => e.key === 'decliningTrend');
+    expect(ev).toBeDefined();
+    expect(ev!.dataSufficiency).toBe('sufficient');
+    expect(ev!.triggered).toBe(true);
+    expect(ev!.value).toBeNull();  // categorical, no scalar
+  });
+
+  // ── 11. Backward compat: omitting sample-size params assumes sufficient ──
+  test('omitting sample-size params → defaults to sufficient (backward compat)', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 30,
+      overallPerformance: 50,
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      // No sample-size params — backward compat with old callers
+    });
+    // Should behave like Phase 1: triggers attendanceBelow50 + performanceBelow60
+    expect(result.reasons).toContain('attendanceBelow50');
+    expect(result.reasons).toContain('performanceBelow60');
+    expect(result.score).toBe(6);  // 3+3
+    expect(result.level).toBe('atRisk');
+    expect(result.dataSufficiency).toBe('sufficient');  // assumed sufficient
+    expect(result.evidence.length).toBe(2);
+    expect(result.evidence.every(e => e.dataSufficiency === 'sufficient')).toBe(true);
+  });
+
+  // ── 12. RISK_ACTIONS has entries for all reason keys ──
+  test('RISK_ACTIONS has suggested action for every possible reason key', () => {
+    const allReasonKeys = [
+      'attendanceBelow50',
+      'attendanceBelow70',
+      'performanceBelow60',
+      'performanceBelow70',
+      'missedLast3Assignments',
+      'decliningTrend',
+      'inactivity',
+    ];
+    allReasonKeys.forEach(key => {
+      expect(RISK_ACTIONS[key]).toBeDefined();
+      expect(typeof RISK_ACTIONS[key].ar).toBe('string');
+      expect(typeof RISK_ACTIONS[key].en).toBe('string');
+      expect(['contact', 'review', 'support', 'monitor']).toContain(RISK_ACTIONS[key].category);
+    });
+  });
+
+  // ── 13. dataSufficiency flag is 'sufficient' when no insufficient indicators ──
+  test('dataSufficiency = sufficient when all triggered indicators have sufficient data', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 30,          // triggers (sufficient)
+      overallPerformance: 90,
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 10,
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.dataSufficiency).toBe('sufficient');
+    expect(result.evidence.every(e => e.dataSufficiency === 'sufficient')).toBe(true);
+  });
+
+  // ── 14. attendanceBelow70 (warning) with insufficient data ──
+  test('attendanceBelow70 with 1 session → insufficient, no points', () => {
+    const result = calculateRiskLevel({
+      attendanceScore: 60,          // 50 <= 60 < 70 → warning
+      overallPerformance: 90,
+      missedLastThreeAssignments: false,
+      growthTrend: 'stable',
+      daysSinceLastActivity: null,
+      attendanceTotal: 1,           // insufficient
+      performancePartsCount: 4,
+      scoresCount: 5,
+      dueAssignmentsCount: 5,
+    });
+    expect(result.reasons).not.toContain('attendanceBelow70');
+    expect(result.score).toBe(0);
+    expect(result.dataSufficiency).toBe('insufficient');
+    const ev = result.evidence.find(e => e.key === 'attendanceBelow70');
+    expect(ev).toBeDefined();
+    expect(ev!.dataSufficiency).toBe('insufficient');
+    expect(ev!.triggered).toBe(false);
+    expect(ev!.value).toBe(60);
+    expect(ev!.threshold).toBe(RISK_THRESHOLDS.attendanceWarning);
+  });
+
+  // ── 15. Thresholds unchanged — verify RISK_THRESHOLDS values are preserved ──
+  test('Phase 2A does NOT change RISK_THRESHOLDS values (no regression)', () => {
+    // These are the Phase 1 values — must remain unchanged
+    expect(RISK_THRESHOLDS.attendanceCritical).toBe(50);
+    expect(RISK_THRESHOLDS.attendanceWarning).toBe(70);
+    expect(RISK_THRESHOLDS.performanceCritical).toBe(60);
+    expect(RISK_THRESHOLDS.performanceWarning).toBe(70);
+    expect(RISK_THRESHOLDS.criticalContribution).toBe(3);
+    expect(RISK_THRESHOLDS.warningContribution).toBe(1);
+    expect(RISK_THRESHOLDS.missedAssignmentContribution).toBe(2);
+    expect(RISK_THRESHOLDS.decliningTrendContribution).toBe(2);
+    expect(RISK_THRESHOLDS.inactivityContribution).toBe(2);
+    expect(RISK_THRESHOLDS.atRisk).toBe(6);
+    expect(RISK_THRESHOLDS.concern).toBe(4);
+    expect(RISK_THRESHOLDS.monitor).toBe(2);
+    expect(RISK_THRESHOLDS.inactivityDays).toBe(14);
+  });
+});
+
+// =====================================================
 // 9. calculatePercentile & getPercentileLabel
 // =====================================================
 describe('calculatePercentile', () => {
@@ -1538,5 +1884,52 @@ describe('computeCohortAnalytics', () => {
     ];
     const result = computeCohortAnalytics(metrics);
     expect(result.atRiskCount).toBe(2); // atRisk + concern
+  });
+
+  // ── Phase 2A: insufficient-data students excluded from cohort averages ──
+  test('Phase 2A: insufficient-data students excluded from averages and distributions', () => {
+    const metrics: StudentPerformanceMetrics[] = [
+      makeMetrics({ overallPerformance: 80, performanceLevel: 'good', disciplineScore: 85, riskDataSufficiency: 'sufficient' }),
+      makeMetrics({ overallPerformance: 90, performanceLevel: 'excellent', disciplineScore: 90, riskDataSufficiency: 'sufficient' }),
+      makeMetrics({ overallPerformance: 0, performanceLevel: 'weak', disciplineScore: 0, riskDataSufficiency: 'insufficient' }),
+    ];
+    const result = computeCohortAnalytics(metrics);
+    // totalStudents counts everyone (including insufficient)
+    expect(result.totalStudents).toBe(3);
+    // averages exclude insufficient student: (80+90)/2 = 85, not (80+90+0)/3 = 56.67
+    expect(result.avgPerformance).toBeCloseTo(85, 3);
+    expect(result.avgDiscipline).toBeCloseTo(87.5, 3);
+    // performanceDistribution excludes insufficient student
+    expect(result.performanceDistribution.good).toBe(1);
+    expect(result.performanceDistribution.excellent).toBe(1);
+    expect(result.performanceDistribution.weak).toBe(0);  // insufficient student NOT counted
+    // topPerformerCount excludes insufficient
+    expect(result.topPerformerCount).toBe(1);  // only the excellent sufficient student
+    // disciplineDistribution excludes insufficient
+    expect(result.disciplineDistribution.high).toBe(2);  // 85 and 90 both >= 80
+    expect(result.disciplineDistribution.low).toBe(0);   // insufficient (0) NOT counted
+    // riskDistribution excludes insufficient student (no longer counted as 'healthy')
+    expect(result.riskDistribution.healthy).toBe(2);  // only the 2 sufficient students
+  });
+
+  test('Phase 2A: all-insufficient cohort returns 0 averages (no division by zero)', () => {
+    const metrics: StudentPerformanceMetrics[] = [
+      makeMetrics({ riskDataSufficiency: 'insufficient' }),
+      makeMetrics({ riskDataSufficiency: 'insufficient' }),
+    ];
+    const result = computeCohortAnalytics(metrics);
+    expect(result.totalStudents).toBe(2);
+    expect(result.avgPerformance).toBe(0);  // no sufficient students → 0, not NaN
+    expect(result.avgAttendance).toBe(0);
+    expect(result.avgDiscipline).toBe(0);
+    expect(result.avgEfficiency).toBe(0);
+    expect(result.performanceDistribution.good).toBe(0);
+    expect(result.topPerformerCount).toBe(0);
+    // riskDistribution is all zeros — insufficient students not counted in any bucket
+    expect(result.riskDistribution.healthy).toBe(0);
+    expect(result.riskDistribution.monitor).toBe(0);
+    expect(result.riskDistribution.concern).toBe(0);
+    expect(result.riskDistribution.atRisk).toBe(0);
+    expect(result.atRiskCount).toBe(0);
   });
 });

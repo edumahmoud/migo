@@ -77,6 +77,77 @@ export const RISK_THRESHOLDS = {
 } as const;
 
 // -------------------------------------------------------
+// Risk Data Sufficiency Thresholds (Phase 2A)
+// Minimum sample sizes required before a risk indicator can
+// be triggered. Below these thresholds, the indicator is
+// marked 'insufficient' and does NOT contribute to risk score.
+// This prevents false alarms for new students with no history.
+// -------------------------------------------------------
+export const RISK_DATA_SUFFICIENCY = {
+  // Minimum attendance sessions to reliably assess attendanceScore
+  attendanceMinSessions: 3,
+  // Minimum number of weighted components (exam/attendance/compliance/quality)
+  // to reliably assess overallPerformance. When 0, performance is undefined.
+  performanceMinComponents: 1,
+  // Minimum scores to assess growth trend (matches calculateGrowthIndex)
+  growthMinScores: 2,
+  // Minimum due assignments to assess missed-last-3 streak
+  // (matches ACHIEVEMENT_THRESHOLDS.missedAssignmentCheck)
+  missedStreakMinAssignments: 3,
+} as const;
+
+// -------------------------------------------------------
+// Risk Suggested Actions (Phase 2A)
+// Per-reason suggested pedagogical action for the teacher.
+// IMPORTANT: These are SUGGESTIONS only — never applied
+// automatically to the student's grade or academic record.
+// The teacher decides whether to act on them.
+// -------------------------------------------------------
+export interface RiskSuggestedAction {
+  ar: string;
+  en: string;
+  category: 'contact' | 'review' | 'support' | 'monitor';
+}
+
+export const RISK_ACTIONS: Record<string, RiskSuggestedAction> = {
+  attendanceBelow50: {
+    ar: 'تواصل مع ولي الأمر لمعرفة سبب الغياب المتكرر',
+    en: 'Contact parent/guardian to understand repeated absences',
+    category: 'contact',
+  },
+  attendanceBelow70: {
+    ar: 'ناقش الطالب حول أسباب التأخر أو الغياب الجزئي',
+    en: 'Discuss reasons for lateness or partial absence with the student',
+    category: 'contact',
+  },
+  performanceBelow60: {
+    ar: 'خصص جلسة مراجعة فردية للنقاط الأساسية وحدد فجوات التعلم',
+    en: 'Schedule a 1-on-1 review session to identify learning gaps',
+    category: 'support',
+  },
+  performanceBelow70: {
+    ar: 'اقترح تمارين إضافية على نقاط الضعف المحددة',
+    en: 'Suggest extra practice exercises on identified weak areas',
+    category: 'review',
+  },
+  missedLast3Assignments: {
+    ar: 'تحقق من فهم الطالب للمتطلبات والوقت المتاح، واذكّر بالمواعيد النهائية',
+    en: 'Verify student understands requirements and deadlines',
+    category: 'contact',
+  },
+  decliningTrend: {
+    ar: 'راجع آخر اختبار أو واجب لتحديد نقطة التراجع واسبابها',
+    en: 'Review recent quiz/assignment to identify the drop point',
+    category: 'review',
+  },
+  inactivity: {
+    ar: 'أرسل تذكيراً للطالب أو تحقق من ظروفه الشخصية',
+    en: 'Send a reminder or check on the student\'s circumstances',
+    category: 'contact',
+  },
+};
+
+// -------------------------------------------------------
 // Growth / Trend Thresholds
 // -------------------------------------------------------
 export const GROWTH_THRESHOLDS = {

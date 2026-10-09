@@ -16,6 +16,7 @@ import {
   PERFORMANCE_CLASSIFICATION,
   EFFICIENCY_THRESHOLDS,
   RISK_THRESHOLDS,
+  RISK_DATA_SUFFICIENCY,
   GROWTH_THRESHOLDS,
   DISCIPLINE_WEIGHTS,
   DISCIPLINE_PENALTIES,
@@ -39,6 +40,9 @@ import {
   // Import growth display helpers so they can be re-exported below.
   formatGrowthIndex,
   formatGrowthPercentage,
+  // Phase 2A: import risk data-sufficiency config + suggested actions for re-export
+  RISK_ACTIONS,
+  type RiskSuggestedAction,
 } from './analytics-config';
 
 // =====================================================
@@ -69,6 +73,10 @@ export {
   // Re-export growth display helpers (handle null growthIndex)
   formatGrowthIndex,
   formatGrowthPercentage,
+  // Phase 2A: re-export risk data-sufficiency config + suggested actions
+  RISK_DATA_SUFFICIENCY,
+  RISK_ACTIONS,
+  type RiskSuggestedAction,
 };
 
 // -------------------------------------------------------
@@ -121,6 +129,26 @@ export function getGrowthTrendConfig(trend: GrowthTrend): GrowthTrendConfig {
 // -------------------------------------------------------
 // Comprehensive Student Performance Metrics
 // -------------------------------------------------------
+
+/** Structured evidence for a single risk indicator.
+ *  Phase 2A: gives teachers numeric context instead of bare reason strings. */
+export interface RiskEvidence {
+  /** Reason key, e.g. 'attendanceBelow50'. Matches entries in `riskReasons`. */
+  key: string;
+  /** Actual numeric value observed (e.g. 35 for 35% attendance). Null when not applicable. */
+  value: number | null;
+  /** Threshold that triggers this reason (e.g. 50 for attendanceBelow50). */
+  threshold: number;
+  /** Sample size used to compute `value` (e.g. 8 attendance sessions). */
+  sampleSize: number;
+  /** Minimum sample size required for this indicator to be considered 'sufficient'. */
+  requiredSampleSize: number;
+  /** Whether the underlying data is sufficient to trust this indicator. */
+  dataSufficiency: 'sufficient' | 'insufficient';
+  /** Whether the reason actually triggered (added to riskScore and riskReasons). */
+  triggered: boolean;
+}
+
 export interface StudentPerformanceMetrics {
   // ── Core Metrics ──
   examPerformance: number;
@@ -148,6 +176,13 @@ export interface StudentPerformanceMetrics {
   // ── Risk ──
   riskLevel: RiskLevel;
   riskReasons: string[];
+  /** Phase 2A: structured per-reason evidence (triggered + insufficient indicators). */
+  riskEvidence: RiskEvidence[];
+  /** Phase 2A: overall data sufficiency flag.
+   *  'insufficient' when at least one indicator would have triggered but
+   *  lacked sufficient sample size. UI should show "بيانات غير كافية"
+   *  instead of "سليم" in that case. */
+  riskDataSufficiency: 'sufficient' | 'insufficient';
 
   // ── Raw data for UI display ──
   totalEarnedMarks: number;
@@ -474,6 +509,19 @@ export function calculateGrowthIndex(
 // -------------------------------------------------------
 // Calculation: Risk Detection
 // Uses centralized RISK_THRESHOLDS.
+//
+// Phase 2A additions:
+// - `evidence`: structured per-reason evidence with value/threshold/sampleSize.
+// - `dataSufficiency`: overall flag — 'insufficient' when any indicator
+//   would have triggered but lacked sufficient sample size.
+// - Insufficient indicators do NOT contribute to risk score (prevents
+//   false alarms for new students with no history).
+//
+// Backward compatibility:
+// - `reasons: string[]` is preserved (only contains TRIGGERED + sufficient reasons).
+// - `level` and `score` semantics unchanged when data is sufficient.
+// - New sample-size params are OPTIONAL with safe defaults so existing
+//   callers (including unit tests) continue to work.
 // -------------------------------------------------------
 export function calculateRiskLevel(params: {
   attendanceScore: number;
@@ -482,40 +530,224 @@ export function calculateRiskLevel(params: {
   growthTrend: GrowthTrend;
   daysSinceLastActivity: number | null;
   inactivityThreshold?: number;
-}): { level: RiskLevel; reasons: string[]; score: number } {
+  // ── Phase 2A: sample-size context for data-sufficiency checks ──
+  /** Number of attendance sessions used to compute `attendanceScore`.
+   *  When below RISK_DATA_SUFFICIENCY.attendanceMinSessions, attendance
+   *  indicators are marked 'insufficient' and do NOT contribute to score. */
+  attendanceTotal?: number;
+  /** Number of weighted components used to compute `overallPerformance`
+   *  (exam/attendance/compliance/quality that had data). When 0,
+   *  performance indicators are marked 'insufficient'. */
+  performancePartsCount?: number;
+  /** Number of scores used to compute `growthTrend`. When below
+   *  RISK_DATA_SUFFICIENCY.growthMinScores, declining trend indicator
+   *  is marked 'insufficient'. */
+  scoresCount?: number;
+  /** Number of due assignments checked for the missed-streak. When below
+   *  RISK_DATA_SUFFICIENCY.missedStreakMinAssignments, the streak check
+   *  is implicitly insufficient (caller should already pass
+   *  `missedLastThreeAssignments = false` in that case, but we guard anyway). */
+  dueAssignmentsCount?: number;
+}): { level: RiskLevel; reasons: string[]; score: number; evidence: RiskEvidence[]; dataSufficiency: 'sufficient' | 'insufficient' } {
   const reasons: string[] = [];
+  const evidence: RiskEvidence[] = [];
   let score = 0;
+  let hasInsufficient = false;
 
-  if (params.attendanceScore < RISK_THRESHOLDS.attendanceCritical) {
-    reasons.push('attendanceBelow50');
-    score += RISK_THRESHOLDS.criticalContribution;
-  } else if (params.attendanceScore < RISK_THRESHOLDS.attendanceWarning) {
-    reasons.push('attendanceBelow70');
-    score += RISK_THRESHOLDS.warningContribution;
+  // Default sample sizes: assume sufficient when not provided (backward compat
+  // for existing callers and unit tests that don't pass these params).
+  const attendanceTotal = params.attendanceTotal ?? RISK_DATA_SUFFICIENCY.attendanceMinSessions;
+  const performanceParts = params.performancePartsCount ?? RISK_DATA_SUFFICIENCY.performanceMinComponents;
+  const scoresCount = params.scoresCount ?? RISK_DATA_SUFFICIENCY.growthMinScores;
+  const dueAssignmentsCount = params.dueAssignmentsCount ?? RISK_DATA_SUFFICIENCY.missedStreakMinAssignments;
+
+  // ── 1. Attendance indicators ──
+  // Determine which attendance threshold would trigger
+  const attendanceWouldTriggerCritical = params.attendanceScore < RISK_THRESHOLDS.attendanceCritical;
+  const attendanceWouldTriggerWarning = !attendanceWouldTriggerCritical && params.attendanceScore < RISK_THRESHOLDS.attendanceWarning;
+  const attendanceSufficient = attendanceTotal >= RISK_DATA_SUFFICIENCY.attendanceMinSessions;
+
+  if (attendanceWouldTriggerCritical) {
+    if (attendanceSufficient) {
+      reasons.push('attendanceBelow50');
+      score += RISK_THRESHOLDS.criticalContribution;
+      evidence.push({
+        key: 'attendanceBelow50',
+        value: params.attendanceScore,
+        threshold: RISK_THRESHOLDS.attendanceCritical,
+        sampleSize: attendanceTotal,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.attendanceMinSessions,
+        dataSufficiency: 'sufficient',
+        triggered: true,
+      });
+    } else {
+      hasInsufficient = true;
+      evidence.push({
+        key: 'attendanceBelow50',
+        value: params.attendanceScore,
+        threshold: RISK_THRESHOLDS.attendanceCritical,
+        sampleSize: attendanceTotal,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.attendanceMinSessions,
+        dataSufficiency: 'insufficient',
+        triggered: false,
+      });
+    }
+  } else if (attendanceWouldTriggerWarning) {
+    if (attendanceSufficient) {
+      reasons.push('attendanceBelow70');
+      score += RISK_THRESHOLDS.warningContribution;
+      evidence.push({
+        key: 'attendanceBelow70',
+        value: params.attendanceScore,
+        threshold: RISK_THRESHOLDS.attendanceWarning,
+        sampleSize: attendanceTotal,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.attendanceMinSessions,
+        dataSufficiency: 'sufficient',
+        triggered: true,
+      });
+    } else {
+      hasInsufficient = true;
+      evidence.push({
+        key: 'attendanceBelow70',
+        value: params.attendanceScore,
+        threshold: RISK_THRESHOLDS.attendanceWarning,
+        sampleSize: attendanceTotal,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.attendanceMinSessions,
+        dataSufficiency: 'insufficient',
+        triggered: false,
+      });
+    }
   }
 
-  if (params.overallPerformance < RISK_THRESHOLDS.performanceCritical) {
-    reasons.push('performanceBelow60');
-    score += RISK_THRESHOLDS.criticalContribution;
-  } else if (params.overallPerformance < RISK_THRESHOLDS.performanceWarning) {
-    reasons.push('performanceBelow70');
-    score += RISK_THRESHOLDS.warningContribution;
+  // ── 2. Performance indicators ──
+  const perfWouldTriggerCritical = params.overallPerformance < RISK_THRESHOLDS.performanceCritical;
+  const perfWouldTriggerWarning = !perfWouldTriggerCritical && params.overallPerformance < RISK_THRESHOLDS.performanceWarning;
+  const perfSufficient = performanceParts >= RISK_DATA_SUFFICIENCY.performanceMinComponents;
+
+  if (perfWouldTriggerCritical) {
+    if (perfSufficient) {
+      reasons.push('performanceBelow60');
+      score += RISK_THRESHOLDS.criticalContribution;
+      evidence.push({
+        key: 'performanceBelow60',
+        value: params.overallPerformance,
+        threshold: RISK_THRESHOLDS.performanceCritical,
+        sampleSize: performanceParts,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.performanceMinComponents,
+        dataSufficiency: 'sufficient',
+        triggered: true,
+      });
+    } else {
+      hasInsufficient = true;
+      evidence.push({
+        key: 'performanceBelow60',
+        value: params.overallPerformance,
+        threshold: RISK_THRESHOLDS.performanceCritical,
+        sampleSize: performanceParts,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.performanceMinComponents,
+        dataSufficiency: 'insufficient',
+        triggered: false,
+      });
+    }
+  } else if (perfWouldTriggerWarning) {
+    if (perfSufficient) {
+      reasons.push('performanceBelow70');
+      score += RISK_THRESHOLDS.warningContribution;
+      evidence.push({
+        key: 'performanceBelow70',
+        value: params.overallPerformance,
+        threshold: RISK_THRESHOLDS.performanceWarning,
+        sampleSize: performanceParts,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.performanceMinComponents,
+        dataSufficiency: 'sufficient',
+        triggered: true,
+      });
+    } else {
+      hasInsufficient = true;
+      evidence.push({
+        key: 'performanceBelow70',
+        value: params.overallPerformance,
+        threshold: RISK_THRESHOLDS.performanceWarning,
+        sampleSize: performanceParts,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.performanceMinComponents,
+        dataSufficiency: 'insufficient',
+        triggered: false,
+      });
+    }
   }
 
+  // ── 3. Missed last 3 assignments ──
+  // The caller should already pass `missedLastThreeAssignments = false` when
+  // there are fewer than 3 due assignments (computeAllMetrics enforces this).
+  // But we double-guard: if dueAssignmentsCount < required, treat as insufficient.
+  const missed3Sufficient = dueAssignmentsCount >= RISK_DATA_SUFFICIENCY.missedStreakMinAssignments;
   if (params.missedLastThreeAssignments) {
-    reasons.push('missedLast3Assignments');
-    score += RISK_THRESHOLDS.missedAssignmentContribution;
+    if (missed3Sufficient) {
+      reasons.push('missedLast3Assignments');
+      score += RISK_THRESHOLDS.missedAssignmentContribution;
+      evidence.push({
+        key: 'missedLast3Assignments',
+        value: null,  // boolean indicator, no scalar value
+        threshold: RISK_DATA_SUFFICIENCY.missedStreakMinAssignments,
+        sampleSize: dueAssignmentsCount,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.missedStreakMinAssignments,
+        dataSufficiency: 'sufficient',
+        triggered: true,
+      });
+    } else {
+      hasInsufficient = true;
+      evidence.push({
+        key: 'missedLast3Assignments',
+        value: null,
+        threshold: RISK_DATA_SUFFICIENCY.missedStreakMinAssignments,
+        sampleSize: dueAssignmentsCount,
+        requiredSampleSize: RISK_DATA_SUFFICIENCY.missedStreakMinAssignments,
+        dataSufficiency: 'insufficient',
+        triggered: false,
+      });
+    }
   }
 
+  // ── 4. Declining growth trend ──
+  // growthTrend is already 'stable' when scoresCount < 2 (enforced by
+  // calculateGrowthIndex), so decliningTrend cannot fire with insufficient
+  // data. We still record evidence for transparency when scoresCount is low.
+  const growthSufficient = scoresCount >= RISK_DATA_SUFFICIENCY.growthMinScores;
   if (params.growthTrend === 'declining') {
+    // decliningTrend can only be set when growthSufficient (calculateGrowthIndex
+    // returns 'stable' for < 2 scores), so this branch is always sufficient.
     reasons.push('decliningTrend');
     score += RISK_THRESHOLDS.decliningTrendContribution;
+    evidence.push({
+      key: 'decliningTrend',
+      value: null,  // trend is categorical, no scalar value
+      threshold: RISK_DATA_SUFFICIENCY.growthMinScores,
+      sampleSize: scoresCount,
+      requiredSampleSize: RISK_DATA_SUFFICIENCY.growthMinScores,
+      dataSufficiency: 'sufficient',
+      triggered: true,
+    });
   }
 
+  // ── 5. Inactivity ──
+  // daysSinceLastActivity === null means no activity records exist.
+  // In that case, the indicator does NOT fire (we cannot claim "inactive"
+  // for a student who simply has no recorded activity yet).
+  // This is the existing behavior; we preserve it and add evidence only
+  // when the indicator actually fires.
   const threshold = params.inactivityThreshold ?? RISK_THRESHOLDS.inactivityDays;
   if (params.daysSinceLastActivity !== null && params.daysSinceLastActivity > threshold) {
     reasons.push('inactivity');
     score += RISK_THRESHOLDS.inactivityContribution;
+    evidence.push({
+      key: 'inactivity',
+      value: params.daysSinceLastActivity,
+      threshold: threshold,
+      sampleSize: 1,  // single calculation from latest activity date
+      requiredSampleSize: 1,
+      dataSufficiency: 'sufficient',
+      triggered: true,
+    });
   }
 
   let level: RiskLevel;
@@ -524,7 +756,13 @@ export function calculateRiskLevel(params: {
   else if (score >= RISK_THRESHOLDS.monitor) level = 'monitor';
   else level = 'healthy';
 
-  return { level, reasons, score };
+  return {
+    level,
+    reasons,
+    score,
+    evidence,
+    dataSufficiency: hasInsufficient ? 'insufficient' : 'sufficient',
+  };
 }
 
 // -------------------------------------------------------
@@ -572,12 +810,22 @@ export function computeAllMetrics(params: {
   //      so the component is excluded from auto-normalization rather than
   //      being treated as zero performance.
   const hasDueAssignments = compliance.total > 0;
-  const overallPerformance = calculateOverallPerformance({
+  const overallPerformanceInput = {
     examPerformance: studentScores.length > 0 ? exam.value : undefined,
     attendanceScore: attendanceSessions.length > 0 ? attendance.value : undefined,
     assignmentCompliance: hasDueAssignments ? compliance.value : undefined,
     assignmentQuality: hasDueAssignments ? quality.value : undefined,
-  });
+  };
+  const overallPerformance = calculateOverallPerformance(overallPerformanceInput);
+
+  // Phase 2A: count how many weighted components contributed to overallPerformance.
+  // Used by calculateRiskLevel to detect 'insufficient' performance data.
+  const performancePartsCount = [
+    overallPerformanceInput.examPerformance,
+    overallPerformanceInput.attendanceScore,
+    overallPerformanceInput.assignmentCompliance,
+    overallPerformanceInput.assignmentQuality,
+  ].filter(v => v !== undefined).length;
 
   const performanceLevel = getPerformanceLevel(overallPerformance);
 
@@ -649,6 +897,11 @@ export function computeAllMetrics(params: {
     missedLastThreeAssignments: missedLastThree,
     growthTrend: growth.trend,
     daysSinceLastActivity,
+    // Phase 2A: pass sample-size context for data-sufficiency checks
+    attendanceTotal: attendance.total,
+    performancePartsCount,
+    scoresCount: studentScores.length,
+    dueAssignmentsCount: dueAssignmentsForRisk.length,
   });
 
   return {
@@ -667,6 +920,9 @@ export function computeAllMetrics(params: {
     growthTrend: growth.trend,
     riskLevel: risk.level,
     riskReasons: risk.reasons,
+    // Phase 2A: structured evidence + overall data sufficiency
+    riskEvidence: risk.evidence,
+    riskDataSufficiency: risk.dataSufficiency,
     totalEarnedMarks: exam.totalEarned,
     totalPossibleMarks: exam.totalPossible,
     attendedSessions: attendance.attended,
@@ -715,6 +971,10 @@ export interface SubjectPerformanceData {
   overallPerformance: number;
   growthTrend: GrowthTrend;
   riskLevel: RiskLevel;
+  /** Phase 2A: structured per-reason evidence (subject-level). */
+  riskEvidence: RiskEvidence[];
+  /** Phase 2A: overall data sufficiency flag (subject-level). */
+  riskDataSufficiency: 'sufficient' | 'insufficient';
   quizCount: number;
   totalSessions: number;
   attendedSessions: number;
@@ -763,23 +1023,37 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
   // Overall (auto-normalize)
   // FIX: Pass undefined when no due assignments
   const hasDueAssignments = compliance.total > 0;
-  const overallPerformance = calculateOverallPerformance({
+  const overallPerformanceInput = {
     examPerformance: studentScores.length > 0 ? exam.value : undefined,
     attendanceScore: attendanceSessions.length > 0 ? attendance.value : undefined,
     assignmentCompliance: hasDueAssignments ? compliance.value : undefined,
     assignmentQuality: hasDueAssignments ? quality.value : undefined,
-  });
+  };
+  const overallPerformance = calculateOverallPerformance(overallPerformanceInput);
+
+  // Phase 2A: count weighted components for data-sufficiency check
+  const performancePartsCount = [
+    overallPerformanceInput.examPerformance,
+    overallPerformanceInput.attendanceScore,
+    overallPerformanceInput.assignmentCompliance,
+    overallPerformanceInput.assignmentQuality,
+  ].filter(v => v !== undefined).length;
 
   // Growth
   const growth = calculateGrowthIndex(studentScores);
 
-  // Risk (simplified for subject level)
+  // Risk (simplified for subject level — missedLast3=false, daysSinceLastActivity=null)
   const risk = calculateRiskLevel({
     attendanceScore: attendance.value,
     overallPerformance,
     missedLastThreeAssignments: false,
     growthTrend: growth.trend,
     daysSinceLastActivity: null,
+    // Phase 2A: pass sample-size context
+    attendanceTotal: attendance.total,
+    performancePartsCount,
+    scoresCount: studentScores.length,
+    dueAssignmentsCount: 0,  // subject-level view doesn't assess missed-streak
   });
 
   return {
@@ -792,6 +1066,9 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
     overallPerformance,
     growthTrend: growth.trend,
     riskLevel: risk.level,
+    // Phase 2A: structured evidence + data sufficiency (subject-level)
+    riskEvidence: risk.evidence,
+    riskDataSufficiency: risk.dataSufficiency,
     quizCount: studentScores.length,
     totalSessions: attendanceSessions.length,
     attendedSessions: attendance.attended,
@@ -884,6 +1161,10 @@ export function computeCohortAnalytics(
   let sumAttendance = 0;
   let sumDiscipline = 0;
   let sumEfficiency = 0;
+  let countPerformance = 0;  // Phase 2A: only count students with sufficient data
+  let countAttendance = 0;
+  let countDiscipline = 0;
+  let countEfficiency = 0;
   const perfDist: CohortPerformanceDistribution = { excellent: 0, veryGood: 0, good: 0, acceptable: 0, weak: 0 };
   const riskDist: CohortRiskDistribution = { healthy: 0, monitor: 0, concern: 0, atRisk: 0 };
   const growthDist: CohortGrowthDistribution = { improving: 0, stable: 0, declining: 0 };
@@ -892,36 +1173,58 @@ export function computeCohortAnalytics(
   let topPerformerCount = 0;
 
   for (const m of allMetrics) {
-    sumPerformance += m.overallPerformance;
-    sumAttendance += m.attendanceScore;
-    sumDiscipline += m.disciplineScore;
-    sumEfficiency += m.efficiency;
+    // Phase 2A: students with insufficient data are excluded from averages
+    // and performance/distribution buckets so they don't drag down cohort
+    // stats with their zero-default scores. They are still counted in
+    // totalStudents and riskDistribution (as 'healthy' to avoid false alarms).
+    const hasSufficientData = m.riskDataSufficiency === 'sufficient';
 
-    // Performance distribution
-    perfDist[m.performanceLevel]++;
+    if (hasSufficientData) {
+      sumPerformance += m.overallPerformance;
+      countPerformance++;
+      sumAttendance += m.attendanceScore;
+      countAttendance++;
+      sumDiscipline += m.disciplineScore;
+      countDiscipline++;
+      sumEfficiency += m.efficiency;
+      countEfficiency++;
 
-    // Risk distribution
-    riskDist[m.riskLevel]++;
-    if (m.riskLevel === 'atRisk' || m.riskLevel === 'concern') atRiskCount++;
+      // Performance distribution — only for students with sufficient data
+      perfDist[m.performanceLevel]++;
 
-    // Growth distribution
+      // Top performer — only for students with sufficient data
+      if (m.performanceLevel === 'excellent') topPerformerCount++;
+
+      // Discipline distribution — only for students with sufficient data
+      if (m.disciplineScore >= 80) discDist.high++;
+      else if (m.disciplineScore >= 60) discDist.medium++;
+      else discDist.low++;
+    }
+
+    // Risk distribution: only count students with sufficient data.
+    // Insufficient-data students are NOT counted as 'healthy' to avoid
+    // inflating the healthy bucket with students who simply have no
+    // history yet. Their riskLevel is 'healthy' but it's not a genuine
+    // assessment — it's an artifact of zero-scored indicators.
+    // The pie chart normalizes its own totals, so sum(riskDistribution)
+    // may be less than totalStudents when insufficient students exist.
+    if (hasSufficientData) {
+      riskDist[m.riskLevel]++;
+      if (m.riskLevel === 'atRisk' || m.riskLevel === 'concern') atRiskCount++;
+    }
+
+    // Growth distribution: include all (growth 'stable' for insufficient is OK)
     growthDist[m.growthTrend]++;
-
-    // Discipline distribution
-    if (m.disciplineScore >= 80) discDist.high++;
-    else if (m.disciplineScore >= 60) discDist.medium++;
-    else discDist.low++;
-
-    // Top performer
-    if (m.performanceLevel === 'excellent') topPerformerCount++;
   }
 
   return {
     totalStudents,
-    avgPerformance: sumPerformance / totalStudents,
-    avgAttendance: sumAttendance / totalStudents,
-    avgDiscipline: sumDiscipline / totalStudents,
-    avgEfficiency: sumEfficiency / totalStudents,
+    // Phase 2A: averages exclude insufficient-data students to avoid
+    // false low-cohort averages caused by new students with 0 scores.
+    avgPerformance: countPerformance > 0 ? sumPerformance / countPerformance : 0,
+    avgAttendance: countAttendance > 0 ? sumAttendance / countAttendance : 0,
+    avgDiscipline: countDiscipline > 0 ? sumDiscipline / countDiscipline : 0,
+    avgEfficiency: countEfficiency > 0 ? sumEfficiency / countEfficiency : 0,
     performanceDistribution: perfDist,
     riskDistribution: riskDist,
     growthDistribution: growthDist,

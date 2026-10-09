@@ -89,6 +89,9 @@ import {
   getGrowthTrendConfig,
   formatGrowthIndex,
   formatGrowthPercentage,
+  RISK_ACTIONS,
+  type RiskEvidence,
+  type RiskSuggestedAction,
   calculatePercentile,
   getPercentileLabel,
   type SubjectPerformanceData,
@@ -3793,24 +3796,67 @@ function StudentCard({
               })()}
 
               {/* ── Risk Level Badge (with reasons) ── */}
-              {metrics.riskLevel !== 'healthy' && (
+              {(metrics.riskLevel !== 'healthy' || metrics.riskDataSufficiency === 'insufficient') && (
                 <div className={`p-3 rounded-xl border ${riskConfig.borderColor} ${riskConfig.bgColor}`}>
                   <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle className={`h-4 w-4 ${riskConfig.textColor}`} />
                     <span className={`text-sm font-medium ${riskConfig.textColor}`}>{t('teacher.trackingRiskLevel')}: {getRiskLabel(metrics.riskLevel)}</span>
                     <span className="text-[10px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingRiskTooltip')}</span>
                   </div>
+
+                  {/* Phase 2A: Data insufficiency warning */}
+                  {metrics.riskDataSufficiency === 'insufficient' && metrics.riskLevel === 'healthy' && (
+                    <div className="mt-1 mb-1 text-[10px] text-amber-700 dark:text-amber-500 flex items-center gap-1">
+                      <span>⚠</span>
+                      <span>{t('teacher.trackingRiskDataInsufficient')}</span>
+                      <span className="text-muted-foreground" title={t('teacher.trackingRiskDataInsufficientTooltip')}>ⓘ</span>
+                    </div>
+                  )}
+
                   {metrics.riskReasons.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-1">
-                      {metrics.riskReasons.map((reason, idx) => (
-                        <Badge
-                          key={idx}
-                          variant="outline"
-                          className={`text-[9px] px-1.5 py-0 ${riskConfig.borderColor} ${riskConfig.textColor}`}
-                        >
-                          {riskReasonTranslationMap[reason] || reason}
-                        </Badge>
-                      ))}
+                      {metrics.riskReasons.map((reason, idx) => {
+                        const ev = metrics.riskEvidence.find(e => e.key === reason);
+                        const action = RISK_ACTIONS[reason];
+                        return (
+                          <div key={idx} className="flex flex-col gap-0.5">
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] px-1.5 py-0 ${riskConfig.borderColor} ${riskConfig.textColor}`}
+                            >
+                              {riskReasonTranslationMap[reason] || reason}
+                              {ev && ev.value !== null && (
+                                <span className="ms-1 opacity-70">({Math.round(ev.value)}%)</span>
+                              )}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Phase 2A: Suggested pedagogical actions (modal-only, per Phase 2 decision) */}
+                  {metrics.riskReasons.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-dashed border-current opacity-90">
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="text-[10px] font-medium text-foreground">{t('teacher.trackingRiskSuggestedAction')}</span>
+                        <span className="text-[9px] text-muted-foreground" title={t('teacher.trackingRiskSuggestedActionTooltip')}>ⓘ</span>
+                      </div>
+                      <div className="space-y-1">
+                        {metrics.riskReasons.map((reason, idx) => {
+                          const action = RISK_ACTIONS[reason];
+                          if (!action) return null;
+                          const categoryLabel = locale === 'ar'
+                            ? t(`teacher.trackingRiskActionCategory${action.category.charAt(0).toUpperCase() + action.category.slice(1)}`)
+                            : action.category.charAt(0).toUpperCase() + action.category.slice(1);
+                          return (
+                            <div key={idx} className="text-[10px] text-foreground leading-snug">
+                              <span className="text-muted-foreground">• {categoryLabel}:</span>{' '}
+                              <span>{locale === 'ar' ? action.ar : action.en}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

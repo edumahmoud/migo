@@ -89,11 +89,42 @@ export interface GrowthMetrics {
   improvementPercentage: number | null;
 }
 
-/** Risk metrics: early risk detection */
+/** Risk evidence: structured per-reason evidence with numeric value,
+ *  threshold, sample size, and data-sufficiency flag.
+ *  Added in Phase 2A to give teachers actionable context instead of
+ *  bare reason strings. */
+export interface RiskEvidence {
+  /** Reason key, e.g. 'attendanceBelow50'. Same keys as in `riskReasons`. */
+  key: string;
+  /** Actual numeric value observed (e.g. 35 for 35% attendance). Null when not applicable (e.g. missed3 is boolean). */
+  value: number | null;
+  /** Threshold that triggers this reason (e.g. 50 for attendanceBelow50). */
+  threshold: number;
+  /** Sample size used to compute `value` (e.g. 8 attendance sessions). */
+  sampleSize: number;
+  /** Minimum sample size required for this indicator to be considered 'sufficient'. */
+  requiredSampleSize: number;
+  /** Whether the underlying data is sufficient to trust this indicator. */
+  dataSufficiency: 'sufficient' | 'insufficient';
+  /** Whether the reason actually triggered (added to riskScore and riskReasons). */
+  triggered: boolean;
+}
+
+/** Risk metrics: early risk detection.
+ *  Phase 2A additions:
+ *  - `evidence`: structured per-reason evidence array (replaces bare strings for UI).
+ *  - `dataSufficiency`: overall flag — 'insufficient' when ANY indicator lacks
+ *    sufficient data. UI should display "بيانات غير كافية" instead of a
+ *    misleading "healthy" label when this is 'insufficient' and riskScore is 0. */
 export interface RiskMetrics {
   riskLevel: RiskLevel;
   riskScore: number;
   riskReasons: string[];
+  /** Structured evidence per triggered OR insufficient indicator. */
+  evidence: RiskEvidence[];
+  /** Overall data sufficiency. 'insufficient' when at least one indicator
+   *  would have triggered but lacked sufficient sample size. */
+  dataSufficiency: 'sufficient' | 'insufficient';
 }
 
 /** Ranking metrics: percentile-based positioning */
