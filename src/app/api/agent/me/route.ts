@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 /**
  * GET /api/agent/me
@@ -8,28 +8,66 @@ import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
  * Returns the calling agent's own profile + their teacher's name + whether
  * the teacher is currently banned (suspended).
  *
+ * v130 FIX: This endpoint does NOT use requireAgent() (which filters by
+ * is_active=true). Instead, it authenticates the user + checks their role
+ * is registration_agent, then fetches the agent row WITHOUT the is_active
+ * filter. This allows inactive agents (whose teacher was banned/promoted)
+ * to still get their profile + teacher ban status — so the agent portal
+ * can show the "teacher suspended" modal.
+ *
  * Used by:
  *   - Agent portal header: "وكيل: <display_name> · المعلم: <teacher_name>"
  *   - Agent portal mount: shows a non-dismissible modal if teacher is banned
  *     so the agent knows they can't perform tasks until the ban is lifted.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAgent(request);
-  if (!auth.success) return authErrorResponse(auth);
+  // Authenticate the user (does not check is_active)
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
 
-  const { agent, sourceTeacherId } = auth;
+  const userId = authResult.user.id;
+  const role = await getUserRole(userId);
 
-  // Fetch the agent's own display_name + kind + the teacher's name.
+  if (role !== 'registration_agent') {
+    return NextResponse.json(
+      { success: false, error: 'هذا الإجراء متاح لوكلاء التسجيل فقط' },
+      { status: 403 }
+    );
+  }
+
+  // Fetch the agent's row WITHOUT is_active=true filter.
+  // This allows inactive agents (teacher banned/promoted) to still get
+  // their profile + teacher ban status for the suspended-teacher modal.
   const { data: agentRow, error } = await supabaseServer
     .from('registration_agents')
-    .select('id, display_name, kind, contact_email, contact_phone, source_id, allowed_sections, is_active')
-    .eq('id', agent.id)
-    .single();
+    .select('id, display_name, kind, contact_email, contact_phone, source_id, allowed_sections, is_active, teacher_id')
+    .eq('user_id', userId)
+    .maybeSingle();
 
   if (error || !agentRow) {
     return NextResponse.json(
       { success: false, error: 'تعذّر تحميل بيانات الوكيل' },
       { status: 500 }
+    );
+  }
+
+  const agentData = agentRow as {
+    id: string;
+    display_name: string | null;
+    kind: string | null;
+    contact_email: string | null;
+    contact_phone: string | null;
+    source_id: string | null;
+    allowed_sections: string[] | null;
+    is_active: boolean;
+    teacher_id: string | null;
+  };
+
+  const sourceTeacherId = agentData.teacher_id;
+  if (!sourceTeacherId) {
+    return NextResponse.json(
+      { success: false, error: 'تعذر الوصول إلى بيانات المعلم المرتبط بحسابك' },
+      { status: 403 }
     );
   }
 
@@ -66,16 +104,16 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     agent: {
-      id: agentRow.id,
-      display_name: (agentRow as { display_name: string | null }).display_name,
-      kind: (agentRow as { kind: string | null }).kind,
-      contact_email: (agentRow as { contact_email: string | null }).contact_email,
-      contact_phone: (agentRow as { contact_phone: string | null }).contact_phone,
-      source_id: (agentRow as { source_id: string | null }).source_id,
+      id: agentData.id,
+      display_name: agentData.display_name,
+      kind: agentData.kind,
+      contact_email: agentData.contact_email,
+      contact_phone: agentData.contact_phone,
+      source_id: agentData.source_id,
       // v114: per-agent allowed teacher-sections. null = all allowed.
-      allowed_sections: (agentRow as { allowed_sections: string[] | null }).allowed_sections,
+      allowed_sections: agentData.allowed_sections,
       // v130: agent's own active status (deactivated when teacher is banned/promoted)
-      is_active: (agentRow as { is_active: boolean }).is_active,
+      is_active: agentData.is_active,
     },
     teacher: teacherRow
       ? {
