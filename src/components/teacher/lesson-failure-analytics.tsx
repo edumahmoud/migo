@@ -96,7 +96,49 @@ export default function LessonFailureAnalytics({ subjects }: LessonFailureAnalyt
       });
       if (!res.ok) throw new Error('Failed to fetch progress');
       const data = await res.json();
-      setProgress(data.progress || []);
+      // FIX: The /api/lessons/progress endpoint returns a MAP keyed by
+      // lesson_id (object), not an array. For teachers/admins, the API
+      // returns an empty object {} (teachers don't track their own
+      // lesson progress). Normalizing to an array prevents the
+      // "progress is not iterable" TypeError that crashed the tab.
+      const raw = data?.progress;
+      let normalized: LessonProgress[] = [];
+      if (Array.isArray(raw)) {
+        normalized = raw as LessonProgress[];
+      } else if (raw && typeof raw === 'object') {
+        // API returned a map { lesson_id: { status, ... } } — flatten it.
+        // Note: the map shape does NOT carry lesson_title/unit_title/
+        // score_percentage/failed_attempts, so the per-lesson analytics
+        // tables will show limited data. This is acceptable: the
+        // immediate goal is to stop the crash. A dedicated
+        // teacher-facing progress API would be needed for full analytics.
+        normalized = Object.entries(raw as Record<string, Record<string, unknown>>).map(
+          ([lessonId, val]) => ({
+            id: lessonId,
+            student_id: '',
+            lesson_id: lessonId,
+            subject_id: selectedSubjectId,
+            unit_id: null,
+            status: (val.status as LessonProgress['status']) || 'not_started',
+            score: null,
+            max_score: null,
+            score_percentage: null,
+            attempts: 0,
+            failed_attempts: 0,
+            time_spent_sec: 0,
+            last_position: null,
+            failure_points: null,
+            started_at: val.started_at as string | null,
+            completed_at: val.completed_at as string | null,
+            last_accessed_at: (val.last_accessed_at as string) || new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            lesson_title: undefined,
+            unit_title: undefined,
+          } as LessonProgress),
+        );
+      }
+      setProgress(normalized);
     } catch (err) {
       console.error('[LessonFailureAnalytics] Fetch error:', err);
       setProgress([]);
