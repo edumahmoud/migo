@@ -120,20 +120,35 @@ export default function AgentStudentSuspendDialog({
         r.is_active && (r.expires_at === null || r.expires_at > nowIso)
       );
 
-      // v130 fix: fetch subject names separately — the join in the query
-      // above was returning null for subject.name (RLS or join issue).
-      // We resolve subject names from the `subjects` prop passed by the parent.
-      const activeWithNames = active.map(r => {
-        const subjectInfo = subjects.find(s => s.id === r.subject_id);
-        return {
-          id: r.id,
-          subject_id: r.subject_id,
-          subject_name: subjectInfo?.name ?? 'مقرر محذوف',
-          reason: r.reason,
-          suspended_at: r.suspended_at,
-          expires_at: r.expires_at,
-        };
+      // v130 fix: Fetch subject names from DB directly (not from props).
+      // The props 'subjects' only contains courses the student is enrolled in,
+      // but a suspension may be for a course the student was unenrolled from.
+      // We fetch ALL subject names for the suspended subject_ids from the DB.
+      const suspendedSubjectIds = active.map(r => r.subject_id);
+      let subjectNameMap: Record<string, string> = {};
+      if (suspendedSubjectIds.length > 0) {
+        const { data: subjRows } = await supabase
+          .from('subjects')
+          .select('id, name')
+          .in('id', suspendedSubjectIds);
+        (subjRows ?? []).forEach((s: { id: string; name: string }) => {
+          subjectNameMap[s.id] = s.name;
+        });
+      }
+
+      // Also merge with props as fallback
+      subjects.forEach(s => {
+        if (!subjectNameMap[s.id]) subjectNameMap[s.id] = s.name;
       });
+
+      const activeWithNames = active.map(r => ({
+        id: r.id,
+        subject_id: r.subject_id,
+        subject_name: subjectNameMap[r.subject_id] ?? 'مقرر غير معروف',
+        reason: r.reason,
+        suspended_at: r.suspended_at,
+        expires_at: r.expires_at,
+      }));
 
       setActiveSuspensions(activeWithNames);
     } catch (err) {
@@ -284,37 +299,9 @@ export default function AgentStudentSuspendDialog({
           </div>
         ) : (
           <div className="space-y-3 flex-1 overflow-y-auto px-6 pb-4">
-            {/* Active suspensions list */}
-            {activeSuspensions.length > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-2">
-                <div className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  الإيقافات النشطة ({activeSuspensions.length})
-                </div>
-                {activeSuspensions.map(s => (
-                  <div key={s.id} className="rounded bg-amber-100/50 dark:bg-amber-900/30 p-2 space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-amber-900 dark:text-amber-100 truncate">
-                        {s.subject_name}
-                      </span>
-                      <button
-                        onClick={() => handleLift(s.subject_id, s.subject_name ?? '—')}
-                        disabled={submitting}
-                        className="shrink-0 inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        <Power className="h-3 w-3" />
-                        فك الإيقاف
-                      </button>
-                    </div>
-                    <div className="text-[10px] text-amber-700 dark:text-amber-300">
-                      <div>أُوقف في: {formatDate(s.suspended_at)}</div>
-                      {s.expires_at && <div>ينتهي: {formatDate(s.expires_at)}</div>}
-                      {s.reason && <div>السبب: {s.reason}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* v130: Active suspensions list REMOVED from modal —
+                moved to the main search results page instead.
+                The modal now only shows the suspend form + footer. */}
 
             {/* Suspend form */}
             <div className="space-y-3 border-t pt-3">

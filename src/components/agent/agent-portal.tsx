@@ -173,6 +173,11 @@ export default function AgentPortal({
   const [suspendStudentId, setSuspendStudentId] = useState<string | null>(null);
   const [suspendStudentName, setSuspendStudentName] = useState<string>('');
   const [suspendSubjects, setSuspendSubjects] = useState<Array<{ id: string; name: string }>>([]);
+  // v130: active suspensions fetched for the searched student — shown in search results (not modal)
+  const [studentSuspendedSubjects, setStudentSuspendedSubjects] = useState<Array<{
+    id: string; subject_id: string; subject_name: string; reason: string | null;
+    suspended_at: string; expires_at: string | null;
+  }>>([]);
   // v116 fix: initial state is '' (empty) so the GRID shows first when
   // the user opens Teacher View. Before this fix, the initial state was
   // 'dashboard' → the component skipped the grid and went straight to
@@ -259,6 +264,7 @@ export default function AgentPortal({
     if (!searchCode.trim()) { toast.error('أدخل كود الطالب'); return; }
     setSearching(true);
     setStudentResult(null);
+    setStudentSuspendedSubjects([]); // reset suspensions
     try {
       const res = await fetch('/api/agent/search-student', {
         method: 'POST',
@@ -266,11 +272,56 @@ export default function AgentPortal({
         body: JSON.stringify({ studentCode: searchCode.trim() }),
       });
       const json = await res.json();
-      if (json.success) { setStudentResult(json); }
+      if (json.success) {
+        setStudentResult(json);
+        // v130: fetch active suspensions for this student
+        if (json.student?.id) {
+          fetchStudentSuspensions(json.student.id);
+        }
+      }
       else { toast.error(json.error || 'لم يتم العثور على الطالب'); }
     } catch { toast.error('حدث خطأ غير متوقع'); }
     finally { setSearching(false); }
   };
+
+  // v130: Fetch active suspensions for a student — shown in search results (not modal)
+  const fetchStudentSuspensions = useCallback(async (studentId: string) => {
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const nowIso = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('student_suspensions')
+        .select('id, subject_id, reason, suspended_at, expires_at, is_active')
+        .eq('student_id', studentId)
+        .eq('scope', 'course')
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      type Row = { id: string; subject_id: string; reason: string | null; suspended_at: string; expires_at: string | null; is_active: boolean; };
+      const rows = ((data ?? []) as unknown) as Row[];
+      const active = rows.filter(r => r.is_active && (r.expires_at === null || r.expires_at > nowIso));
+
+      // Fetch subject names from DB
+      const suspendedIds = active.map(r => r.subject_id);
+      let nameMap: Record<string, string> = {};
+      if (suspendedIds.length > 0) {
+        const { data: subjRows } = await supabase.from('subjects').select('id, name').in('id', suspendedIds);
+        (subjRows ?? []).forEach((s: { id: string; name: string }) => { nameMap[s.id] = s.name; });
+      }
+
+      setStudentSuspendedSubjects(active.map(r => ({
+        id: r.id,
+        subject_id: r.subject_id,
+        subject_name: nameMap[r.subject_id] ?? 'مقرر غير معروف',
+        reason: r.reason,
+        suspended_at: r.suspended_at,
+        expires_at: r.expires_at,
+      })));
+    } catch {
+      setStudentSuspendedSubjects([]);
+    }
+  }, []);
 
   // ─── Activate order ───
   const activateOrder = async (orderId: string) => {
@@ -754,6 +805,39 @@ export default function AgentPortal({
                 </CardContent>
               </Card>
 
+              {/* v130: Active suspensions card — moved here from the modal */}
+              {studentSuspendedSubjects.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Ban className="h-4 w-4 text-rose-600" />
+                      الإيقافات النشطة ({studentSuspendedSubjects.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y">
+                      {studentSuspendedSubjects.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between gap-2 p-3">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-medium truncate">{s.subject_name}</span>
+                            {s.reason && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">السبب: {s.reason}</p>
+                            )}
+                            <p className="text-[10px] text-muted-foreground">
+                              {s.expires_at ? `ينتهي: ${new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}` : 'غير محدد المدة'}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
+                            <Ban className="h-2.5 w-2.5 me-0.5" />
+                            موقوف
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Pending orders (with activate/cancel) */}
               {studentResult.pending_orders.length > 0 && (
                 <Card>
@@ -920,9 +1004,9 @@ export default function AgentPortal({
         subjects={suspendSubjects}
         onClose={() => setSuspendStudentId(null)}
         onChanged={() => {
-          // v130: No page refresh — just refetch the student search
-          // to update the UI badges without closing the modal.
+          // v130: silent update — refetch search + suspensions without page refresh
           if (searchCode.trim()) searchStudent();
+          if (suspendStudentId) fetchStudentSuspensions(suspendStudentId);
         }}
       />
       </>
