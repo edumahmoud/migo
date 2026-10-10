@@ -1580,28 +1580,22 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
 function StudentsView({ data }: { data: Record<string, unknown> }) {
   const items = (data.items ?? []) as Array<{
     id: string; name: string | null; email: string;
-    username: string | null; student_code: string | null;
-    account_status: string | null;
-    enrollments: Array<{ subject_id: string; subject_name: string; status: string; enrolled_at: string | null }>;
+    student_code: string | null; account_status: string | null;
+    enrollments: Array<{ subject_id: string; subject_name: string; status: string; is_free: boolean; enrolled_at: string | null }>;
   }>;
+  const totalCount = (data.total_count as number) ?? 0;
+  const freeCount = (data.free_count as number) ?? 0;
+  const paidCount = (data.paid_count as number) ?? 0;
+  const pendingCount = (data.pending_count as number) ?? 0;
 
-  // v116 (C4): pending enrollment requests — extract from the data
-  // fetched by handleStudents (which now includes pending_enrollments).
   const pendingEnrollments = (data.pending_enrollments ?? []) as Array<{
-    enrollment_id: string;
-    student_id: string;
-    student_name: string | null;
-    student_email: string;
-    student_code: string | null;
-    subject_id: string;
-    subject_name: string;
-    enrollment_method: string;
-    enrolled_at: string | null;
+    enrollment_id: string; student_id: string; student_name: string | null;
+    student_email: string; student_code: string | null;
+    subject_id: string; subject_name: string; enrollment_method: string; enrolled_at: string | null;
   }>;
 
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string; subjects: Array<{ id: string; name: string }> } | null>(null);
-  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
 
   const handleApprove = async (subjectId: string, studentId: string, enrollmentId: string) => {
     setActioningId(enrollmentId);
@@ -1650,7 +1644,31 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div className="space-y-3">
-      {/* ─── Pending enrollment requests (C4) — show at the top ─── */}
+      {/* ─── Stats summary (unique students, free, paid, pending) ─── */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <p className="text-lg font-bold text-foreground">{totalCount}</p>
+              <p className="text-[9px] text-muted-foreground">إجمالي الطلاب</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-emerald-600">{paidCount}</p>
+              <p className="text-[9px] text-muted-foreground">مدفوع</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-sky-600">{freeCount}</p>
+              <p className="text-[9px] text-muted-foreground">مجاني</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-amber-600">{pendingCount}</p>
+              <p className="text-[9px] text-muted-foreground">معلّق</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Pending enrollment requests (C4) ─── */}
       {pendingEnrollments.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -1703,32 +1721,82 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ─── Enrolled students — summary only (details via search) ─── */}
-      {(() => {
-        const totalStudents = (data.total_count as number) ?? 0;
-        const pendingCount = (data.pending_count as number) ?? 0;
-        if (totalStudents === 0 && pendingCount === 0) return <EmptyState label="لا يوجد طلاب" />;
-        return (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Users className="h-4 w-4 text-teal-600" />
-                إجمالي الطلاب ({totalStudents})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="py-3">
-              <p className="text-xs text-muted-foreground text-center">
-                إجمالي الطلاب المسجلين في مقررات المعلم: <span className="font-bold text-foreground">{totalStudents}</span> طالب
-              </p>
-              {pendingCount > 0 && (
-                <p className="text-[10px] text-amber-600 text-center mt-1">
-                  + {pendingCount} طلب تسجيل معلّق
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {/* ─── Student list ─── */}
+      {items.length === 0 && pendingEnrollments.length === 0 ? (
+        <EmptyState label="لا يوجد طلاب" />
+      ) : (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-teal-600" />
+              قائمة الطلاب ({totalCount})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y max-h-[500px] overflow-y-auto">
+              {items.map((s) => (
+                <div key={s.id} className="p-2.5 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-medium truncate">{s.name ?? '—'}</span>
+                        {s.student_code && (
+                          <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge
+                        variant={s.account_status === 'active' ? 'default' : 'secondary'}
+                        className="text-[9px] px-1.5 py-0"
+                      >
+                        {s.account_status === 'active' ? 'نشط' : 'قيد'}
+                      </Badge>
+                      {(() => {
+                        const subjects = (s.enrollments ?? []).filter(e => e.status === 'approved').map(e => ({ id: e.subject_id, name: e.subject_name }));
+                        if (subjects.length === 0) return null;
+                        return (
+                          <Button
+                            size="sm" variant="outline"
+                            className="h-7 text-[10px] px-2.5 border-amber-300 text-amber-700 hover:bg-amber-50"
+                            onClick={() => setSuspendTarget({
+                              id: s.id,
+                              name: s.name ?? s.email ?? '—',
+                              subjects,
+                            })}
+                          >
+                            <PauseCircle className="h-3 w-3 me-1" />
+                            إدارة
+                          </Button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  {/* Enrollments with free/paid + paused badges */}
+                  {s.enrollments.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/40">
+                      {s.enrollments.map((e, idx) => (
+                        <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted/60 px-1.5 py-0.5 flex items-center gap-1">
+                          {e.subject_name}
+                          {e.is_free ? (
+                            <span className="text-sky-600">مجاني</span>
+                          ) : (
+                            <span className="text-emerald-600">مدفوع</span>
+                          )}
+                          <span className={e.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}>
+                            · {e.status === 'approved' ? 'نشط' : e.status}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* v116 (C3): suspend/activate dialog for the selected student */}
       {suspendTarget && (
@@ -2176,8 +2244,9 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
               ) : (
                 <div className="divide-y">
                   {enrollments.map((e, i) => {
-                    // v130: Check if this subject is paused (suspended)
-                    const isSubjectPaused = e.status === 'paused' || (e as Record<string, unknown>).is_paused === true;
+                    // v130: show paused + free/paid badges
+                    const isPaused = (e as Record<string, unknown>).is_paused === true;
+                    const isFree = (e as Record<string, unknown>).is_free === true;
                     return (
                       <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
                         <div className="min-w-0 flex-1">
@@ -2187,13 +2256,22 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isSubjectPaused && (
+                          {isPaused && (
                             <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
                               <Ban className="h-2.5 w-2.5 me-0.5" />
                               موقوف
                             </Badge>
                           )}
-                          <Badge variant={e.status === 'approved' && !isSubjectPaused ? 'default' : 'secondary'} className="text-[9px]">
+                          {isFree ? (
+                            <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
+                              مجاني
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                              مدفوع
+                            </Badge>
+                          )}
+                          <Badge variant={e.status === 'approved' && !isPaused ? 'default' : 'secondary'} className="text-[9px]">
                             {e.status === 'approved' ? 'نشط' : e.status}
                           </Badge>
                         </div>

@@ -162,11 +162,14 @@ async function handleDashboard(teacherId: string) {
   // Count distinct students enrolled in those subjects.
   let studentsCount = 0;
   if (teacherSubjectIds.length > 0) {
-    const { count } = await supabaseServer
+    // v130 fix: count DISTINCT student_id, not enrollment rows
+    const { data: distinctStudents } = await supabaseServer
       .from('subject_students')
-      .select('id', { count: 'exact', head: true })
-      .in('subject_id', teacherSubjectIds);
-    studentsCount = count ?? 0;
+      .select('student_id')
+      .in('subject_id', teacherSubjectIds)
+      .eq('status', 'approved');
+    const uniqueIds = new Set((distinctStudents ?? []).map((r: { student_id: string }) => r.student_id));
+    studentsCount = uniqueIds.size;
   }
 
   // Count pending + paid orders for the teacher's subjects.
@@ -244,31 +247,125 @@ async function handleSubjects(teacherId: string, limit: number, offset: number) 
 }
 
 async function handleStudents(teacherId: string, limit: number, offset: number) {
-  // v130: Count only ACTIVE (approved) enrollments — this matches the
-  // "active subscriptions" count shown elsewhere, not pending/rejected.
-  const subjectIds = (await supabaseServer.from('subjects').select('id').eq('teacher_id', teacherId)).data?.map((s: { id: string }) => s.id) ?? [];
+  // v130 fix: Count UNIQUE students (not enrollment rows).
+  // A student enrolled in 3 courses = 1 student, not 3.
+  // Also separate free vs paid enrollments.
+  const subjectIds = (await supabaseServer.from('subjects').select('id, price').eq('teacher_id', teacherId)).data ?? [];
+  const subjectIdList = subjectIds.map((s: { id: string }) => s.id);
+  const freeSubjectIds = subjectIds.filter((s: { price: number | null }) => !s.price || s.price === 0).map((s: { id: string }) => s.id);
+  const paidSubjectIds = subjectIds.filter((s: { price: number | null }) => s.price && s.price > 0).map((s: { id: string }) => s.id);
 
-  const { count: totalCount } = await supabaseServer
+  if (subjectIdList.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'students',
+      items: [],
+      total_count: 0,
+      unique_count: 0,
+      free_count: 0,
+      paid_count: 0,
+      pending_count: 0,
+      pending_enrollments: [],
+    });
+  }
+
+  // Fetch ALL enrollments (approved) to count unique students
+  const { data: allEnrollments } = await supabaseServer
     .from('subject_students')
-    .select('id', { count: 'exact', head: true })
-    .in('subject_id', subjectIds)
-    .eq('status', 'approved');
+    .select('student_id, subject_id, status, enrolled_at, student:users!student_id(id, name, email, student_code, account_status)')
+    .in('subject_id', subjectIdList)
+    .order('enrolled_at', { ascending: false });
 
-  // Also count pending enrollments separately for the UI badge
-  const { count: pendingCount } = await supabaseServer
-    .from('subject_students')
-    .select('id', { count: 'exact', head: true })
-    .in('subject_id', subjectIds)
-    .eq('status', 'pending');
+  type EnrollRow = {
+    student_id: string;
+    subject_id: string;
+    status: string;
+    enrolled_at: string | null;
+    student: { id: string; name: string | null; email: string; student_code: string | null; account_status: string | null } | null;
+  };
+  const rows = (allEnrollments ?? []) as unknown as EnrollRow[];
 
-  // Return summary only — no student details (agent uses search for details)
+  // Group by student — unique students only
+  const byStudent = new Map<string, {
+    id: string; name: string | null; email: string; student_code: string | null;
+    account_status: string | null;
+    enrollments: Array<{ subject_id: string; subject_name: string; status: string; is_free: boolean; enrolled_at: string | null }>;
+  }>();
+
+  const subjectNameMap = new Map<string, string>();
+  // Fetch subject names
+  const { data: subjData } = await supabaseServer.from('subjects').select('id, name').eq('teacher_id', teacherId);
+  (subjData ?? []).forEach((s: { id: string; name: string }) => subjectNameMap.set(s.id, s.name));
+
+  const pendingEnrollments: Array<{
+    enrollment_id: string; student_id: string; student_name: string | null;
+    student_email: string; student_code: string | null;
+    subject_id: string; subject_name: string; enrollment_method: string; enrolled_at: string | null;
+  }> = [];
+
+  const freeStudentIds = new Set<string>();
+  const paidStudentIds = new Set<string>();
+
+  for (const r of rows) {
+    if (!r.student) continue;
+    const sid = r.student.id;
+    const isFree = freeSubjectIds.includes(r.subject_id);
+
+    if (r.status === 'approved') {
+      if (isFree) freeStudentIds.add(sid);
+      else paidStudentIds.add(sid);
+    }
+
+    if (!byStudent.has(sid)) {
+      byStudent.set(sid, {
+        id: sid,
+        name: r.student.name,
+        email: r.student.email,
+        student_code: r.student.student_code,
+        account_status: r.student.account_status,
+        enrollments: [],
+      });
+    }
+    byStudent.get(sid)!.enrollments.push({
+      subject_id: r.subject_id,
+      subject_name: subjectNameMap.get(r.subject_id) ?? '—',
+      status: r.status,
+      is_free: isFree,
+      enrolled_at: r.enrolled_at,
+    });
+
+    if (r.status === 'pending') {
+      pendingEnrollments.push({
+        enrollment_id: r.student_id + r.subject_id,
+        student_id: sid,
+        student_name: r.student.name,
+        student_email: r.student.email,
+        student_code: r.student.student_code,
+        subject_id: r.subject_id,
+        subject_name: subjectNameMap.get(r.subject_id) ?? '—',
+        enrollment_method: 'agent_register',
+        enrolled_at: r.enrolled_at,
+      });
+    }
+  }
+
+  // Paginate the unique student list
+  const allStudents = Array.from(byStudent.values());
+  const studentItems = allStudents.slice(offset, offset + limit);
+
   return NextResponse.json({
     success: true,
     section: 'students',
-    items: [],
-    total_count: totalCount,
-    pending_count: pendingCount,
-    note: null,
+    items: studentItems,
+    total_count: allStudents.length,
+    unique_count: allStudents.length,
+    free_count: freeStudentIds.size,
+    paid_count: paidStudentIds.size,
+    pending_count: pendingEnrollments.length,
+    pending_enrollments: pendingEnrollments,
+    has_more: offset + studentItems.length < allStudents.length,
+    limit,
+    offset,
   });
 }
 

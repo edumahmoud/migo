@@ -71,6 +71,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       subject_id: string; subject_name: string; status: string;
       enrollment_method: string; current_period_start: string | null;
       current_period_end: string | null; monthly_price: number | null;
+      is_paused: boolean; is_free: boolean;
     }> = [];
 
     if (teacherSubjectIds.length > 0) {
@@ -81,15 +82,31 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
         .in('subject_id', teacherSubjectIds)
         .order('enrolled_at', { ascending: false });
 
-      enrollments = (enrollRows ?? []).map((e: Record<string, unknown>) => ({
-        subject_id: e.subject_id as string,
-        subject_name: subjectNameById.get(e.subject_id as string) ?? '—',
-        status: e.status as string,
-        enrollment_method: e.enrollment_method as string,
-        current_period_start: e.current_period_start as string | null,
-        current_period_end: e.current_period_end as string | null,
-        monthly_price: e.monthly_price !== null && e.monthly_price !== undefined ? Number(e.monthly_price) : null,
-      }));
+      // v130: also fetch is_paused for each subject
+      const { data: subjData } = await supabaseServer
+        .from('subjects')
+        .select('id, name, is_paused, price')
+        .eq('teacher_id', teacherId);
+      const subjMap = new Map<string, { name: string; is_paused: boolean; price: number | null }>(
+        (subjData ?? []).map((s: { id: string; name: string; is_paused: boolean; price: number | null }) =>
+          [s.id, { name: s.name, is_paused: s.is_paused, price: s.price }])
+      );
+
+      enrollments = (enrollRows ?? []).map((e: Record<string, unknown>) => {
+        const subjInfo = subjMap.get(e.subject_id as string) ?? { name: '—', is_paused: false, price: null };
+        const price = subjInfo.price !== null && subjInfo.price !== undefined ? Number(subjInfo.price) : null;
+        return {
+          subject_id: e.subject_id as string,
+          subject_name: subjInfo.name,
+          status: e.status as string,
+          enrollment_method: e.enrollment_method as string,
+          current_period_start: e.current_period_start as string | null,
+          current_period_end: e.current_period_end as string | null,
+          monthly_price: e.monthly_price !== null && e.monthly_price !== undefined ? Number(e.monthly_price) : null,
+          is_paused: subjInfo.is_paused,
+          is_free: price === null || price === 0,
+        };
+      });
     }
 
     const enrolledSubjectIds = enrollments.map(e => e.subject_id);
