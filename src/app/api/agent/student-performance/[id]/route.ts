@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     // 2. Fetch student's enrollments in the AGENT'S teacher's subjects only
     const { data: teacherSubjects } = await supabaseServer
       .from('subjects')
-      .select('id, name')
+      .select('id, name, is_paused, price')
       .eq('teacher_id', teacherId);
     const teacherSubjectIds = (teacherSubjects ?? []).map((s: { id: string }) => s.id);
     const subjectNameById = new Map<string, string>(

@@ -54,7 +54,7 @@ interface StudentResult {
   subscriptions: Array<{
     id: string; subject_id: string; status: string;
     current_period_end: string | null;
-    subject: { id: string; name: string } | null;
+    subject: { id: string; name: string; is_paused?: boolean; price?: number | null } | null;
   }>;
   pending_orders: Array<{
     id: string; subject_id: string; amount: number; currency: string;
@@ -807,14 +807,27 @@ export default function AgentPortal({
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y">
-                      {studentResult.subscriptions.map((sub) => (
-                        <div key={sub.id} className="flex items-center justify-between gap-2 p-3">
-                          <span className="text-sm font-medium truncate">{sub.subject?.name ?? '—'}</span>
-                          <Badge variant={sub.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
-                            {sub.status === 'approved' ? 'نشط' : sub.status}
-                          </Badge>
-                        </div>
-                      ))}
+                      {studentResult.subscriptions.map((sub) => {
+                        // v130: check if subject is paused
+                        const isPaused = (sub.subject as Record<string, unknown> | null)?.is_paused === true;
+                        const subjName = sub.subject?.name ?? '—';
+                        return (
+                          <div key={sub.id} className="flex items-center justify-between gap-2 p-3">
+                            <div className="min-w-0 flex-1 flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{subjName}</span>
+                              {isPaused && (
+                                <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
+                                  <Ban className="h-2.5 w-2.5 me-0.5" />
+                                  موقوف
+                                </Badge>
+                              )}
+                            </div>
+                            <Badge variant={sub.status === 'approved' ? 'default' : 'secondary'} className="text-xs shrink-0">
+                              {sub.status === 'approved' ? 'نشط' : sub.status}
+                            </Badge>
+                          </div>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>

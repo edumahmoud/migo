@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   // 2. Fetch the student's subscriptions for THIS teacher's courses only.
   const { data: subs } = await supabaseServer
     .from('subject_students')
-    .select('id, subject_id, status, enrollment_method, current_period_start, current_period_end, next_billing_at, monthly_price, enrolled_at, subject:subjects!inner(id, name, level, sub_level, price, teacher_id)')
+    .select('id, subject_id, status, enrollment_method, current_period_start, current_period_end, next_billing_at, monthly_price, enrolled_at, subject:subjects!inner(id, name, level, sub_level, price, is_paused, teacher_id)')
     .eq('student_id', s.id)
     .eq('subject.teacher_id', sourceTeacherId)
     .order('current_period_end', { ascending: false, nullsFirst: false });
