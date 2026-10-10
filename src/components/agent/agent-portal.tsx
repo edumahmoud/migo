@@ -1398,6 +1398,8 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
       return <NotificationsView data={data} />;
     case 'analytics':
       return <AnalyticsView data={data} />;
+    case 'tracking':
+      return <AnalyticsView data={data} />;
     default:
       return (
         <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-muted-foreground">
@@ -1709,21 +1711,21 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
           <CardContent className="p-0">
             <div className="divide-y max-h-[600px] overflow-y-auto">
               {items.map((s) => (
-                <div key={s.id} className="p-2 text-xs">
+                <div key={s.id} className="p-2.5 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium truncate">{s.name ?? '—'}</span>
+                        <span className="text-xs font-medium truncate">{s.name ?? '—'}</span>
                         {s.student_code && (
-                          <span className="font-mono text-[9px] text-muted-foreground">({s.student_code})</span>
+                          <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
                         )}
                       </div>
-                      <div className="text-[9px] text-muted-foreground truncate" dir="ltr">{s.email}</div>
+                      <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <Badge
                         variant={s.account_status === 'active' ? 'default' : 'secondary'}
-                        className="text-[8px] px-1.5 py-0"
+                        className="text-[9px] px-1.5 py-0"
                       >
                         {s.account_status === 'active' ? 'نشط' : 'قيد'}
                       </Badge>
@@ -1733,28 +1735,30 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                         return (
                           <Button
                             size="sm" variant="outline"
-                            className="h-6 text-[9px] px-2 border-amber-300 text-amber-700"
+                            className="h-7 text-[10px] px-2.5 border-amber-300 text-amber-700 hover:bg-amber-50"
                             onClick={() => setSuspendTarget({
                               id: s.id,
                               name: s.name ?? s.email ?? '—',
                               subjects,
                             })}
                           >
-                            <PauseCircle className="h-3 w-3" />
+                            <PauseCircle className="h-3 w-3 me-1" />
+                            إدارة
                           </Button>
                         );
                       })()}
                     </div>
                   </div>
                   {s.enrollments.length > 0 && (
-                    <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-                      {s.enrollments.slice(0, 5).map((e, idx) => (
-                        <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted px-1.5 py-0.5">
-                          {e.subject_name} · {e.status}
+                    <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/40">
+                      {s.enrollments.slice(0, 4).map((e, idx) => (
+                        <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted/60 px-1.5 py-0.5">
+                          {e.subject_name}
+                          <span className={`ms-1 ${e.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}`}>· {e.status === 'approved' ? 'نشط' : e.status}</span>
                         </span>
                       ))}
-                      {s.enrollments.length > 5 && (
-                        <span className="text-[9px]">+{s.enrollments.length - 5} أخرى</span>
+                      {s.enrollments.length > 4 && (
+                        <span className="text-[9px] text-muted-foreground">+{s.enrollments.length - 4} أخرى</span>
                       )}
                     </div>
                   )}

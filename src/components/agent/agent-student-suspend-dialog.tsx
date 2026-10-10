@@ -228,6 +228,27 @@ export default function AgentStudentSuspendDialog({
     }
   };
 
+  const handleLiftAll = async () => {
+    if (!studentId || activeSuspensions.length === 0) return;
+    setSubmitting(true);
+    let successCount = 0;
+    for (const s of activeSuspensions) {
+      try {
+        const res = await fetch(`/api/agent/students/${studentId}/activate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+          body: JSON.stringify({ subjectId: s.subject_id }),
+        });
+        const json = await res.json();
+        if (json.success) successCount++;
+      } catch { /* skip */ }
+    }
+    toast.success(`تم فك الإيقاف عن ${successCount} من ${activeSuspensions.length} مقررات`);
+    await fetchActive(studentId);
+    onChanged?.();
+    setSubmitting(false);
+  };
+
   const formatDate = (iso: string | null) => {
     if (!iso) return '—';
     try {
@@ -242,8 +263,8 @@ export default function AgentStudentSuspendDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Ban className="h-5 w-5 text-amber-600" />
             إيقاف / تنشيط الطالب
@@ -262,7 +283,7 @@ export default function AgentStudentSuspendDialog({
             <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 flex-1 overflow-y-auto">
             {/* Active suspensions list */}
             {activeSuspensions.length > 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-2">
@@ -393,8 +414,20 @@ export default function AgentStudentSuspendDialog({
             </div>
           </div>
         )}
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={submitting}>
+        {/* v130: Footer pinned to bottom — always visible */}
+        <DialogFooter className="shrink-0 border-t pt-3 flex-row gap-2">
+          {activeSuspensions.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleLiftAll}
+              disabled={submitting}
+              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+            >
+              <Power className="h-4 w-4 me-1" />
+              فك إيقاف الكل
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose} disabled={submitting} className="ms-auto">
             إغلاق
           </Button>
         </DialogFooter>

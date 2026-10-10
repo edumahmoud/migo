@@ -120,6 +120,9 @@ export async function GET(request: NextRequest) {
         return await handleNotifications(teacherId, limit, offset);
       case 'analytics':
         return await handleAnalytics(teacherId);
+      case 'tracking':
+        // v130: reuse analytics handler for tracking (same data shape)
+        return await handleAnalytics(teacherId);
       default:
         // Sections that require complex joins or are not data-bearing
         // (tracking/calendar/reports/chat) return an empty payload so
