@@ -47,6 +47,7 @@ const SectionSchema = z.enum([
   'analytics',
   'notifications',
   'chat',
+  'tracking',
 ]);
 
 export async function GET(request: NextRequest) {
