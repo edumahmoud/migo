@@ -263,8 +263,8 @@ export default function AgentStudentSuspendDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
-        <DialogHeader className="shrink-0">
+      <DialogContent className="max-w-md max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="shrink-0 p-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
             <Ban className="h-5 w-5 text-amber-600" />
             إيقاف / تنشيط الطالب
@@ -283,7 +283,7 @@ export default function AgentStudentSuspendDialog({
             <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
           </div>
         ) : (
-          <div className="space-y-3 flex-1 overflow-y-auto">
+          <div className="space-y-3 flex-1 overflow-y-auto px-6 pb-4">
             {/* Active suspensions list */}
             {activeSuspensions.length > 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-2">
@@ -415,22 +415,23 @@ export default function AgentStudentSuspendDialog({
           </div>
         )}
         {/* v130: Footer pinned to bottom — always visible */}
-        <DialogFooter className="shrink-0 border-t pt-3 flex-row gap-2">
+        <div className="shrink-0 border-t px-6 py-3 flex items-center gap-2 bg-card">
           {activeSuspensions.length > 0 && (
             <Button
               variant="outline"
+              size="sm"
               onClick={handleLiftAll}
               disabled={submitting}
               className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
             >
               <Power className="h-4 w-4 me-1" />
-              فك إيقاف الكل
+              فك إيقاف الكل ({activeSuspensions.length})
             </Button>
           )}
-          <Button variant="ghost" onClick={onClose} disabled={submitting} className="ms-auto">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting} className="ms-auto">
             إغلاق
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

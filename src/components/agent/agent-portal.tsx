@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
@@ -905,7 +906,11 @@ export default function AgentPortal({
         studentName={suspendStudentName}
         subjects={suspendSubjects}
         onClose={() => setSuspendStudentId(null)}
-        onChanged={() => { /* refetch student search to update badges */ if (searchCode.trim()) searchStudent(); }}
+        onChanged={() => {
+          // v130: No page refresh — just refetch the student search
+          // to update the UI badges without closing the modal.
+          if (searchCode.trim()) searchStudent();
+        }}
       />
       </>
       )}
@@ -1596,6 +1601,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
 
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string; subjects: Array<{ id: string; name: string }> } | null>(null);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
 
   const handleApprove = async (subjectId: string, studentId: string, enrollmentId: string) => {
     setActioningId(enrollmentId);
@@ -1697,7 +1703,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ─── Enrolled students list (C3 — with "manage" button) ─── */}
+      {/* ─── Enrolled students list — table with expandable details ─── */}
       {items.length === 0 && pendingEnrollments.length === 0 ? (
         <EmptyState label="لا يوجد طلاب" />
       ) : (
@@ -1709,30 +1715,38 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y max-h-[600px] overflow-y-auto">
-              {items.map((s) => (
-                <div key={s.id} className="p-2.5 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-medium truncate">{s.name ?? '—'}</span>
-                        {s.student_code && (
-                          <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
-                        )}
+            <div className="max-h-[600px] overflow-y-auto">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 border-b bg-muted/30 text-[10px] font-medium text-muted-foreground">
+                <span>الاسم / البريد</span>
+                <span>الإجراءات</span>
+              </div>
+              {items.map((s) => {
+                const subjects = (s.enrollments ?? []).map(e => ({ id: e.subject_id, name: e.subject_name }));
+                return (
+                  <div key={s.id} className="border-b last:border-0">
+                    {/* Row — clickable to expand */}
+                    <div
+                      className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => setExpandedStudentId(expandedStudentId === s.id ? null : s.id)}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-medium truncate">{s.name ?? '—'}</span>
+                          {s.student_code && (
+                            <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
+                          )}
+                          <Badge
+                            variant={s.account_status === 'active' ? 'default' : 'secondary'}
+                            className="text-[9px] px-1.5 py-0"
+                          >
+                            {s.account_status === 'active' ? 'نشط' : 'قيد'}
+                          </Badge>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Badge
-                        variant={s.account_status === 'active' ? 'default' : 'secondary'}
-                        className="text-[9px] px-1.5 py-0"
-                      >
-                        {s.account_status === 'active' ? 'نشط' : 'قيد'}
-                      </Badge>
-                      {(() => {
-                        const subjects = (s.enrollments ?? []).map(e => ({ id: e.subject_id, name: e.subject_name }));
-                        if (subjects.length === 0) return null;
-                        return (
+                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {subjects.length > 0 && (
                           <Button
                             size="sm" variant="outline"
                             className="h-7 text-[10px] px-2.5 border-amber-300 text-amber-700 hover:bg-amber-50"
@@ -1745,25 +1759,59 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                             <PauseCircle className="h-3 w-3 me-1" />
                             إدارة
                           </Button>
-                        );
-                      })()}
+                        )}
+                        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expandedStudentId === s.id ? 'rotate-180' : ''}`} />
+                      </div>
                     </div>
+                    {/* Expanded details */}
+                    {expandedStudentId === s.id && (
+                      <div className="px-3 pb-3 pt-1 bg-muted/10 space-y-2">
+                        {/* Student data table */}
+                        <table className="w-full text-[11px]">
+                          <tbody>
+                            <tr className="border-b">
+                              <td className="py-1.5 px-2 text-muted-foreground font-medium">الاسم</td>
+                              <td className="py-1.5 px-2">{s.name ?? '—'}</td>
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-1.5 px-2 text-muted-foreground font-medium">البريد</td>
+                              <td className="py-1.5 px-2" dir="ltr">{s.email}</td>
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-1.5 px-2 text-muted-foreground font-medium">الكود</td>
+                              <td className="py-1.5 px-2 font-mono">{s.student_code ?? '—'}</td>
+                            </tr>
+                            <tr className="border-b">
+                              <td className="py-1.5 px-2 text-muted-foreground font-medium">الحالة</td>
+                              <td className="py-1.5 px-2">
+                                <Badge variant={s.account_status === 'active' ? 'default' : 'secondary'} className="text-[9px]">
+                                  {s.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                                </Badge>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        {/* Enrollments */}
+                        {s.enrollments.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-medium text-muted-foreground pt-1">المقررات المشترك بها:</p>
+                            {s.enrollments.map((e, idx) => (
+                              <div key={`${e.subject_id}-${idx}`} className="flex items-center justify-between rounded bg-background px-2 py-1 text-[11px]">
+                                <span className="truncate">{e.subject_name}</span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className={e.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}>
+                                    {e.status === 'approved' ? 'نشط' : e.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {s.enrollments.length > 0 && (
-                    <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/40">
-                      {s.enrollments.slice(0, 4).map((e, idx) => (
-                        <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted/60 px-1.5 py-0.5">
-                          {e.subject_name}
-                          <span className={`ms-1 ${e.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}`}>· {e.status === 'approved' ? 'نشط' : e.status}</span>
-                        </span>
-                      ))}
-                      {s.enrollments.length > 4 && (
-                        <span className="text-[9px] text-muted-foreground">+{s.enrollments.length - 4} أخرى</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -2175,191 +2223,227 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
         </Badge>
       </header>
 
-      {/* Enrollments */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-sky-600" />
-            الاشتراكات ({enrollments.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {enrollments.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اشتراكات</div>
-          ) : (
-            <div className="divide-y max-h-[200px] overflow-y-auto">
-              {enrollments.map((e, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{e.subject_name}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {e.current_period_end ? `ينتهي: ${formatDate(e.current_period_end)}` : 'دائم'}
-                    </p>
-                  </div>
-                  <Badge variant={e.status === 'approved' ? 'default' : 'secondary'} className="text-[9px] shrink-0">
-                    {e.status === 'approved' ? 'نشط' : e.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* v130: Tabs layout for student performance sections */}
+      <Tabs defaultValue="enrollments" dir={direction}>
+        <TabsList className="w-full flex-wrap h-auto gap-1">
+          <TabsTrigger value="enrollments" className="text-xs gap-1">
+            <BookOpen className="h-3 w-3" />
+            الاشتراكات
+          </TabsTrigger>
+          <TabsTrigger value="assignments" className="text-xs gap-1">
+            <FileText className="h-3 w-3" />
+            التكليفات
+          </TabsTrigger>
+          <TabsTrigger value="quizzes" className="text-xs gap-1">
+            <Database className="h-3 w-3" />
+            الاختبارات
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="text-xs gap-1">
+            <CalendarIcon className="h-3 w-3" />
+            الحضور
+          </TabsTrigger>
+          <TabsTrigger value="progress" className="text-xs gap-1">
+            <TrendingUp className="h-3 w-3" />
+            تقدم الدروس
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Assignments */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileText className="h-4 w-4 text-amber-600" />
-            التكليفات (مسلّمة: {assignmentsSubmitted.length} — غير مسلّمة: {assignmentsNotSubmitted.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {assignmentsSubmitted.length === 0 && assignmentsNotSubmitted.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد تكليفات</div>
-          ) : (
-            <div className="divide-y max-h-[250px] overflow-y-auto">
-              {assignmentsSubmitted.map((a, i) => (
-                <div key={`s${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-emerald-50/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{String(a.title ?? "—")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{String(a.subject_name ?? "—")}</p>
-                  </div>
-                  <div className="shrink-0 text-end">
-                    <span className="font-mono text-emerald-700 dark:text-emerald-300">
-                      {Number(a.score ?? 0).toFixed(0)}/{Number(a.max_score ?? 0)}
-                    </span>
-                    <Badge variant="outline" className="text-[9px] ms-1 bg-emerald-50 text-emerald-700 border-emerald-200">
-                      مسلّمة
-                    </Badge>
-                  </div>
+        {/* Enrollments Tab */}
+        <TabsContent value="enrollments">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-sky-600" />
+                الاشتراكات ({enrollments.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {enrollments.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اشتراكات</div>
+              ) : (
+                <div className="divide-y">
+                  {enrollments.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{e.subject_name}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {e.current_period_end ? `ينتهي: ${formatDate(e.current_period_end)}` : 'دائم'}
+                        </p>
+                      </div>
+                      <Badge variant={e.status === 'approved' ? 'default' : 'secondary'} className="text-[9px] shrink-0">
+                        {e.status === 'approved' ? 'نشط' : e.status}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {assignmentsNotSubmitted.map((a, i) => (
-                <div key={`n${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-rose-50/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{String(a.title ?? "—")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {String(a.subject_name ?? "—")}
-                      {a.due_date ? ` · يستحق تسليم: ${formatDate(a.due_date as string)}` : ''}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
-                    غير مسلّمة
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Quizzes */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Database className="h-4 w-4 text-purple-600" />
-            الاختبارات (مكتملة: {quizzesCompleted.length} — غير مكتملة: {quizzesNotCompleted.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {quizzesCompleted.length === 0 && quizzesNotCompleted.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اختبارات</div>
-          ) : (
-            <div className="divide-y max-h-[250px] overflow-y-auto">
-              {quizzesCompleted.map((q, i) => (
-                <div key={`q${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-emerald-50/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{String(q.title ?? "—")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
-                  </div>
-                  <div className="shrink-0 text-end">
-                    <span className="font-mono text-emerald-700 dark:text-emerald-300">
-                      {Number(q.score ?? 0).toFixed(0)}/{Number(q.max_score ?? 0)}
-                    </span>
-                  </div>
+        {/* Assignments Tab */}
+        <TabsContent value="assignments">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="h-4 w-4 text-amber-600" />
+                التكليفات (مسلّمة: {assignmentsSubmitted.length} — غير مسلّمة: {assignmentsNotSubmitted.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {assignmentsSubmitted.length === 0 && assignmentsNotSubmitted.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد تكليفات</div>
+              ) : (
+                <div className="divide-y max-h-[400px] overflow-y-auto">
+                  {assignmentsSubmitted.map((a, i) => (
+                    <div key={`s${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-emerald-50/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{String(a.title ?? "—")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{String(a.subject_name ?? "—")}</p>
+                      </div>
+                      <div className="shrink-0 text-end">
+                        <span className="font-mono text-emerald-700 dark:text-emerald-300">
+                          {Number(a.score ?? 0).toFixed(0)}/{Number(a.max_score ?? 0)}
+                        </span>
+                        <Badge variant="outline" className="text-[9px] ms-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+                          مسلّمة
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {assignmentsNotSubmitted.map((a, i) => (
+                    <div key={`n${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-rose-50/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{String(a.title ?? "—")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {String(a.subject_name ?? "—")}
+                          {a.due_date ? ` · يستحق تسليم: ${formatDate(a.due_date as string)}` : ''}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
+                        غير مسلّمة
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {quizzesNotCompleted.map((q, i) => (
-                <div key={`qn${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-rose-50/30">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{String(q.title ?? "—")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
-                  </div>
-                  <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
-                    لم يؤدها
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Attendance */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-teal-600" />
-            الحضور ({attendance.length} مقرر)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {attendance.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات حضور</div>
-          ) : (
-            <div className="divide-y">
-              {attendance.map((a, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{String(a.subject_name ?? "—")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      حاضر: {Number(a.present ?? 0)} · متأخر: {Number(a.late ?? 0)} · غائب: {Number(a.absent ?? 0)}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={Number(a.percentage ?? 0) >= 75 ? 'default' : 'destructive'}
-                    className="text-[9px] shrink-0"
-                  >
-                    {Number(a.percentage ?? 0)}%
-                  </Badge>
+        {/* Quizzes Tab */}
+        <TabsContent value="quizzes">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Database className="h-4 w-4 text-purple-600" />
+                الاختبارات (مكتملة: {quizzesCompleted.length} — غير مكتملة: {quizzesNotCompleted.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {quizzesCompleted.length === 0 && quizzesNotCompleted.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اختبارات</div>
+              ) : (
+                <div className="divide-y max-h-[400px] overflow-y-auto">
+                  {quizzesCompleted.map((q, i) => (
+                    <div key={`q${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-emerald-50/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{String(q.title ?? "—")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
+                      </div>
+                      <div className="shrink-0 text-end">
+                        <span className="font-mono text-emerald-700 dark:text-emerald-300">
+                          {Number(q.score ?? 0).toFixed(0)}/{Number(q.max_score ?? 0)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {quizzesNotCompleted.map((q, i) => (
+                    <div key={`qn${i}`} className="flex items-center justify-between gap-2 p-2.5 text-xs bg-rose-50/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{String(q.title ?? "—")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
+                        لم يؤدها
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Lesson Progress */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-indigo-600" />
-            تقدم الدروس ({lessonProgress.length} مقرر)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {lessonProgress.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات تقدم</div>
-          ) : (
-            <div className="divide-y">
-              {lessonProgress.map((lp, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{String(lp.subject_name ?? "—")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      أكمل: {Number(lp.completed_lessons ?? 0)} من {Number(lp.total_lessons ?? 0)} درس
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-[9px] shrink-0">
-                    {Number(lp.percentage ?? 0)}%
-                  </Badge>
+        {/* Attendance Tab */}
+        <TabsContent value="attendance">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-teal-600" />
+                الحضور ({attendance.length} مقرر)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {attendance.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات حضور</div>
+              ) : (
+                <div className="divide-y">
+                  {attendance.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{String(a.subject_name ?? "—")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          حاضر: {Number(a.present ?? 0)} · متأخر: {Number(a.late ?? 0)} · غائب: {Number(a.absent ?? 0)}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={Number(a.percentage ?? 0) >= 75 ? 'default' : 'destructive'}
+                        className="text-[9px] shrink-0"
+                      >
+                        {Number(a.percentage ?? 0)}%
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Lesson Progress Tab */}
+        <TabsContent value="progress">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-indigo-600" />
+                تقدم الدروس ({lessonProgress.length} مقرر)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {lessonProgress.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات تقدم</div>
+              ) : (
+                <div className="divide-y">
+                  {lessonProgress.map((lp, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{String(lp.subject_name ?? "—")}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          أكمل: {Number(lp.completed_lessons ?? 0)} من {Number(lp.total_lessons ?? 0)} درس
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] shrink-0">
+                        {Number(lp.percentage ?? 0)}%
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
