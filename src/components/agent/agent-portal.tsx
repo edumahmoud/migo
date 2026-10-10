@@ -1554,7 +1554,10 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium truncate">{s.name}</span>
               {s.is_paused && (
-                <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">متوقّف</Badge>
+                <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
+                  <Ban className="h-2.5 w-2.5 me-0.5" />
+                  موقوف
+                </Badge>
               )}
               {s.level && (
                 <Badge variant="secondary" className="text-[9px]">{s.level}{s.sub_level ? ` - ${s.sub_level}` : ''}</Badge>
@@ -1596,6 +1599,18 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
 
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string; subjects: Array<{ id: string; name: string }> } | null>(null);
+  const [studentSearch, setStudentSearch] = useState('');
+
+  // v130: client-side search filter — filters by name, email, or code
+  const filteredItems = useMemo(() => {
+    if (!studentSearch.trim()) return items;
+    const q = studentSearch.toLowerCase().trim();
+    return items.filter(s =>
+      (s.name ?? '').toLowerCase().includes(q) ||
+      (s.email ?? '').toLowerCase().includes(q) ||
+      (s.student_code ?? '').toLowerCase().includes(q)
+    );
+  }, [items, studentSearch]);
 
   const handleApprove = async (subjectId: string, studentId: string, enrollmentId: string) => {
     setActioningId(enrollmentId);
@@ -1644,29 +1659,16 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div className="space-y-3">
-      {/* ─── Stats summary (unique students, free, paid, pending) ─── */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div>
-              <p className="text-lg font-bold text-foreground">{totalCount}</p>
-              <p className="text-[9px] text-muted-foreground">إجمالي الطلاب</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-emerald-600">{paidCount}</p>
-              <p className="text-[9px] text-muted-foreground">مدفوع</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-sky-600">{freeCount}</p>
-              <p className="text-[9px] text-muted-foreground">مجاني</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-amber-600">{pendingCount}</p>
-              <p className="text-[9px] text-muted-foreground">معلّق</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ─── Search box (replaces stats card) ─── */}
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="بحث بالاسم أو البريد أو الكود..."
+          value={studentSearch}
+          onChange={(e) => setStudentSearch(e.target.value)}
+          className="text-xs h-8"
+          dir="rtl"
+        />
+      </div>
 
       {/* ─── Pending enrollment requests (C4) ─── */}
       {pendingEnrollments.length > 0 && (
@@ -1721,7 +1723,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ─── Student list ─── */}
+      {/* ─── Student list with search filter ─── */}
       {items.length === 0 && pendingEnrollments.length === 0 ? (
         <EmptyState label="لا يوجد طلاب" />
       ) : (
@@ -1729,12 +1731,12 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4 text-teal-600" />
-              قائمة الطلاب ({totalCount})
+              قائمة الطلاب ({studentSearch ? filteredItems.length : totalCount})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y max-h-[500px] overflow-y-auto">
-              {items.map((s) => (
+              {filteredItems.map((s) => (
                 <div key={s.id} className="p-2.5 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -1806,7 +1808,10 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
           studentName={suspendTarget.name}
           subjects={suspendTarget.subjects}
           onClose={() => setSuspendTarget(null)}
-          onChanged={() => window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'))}
+          onChanged={() => {
+            // v130: silent update — refetch section data without page refresh
+            window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
+          }}
         />
       )}
     </div>
