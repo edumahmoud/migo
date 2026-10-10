@@ -224,7 +224,7 @@ interface AuthState {
   loading: boolean;
   initialized: boolean;
   sessionKickedMessage: string | null;
-  banInfo: { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+  banInfo: { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean; bannedByName?: string | null; bannedByRole?: string | null } | null;
   passwordRecoveryMode: boolean;
   
   // Actions
@@ -1084,12 +1084,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await fetch(`/api/check-ban?email=${encodeURIComponent(user.email)}`);
       const data = await res.json();
       if (data.success && data.isBanned) {
-        set({ 
+        set({
           banInfo: {
             reason: data.ban?.reason,
             bannedAt: data.ban?.bannedAt,
             banUntil: data.ban?.banUntil,
             isPermanent: data.ban?.isPermanent,
+            bannedByName: data.ban?.bannedByName,
+            bannedByRole: data.ban?.bannedByRole,
           }
         });
       } else {

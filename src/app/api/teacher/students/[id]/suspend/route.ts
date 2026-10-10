@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
+import { notifyUser } from '@/lib/notifications-service';
 
 /**
  * POST /api/teacher/students/[id]/suspend
@@ -151,6 +152,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       { success: false, error: 'فشل إنشاء الإيقاف: ' + (insertErr.message ?? 'unknown') },
       { status: 500 }
     );
+  }
+
+  // v130: Notify the student about the suspension
+  try {
+    const durationText = expiresAt
+      ? `حتى ${new Date(expiresAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}`
+      : 'إيقاف غير محدد المدة';
+    await notifyUser(
+      studentId,
+      'system',
+      'تم إيقافك من مقرر',
+      `تم إيقافك من مقرر "${subject.name}" ${durationText}` +
+      (reason ? `. السبب: ${reason}` : '') +
+      `. تواصل مع المعلم للاستفسار.`,
+      undefined
+    );
+  } catch (notifErr) {
+    console.error('[suspend] Failed to notify student:', notifErr);
   }
 
   return NextResponse.json({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { notifyUser } from '@/lib/notifications-service';
 
 // ─── Schema detection cache ───
 // The banned_users table may or may not have enhanced columns
@@ -250,16 +251,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // v130 Request 6: Cascade suspension when banning a TEACHER
-    // When a teacher is banned:
-    //   - Deactivate all their registration_agents (is_active = false)
-    //   - Pause all subjects they own (is_paused = true)
-    //   - Do NOT touch subjects where they are only a co_teacher
-    //     (those belong to other teachers)
-    // Note: this is SUSPEND only — no deletion. The teacher's account,
-    // agents, and subjects all remain in the database, just inactive.
-    // If the ban is lifted (unban), the admin must manually re-activate
-    // agents and un-pause subjects.
+    // v130: Notify affected students when their teacher is banned
     // ═══════════════════════════════════════════════════════════
     if (userRecord.role === 'teacher') {
       // Deactivate all agents belonging to this teacher
@@ -271,7 +263,6 @@ export async function POST(request: NextRequest) {
 
       if (agentUpdateError) {
         console.error('[ban-user] Failed to deactivate agents for banned teacher:', agentUpdateError.message);
-        // Non-fatal — ban already succeeded
       }
 
       // Pause all subjects OWNED by this teacher
@@ -283,7 +274,33 @@ export async function POST(request: NextRequest) {
 
       if (subjectUpdateError) {
         console.error('[ban-user] Failed to pause subjects for banned teacher:', subjectUpdateError.message);
-        // Non-fatal — ban already succeeded
+      }
+
+      // Notify all students enrolled in this teacher's courses
+      try {
+        const { data: enrollments } = await supabaseServer
+          .from('subject_students')
+          .select('student_id, subject:subjects(name)')
+          .eq('subject.teacher_id', userId)
+          .eq('status', 'approved');
+
+        if (enrollments && enrollments.length > 0) {
+          const studentIds = [...new Set(enrollments.map(e => (e as { student_id: string }).student_id))];
+          const teacherName = userRecord.name || 'المعلم';
+          for (const sid of studentIds) {
+            await notifyUser(
+              sid,
+              'system',
+              'تم إيقاف المعلم',
+              `تم إيقاف المعلم "${teacherName}" مؤقتاً من قِبل إدارة المنصة. ` +
+              `سيتم إيقاف جميع مقرراته حتى يتم رفع الإيقاف. ` +
+              `للاستفسار، تواصل مع إدارة المنصة.`,
+              undefined
+            );
+          }
+        }
+      } catch (notifErr) {
+        console.error('[ban-user] Failed to notify students:', notifErr);
       }
     }
 

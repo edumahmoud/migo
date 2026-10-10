@@ -95,6 +95,21 @@ export async function GET(request: NextRequest) {
     if (activeBans.length > 0) {
       const activeBan = activeBans[0] as Record<string, unknown>;
 
+      // v130: Fetch the banner's name + role for display in the banned overlay
+      let bannedByName: string | null = null;
+      let bannedByRole: string | null = null;
+      if (activeBan.banned_by) {
+        const { data: bannerProfile } = await supabaseServer
+          .from('users')
+          .select('name, role')
+          .eq('id', activeBan.banned_by as string)
+          .maybeSingle();
+        if (bannerProfile) {
+          bannedByName = (bannerProfile as { name: string | null }).name;
+          bannedByRole = (bannerProfile as { role: string | null }).role;
+        }
+      }
+
       // Auto-deactivate expired bans (new schema only)
       for (const ban of banRecords) {
         const banRecord = ban as Record<string, unknown>;
@@ -115,6 +130,8 @@ export async function GET(request: NextRequest) {
           bannedAt: activeBan.banned_at,
           banUntil: activeBan.ban_until || null,
           isPermanent: !activeBan.ban_until,
+          bannedByName,
+          bannedByRole,
         },
       });
     }
