@@ -1703,119 +1703,32 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ─── Enrolled students list — table with expandable details ─── */}
-      {items.length === 0 && pendingEnrollments.length === 0 ? (
-        <EmptyState label="لا يوجد طلاب" />
-      ) : (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4 text-teal-600" />
-              الطلاب المسجلون ({items.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="max-h-[600px] overflow-y-auto">
-              {/* Table header */}
-              <div className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2 border-b bg-muted/30 text-[10px] font-medium text-muted-foreground">
-                <span>الاسم / البريد</span>
-                <span>الإجراءات</span>
-              </div>
-              {items.map((s) => {
-                const subjects = (s.enrollments ?? []).map(e => ({ id: e.subject_id, name: e.subject_name }));
-                return (
-                  <div key={s.id} className="border-b last:border-0">
-                    {/* Row — clickable to expand */}
-                    <div
-                      className="grid grid-cols-[1fr_auto] gap-2 px-3 py-2.5 hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => setExpandedStudentId(expandedStudentId === s.id ? null : s.id)}
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-medium truncate">{s.name ?? '—'}</span>
-                          {s.student_code && (
-                            <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
-                          )}
-                          <Badge
-                            variant={s.account_status === 'active' ? 'default' : 'secondary'}
-                            className="text-[9px] px-1.5 py-0"
-                          >
-                            {s.account_status === 'active' ? 'نشط' : 'قيد'}
-                          </Badge>
-                        </div>
-                        <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        {subjects.length > 0 && (
-                          <Button
-                            size="sm" variant="outline"
-                            className="h-7 text-[10px] px-2.5 border-amber-300 text-amber-700 hover:bg-amber-50"
-                            onClick={() => setSuspendTarget({
-                              id: s.id,
-                              name: s.name ?? s.email ?? '—',
-                              subjects,
-                            })}
-                          >
-                            <PauseCircle className="h-3 w-3 me-1" />
-                            إدارة
-                          </Button>
-                        )}
-                        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expandedStudentId === s.id ? 'rotate-180' : ''}`} />
-                      </div>
-                    </div>
-                    {/* Expanded details */}
-                    {expandedStudentId === s.id && (
-                      <div className="px-3 pb-3 pt-1 bg-muted/10 space-y-2">
-                        {/* Student data table */}
-                        <table className="w-full text-[11px]">
-                          <tbody>
-                            <tr className="border-b">
-                              <td className="py-1.5 px-2 text-muted-foreground font-medium">الاسم</td>
-                              <td className="py-1.5 px-2">{s.name ?? '—'}</td>
-                            </tr>
-                            <tr className="border-b">
-                              <td className="py-1.5 px-2 text-muted-foreground font-medium">البريد</td>
-                              <td className="py-1.5 px-2" dir="ltr">{s.email}</td>
-                            </tr>
-                            <tr className="border-b">
-                              <td className="py-1.5 px-2 text-muted-foreground font-medium">الكود</td>
-                              <td className="py-1.5 px-2 font-mono">{s.student_code ?? '—'}</td>
-                            </tr>
-                            <tr className="border-b">
-                              <td className="py-1.5 px-2 text-muted-foreground font-medium">الحالة</td>
-                              <td className="py-1.5 px-2">
-                                <Badge variant={s.account_status === 'active' ? 'default' : 'secondary'} className="text-[9px]">
-                                  {s.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
-                                </Badge>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                        {/* Enrollments */}
-                        {s.enrollments.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-medium text-muted-foreground pt-1">المقررات المشترك بها:</p>
-                            {s.enrollments.map((e, idx) => (
-                              <div key={`${e.subject_id}-${idx}`} className="flex items-center justify-between rounded bg-background px-2 py-1 text-[11px]">
-                                <span className="truncate">{e.subject_name}</span>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={e.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}>
-                                    {e.status === 'approved' ? 'نشط' : e.status}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* ─── Enrolled students — summary only (details via search) ─── */}
+      {(() => {
+        const totalStudents = (data.total_count as number) ?? 0;
+        const pendingCount = (data.pending_count as number) ?? 0;
+        if (totalStudents === 0 && pendingCount === 0) return <EmptyState label="لا يوجد طلاب" />;
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Users className="h-4 w-4 text-teal-600" />
+                إجمالي الطلاب ({totalStudents})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-3">
+              <p className="text-xs text-muted-foreground text-center">
+                إجمالي الطلاب المسجلين في مقررات المعلم: <span className="font-bold text-foreground">{totalStudents}</span> طالب
+              </p>
+              {pendingCount > 0 && (
+                <p className="text-[10px] text-amber-600 text-center mt-1">
+                  + {pendingCount} طلب تسجيل معلّق
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* v116 (C3): suspend/activate dialog for the selected student */}
       {suspendTarget && (
@@ -2262,19 +2175,31 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                 <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اشتراكات</div>
               ) : (
                 <div className="divide-y">
-                  {enrollments.map((e, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{e.subject_name}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          {e.current_period_end ? `ينتهي: ${formatDate(e.current_period_end)}` : 'دائم'}
-                        </p>
+                  {enrollments.map((e, i) => {
+                    // v130: Check if this subject is paused (suspended)
+                    const isSubjectPaused = e.status === 'paused' || (e as Record<string, unknown>).is_paused === true;
+                    return (
+                      <div key={i} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{e.subject_name}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {e.current_period_end ? `ينتهي: ${formatDate(e.current_period_end)}` : 'دائم'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isSubjectPaused && (
+                            <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
+                              <Ban className="h-2.5 w-2.5 me-0.5" />
+                              موقوف
+                            </Badge>
+                          )}
+                          <Badge variant={e.status === 'approved' && !isSubjectPaused ? 'default' : 'secondary'} className="text-[9px]">
+                            {e.status === 'approved' ? 'نشط' : e.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <Badge variant={e.status === 'approved' ? 'default' : 'secondary'} className="text-[9px] shrink-0">
-                        {e.status === 'approved' ? 'نشط' : e.status}
-                      </Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

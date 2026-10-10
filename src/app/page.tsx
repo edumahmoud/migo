@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, School, Layers } from 'lucide-react';
+import SettingsSection from '@/components/shared/settings-section';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
@@ -1012,7 +1013,7 @@ onSignOut={async () => {
       // v116: 'profile' section reuses the existing user-profile-page
       // (the same one used by students/teachers/admins). Other sections
       // (search/pending/teacherView) are handled by AgentPortal.
-      if (agentSection === 'profile') {
+      if (agentSection === 'profile' || agentSection === 'settings') {
         return (
           <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
             <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30">
@@ -1024,7 +1025,7 @@ onSignOut={async () => {
                 titleId={user.title_id}
                 avatarUrl={user.avatar_url ?? undefined}
                 onSignOut={handleSignOut}
-                onOpenSettings={() => setAgentSection('profile')}
+                onOpenSettings={() => setAgentSection('settings')}
                 onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
                 sidebarCollapsed={!sidebarOpen}
               />
@@ -1037,6 +1038,7 @@ onSignOut={async () => {
                   { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
                   { id: 'teacherView', label: 'عرض المعلم', icon: <School className="h-5 w-5" /> },
                   { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
+                  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
                 ]}
               />
               <main
@@ -1044,11 +1046,25 @@ onSignOut={async () => {
                   sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
                 }`}
               >
-                <UserProfilePage
-                  userId={user.id}
-                  currentUser={user}
-                  onBack={() => setAgentSection('search')}
-                />
+                {agentSection === 'profile' ? (
+                  <UserProfilePage
+                    userId={user.id}
+                    currentUser={user}
+                    onBack={() => setAgentSection('search')}
+                  />
+                ) : (
+                  <SettingsSection
+                    profile={user}
+                    onUpdateProfile={async (updates) => {
+                      const { error } = await useAuthStore.getState().updateProfile(updates);
+                      return { error: error ? String(error) : null };
+                    }}
+                    onDeleteAccount={async () => {
+                      await useAuthStore.getState().signOut();
+                      window.location.href = '/';
+                    }}
+                  />
+                )}
               </main>
             </div>
           </DashboardErrorBoundary>
@@ -1065,7 +1081,7 @@ onSignOut={async () => {
               titleId={user.title_id}
               avatarUrl={user.avatar_url ?? undefined}
               onSignOut={handleSignOut}
-              onOpenSettings={() => setAgentSection('profile')}
+              onOpenSettings={() => setAgentSection('settings')}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
               sidebarCollapsed={!sidebarOpen}
             />

@@ -244,107 +244,31 @@ async function handleSubjects(teacherId: string, limit: number, offset: number) 
 }
 
 async function handleStudents(teacherId: string, limit: number, offset: number) {
-  // Count first.
+  // v130: Count only ACTIVE (approved) enrollments — this matches the
+  // "active subscriptions" count shown elsewhere, not pending/rejected.
+  const subjectIds = (await supabaseServer.from('subjects').select('id').eq('teacher_id', teacherId)).data?.map((s: { id: string }) => s.id) ?? [];
+
   const { count: totalCount } = await supabaseServer
     .from('subject_students')
     .select('id', { count: 'exact', head: true })
-    .in('subject_id', (await supabaseServer.from('subjects').select('id').eq('teacher_id', teacherId)).data?.map((s: { id: string }) => s.id) ?? []);
+    .in('subject_id', subjectIds)
+    .eq('status', 'approved');
 
-  // Join subject_students + users + subjects where subject.teacher_id = teacherId.
-  // We over-fetch by 2x so we can group by student + still respect the limit.
-  const { data: rows, error } = await supabaseServer
+  // Also count pending enrollments separately for the UI badge
+  const { count: pendingCount } = await supabaseServer
     .from('subject_students')
-    .select(`
-      id, status, enrollment_method, enrolled_at,
-      student:users!student_id(id, name, email, username, student_code, account_status),
-      subject:subjects!inner(id, name, teacher_id)
-    `)
-    .eq('subject.teacher_id', teacherId)
-    .order('enrolled_at', { ascending: false })
-    .range(offset, offset + (limit * 2) - 1);
+    .select('id', { count: 'exact', head: true })
+    .in('subject_id', subjectIds)
+    .eq('status', 'pending');
 
-  if (error) throw error;
-
-  type Row = {
-    id: string;
-    status: string;
-    enrollment_method: string;
-    enrolled_at: string | null;
-    student: { id: string; name: string | null; email: string; username: string | null; student_code: string | null; account_status: string | null } | null;
-    subject: { id: string; name: string; teacher_id: string };
-  };
-
-  // Aggregate by student: list of (subject, status) tuples per student.
-  const byStudent = new Map<string, {
-    id: string; name: string | null; email: string;
-    username: string | null; student_code: string | null;
-    account_status: string | null;
-    enrollments: Array<{ subject_id: string; subject_name: string; status: string; enrolled_at: string | null }>;
-  }>();
-
-  // v116 (C4): also collect PENDING enrollment rows so the agent can
-  // approve/reject them from the students section. The UI will render
-  // a "Pending Enrollment Requests" card at the top of the students view.
-  const pendingEnrollments: Array<{
-    enrollment_id: string;
-    student_id: string;
-    student_name: string | null;
-    student_email: string;
-    student_code: string | null;
-    subject_id: string;
-    subject_name: string;
-    enrollment_method: string;
-    enrolled_at: string | null;
-  }> = [];
-
-  for (const r of (rows ?? []) as unknown as Row[]) {
-    if (!r.student) continue;
-    const sid = r.student.id;
-    if (!byStudent.has(sid)) {
-      byStudent.set(sid, {
-        id: sid,
-        name: r.student.name,
-        email: r.student.email,
-        username: r.student.username,
-        student_code: r.student.student_code,
-        account_status: r.student.account_status,
-        enrollments: [],
-      });
-    }
-    byStudent.get(sid)!.enrollments.push({
-      subject_id: r.subject?.id ?? '',
-      subject_name: r.subject?.name ?? '—',
-      status: r.status,
-      enrolled_at: r.enrolled_at,
-    });
-
-    if (r.status === 'pending') {
-      pendingEnrollments.push({
-        enrollment_id: r.id,
-        student_id: sid,
-        student_name: r.student.name,
-        student_email: r.student.email,
-        student_code: r.student.student_code,
-        subject_id: r.subject?.id ?? '',
-        subject_name: r.subject?.name ?? '—',
-        enrollment_method: r.enrollment_method,
-        enrolled_at: r.enrolled_at,
-      });
-    }
-  }
-
-  const total = totalCount ?? 0;
-  const studentItems = Array.from(byStudent.values()).slice(0, limit);
+  // Return summary only — no student details (agent uses search for details)
   return NextResponse.json({
     success: true,
     section: 'students',
-    items: studentItems,
-    pending_enrollments: pendingEnrollments,
-    pending_enrollments_count: pendingEnrollments.length,
-    total_count: total,
-    has_more: offset + studentItems.length < total,
-    limit,
-    offset,
+    items: [],
+    total_count: totalCount,
+    pending_count: pendingCount,
+    note: null,
   });
 }
 
