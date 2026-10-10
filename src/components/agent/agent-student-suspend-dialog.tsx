@@ -98,8 +98,7 @@ export default function AgentStudentSuspendDialog({
       const { data, error } = await supabase
         .from('student_suspensions')
         .select(`
-          id, subject_id, reason, suspended_at, expires_at, is_active,
-          subject:subjects!subject_id(id, name)
+          id, subject_id, reason, suspended_at, expires_at, is_active
         `)
         .eq('student_id', sid)
         .eq('scope', 'course')
@@ -114,22 +113,29 @@ export default function AgentStudentSuspendDialog({
         suspended_at: string;
         expires_at: string | null;
         is_active: boolean;
-        subject: { id: string; name: string } | null;
       };
 
       const rows = ((data ?? []) as unknown) as Row[];
       const active = rows.filter(r =>
         r.is_active && (r.expires_at === null || r.expires_at > nowIso)
-      ).map(r => ({
-        id: r.id,
-        subject_id: r.subject_id,
-        subject_name: r.subject?.name ?? '—',
-        reason: r.reason,
-        suspended_at: r.suspended_at,
-        expires_at: r.expires_at,
-      }));
+      );
 
-      setActiveSuspensions(active);
+      // v130 fix: fetch subject names separately — the join in the query
+      // above was returning null for subject.name (RLS or join issue).
+      // We resolve subject names from the `subjects` prop passed by the parent.
+      const activeWithNames = active.map(r => {
+        const subjectInfo = subjects.find(s => s.id === r.subject_id);
+        return {
+          id: r.id,
+          subject_id: r.subject_id,
+          subject_name: subjectInfo?.name ?? 'مقرر محذوف',
+          reason: r.reason,
+          suspended_at: r.suspended_at,
+          expires_at: r.expires_at,
+        };
+      });
+
+      setActiveSuspensions(activeWithNames);
     } catch (err) {
       console.error('[AgentStudentSuspendDialog] fetchActive error:', err);
       setActiveSuspensions([]);

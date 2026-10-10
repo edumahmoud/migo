@@ -23,6 +23,7 @@ import {
   GraduationCap,
   Pause,
   Play,
+  Ban,
   Tag,
   Pencil,
   Trash2,
@@ -294,6 +295,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [filterPaused, setFilterPaused] = useState<'all' | 'active' | 'paused'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('');
 
+  // v130: Student per-course suspension state
+  // Set of subject IDs the student is suspended from
+  const [suspendedSubjectIds, setSuspendedSubjectIds] = useState<Set<string>>(new Set());
+
   // ─── Categories view state ───
   // Default: show all courses; user can toggle to categories view
   const [categoriesView, setCategoriesView] = useState(false);
@@ -322,6 +327,33 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
   // ─── Enrollment ID → Subject ID mapping (student only, for surgical Realtime DELETE) ───
   const enrollmentIdMapRef = useRef<Record<string, string>>({});
+
+  // v130: Fetch student's per-course suspensions (student only)
+  // Populates suspendedSubjectIds set — used for:
+  // 1. Showing ban icon on course cards
+  // 2. Including suspended courses in the "paused" filter
+  useEffect(() => {
+    if (role !== 'student') return;
+    let cancelled = false;
+    const fetchSuspensions = async () => {
+      try {
+        const res = await fetch('/api/student/suspensions', {
+          headers: await getCachedAuthHeaders(),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success && json.by_course) {
+          const ids = new Set<string>(
+            (json.by_course as Array<{ subject_id: string }>).map(c => c.subject_id)
+          );
+          setSuspendedSubjectIds(ids);
+        }
+      } catch { /* non-fatal */ }
+    };
+    fetchSuspensions();
+    const interval = setInterval(fetchSuspensions, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [role]);
 
   // -------------------------------------------------------
   // Fetch teacher names (student only, non-blocking)
@@ -1940,9 +1972,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           filteredSubjects = filteredSubjects.filter((s) => s.sub_level === filterSubLevel);
         }
         if (filterPaused === 'active') {
-          filteredSubjects = filteredSubjects.filter((s) => !s.is_paused);
+          filteredSubjects = filteredSubjects.filter((s) => !s.is_paused && !suspendedSubjectIds.has(s.id));
         } else if (filterPaused === 'paused') {
-          filteredSubjects = filteredSubjects.filter((s) => !!s.is_paused);
+          filteredSubjects = filteredSubjects.filter((s) => !!s.is_paused || suspendedSubjectIds.has(s.id));
         }
         if (filterCategory === '__none__') {
           filteredSubjects = filteredSubjects.filter((s) => !s.category_id);
@@ -1979,13 +2011,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   const color = subject.color || '#0D9488';
                   const hasCover = !!subject.thumbnail_url;
                   const isPaused = !!subject.is_paused;
+                  const isSuspended = role === 'student' && suspendedSubjectIds.has(subject.id);
                   return (
                     <motion.div key={subject.id} variants={cardVariants}>
                       <div
-                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden ${isPaused && role === 'student' ? 'cursor-not-allowed ring-2 ring-amber-400/60 ring-offset-2 ring-offset-background' : 'cursor-pointer hover:-translate-y-0.5'}`}
+                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden ${(isPaused || isSuspended) && role === 'student' ? 'cursor-not-allowed ring-2 ring-amber-400/60 ring-offset-2 ring-offset-background' : 'cursor-pointer hover:-translate-y-0.5'}`}
                         onClick={() => {
-                          // Prevent student from entering paused courses
-                          if (isPaused && role === 'student') return;
+                          // Prevent student from entering paused/suspended courses
+                          if ((isPaused || isSuspended) && role === 'student') return;
                           setStoreSelectedSubjectId(subject.id);
                         }}
                       >
@@ -1994,6 +2027,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           <div className="absolute top-0 start-0 end-0 z-20 flex items-center justify-center gap-2 bg-amber-500/90 dark:bg-amber-600/90 backdrop-blur-sm py-2 px-3 shadow-sm">
                             <Pause className="h-4 w-4 text-white shrink-0" />
                             <span className="text-xs font-bold text-white">{t('course.paused')}</span>
+                          </div>
+                        )}
+                        {/* v130: Suspended banner for students (per-course suspension) ── */}
+                        {isSuspended && !isPaused && role === 'student' && (
+                          <div className="absolute top-0 start-0 end-0 z-20 flex items-center justify-center gap-2 bg-rose-500/90 dark:bg-rose-600/90 backdrop-blur-sm py-2 px-3 shadow-sm">
+                            <Ban className="h-4 w-4 text-white shrink-0" />
+                            <span className="text-xs font-bold text-white">مُوقَف</span>
                           </div>
                         )}
                         {/* ── Cover Image Section ── */}
