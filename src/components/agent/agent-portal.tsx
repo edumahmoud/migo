@@ -1707,43 +1707,40 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y max-h-[400px] overflow-y-auto">
+            <div className="divide-y max-h-[600px] overflow-y-auto">
               {items.map((s) => (
-                <div key={s.id} className="p-2.5 text-xs space-y-1">
+                <div key={s.id} className="p-2 text-xs">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-medium truncate">{s.name ?? '—'}</span>
                         {s.student_code && (
-                          <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
+                          <span className="font-mono text-[9px] text-muted-foreground">({s.student_code})</span>
                         )}
                       </div>
-                      <div className="text-[10px] text-muted-foreground truncate" dir="ltr">{s.email}</div>
+                      <div className="text-[9px] text-muted-foreground truncate" dir="ltr">{s.email}</div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <Badge
                         variant={s.account_status === 'active' ? 'default' : 'secondary'}
-                        className="text-[9px]"
+                        className="text-[8px] px-1.5 py-0"
                       >
-                        {s.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                        {s.account_status === 'active' ? 'نشط' : 'قيد'}
                       </Badge>
-                      {/* v116 (C3): "manage" button — opens the AgentStudentSuspendDialog
-                          with the student's subjects pre-populated. */}
                       {(() => {
                         const subjects = (s.enrollments ?? []).map(e => ({ id: e.subject_id, name: e.subject_name }));
                         if (subjects.length === 0) return null;
                         return (
                           <Button
                             size="sm" variant="outline"
-                            className="h-7 text-[10px] border-amber-300 text-amber-700"
+                            className="h-6 text-[9px] px-2 border-amber-300 text-amber-700"
                             onClick={() => setSuspendTarget({
                               id: s.id,
                               name: s.name ?? s.email ?? '—',
                               subjects,
                             })}
                           >
-                            <PauseCircle className="h-3 w-3 me-0.5" />
-                            إدارة
+                            <PauseCircle className="h-3 w-3" />
                           </Button>
                         );
                       })()}

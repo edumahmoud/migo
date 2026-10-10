@@ -37,6 +37,7 @@ import {
   BookMarked,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -258,6 +259,14 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   // ─── Pause/Activate subject state ───
   const [togglingPause, setTogglingPause] = useState(false);
 
+  // ─── Student suspension state (per-course) ───
+  // When a student is suspended from THIS course by the teacher/agent,
+  // we block access to all course content (similar to is_paused but
+  // student-specific).
+  const [studentSuspended, setStudentSuspended] = useState(false);
+  const [suspensionReason, setSuspensionReason] = useState<string | null>(null);
+  const [suspensionExpiresAt, setSuspensionExpiresAt] = useState<string | null>(null);
+
   // ─── Leave course state (student only) ───
   const [leavingCourse, setLeavingCourse] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -348,6 +357,46 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   useEffect(() => {
     fetchSubject();
   }, [fetchSubject]);
+
+  // -------------------------------------------------------
+  // v130: Fetch student's per-course suspension status for THIS subject
+  // If suspended, block course content access (like is_paused but per-student)
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (!selectedSubjectId || role !== 'student') return;
+    let cancelled = false;
+
+    const checkSuspension = async () => {
+      try {
+        const res = await fetch('/api/student/suspensions', {
+          headers: await getCachedAuthHeaders(),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success && json.by_course) {
+          const courseSusp = json.by_course.find(
+            (c: { subject_id: string }) => c.subject_id === selectedSubjectId
+          );
+          if (courseSusp) {
+            setStudentSuspended(true);
+            setSuspensionReason(courseSusp.suspension?.reason ?? null);
+            setSuspensionExpiresAt(courseSusp.suspension?.expires_at ?? null);
+          } else {
+            setStudentSuspended(false);
+            setSuspensionReason(null);
+            setSuspensionExpiresAt(null);
+          }
+        }
+      } catch {
+        // Non-fatal — don't block course if check fails
+      }
+    };
+
+    checkSuspension();
+    // Re-check every 60 seconds (catches expiry)
+    const interval = setInterval(checkSuspension, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [selectedSubjectId, role]);
 
   // -------------------------------------------------------
   // Fetch categories (teacher only, for edit modal dropdown)
@@ -1065,6 +1114,42 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {t('course.pausedOverlayDesc')}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* v130: Student suspension overlay — blocks content when student
+            is suspended from THIS course by teacher/agent */}
+        {role === 'student' && studentSuspended && !subject.is_paused && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/90 backdrop-blur-md rounded-2xl">
+            <div className="text-center px-6 py-8 max-w-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100 dark:bg-rose-900/30">
+                <Pause className="h-8 w-8 text-rose-600 dark:text-rose-400" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground mb-1">
+                {subject.name}
+              </h3>
+              <p className="text-sm font-semibold text-rose-700 dark:text-rose-400 mb-2">
+                تم إيقافك من هذا المقرر
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                لا يمكنك الوصول إلى محتوى هذا المقرر حتى يتم رفع الإيقاف.
+              </p>
+              {suspensionReason && (
+                <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mb-2">
+                  السبب: {suspensionReason}
+                </p>
+              )}
+              {suspensionExpiresAt && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ينتهي الإيقاف: {new Date(suspensionExpiresAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
+                </p>
+              )}
+              {!suspensionExpiresAt && (
+                <p className="text-xs text-muted-foreground">
+                  إيقاف غير محدد المدة — تواصل مع المعلم
+                </p>
+              )}
             </div>
           </div>
         )}
