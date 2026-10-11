@@ -396,6 +396,29 @@ async function startUpload(taskId: string) {
   const store = useFileUploadStore.getState();
 
   try {
+    // v134j: Check storage quota BEFORE starting the upload.
+    const token0 = await waitForSession(15000);
+    if (token0) {
+      try {
+        const checkRes = await fetch('/api/sections/check-usage?sectionKey=files', {
+          headers: { 'Authorization': `Bearer ${token0}` },
+        });
+        const checkJson = await checkRes.json();
+        if (checkJson.success && checkJson.limit !== null && !checkJson.canUse) {
+          const fileSizeMb = task.fileSize ? Math.round(task.fileSize / (1024 * 1024)) : 0;
+          const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
+          if (t?.status === 'cancelled' || t?.status === 'paused') return;
+          store.updateTask(taskId, {
+            status: 'error',
+            error: `المساحة ممتلئة (${checkJson.used}/${checkJson.limit} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`,
+          });
+          return;
+        }
+      } catch {
+        // Non-critical — if the check fails, allow the upload.
+      }
+    }
+
     // ── Step 1: Get auth token ──
     const token = await waitForSession(15000);
     if (!token) {

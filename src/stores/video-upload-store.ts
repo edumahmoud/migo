@@ -173,6 +173,23 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
         return;
       }
 
+      // v134j: Check storage quota BEFORE starting the upload.
+      try {
+        const checkRes = await fetch('/api/sections/check-usage?sectionKey=files', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` },
+        });
+        const checkJson = await checkRes.json();
+        if (checkJson.success && checkJson.limit !== null && !checkJson.canUse) {
+          get().updateTask(id, {
+            status: 'error',
+            error: `المساحة ممتلئة (${checkJson.used}/${checkJson.limit} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`,
+          });
+          return;
+        }
+      } catch {
+        // Non-critical — if the check fails, allow the upload.
+      }
+
       const authToken = session.access_token;
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 

@@ -1,22 +1,15 @@
 'use client';
 
 /**
- * UsageCounter — v134h
+ * UsageCounter — v134j
  *
- * Shows a usage counter inside a section. Two modes:
- *   1. 'count' — shows "X / Y عملية متبقية" (for summaries/quizzes)
- *   2. 'storage' — shows a progress bar with "X MB / Y MB" (for files)
- *
- * v134h: when storage is full (≥100%), shows an "upgrade storage" message
- * with a button that opens the SectionLockedView (which shows monthly/
- * yearly upgrade plans).
- *
- * Fetches from /api/sections/check-usage?sectionKey=...
- * Refreshes every 30 seconds.
+ * v134j: collapsible (show/hide toggle). When collapsed, shows only a
+ * compact one-line summary. When expanded, shows the full progress bar.
+ * When storage is full, auto-expands + shows upgrade button.
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, AlertCircle, HardDrive, Zap, ArrowUpCircle } from 'lucide-react';
+import { Loader2, AlertCircle, HardDrive, Zap, ArrowUpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -42,6 +35,7 @@ interface UsageData {
 export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClick }: Props) {
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +87,32 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
   const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
   const isWarning = pct >= 80;
   const isCritical = pct >= 100;
+  // v134j: auto-expand when critical (storage full / limit reached).
+  const effectiveCollapsed = collapsed && !isCritical;
+
+  // ─── Collapsed view (compact one-liner) ───
+  if (effectiveCollapsed) {
+    return (
+      <button
+        onClick={() => setCollapsed(false)}
+        className="w-full flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:bg-muted/30 transition-colors"
+      >
+        <div className="flex items-center gap-1.5">
+          {mode === 'storage' ? (
+            <HardDrive className="h-3.5 w-3.5 text-sky-600" />
+          ) : (
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+          )}
+          <span className="text-muted-foreground">
+            {mode === 'storage'
+              ? `${used} / ${limit} ميجابايت`
+              : `${remaining} / ${limit} متبقية`}
+          </span>
+        </div>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+    );
+  }
 
   // ─── Storage mode (MB with progress bar) ───
   if (mode === 'storage') {
@@ -104,18 +124,26 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
               <HardDrive className="h-3.5 w-3.5 text-sky-600" />
               <span className="text-xs font-medium">المساحة المستخدمة</span>
             </div>
-            <Badge
-              variant="outline"
-              className={`text-[9px] ${
-                isCritical
-                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                  : isWarning
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              }`}
-            >
-              {used} / {limit} ميجابايت
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge
+                variant="outline"
+                className={`text-[9px] ${
+                  isCritical
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : isWarning
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}
+              >
+                {used} / {limit} ميجابايت
+              </Badge>
+              {/* v134j: collapse toggle */}
+              {!isCritical && (
+                <button onClick={() => setCollapsed(true)} className="text-muted-foreground hover:text-foreground">
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
           <Progress
             value={pct}
