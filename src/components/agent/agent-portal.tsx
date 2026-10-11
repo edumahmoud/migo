@@ -192,9 +192,8 @@ export default function AgentPortal({
     id: string; subject_id: string; subject_name: string; reason: string | null;
     suspended_at: string; expires_at: string | null;
   }>>([]);
-  // v131: collapsible state for the active suspensions card + per-row
-  // reactivation loading state.
-  const [suspensionsExpanded, setSuspensionsExpanded] = useState(true);
+  // v132: per-row reactivation loading state. (suspensionsExpanded
+  // removed — the Tabs component handles show/hide now.)
   const [reactivatingSubjectId, setReactivatingSubjectId] = useState<string | null>(null);
   // v132: removed teacherViewSection state — sections are top-level now.
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -839,73 +838,118 @@ export default function AgentPortal({
                 </CardContent>
               </Card>
 
-              {/* v131: Active suspensions card — always shown (so the
-                  user sees "لا توجد مقررات موقوفة" when empty), made
-                  COLLAPSIBLE via the header toggle, and each row has its
-                  own reactivate button. Subject names come from the
-                  server endpoint, NOT the browser supabase client
-                  (which is blocked by RLS on `subjects`). */}
+              {/* v132: Subscriptions + Suspensions combined into a single
+                  Tabs card (was two separate cards). Each tab shows its
+                  own list. The suspensions tab preserves the v131
+                  collapsible behavior + per-row reactivate button. */}
               <Card>
-                <CardHeader className="pb-2">
-                  <button
-                    type="button"
-                    onClick={() => setSuspensionsExpanded(v => !v)}
-                    className="w-full flex items-center justify-between gap-2 text-start"
-                    aria-expanded={suspensionsExpanded}
-                  >
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Ban className="h-4 w-4 text-rose-600" />
-                      الإيقافات النشطة ({studentSuspendedSubjects.length})
-                    </CardTitle>
-                    <ChevronDown
-                      className={`h-4 w-4 text-muted-foreground transition-transform ${suspensionsExpanded ? '' : '-rotate-90'}`}
-                    />
-                  </button>
-                </CardHeader>
-                {suspensionsExpanded && (
-                  <CardContent className="p-0">
-                    {studentSuspendedSubjects.length === 0 ? (
-                      <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        لا توجد مقررات موقوفة
-                      </div>
-                    ) : (
-                      <div className="divide-y">
-                        {studentSuspendedSubjects.map((s) => (
-                          <div key={s.id} className="flex items-center justify-between gap-2 p-3">
-                            <div className="min-w-0 flex-1">
-                              <span className="text-sm font-medium truncate block">{s.subject_name}</span>
-                              {s.reason && (
-                                <p className="text-[10px] text-muted-foreground mt-0.5">السبب: {s.reason}</p>
-                              )}
-                              <p className="text-[10px] text-muted-foreground">
-                                {s.expires_at ? `ينتهي: ${new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}` : 'غير محدد المدة'}
-                              </p>
+                <CardContent className="p-3">
+                  <Tabs defaultValue="subscriptions" dir={direction}>
+                    <TabsList className="grid w-full grid-cols-2 mb-3">
+                      <TabsTrigger value="subscriptions" className="text-xs gap-1">
+                        <BookOpen className="h-3.5 w-3.5" />
+                        الاشتراكات ({studentResult.subscriptions.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="suspensions" className="text-xs gap-1">
+                        <Ban className="h-3.5 w-3.5" />
+                        الإيقافات ({studentSuspendedSubjects.length})
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* ─── Subscriptions tab ─── */}
+                    <TabsContent value="subscriptions" className="mt-0">
+                      {studentResult.subscriptions.length === 0 ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                          <CheckCircle2 className="h-4 w-4 text-muted-foreground/40" />
+                          لا توجد اشتراكات نشطة
+                        </div>
+                      ) : (
+                        <div className="divide-y rounded-md border border-border/60">
+                          {studentResult.subscriptions.map((sub) => {
+                            const isPaused = (sub.subject as Record<string, unknown> | null)?.is_paused === true;
+                            const subjName = sub.subject?.name ?? '—';
+                            // v132: free/paid indicator based on subject.price.
+                            //   price === 0 || price === null || price === undefined → مجاني
+                            //   price > 0 → مدفوع
+                            const subjectPrice = (sub.subject as { price?: number | null } | null)?.price;
+                            const isFree = subjectPrice === null || subjectPrice === undefined || subjectPrice === 0;
+                            return (
+                              <div key={sub.id} className="flex items-center justify-between gap-2 p-3">
+                                <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium truncate">{subjName}</span>
+                                  {isFree ? (
+                                    <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200 shrink-0">
+                                      <Gift className="h-2.5 w-2.5 me-0.5" />
+                                      مجاني
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+                                      <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
+                                      مدفوع
+                                    </Badge>
+                                  )}
+                                  {isPaused && (
+                                    <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
+                                      <Ban className="h-2.5 w-2.5 me-0.5" />
+                                      موقوف
+                                    </Badge>
+                                  )}
+                                </div>
+                                <Badge variant={sub.status === 'approved' ? 'default' : 'secondary'} className="text-xs shrink-0">
+                                  {sub.status === 'approved' ? 'نشط' : sub.status}
+                                </Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* ─── Suspensions tab ─── */}
+                    <TabsContent value="suspensions" className="mt-0">
+                      {studentSuspendedSubjects.length === 0 ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          لا توجد مقررات موقوفة
+                        </div>
+                      ) : (
+                        <div className="divide-y rounded-md border border-border/60">
+                          {studentSuspendedSubjects.map((s) => (
+                            <div key={s.id} className="flex items-center justify-between gap-2 p-3">
+                              <div className="min-w-0 flex-1">
+                                <span className="text-sm font-medium truncate block">{s.subject_name}</span>
+                                {s.reason && (
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">السبب: {s.reason}</p>
+                                )}
+                                <p className="text-[10px] text-muted-foreground">
+                                  {s.expires_at ? `ينتهي: ${new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}` : 'غير محدد المدة'}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
+                                  <Ban className="h-2.5 w-2.5 me-0.5" />
+                                  موقوف
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-[10px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                  disabled={reactivatingSubjectId === s.subject_id}
+                                  onClick={() => reactivateSubject(s.subject_id, s.subject_name)}
+                                >
+                                  {reactivatingSubjectId === s.subject_id
+                                    ? <Loader2 className="h-3 w-3 me-1 animate-spin" />
+                                    : <Power className="h-3 w-3 me-1" />}
+                                  إعادة تفعيل
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
-                                <Ban className="h-2.5 w-2.5 me-0.5" />
-                                موقوف
-                              </Badge>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-[10px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                                disabled={reactivatingSubjectId === s.subject_id}
-                                onClick={() => reactivateSubject(s.subject_id, s.subject_name)}
-                              >
-                                {reactivatingSubjectId === s.subject_id
-                                  ? <Loader2 className="h-3 w-3 me-1 animate-spin" />
-                                  : <Power className="h-3 w-3 me-1" />}
-                                إعادة تفعيل
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                )}
+                          ))}
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
               </Card>
 
               {/* Pending orders (with activate/cancel) */}
@@ -950,42 +994,8 @@ export default function AgentPortal({
                 </Card>
               )}
 
-              {/* Active subscriptions */}
-              {studentResult.subscriptions.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <BookOpen className="h-4 w-4 text-emerald-600" />
-                      الاشتراكات النشطة ({studentResult.subscriptions.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="divide-y">
-                      {studentResult.subscriptions.map((sub) => {
-                        // v130: check if subject is paused
-                        const isPaused = (sub.subject as Record<string, unknown> | null)?.is_paused === true;
-                        const subjName = sub.subject?.name ?? '—';
-                        return (
-                          <div key={sub.id} className="flex items-center justify-between gap-2 p-3">
-                            <div className="min-w-0 flex-1 flex items-center gap-2">
-                              <span className="text-sm font-medium truncate">{subjName}</span>
-                              {isPaused && (
-                                <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
-                                  <Ban className="h-2.5 w-2.5 me-0.5" />
-                                  موقوف
-                                </Badge>
-                              )}
-                            </div>
-                            <Badge variant={sub.status === 'approved' ? 'default' : 'secondary'} className="text-xs shrink-0">
-                              {sub.status === 'approved' ? 'نشط' : sub.status}
-                            </Badge>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* v132: Active subscriptions card REMOVED — merged into the
+                  Tabs card above (subscriptions tab). */}
             </div>
           )}
         </>
