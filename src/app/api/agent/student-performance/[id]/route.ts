@@ -279,12 +279,17 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       const allLessonIds = (lessonsData ?? []).map((l: { id: string }) => l.id);
 
       if (allLessonIds.length > 0) {
+        // v132 fix: lesson_progress has a `status` column (values:
+        // 'not_started','in_progress','completed','failed','locked'),
+        // NOT an `is_completed` boolean. The old query used
+        // `.eq('is_completed', true)` which silently returned zero
+        // rows → the lesson-progress tab always showed 0% completion.
         const { data: progress } = await supabaseServer
           .from('lesson_progress')
-          .select('lesson_id, student_id, is_completed')
+          .select('lesson_id, student_id, status')
           .eq('student_id', studentId)
           .in('lesson_id', allLessonIds)
-          .eq('is_completed', true);
+          .eq('status', 'completed');
 
         const completedLessonIds = new Set<string>(
           (progress ?? []).map((p: { lesson_id: string }) => p.lesson_id)

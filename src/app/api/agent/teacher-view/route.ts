@@ -92,13 +92,8 @@ export async function GET(request: NextRequest) {
         // Phase 6 will expand this to per-transaction view.
         return await handleFinancial(teacherId);
       case 'tracking':
-        // v132 Phase 1: temporary placeholder — full handler in Phase 5.
-        return NextResponse.json({
-          success: true,
-          section,
-          items: [],
-          note: 'سيتم توفير بيانات تتبع الأداء قريباً.',
-        });
+        // v132 Phase 5: per-student performance metrics.
+        return await handleTracking(teacherId, limit, offset);
       case 'calendar':
         // v132 Phase 1: temporary placeholder — full handler in Phase 7.
         return NextResponse.json({
@@ -577,6 +572,343 @@ async function handleFinancial(teacherId: string) {
       currency,
       ...agg,
     })),
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
+// v132 Phase 5: handleTracking
+//   Per-student performance metrics across ALL the teacher's courses.
+//   This is NOT teacher-level aggregate stats (that was the old v130
+//   behavior). The agent uses this to FOLLOW UP on individual students.
+//
+//   Metrics per student:
+//     - enrolled_subjects: count of approved enrollments
+//     - attendance_rate:   (present + late) / total attendance sessions
+//     - quiz_avg_score:    average (score/total*100) across completed quizzes
+//     - quiz_completion:   completed quizzes / total quizzes in enrolled subjects
+//     - assignment_rate:   submitted assignments / total assignments in enrolled subjects
+//     - lesson_progress:   completed lessons / total lessons in enrolled subjects
+//     - last_activity:     most recent of: lesson_progress.last_accessed_at,
+//                           scores.completed_at, submissions.submitted_at,
+//                           attendance_records.checked_in_at, users.created_at
+//
+//   Pagination: limit/offset apply to the student list (not metrics).
+// ──────────────────────────────────────────────────────────────
+async function handleTracking(teacherId: string, limit: number, offset: number) {
+  // 1. Get the teacher's subject IDs + names.
+  const { data: teacherSubjects } = await supabaseServer
+    .from('subjects')
+    .select('id, name')
+    .eq('teacher_id', teacherId);
+  const subjectIdList = (teacherSubjects ?? []).map((s: { id: string }) => s.id);
+  const subjectNameById = new Map<string, string>(
+    (teacherSubjects ?? []).map((s: { id: string; name: string }) => [s.id, s.name])
+  );
+
+  if (subjectIdList.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'tracking',
+      items: [],
+      total_count: 0,
+      has_more: false,
+      limit,
+      offset,
+    });
+  }
+
+  // 2. Get distinct students enrolled in those subjects (approved only).
+  //    We fetch all enrollments (not paginated) because we need to know
+  //    which subjects each student is in for the metrics. Pagination
+  //    applies to the final student list.
+  const { data: allEnrollments } = await supabaseServer
+    .from('subject_students')
+    .select('student_id, subject_id')
+    .in('subject_id', subjectIdList)
+    .eq('status', 'approved');
+
+  type EnrollmentRow = { student_id: string; subject_id: string };
+  const enrollments = (allEnrollments ?? []) as EnrollmentRow[];
+
+  // Group: student_id → set of subject_ids
+  const subjectsByStudent = new Map<string, Set<string>>();
+  for (const e of enrollments) {
+    if (!subjectsByStudent.has(e.student_id)) subjectsByStudent.set(e.student_id, new Set());
+    subjectsByStudent.get(e.student_id)!.add(e.subject_id);
+  }
+
+  // Get the distinct student IDs, sorted for stable pagination.
+  const allStudentIds = Array.from(subjectsByStudent.keys()).sort();
+  const totalCount = allStudentIds.length;
+  const pageStudentIds = allStudentIds.slice(offset, offset + limit);
+
+  if (pageStudentIds.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'tracking',
+      items: [],
+      total_count: totalCount,
+      has_more: false,
+      limit,
+      offset,
+    });
+  }
+
+  // 3. Fetch student profile info (name, email, code, account_status).
+  const { data: studentRows } = await supabaseServer
+    .from('users')
+    .select('id, name, email, student_code, account_status, created_at')
+    .in('id', pageStudentIds);
+  const studentInfoById = new Map<string, {
+    name: string | null; email: string; student_code: string | null;
+    account_status: string | null; created_at: string;
+  }>(
+    (studentRows ?? []).map((u: Record<string, unknown>) => [
+      u.id as string,
+      {
+        name: u.name as string | null,
+        email: u.email as string,
+        student_code: u.student_code as string | null,
+        account_status: u.account_status as string | null,
+        created_at: u.created_at as string,
+      },
+    ])
+  );
+
+  // 4. Fetch attendance sessions for the teacher's subjects.
+  //    We only need sessions whose subject_id is in subjectIdList.
+  const { data: sessionsData } = await supabaseServer
+    .from('attendance_sessions')
+    .select('id, subject_id')
+    .in('subject_id', subjectIdList);
+  type SessionRow = { id: string; subject_id: string };
+  const sessions = (sessionsData ?? []) as SessionRow[];
+  const sessionsBySubject = new Map<string, string[]>();
+  for (const s of sessions) {
+    if (!sessionsBySubject.has(s.subject_id)) sessionsBySubject.set(s.subject_id, []);
+    sessionsBySubject.get(s.subject_id)!.push(s.id);
+  }
+  const allSessionIds = sessions.map(s => s.id);
+
+  // 5. Fetch attendance records for the page students.
+  //    Key: student_id → session_id → status
+  let attendanceByStudent = new Map<string, Map<string, string>>();
+  if (allSessionIds.length > 0) {
+    const { data: attRecords } = await supabaseServer
+      .from('attendance_records')
+      .select('session_id, student_id, attendance_status')
+      .in('session_id', allSessionIds)
+      .in('student_id', pageStudentIds);
+    for (const r of (attRecords ?? []) as { session_id: string; student_id: string; attendance_status: string }[]) {
+      if (!attendanceByStudent.has(r.student_id)) attendanceByStudent.set(r.student_id, new Map());
+      attendanceByStudent.get(r.student_id)!.set(r.session_id, r.attendance_status);
+    }
+  }
+
+  // 6. Fetch quizzes for the teacher's subjects + scores for the page students.
+  const { data: quizzesData } = await supabaseServer
+    .from('quizzes')
+    .select('id, subject_id')
+    .in('subject_id', subjectIdList);
+  type QuizRow = { id: string; subject_id: string };
+  const quizzes = (quizzesData ?? []) as QuizRow[];
+  const quizzesBySubject = new Map<string, string[]>();
+  for (const q of quizzes) {
+    if (!quizzesBySubject.has(q.subject_id)) quizzesBySubject.set(q.subject_id, []);
+    quizzesBySubject.get(q.subject_id)!.push(q.id);
+  }
+  const allQuizIds = quizzes.map(q => q.id);
+
+  let scoresByStudent = new Map<string, Map<string, { score: number; total: number; completed_at: string }>>();
+  if (allQuizIds.length > 0) {
+    const { data: scoresData } = await supabaseServer
+      .from('scores')
+      .select('quiz_id, student_id, score, total, completed_at')
+      .in('quiz_id', allQuizIds)
+      .in('student_id', pageStudentIds);
+    for (const s of ((scoresData ?? []) as unknown as Array<{ quiz_id: string; student_id: string; score: number; total: number; completed_at: string }>)) {
+      if (!scoresByStudent.has(s.student_id)) scoresByStudent.set(s.student_id, new Map());
+      // Keep the most recent score per quiz (completed_at is not ordered
+      // here, so we just take the first occurrence — the DB doesn't
+      // guarantee order without an explicit ORDER BY).
+      if (!scoresByStudent.get(s.student_id)!.has(s.quiz_id)) {
+        scoresByStudent.get(s.student_id)!.set(s.quiz_id, {
+          score: Number(s.score) || 0,
+          total: Number(s.total) || 0,
+          completed_at: s.completed_at,
+        });
+      }
+    }
+  }
+
+  // 7. Fetch assignments for the teacher's subjects + submissions for the page students.
+  const { data: assignmentsData } = await supabaseServer
+    .from('assignments')
+    .select('id, subject_id')
+    .in('subject_id', subjectIdList);
+  type AssignmentRow = { id: string; subject_id: string };
+  const assignments = (assignmentsData ?? []) as AssignmentRow[];
+  const assignmentsBySubject = new Map<string, string[]>();
+  for (const a of assignments) {
+    if (!assignmentsBySubject.has(a.subject_id)) assignmentsBySubject.set(a.subject_id, []);
+    assignmentsBySubject.get(a.subject_id)!.push(a.id);
+  }
+  const allAssignmentIds = assignments.map(a => a.id);
+
+  let submissionsByStudent = new Map<string, Set<string>>();
+  if (allAssignmentIds.length > 0) {
+    const { data: submissionsData } = await supabaseServer
+      .from('submissions')
+      .select('assignment_id, student_id')
+      .in('assignment_id', allAssignmentIds)
+      .in('student_id', pageStudentIds);
+    for (const s of ((submissionsData ?? []) as unknown as Array<{ assignment_id: string; student_id: string }>)) {
+      if (!submissionsByStudent.has(s.student_id)) submissionsByStudent.set(s.student_id, new Set());
+      submissionsByStudent.get(s.student_id)!.add(s.assignment_id);
+    }
+  }
+
+  // 8. Fetch lessons for the teacher's subjects + lesson_progress for the page students.
+  const { data: lessonsData } = await supabaseServer
+    .from('lessons')
+    .select('id, subject_id')
+    .in('subject_id', subjectIdList);
+  type LessonRow = { id: string; subject_id: string };
+  const lessons = (lessonsData ?? []) as LessonRow[];
+  const lessonsBySubject = new Map<string, string[]>();
+  for (const l of lessons) {
+    if (!lessonsBySubject.has(l.subject_id)) lessonsBySubject.set(l.subject_id, []);
+    lessonsBySubject.get(l.subject_id)!.push(l.id);
+  }
+  const allLessonIds = lessons.map(l => l.id);
+
+  // v132 fix: lesson_progress has a `status` column (values: 'not_started',
+  // 'in_progress', 'completed', 'failed', 'locked'), NOT an `is_completed`
+  // boolean. The old student-performance route used `.eq('is_completed', true)`
+  // which silently returned zero rows. We use `.eq('status', 'completed')`.
+  let lessonProgressByStudent = new Map<string, { completed: Set<string>; lastAccessed: string | null }>();
+  if (allLessonIds.length > 0) {
+    const { data: progressData } = await supabaseServer
+      .from('lesson_progress')
+      .select('lesson_id, student_id, status, last_accessed_at')
+      .in('lesson_id', allLessonIds)
+      .in('student_id', pageStudentIds);
+    for (const p of ((progressData ?? []) as unknown as Array<{ lesson_id: string; student_id: string; status: string; last_accessed_at: string | null }>)) {
+      if (!lessonProgressByStudent.has(p.student_id)) {
+        lessonProgressByStudent.set(p.student_id, { completed: new Set(), lastAccessed: null });
+      }
+      const entry = lessonProgressByStudent.get(p.student_id)!;
+      if (p.status === 'completed') {
+        entry.completed.add(p.lesson_id);
+      }
+      if (p.last_accessed_at) {
+        if (!entry.lastAccessed || p.last_accessed_at > entry.lastAccessed) {
+          entry.lastAccessed = p.last_accessed_at;
+        }
+      }
+    }
+  }
+
+  // 9. Build the per-student metrics.
+  const items = pageStudentIds.map(studentId => {
+    const info = studentInfoById.get(studentId);
+    const studentSubjects = subjectsByStudent.get(studentId) ?? new Set<string>();
+    const subjectIds = Array.from(studentSubjects);
+
+    // ── Attendance ──
+    let attPresent = 0, attLate = 0, attAbsent = 0;
+    const studentAtt = attendanceByStudent.get(studentId);
+    for (const sid of subjectIds) {
+      const sessionIds = sessionsBySubject.get(sid) ?? [];
+      for (const sessId of sessionIds) {
+        const status = studentAtt?.get(sessId);
+        if (status === 'present') attPresent++;
+        else if (status === 'late') attLate++;
+        else if (status === 'absent') attAbsent++;
+      }
+    }
+    const attTotal = attPresent + attLate + attAbsent;
+    const attendanceRate = attTotal > 0 ? Math.round(((attPresent + attLate) / attTotal) * 100) : null;
+
+    // ── Quizzes ──
+    let quizCompleted = 0;
+    let quizScoreSum = 0;
+    let quizScoreCount = 0;
+    const studentScores = scoresByStudent.get(studentId);
+    for (const sid of subjectIds) {
+      const quizIds = quizzesBySubject.get(sid) ?? [];
+      for (const qid of quizIds) {
+        const sc = studentScores?.get(qid);
+        if (sc) {
+          quizCompleted++;
+          if (sc.total > 0) {
+            quizScoreSum += (sc.score / sc.total) * 100;
+            quizScoreCount++;
+          }
+        }
+      }
+    }
+    const totalQuizzes = subjectIds.reduce((sum, sid) => sum + (quizzesBySubject.get(sid)?.length ?? 0), 0);
+    const quizAvgScore = quizScoreCount > 0 ? Math.round(quizScoreSum / quizScoreCount) : null;
+    const quizCompletion = totalQuizzes > 0 ? Math.round((quizCompleted / totalQuizzes) * 100) : null;
+
+    // ── Assignments ──
+    let assignmentSubmitted = 0;
+    const studentSubs = submissionsByStudent.get(studentId);
+    for (const sid of subjectIds) {
+      const assignmentIds = assignmentsBySubject.get(sid) ?? [];
+      for (const aid of assignmentIds) {
+        if (studentSubs?.has(aid)) assignmentSubmitted++;
+      }
+    }
+    const totalAssignments = subjectIds.reduce((sum, sid) => sum + (assignmentsBySubject.get(sid)?.length ?? 0), 0);
+    const assignmentRate = totalAssignments > 0 ? Math.round((assignmentSubmitted / totalAssignments) * 100) : null;
+
+    // ── Lesson progress ──
+    let lessonsCompleted = 0;
+    const studentProgress = lessonProgressByStudent.get(studentId);
+    for (const sid of subjectIds) {
+      const lessonIds = lessonsBySubject.get(sid) ?? [];
+      for (const lid of lessonIds) {
+        if (studentProgress?.completed.has(lid)) lessonsCompleted++;
+      }
+    }
+    const totalLessons = subjectIds.reduce((sum, sid) => sum + (lessonsBySubject.get(sid)?.length ?? 0), 0);
+    const lessonProgressRate = totalLessons > 0 ? Math.round((lessonsCompleted / totalLessons) * 100) : null;
+
+    // ── Last activity ──
+    // Use the most recent of: lesson_progress.last_accessed_at,
+    // users.created_at (fallback if no activity yet).
+    const lastActivity = studentProgress?.lastAccessed ?? info?.created_at ?? null;
+
+    return {
+      id: studentId,
+      name: info?.name ?? null,
+      email: info?.email ?? '—',
+      student_code: info?.student_code ?? null,
+      account_status: info?.account_status ?? null,
+      enrolled_subjects: subjectIds.length,
+      attendance_rate: attendanceRate,
+      attendance_detail: { present: attPresent, late: attLate, absent: attAbsent, total: attTotal },
+      quiz_avg_score: quizAvgScore,
+      quiz_completion: quizCompletion,
+      quiz_detail: { completed: quizCompleted, total: totalQuizzes },
+      assignment_rate: assignmentRate,
+      assignment_detail: { submitted: assignmentSubmitted, total: totalAssignments },
+      lesson_progress: lessonProgressRate,
+      lesson_detail: { completed: lessonsCompleted, total: totalLessons },
+      last_activity: lastActivity,
+    };
+  });
+
+  return NextResponse.json({
+    success: true,
+    section: 'tracking',
+    items,
+    total_count: totalCount,
+    has_more: offset + items.length < totalCount,
+    limit,
+    offset,
   });
 }
 

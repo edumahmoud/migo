@@ -1444,7 +1444,8 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
     case 'analytics':
       return <AnalyticsView data={data} />;
     case 'tracking':
-      return <AnalyticsView data={data} />;
+      // v132 Phase 5: per-student performance tracking (was AnalyticsView).
+      return <TrackingView data={data} />;
     default:
       return (
         <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-muted-foreground">
@@ -1534,6 +1535,149 @@ function AnalyticsView({ data }: { data: Record<string, unknown> }) {
       <StatTile label="اشتراكات نشطة" value={stats.active_subscriptions ?? 0} color="teal" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
       <StatTile label="طلبات معلّقة" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
       <StatTile label="طلبات مدفوعة" value={stats.paid_orders ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// TrackingView — v132 Phase 5
+//   Per-student performance metrics. Shows a table of all enrolled
+//   students with their attendance rate, quiz avg score, quiz
+//   completion, assignment submission rate, lesson progress, and
+//   last activity. Helps the agent follow up on struggling students.
+//
+//   Color coding:
+//     - attendance/quiz/assignment/lesson ≥ 75% → green
+//     - 50%-74% → amber
+//     - < 50% → red
+//     - null (no data) → muted
+// ──────────────────────────────────────────────────────────────
+function TrackingView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string;
+    name: string | null;
+    email: string;
+    student_code: string | null;
+    account_status: string | null;
+    enrolled_subjects: number;
+    attendance_rate: number | null;
+    attendance_detail: { present: number; late: number; absent: number; total: number };
+    quiz_avg_score: number | null;
+    quiz_completion: number | null;
+    quiz_detail: { completed: number; total: number };
+    assignment_rate: number | null;
+    assignment_detail: { submitted: number; total: number };
+    lesson_progress: number | null;
+    lesson_detail: { completed: number; total: number };
+    last_activity: string | null;
+  }>;
+  const totalCount = (data.total_count as number) ?? 0;
+
+  if (items.length === 0) return <EmptyState label="لا يوجد طلاب مسجلون في مقرراتك بعد" />;
+
+  // Helper: color a percentage value.
+  const rateColor = (rate: number | null): string => {
+    if (rate === null) return 'text-muted-foreground';
+    if (rate >= 75) return 'text-emerald-600 dark:text-emerald-400';
+    if (rate >= 50) return 'text-amber-600 dark:text-amber-400';
+    return 'text-rose-600 dark:text-rose-400';
+  };
+
+  const rateBg = (rate: number | null): string => {
+    if (rate === null) return 'bg-muted/40';
+    if (rate >= 75) return 'bg-emerald-50 dark:bg-emerald-900/20';
+    if (rate >= 50) return 'bg-amber-50 dark:bg-amber-900/20';
+    return 'bg-rose-50 dark:bg-rose-900/20';
+  };
+
+  const formatActivity = (iso: string | null) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+    } catch {
+      return '—';
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] text-muted-foreground">
+        إجمالي الطلاب: {totalCount}
+      </div>
+      <div className="rounded-md border border-border/60 divide-y max-h-[500px] overflow-y-auto">
+        {items.map((s) => (
+          <div key={s.id} className="p-2.5 text-xs space-y-2">
+            {/* Row 1: student identity */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-medium truncate">{s.name ?? '—'}</span>
+                  {s.student_code && (
+                    <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
+                  )}
+                  <Badge variant="outline" className="text-[9px]">{s.enrolled_subjects} مقرر</Badge>
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
+              </div>
+              <div className="text-[10px] text-muted-foreground shrink-0 text-end">
+                <div>آخر نشاط</div>
+                <div className="font-medium">{formatActivity(s.last_activity)}</div>
+              </div>
+            </div>
+            {/* Row 2: 4 metric tiles */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {/* Attendance */}
+              <div className={`rounded px-2 py-1.5 ${rateBg(s.attendance_rate)}`}>
+                <div className="text-[9px] text-muted-foreground">الحضور</div>
+                <div className={`font-bold text-sm ${rateColor(s.attendance_rate)}`}>
+                  {s.attendance_rate !== null ? `${s.attendance_rate}%` : '—'}
+                </div>
+                <div className="text-[8px] text-muted-foreground mt-0.5">
+                  {s.attendance_detail.total > 0
+                    ? `${s.attendance_detail.present}ح/${s.attendance_detail.late}م/${s.attendance_detail.absent}غ`
+                    : 'لا جلسات'}
+                </div>
+              </div>
+              {/* Quiz avg */}
+              <div className={`rounded px-2 py-1.5 ${rateBg(s.quiz_avg_score)}`}>
+                <div className="text-[9px] text-muted-foreground">متوسط الاختبارات</div>
+                <div className={`font-bold text-sm ${rateColor(s.quiz_avg_score)}`}>
+                  {s.quiz_avg_score !== null ? `${s.quiz_avg_score}%` : '—'}
+                </div>
+                <div className="text-[8px] text-muted-foreground mt-0.5">
+                  {s.quiz_detail.completed > 0
+                    ? `${s.quiz_detail.completed}/${s.quiz_detail.total} مكتمل`
+                    : 'لم يختبر'}
+                </div>
+              </div>
+              {/* Assignment submission */}
+              <div className={`rounded px-2 py-1.5 ${rateBg(s.assignment_rate)}`}>
+                <div className="text-[9px] text-muted-foreground">الواجبات</div>
+                <div className={`font-bold text-sm ${rateColor(s.assignment_rate)}`}>
+                  {s.assignment_rate !== null ? `${s.assignment_rate}%` : '—'}
+                </div>
+                <div className="text-[8px] text-muted-foreground mt-0.5">
+                  {s.assignment_detail.total > 0
+                    ? `${s.assignment_detail.submitted}/${s.assignment_detail.total} مُسلَّم`
+                    : 'لا واجبات'}
+                </div>
+              </div>
+              {/* Lesson progress */}
+              <div className={`rounded px-2 py-1.5 ${rateBg(s.lesson_progress)}`}>
+                <div className="text-[9px] text-muted-foreground">تقدم الدروس</div>
+                <div className={`font-bold text-sm ${rateColor(s.lesson_progress)}`}>
+                  {s.lesson_progress !== null ? `${s.lesson_progress}%` : '—'}
+                </div>
+                <div className="text-[8px] text-muted-foreground mt-0.5">
+                  {s.lesson_detail.total > 0
+                    ? `${s.lesson_detail.completed}/${s.lesson_detail.total} درس`
+                    : 'لا دروس'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
