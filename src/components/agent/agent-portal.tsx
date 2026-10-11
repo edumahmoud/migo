@@ -57,6 +57,14 @@ interface StudentResult {
   subscriptions: Array<{
     id: string; subject_id: string; status: string;
     current_period_end: string | null;
+    // v132fix: fields returned by the API but were missing from the interface.
+    enrollment_method?: string;
+    monthly_price?: number | null;
+    current_period_start?: string | null;
+    // v132fix: actual plan info from the latest paid order.
+    plan_duration_days?: number | null;
+    period_label?: string | null;
+    period_type?: string | null;
     subject: { id: string; name: string; is_paused?: boolean; price?: number | null } | null;
   }>;
   pending_orders: Array<{
@@ -871,26 +879,88 @@ export default function AgentPortal({
                           {studentResult.subscriptions.map((sub) => {
                             const isPaused = (sub.subject as Record<string, unknown> | null)?.is_paused === true;
                             const subjName = sub.subject?.name ?? '—';
-                            // v132: free/paid indicator based on subject.price.
-                            //   price === 0 || price === null || price === undefined → مجاني
-                            //   price > 0 → مدفوع
-                            const subjectPrice = (sub.subject as { price?: number | null } | null)?.price;
-                            const isFree = subjectPrice === null || subjectPrice === undefined || subjectPrice === 0;
+
+                            // v132fix: show the ACTUAL subscription plan, not just
+                            // free/paid based on subject.price.
+                            //
+                            // Logic:
+                            // 1. If enrollment_method is 'self_paid' AND we have
+                            //    plan info (plan_duration_days or period_label) →
+                            //    show the plan label (شهري/ترم/سنوي/...).
+                            // 2. If enrollment_method is 'self_paid' but NO plan
+                            //    info → show "مدفوع" (paid, unknown plan).
+                            // 3. If enrollment_method is NOT 'self_paid' (i.e.,
+                            //    'self_join'/'teacher_add'/'agent_register') →
+                            //    show "مجاني" (free/permanent enrollment).
+                            // 4. If enrollment_method is missing, fall back to
+                            //    the old subject.price check.
+                            const enrollmentMethod = sub.enrollment_method;
+                            const isPaidEnrollment = enrollmentMethod === 'self_paid';
+                            const isFreeEnrollment = enrollmentMethod &&
+                              enrollmentMethod !== 'self_paid';
+
+                            // Derive plan label from period_label or plan_duration_days.
+                            // Uses the same mapping as the student dashboard.
+                            let planLabel: string | null = null;
+                            if (sub.period_label && sub.period_label.trim()) {
+                              planLabel = sub.period_label;
+                            } else if (sub.plan_duration_days) {
+                              const d = sub.plan_duration_days;
+                              planLabel = d >= 365 ? 'سنوي' :
+                                d >= 120 ? 'ترم' :
+                                d >= 60 ? 'فصلين' :
+                                d === 30 ? 'شهري' :
+                                `${d} يوم`;
+                            }
+
+                            // Determine the badge to show.
+                            let planBadge: React.ReactNode;
+                            if (isPaidEnrollment && planLabel) {
+                              // Paid with known plan → show plan label.
+                              planBadge = (
+                                <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+                                  <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
+                                  {planLabel}
+                                </Badge>
+                              );
+                            } else if (isPaidEnrollment) {
+                              // Paid but no plan info → show "مدفوع".
+                              planBadge = (
+                                <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+                                  <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
+                                  مدفوع
+                                </Badge>
+                              );
+                            } else if (isFreeEnrollment) {
+                              // Free/permanent enrollment → show "مجاني".
+                              planBadge = (
+                                <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200 shrink-0">
+                                  <Gift className="h-2.5 w-2.5 me-0.5" />
+                                  مجاني
+                                </Badge>
+                              );
+                            } else {
+                              // Fallback: no enrollment_method → use subject.price.
+                              const subjectPrice = (sub.subject as { price?: number | null } | null)?.price;
+                              const isFreeByPrice = subjectPrice === null || subjectPrice === undefined || subjectPrice === 0;
+                              planBadge = isFreeByPrice ? (
+                                <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200 shrink-0">
+                                  <Gift className="h-2.5 w-2.5 me-0.5" />
+                                  مجاني
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+                                  <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
+                                  مدفوع
+                                </Badge>
+                              );
+                            }
+
                             return (
                               <div key={sub.id} className="flex items-center justify-between gap-2 p-3">
                                 <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
                                   <span className="text-sm font-medium truncate">{subjName}</span>
-                                  {isFree ? (
-                                    <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200 shrink-0">
-                                      <Gift className="h-2.5 w-2.5 me-0.5" />
-                                      مجاني
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
-                                      <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
-                                      مدفوع
-                                    </Badge>
-                                  )}
+                                  {planBadge}
                                   {isPaused && (
                                     <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
                                       <Ban className="h-2.5 w-2.5 me-0.5" />
@@ -1192,7 +1262,17 @@ function TopLevelSection({
 
       <Card>
         <CardContent className="space-y-2">
-          <TeacherSectionPreview sectionId={sectionId} />
+          {/* v132fix: key={sectionId} forces React to unmount the old
+              TeacherSectionPreview and mount a fresh one when the agent
+              switches sections. Without this, the component stays
+              mounted across section changes and briefly renders the OLD
+              section's data with the NEW section's view (because
+              useEffect hasn't reset state yet). If the old data's shape
+              doesn't match the new view's expectations, it throws →
+              DashboardErrorBoundary catches → shows "جاري محاولة
+              إعادة التحميل" for 2 seconds. The key prop eliminates this
+              race entirely. */}
+          <TeacherSectionPreview key={sectionId} sectionId={sectionId} />
         </CardContent>
       </Card>
     </>
