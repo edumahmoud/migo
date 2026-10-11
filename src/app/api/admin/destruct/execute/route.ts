@@ -41,7 +41,11 @@ import { verifyToken } from '../verify/route';
 const CATEGORY_TABLES: Record<string, string[]> = {
   users: [
     'banned_users', 'student_suspensions', 'user_sessions',
-    'user_folders', 'otp_codes', 'google_oauth_tokens',
+    'user_folders',
+    // v134b: REMOVED 'otp_codes' from the destructible list — deleting
+    // it breaks the phone-verification flow for all new signups. The
+    // otp_codes table is critical auth infrastructure, not user data.
+    'google_oauth_tokens',
     'teacher_student_links', 'registration_agents', 'registration_sources',
     // NOTE: 'users' itself is deleted LAST (and only if deleteSelf is
     // false we keep the admin's row; if true we delete it too).

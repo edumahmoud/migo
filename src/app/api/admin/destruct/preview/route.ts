@@ -54,7 +54,9 @@ export async function GET(request: NextRequest) {
       label: 'الحسابات المسجلة',
       tables: [
         'users', 'banned_users', 'student_suspensions', 'user_sessions',
-        'user_folders', 'otp_codes', 'google_oauth_tokens',
+        'user_folders',
+        // v134b: otp_codes removed from destructible list (critical auth infra)
+        'google_oauth_tokens',
         'teacher_student_links', 'registration_agents', 'registration_sources',
       ],
     },
