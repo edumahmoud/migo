@@ -110,27 +110,19 @@ const KIND_LABEL: Record<Kind, string> = {
   other: 'أخرى',
 };
 
-// v114: Teacher sections that can be exposed per-agent in their Teacher View.
-// These match the IDs used in app-sidebar.tsx teacherNavItems.
-const TEACHER_SECTION_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: 'dashboard',           label: 'الرئيسية' },
-  { id: 'subjects',             label: 'المقررات' },
-  { id: 'students',             label: 'الطلاب' },
-  { id: 'tracking',             label: 'التتبع' },
-  { id: 'summaries',            label: 'الملخصات' },
-  { id: 'questionBank',         label: 'بنك الأسئلة' },
-  { id: 'scormLibrary',         label: 'مكتبة SCORM' },
-  { id: 'pendingOrders',        label: 'طلبات معلّقة' },
-  { id: 'financialManagement',  label: 'الإدارة المالية' },
-  { id: 'chat',                 label: 'المحادثة' },
-  { id: 'videos',               label: 'الفيديوهات' },
-  { id: 'files',                label: 'الملفات' },
-  { id: 'todos',                label: 'المهام' },
-  { id: 'calendar',             label: 'التقويم' },
-  { id: 'reports',              label: 'البلاغات' },
-  { id: 'analytics',            label: 'التحليلات' },
-  { id: 'notifications',        label: 'الإشعارات' },
-  { id: 'registration',         label: 'وكلاء التسجيل' },
+// v132: Agent sections that the teacher can grant per-agent.
+// These match AGENT_SECTION_DEFS in src/components/agent/agent-portal.tsx.
+// v132 reduced the list from 18 sub-sections to 9 top-level sections.
+const TEACHER_SECTION_OPTIONS: Array<{ id: string; label: string; description: string }> = [
+  { id: 'search',               label: 'البحث عن طالب',  description: 'البحث عن طريقاب والتلاعب بالإيقافات والاشتراكات' },
+  { id: 'pendingOrders',         label: 'الطلبات المعلّقة', description: 'قبول/رفض طلبات الاشتراك المعلّقة' },
+  { id: 'dashboard',            label: 'الرئيسية',        description: 'إحصائيات عامة (المقررات، الطلاب، الطلبات، الاشتراكات)' },
+  { id: 'subjects',             label: 'المقررات',       description: 'عرض المقررات والخطط المتاحة لكل مقرر' },
+  { id: 'students',             label: 'الطلاب',         description: 'عرض قائمة الطلاب ومعلوماتهم (للقراءة فقط)' },
+  { id: 'tracking',             label: 'تتبع الأداء',    description: 'متابعة أداء الطلاب (حضور، اختبارات، واجبات، تقدم دروس)' },
+  { id: 'financialManagement',  label: 'الإدارة المالية', description: 'الاطلاع على المعاملات المالية ونصيب المعلم والمنصة' },
+  { id: 'calendar',             label: 'التقويم',        description: 'عرض الاختبارات والمهام والمحاضرات المجدولة' },
+  { id: 'reports',              label: 'البلاغات',       description: 'عرض البلاغات الإشرافية المقدمة من الطلاب' },
 ];
 
 export default function RegistrationAgentsSection() {
@@ -931,13 +923,13 @@ export default function RegistrationAgentsSection() {
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto rounded-md border border-border/60 p-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto rounded-md border border-border/60 p-2">
                     {TEACHER_SECTION_OPTIONS.map((sec) => {
                       const checked = editAllowedSet.has(sec.id);
                       return (
                         <label
                           key={sec.id}
-                          className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-pointer transition-colors ${
+                          className={`flex items-start gap-2 rounded px-2 py-2 text-xs cursor-pointer transition-colors ${
                             checked
                               ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
@@ -953,8 +945,14 @@ export default function RegistrationAgentsSection() {
                                 return next;
                               });
                             }}
+                            className="mt-0.5"
                           />
-                          <span className="truncate">{sec.label}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{sec.label}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                              {sec.description}
+                            </div>
+                          </div>
                         </label>
                       );
                     })}

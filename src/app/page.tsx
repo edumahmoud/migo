@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, School, Layers } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, School, Layers, DollarSign, ShieldAlert } from 'lucide-react';
 import SettingsSection from '@/components/shared/settings-section';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -161,6 +161,12 @@ function HomeContent() {
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, setQuizReviewMode, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode } = useAppStore();
   // v113: agent portal section state
   const [agentSection, setAgentSection] = useState<string>('search');
+  // v132: agent's allowed_sections (fetched from /api/agent/me).
+  //   null  → all 9 sections allowed (default for legacy agents)
+  //   [...] → only those sections appear in the sidebar
+  //   []    → only profile appears
+  // The sidebar is built dynamically from this + AGENT_SECTION_DEFS.
+  const [agentAllowedSections, setAgentAllowedSections] = useState<string[] | null | undefined>(undefined);
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const { cleanup: cleanupNotifications } = useNotificationStore();
   const profileBannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
@@ -468,6 +474,78 @@ function HomeContent() {
       });
     }
   }, [searchParams]);
+
+  // v132: Fetch the agent's allowed_sections when the user is a
+  // registration_agent. The sidebar is built dynamically from this.
+  // We fetch once on mount (or when user.role becomes 'registration_agent').
+  useEffect(() => {
+    if (user?.role !== 'registration_agent') {
+      setAgentAllowedSections(undefined);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+        const res = await fetch('/api/agent/me', { headers: await getCachedAuthHeaders() });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success) {
+          setAgentAllowedSections(json.agent?.allowed_sections ?? null);
+        } else {
+          // On error, default to "all sections" so the agent isn't locked out.
+          setAgentAllowedSections(null);
+        }
+      } catch {
+        if (!cancelled) setAgentAllowedSections(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.role]);
+
+  // v132: If the current agentSection is NOT in the allowed list (and
+  // it's not 'profile'/'settings' which are always allowed), reset to
+  // the first allowed section. This handles the case where the teacher
+  // revokes a section while the agent is viewing it.
+  useEffect(() => {
+    if (user?.role !== 'registration_agent') return;
+    if (agentAllowedSections === undefined) return; // still loading
+    if (agentSection === 'profile' || agentSection === 'settings') return;
+    // Backward-compat: 'pending' is an alias for 'pendingOrders'.
+    const normalized = agentSection === 'pending' ? 'pendingOrders' : agentSection;
+    if (agentAllowedSections === null) return; // null = all allowed
+    if (!agentAllowedSections.includes(normalized)) {
+      const firstAllowed = agentAllowedSections[0] ?? 'profile';
+      setAgentSection(firstAllowed);
+    }
+  }, [user?.role, agentAllowedSections, agentSection]);
+
+  // v132: Build the agent sidebar nav items dynamically from
+  // agentAllowedSections. `profile` is ALWAYS present (it's the
+  // agent's own profile, not a teacher permission). `settings` is
+  // added only when the user is on the profile/settings variant.
+  const agentNavItems = useMemo(() => {
+    const ALL_AGENT_SECTIONS: Array<{ id: string; label: string; icon: React.ReactNode }> = [
+      { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
+      { id: 'pendingOrders', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
+      { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="h-5 w-5" /> },
+      { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
+      { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
+      { id: 'tracking', label: 'تتبع الأداء', icon: <Activity className="h-5 w-5" /> },
+      { id: 'financialManagement', label: 'الإدارة المالية', icon: <DollarSign className="h-5 w-5" /> },
+      { id: 'calendar', label: 'التقويم', icon: <Clock className="h-5 w-5" /> },
+      { id: 'reports', label: 'البلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
+    ];
+    const filtered = agentAllowedSections === undefined
+      ? ALL_AGENT_SECTIONS  // still loading — show all to avoid flicker
+      : agentAllowedSections === null
+        ? ALL_AGENT_SECTIONS  // null = all allowed
+        : ALL_AGENT_SECTIONS.filter(s => agentAllowedSections.includes(s.id));
+    return [
+      ...filtered,
+      { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
+    ];
+  }, [agentAllowedSections]);
 
   // ─── Payment callback (UX only) ───
   // When the student returns from Paymob's hosted checkout, the backend
@@ -1034,10 +1112,7 @@ onSignOut={async () => {
                 activeSection={agentSection}
                 onSectionChange={(s: string) => setAgentSection(s)}
                 customNavItems={[
-                  { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
-                  { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-                  { id: 'teacherView', label: 'عرض المعلم', icon: <School className="h-5 w-5" /> },
-                  { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
+                  ...agentNavItems,
                   { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
                 ]}
               />
@@ -1089,12 +1164,7 @@ onSignOut={async () => {
               role={'admin' as 'student' | 'teacher' | 'admin'}
               activeSection={agentSection}
               onSectionChange={(s: string) => setAgentSection(s)}
-              customNavItems={[
-                { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
-                { id: 'pending', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-                { id: 'teacherView', label: 'عرض المعلم', icon: <School className="h-5 w-5" /> },
-                { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
-              ]}
+              customNavItems={agentNavItems}
             />
             <main
               className={`flex-1 min-w-0 overflow-x-hidden pt-14 md:pt-16 pb-20 md:pb-4 transition-[margin,padding] duration-300 ease-in-out ${

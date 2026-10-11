@@ -105,38 +105,47 @@ interface TeacherInfo {
   ban_reason?: string | null;
 }
 
-// Teacher sections the agent may browse from their profile.
-// Order matters — this is the order they'll appear in the Teacher View nav.
-const TEACHER_SECTION_DEFS: Array<{
+// v132: Top-level agent sections. Each one is a separate sidebar entry.
+// The teacher controls which sections the agent can access via
+// `allowed_sections` on the registration_agents table.
+//   NULL  → all 9 sections allowed
+//   [...] → only the listed sections
+//   []    → only profile (no agent sections)
+//
+// `search` and `pendingOrders` are NOT teacher sections in the old sense —
+// they are the agent's primary operational tools. They are included here
+// so the teacher can also revoke them if needed (e.g., a finance-only
+// agent who doesn't deal with student search or pending orders).
+const AGENT_SECTION_DEFS: Array<{
   id: string;
   label: string;
   icon: React.ReactNode;
 }> = [
-  { id: 'dashboard',           label: 'الرئيسية',        icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'search',               label: 'البحث عن طالب',  icon: <Search className="h-5 w-5" /> },
+  { id: 'pendingOrders',         label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
+  { id: 'dashboard',            label: 'الرئيسية',        icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects',             label: 'المقررات',       icon: <BookOpen className="h-5 w-5" /> },
   { id: 'students',             label: 'الطلاب',         icon: <Users className="h-5 w-5" /> },
-  { id: 'tracking',             label: 'التتبع',         icon: <Activity className="h-5 w-5" /> },
-  { id: 'summaries',            label: 'الملخصات',       icon: <FileText className="h-5 w-5" /> },
-  { id: 'questionBank',        label: 'بنك الأسئلة',   icon: <Database className="h-5 w-5" /> },
-  { id: 'scormLibrary',         label: 'مكتبة SCORM',    icon: <Package className="h-5 w-5" /> },
-  { id: 'pendingOrders',        label: 'طلبات معلّقة',   icon: <Clock className="h-5 w-5" /> },
+  { id: 'tracking',             label: 'تتبع الأداء',    icon: <Activity className="h-5 w-5" /> },
   { id: 'financialManagement',  label: 'الإدارة المالية', icon: <DollarSign className="h-5 w-5" /> },
-  { id: 'chat',                 label: 'المحادثة',       icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'videos',               label: 'الفيديوهات',     icon: <Video className="h-5 w-5" /> },
-  { id: 'files',                label: 'الملفات',        icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'todos',                label: 'المهام',         icon: <ListTodo className="h-5 w-5" /> },
   { id: 'calendar',             label: 'التقويم',        icon: <CalendarIcon className="h-5 w-5" /> },
   { id: 'reports',              label: 'البلاغات',       icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'analytics',            label: 'التحليلات',      icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'notifications',        label: 'الإشعارات',      icon: <Bell className="h-5 w-5" /> },
-  { id: 'registration',         label: 'وكلاء التسجيل',   icon: <UserCog className="h-5 w-5" /> },
 ];
 
-// v116 fix: the actual sidebar items are now search/pending/teacherView/profile.
-// 'students' + 'settings' were removed in the v116 restructure but the type
-// wasn't updated. The 'profile' section is handled OUTSIDE AgentPortal (in
-// page.tsx → UserProfilePage), so AgentPortal only handles these 3.
-type AgentSection = 'search' | 'pending' | 'teacherView';
+// v132: all sections are top-level now — no more "teacherView" wrapper.
+// The `pending` section id is kept as an alias for `pendingOrders` for
+// backward compatibility with any persisted state.
+type AgentSection =
+  | 'search'
+  | 'pendingOrders'
+  | 'pending'
+  | 'dashboard'
+  | 'subjects'
+  | 'students'
+  | 'tracking'
+  | 'financialManagement'
+  | 'calendar'
+  | 'reports';
 
 export default function AgentPortal({
   activeSection = 'search',
@@ -187,13 +196,7 @@ export default function AgentPortal({
   // reactivation loading state.
   const [suspensionsExpanded, setSuspensionsExpanded] = useState(true);
   const [reactivatingSubjectId, setReactivatingSubjectId] = useState<string | null>(null);
-  // v116 fix: initial state is '' (empty) so the GRID shows first when
-  // the user opens Teacher View. Before this fix, the initial state was
-  // 'dashboard' → the component skipped the grid and went straight to
-  // the dashboard detail view (which is read-only) → the user never
-  // saw the grid with the "إجراءات متاحة" badges → they thought the
-  // whole Teacher View was read-only.
-  const [teacherViewSection, setTeacherViewSection] = useState<string>('');
+  // v132: removed teacherViewSection state — sections are top-level now.
   const { confirmDialog, confirm } = useConfirmDialog();
 
   // ─── Fetch agent profile (for allowed_sections + display) ───
@@ -226,15 +229,14 @@ export default function AgentPortal({
     }
   }, []);
 
-  // v116 fix (A5): fetch /api/agent/me LAZILY — only when the user opens
-  // the 'teacherView' section. Before this fix, the call fired on every
-  // mount, including when the agent was just using 'search' or 'pending'.
-  // The 'teacherView' is the only consumer of `self` + `teacher`, so
-  // lazy-loading avoids an unnecessary API call on first paint.
+  // v132: fetch /api/agent/me LAZILY — only when the user opens a
+  // teacher-data section (dashboard, subjects, students, tracking,
+  // financialManagement, calendar, reports). The search and
+  // pendingOrders sections don't need the agent profile.
+  const TEACHER_DATA_SECTIONS = ['dashboard', 'subjects', 'students', 'tracking', 'financialManagement', 'calendar', 'reports'];
   useEffect(() => {
-    if (activeSection !== 'teacherView') return;
-    // Only fetch when self is null (first open) — avoids refetching on
-    // every re-render within the same 'teacherView' session.
+    if (!TEACHER_DATA_SECTIONS.includes(activeSection)) return;
+    // Only fetch when self is null (first open) — avoids refetching.
     if (self !== null || selfError !== null) return;
     fetchSelf();
   }, [activeSection, self, selfError, fetchSelf]);
@@ -430,7 +432,11 @@ export default function AgentPortal({
   }, []);
 
   useEffect(() => {
-    if (activeSection === 'pending') fetchPendingOrders();
+    // v132: `pendingOrders` is the canonical id; `pending` is a
+    // backward-compat alias.
+    if (activeSection === 'pendingOrders' || activeSection === 'pending') {
+      fetchPendingOrders();
+    }
   }, [activeSection, fetchPendingOrders]);
 
   // ─── Format helpers ───
@@ -616,25 +622,17 @@ export default function AgentPortal({
     );
   };
 
-  // ─── Allowed teacher sections (filtered by per-agent config) ───
-  const visibleTeacherSections = useMemo(() => {
-    if (!self?.allowed_sections) return TEACHER_SECTION_DEFS;
-    return TEACHER_SECTION_DEFS.filter(def => self.allowed_sections!.includes(def.id));
+  // ─── Allowed agent sections (filtered by per-agent config) ───
+  // v132: AGENT_SECTION_DEFS replaces the old TEACHER_SECTION_DEFS.
+  // `self.allowed_sections` is the same JSONB column on registration_agents.
+  const visibleAgentSections = useMemo(() => {
+    if (!self?.allowed_sections) return AGENT_SECTION_DEFS;
+    return AGENT_SECTION_DEFS.filter(def => self.allowed_sections!.includes(def.id));
   }, [self]);
 
-  // v116 fix: when entering 'teacherView', if the current section selection
-  // is NOT in the allowed list (and is not '' = grid view), reset to '' so
-  // the grid shows. Don't auto-default to the first allowed section — that
-  // would skip the grid and go straight to a detail view, which is how the
-  // bug manifested (user never saw the grid with "إجراءات متاحة" badges).
-  useEffect(() => {
-    if (activeSection !== 'teacherView') return;
-    if (teacherViewSection === '') return; // empty = grid view, don't touch
-    const allowed = visibleTeacherSections.map(s => s.id);
-    if (allowed.length > 0 && !allowed.includes(teacherViewSection)) {
-      setTeacherViewSection(''); // reset to grid
-    }
-  }, [activeSection, visibleTeacherSections, teacherViewSection]);
+  // v132: removed the teacherViewSection reset effect — sections are
+  // now top-level sidebar entries, so there is no "drill-down" stage
+  // to reset.
 
   return (
     <div className="space-y-4 p-3 sm:p-6 max-w-4xl mx-auto" dir={direction}>
@@ -993,8 +991,9 @@ export default function AgentPortal({
         </>
       )}
 
-      {/* ════════ Section: PENDING ORDERS ════════ */}
-      {activeSection === 'pending' && (
+      {/* ════════ Section: PENDING ORDERS (top-level) ════════ */}
+      {/* v132: `pending` is kept as a backward-compat alias for `pendingOrders`. */}
+      {(activeSection === 'pendingOrders' || activeSection === 'pending') && (
         <>
           <header className="flex items-center justify-between">
             <h1 className="text-xl font-bold">الطلبات المعلّقة</h1>
@@ -1054,16 +1053,17 @@ export default function AgentPortal({
         </>
       )}
 
-      {/* ════════ Section: TEACHER VIEW (top-level, replaces old "Settings + students") ════════ */}
-      {activeSection === 'teacherView' && (
-        <TeacherViewSection
+      {/* ════════ v132: Top-level teacher-data sections ════════ */}
+      {/* Each former sub-section of "Teacher View" is now its own sidebar
+          entry. We render a shared layout (header + TeacherSectionPreview)
+          for each. The preview component handles fetching + rendering. */}
+      {['dashboard', 'subjects', 'students', 'tracking', 'financialManagement', 'calendar', 'reports'].includes(activeSection) && (
+        <TopLevelSection
+          sectionId={activeSection}
           self={self}
           teacher={teacher}
           selfError={selfError}
           onRetry={fetchSelf}
-          teacherViewSection={teacherViewSection}
-          setTeacherViewSection={setTeacherViewSection}
-          visibleTeacherSections={visibleTeacherSections}
           isRTL={isRTL}
         />
       )}
@@ -1090,57 +1090,43 @@ export default function AgentPortal({
 }
 
 // ──────────────────────────────────────────────────────────────
-// TeacherViewSection — v116 (was SettingsSection — renamed for clarity)
-//   Shows the agent's own profile + a 2-stage navigation for the
-//   teacher's allowed sections:
-//     Stage 1: A grid of section cards (Dashboard, Students, Subjects, …).
-//              The agent picks one to drill down.
-//     Stage 2: The selected section's content with a back button to
-//              return to the grid. Some sections include actions
-//              (approve/reject enrollments, activate/cancel orders,
-//              suspend/activate students) — not purely read-only.
+// TopLevelSection — v132
+//   Replaces the old TeacherViewSection. Each former sub-section of
+//   "Teacher View" is now its own top-level sidebar entry, so this
+//   component just renders a header (with the section's icon + label)
+//   + the TeacherSectionPreview that fetches + displays the data.
 //
-//   Before this restructure, all 18 section buttons + the preview were
-//   crammed into ONE page → very long + hard to navigate. The 2-stage
-//   approach gives the agent a clean "home" view + a dedicated page
-//   per section.
-//
-//   If fetchSelf failed (e.g., the agent's row was deactivated or
-//   deleted by the teacher, leaving role='registration_agent' but
-//   no matching registration_agents row), we show a clear error
-//   card with the actual server-side error message + a Retry
-//   button — instead of an infinite spinner.
+//   If the agent profile hasn't loaded yet (or failed to load), we
+//   show a loading spinner / error card with a Retry button.
 // ──────────────────────────────────────────────────────────────
-function TeacherViewSection({
+function TopLevelSection({
+  sectionId,
   self,
   teacher,
   selfError,
   onRetry,
-  teacherViewSection,
-  setTeacherViewSection,
-  visibleTeacherSections,
-  isRTL,
+  isRTL: _isRTL,
 }: {
+  sectionId: string;
   self: AgentSelf | null;
   teacher: TeacherInfo | null;
   selfError: string | null;
   onRetry: () => void;
-  teacherViewSection: string;
-  setTeacherViewSection: (s: string) => void;
-  visibleTeacherSections: Array<{ id: string; label: string; icon: React.ReactNode }>;
   isRTL: boolean;
 }) {
+  const sectionDef = AGENT_SECTION_DEFS.find(s => s.id === sectionId);
+
+  // Loading state OR error state (before we have a profile).
   if (!self) {
-    // Loading state OR error state.
     return (
       <>
         <header className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
-            <LayoutDashboard className="h-5 w-5 text-white" />
+            {sectionDef?.icon ?? <LayoutDashboard className="h-5 w-5 text-white" />}
           </div>
           <div>
-            <h1 className="text-xl font-bold">عرض المعلم</h1>
-            <p className="text-sm text-muted-foreground">بيانات الوكيل + أقسام المعلم المرئية لك</p>
+            <h1 className="text-xl font-bold">{sectionDef?.label ?? '—'}</h1>
+            <p className="text-sm text-muted-foreground">جاري التحميل…</p>
           </div>
         </header>
         {selfError ? (
@@ -1152,9 +1138,7 @@ function TeacherViewSection({
                   <p className="font-semibold text-rose-700 dark:text-rose-300">
                     تعذّر تحميل بيانات الوكيل
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {selfError}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{selfError}</p>
                   <p className="text-xs text-muted-foreground mt-2">
                     قد يكون سبب ذلك أن المعلم أوقف حساب الوكيل أو حذفه. تواصل
                     مع المعلم للتأكد من حالة الوكيل، أو حاول مرة أخرى:
@@ -1178,154 +1162,26 @@ function TeacherViewSection({
     );
   }
 
-  const allowedIsAll = self.allowed_sections === null;
-  const allowedCount = self.allowed_sections?.length ?? 0;
-  const selectedSection = visibleTeacherSections.find(s => s.id === teacherViewSection);
-
-  // ─── Stage 2: section detail view (when a section is selected) ───
-  // Render a dedicated "page" for the selected section with a back
-  // button at the top. This is much cleaner than the old layout that
-  // crammed the section grid + the preview on one page.
-  if (selectedSection) {
-    return (
-      <>
-        <header className="flex items-center gap-3">
-          <button
-            onClick={() => setTeacherViewSection('')}
-            className="shrink-0 flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs hover:bg-muted transition-colors"
-            title="رجوع لقائمة الأقسام"
-            aria-label="رجوع"
-          >
-            <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
-          </button>
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
-            {selectedSection.icon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold truncate">{selectedSection.label}</h1>
-            <p className="text-sm text-muted-foreground truncate">عرض المعلم</p>
-          </div>
-        </header>
-
-        <Card>
-          <CardContent className="space-y-2">
-            <TeacherSectionPreview sectionId={selectedSection.id} />
-          </CardContent>
-        </Card>
-      </>
-    );
-  }
-
-  // ─── Stage 1: section grid (no section selected) ───
+  // Normal render: header + preview.
   return (
     <>
       <header className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
-          <LayoutDashboard className="h-5 w-5 text-white" />
+          {sectionDef?.icon ?? <LayoutDashboard className="h-5 w-5 text-white" />}
         </div>
-        <div>
-          <h1 className="text-xl font-bold">عرض المعلم</h1>
-          <p className="text-sm text-muted-foreground">أقسام المعلم المرئية لك — اختر قسماً للمتابعة</p>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold truncate">{sectionDef?.label ?? '—'}</h1>
+          <p className="text-sm text-muted-foreground truncate">
+            المعلم: {teacher?.name ?? '—'}
+          </p>
         </div>
       </header>
 
-      {/* Agent profile summary (compact) */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            بيانات الوكيل
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-xs text-muted-foreground">الاسم المعروض</p>
-              <p className="font-medium">{self.display_name ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">النوع</p>
-              <p className="font-medium">{self.kind ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">بريد التواصل</p>
-              <p className="font-medium truncate" dir="ltr">{self.contact_email ?? '—'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">هاتف التواصل</p>
-              <p className="font-medium truncate" dir="ltr">{self.contact_phone ?? '—'}</p>
-            </div>
-          </div>
-          <div className="pt-2 border-t">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">المعلم المسؤول</span>
-              <span className="font-medium">{teacher?.name ?? '—'}</span>
-            </div>
-          </div>
-          <div className="pt-2 border-t">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">صلاحيات عرض أقسام المعلم</span>
-              <Badge variant={allowedIsAll ? 'default' : 'secondary'} className="text-[10px]">
-                {allowedIsAll
-                  ? 'كل الأقسام مسموحة'
-                  : `${allowedCount} قسم مسموح`}
-              </Badge>
-            </div>
-          </div>
+        <CardContent className="space-y-2">
+          <TeacherSectionPreview sectionId={sectionId} />
         </CardContent>
       </Card>
-
-      {/* Teacher View section grid — bigger cards, each one a clear CTA */}
-      {visibleTeacherSections.length > 0 ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <LayoutDashboard className="h-4 w-4 text-sky-600" />
-              الأقسام المسموحة لك ({visibleTeacherSections.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2">
-              {visibleTeacherSections.map((sec) => {
-                // v116: sections with action buttons — show a badge so the
-                // agent knows which sections they can DO things in (not just view).
-                const hasActions = sec.id === 'students' || sec.id === 'pendingOrders';
-                return (
-                <button
-                  key={sec.id}
-                  onClick={() => setTeacherViewSection(sec.id)}
-                  className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-start text-xs font-medium transition-all ${
-                    isRTL ? 'flex-row-reverse text-end' : ''
-                  } border-border hover:bg-sky-50 hover:border-sky-300 dark:hover:bg-sky-900/20 dark:hover:border-sky-700 text-slate-700 dark:text-slate-300 hover:text-sky-700 dark:hover:text-sky-300`}
-                >
-                  <span className="shrink-0 text-sky-600 dark:text-sky-400">{sec.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{sec.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {hasActions ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">إجراءات متاحة</span>
-                      ) : (
-                        'عرض البيانات'
-                      )}
-                    </div>
-                  </div>
-                  <ArrowRight className={`h-3 w-3 shrink-0 self-center text-muted-foreground ${isRTL ? 'rotate-180' : ''}`} />
-                </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="py-6 text-center">
-            <ShieldCheck className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
-              المعلم لم يمنحك صلاحية الوصول لأي قسم من أقسامه. تواصل معه لتفعيل الصلاحيات.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </>
   );
 }

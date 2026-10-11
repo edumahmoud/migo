@@ -6,24 +6,20 @@ import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
 /**
  * GET /api/agent/teacher-view?section=<section_id>
  *
- * Returns READ-ONLY data for the agent's Teacher View, scoped to the
+ * v132: Returns data for the agent's top-level sections, scoped to the
  * agent's teacher. The agent may only see the section if it appears
  * in their allowed_sections (or if allowed_sections is NULL = all
  * sections allowed).
  *
- * Sections supported:
- *   dashboard       → totals (subjects, students, pending orders, paid orders)
- *   subjects        → list of subjects with name, level, students count, price
- *   students        → list of students enrolled in the teacher's courses
- *   pendingOrders   → mirror of /api/agent/orders (for convenience)
- *   registration    → list of OTHER agents of the same teacher (id, name, kind, active)
- *   summaries       → list of summaries (id, title, subject, created_at)
- *   questionBank    → list of question banks (id, title, subject, questions count)
- *   scormLibrary    → list of SCORM packages (id, title, status, created_at)
- *   financialManagement → summary totals (revenue this month, pending payouts)
- *   videos / files / todos / calendar / reports / analytics / notifications / chat
- *                   → empty array (these require complex joins; the agent's Teacher
- *                     View will render a "preview only" message for them)
+ * Sections supported (9 total):
+ *   dashboard           → stats (subjects, students, pending orders, active subscriptions)
+ *   subjects            → list of subjects with name, level, students count, plans[]
+ *   students            → list of students enrolled in the teacher's courses
+ *   pendingOrders       → list of pending orders (mirror of /api/agent/orders)
+ *   tracking            → per-student performance metrics (attendance, quizzes, assignments, lesson progress)
+ *   financialManagement → per-transaction ledger (gross, teacher_share, platform_share)
+ *   calendar            → scheduled events (quizzes, assignments, lectures)
+ *   reports             → moderation reports (from `reports` table)
  *
  * Authorization: requireAgent (role='registration_agent').
  * Section allow-check: if agent.allowed_sections is non-null and
@@ -34,20 +30,10 @@ const SectionSchema = z.enum([
   'subjects',
   'students',
   'pendingOrders',
-  'registration',
-  'summaries',
-  'questionBank',
-  'scormLibrary',
+  'tracking',
   'financialManagement',
-  'videos',
-  'files',
-  'todos',
   'calendar',
   'reports',
-  'analytics',
-  'notifications',
-  'chat',
-  'tracking',
 ]);
 
 export async function GET(request: NextRequest) {
@@ -101,38 +87,40 @@ export async function GET(request: NextRequest) {
         return await handleStudents(teacherId, limit, offset);
       case 'pendingOrders':
         return await handlePendingOrders(teacherId, limit, offset);
-      case 'registration':
-        return await handleRegistration(teacherId, limit, offset);
-      case 'summaries':
-        return await handleSummaries(teacherId, limit, offset);
-      case 'questionBank':
-        return await handleQuestionBank(teacherId, limit, offset);
-      case 'scormLibrary':
-        return await handleScormLibrary(teacherId, limit, offset);
       case 'financialManagement':
+        // v132 Phase 1: keep the existing monthly-aggregate handler.
+        // Phase 6 will expand this to per-transaction view.
         return await handleFinancial(teacherId);
-      case 'videos':
-        return await handleVideos(teacherId, limit, offset);
-      case 'files':
-        return await handleFiles(teacherId, limit, offset);
-      case 'todos':
-        return await handleTodos(teacherId, limit, offset);
-      case 'notifications':
-        return await handleNotifications(teacherId, limit, offset);
-      case 'analytics':
-        return await handleAnalytics(teacherId);
       case 'tracking':
-        // v130: reuse analytics handler for tracking (same data shape)
-        return await handleAnalytics(teacherId);
-      default:
-        // Sections that require complex joins or are not data-bearing
-        // (tracking/calendar/reports/chat) return an empty payload so
-        // the client UI can render a "preview only" placeholder.
+        // v132 Phase 1: temporary placeholder — full handler in Phase 5.
         return NextResponse.json({
           success: true,
           section,
           items: [],
-          note: 'هذا القسم غير مُفعّل للعرض كمعاينة وكيل. يجب على المعلم الدخول لحسابه لرؤية المحتوى الكامل.',
+          note: 'سيتم توفير بيانات تتبع الأداء قريباً.',
+        });
+      case 'calendar':
+        // v132 Phase 1: temporary placeholder — full handler in Phase 7.
+        return NextResponse.json({
+          success: true,
+          section,
+          items: [],
+          note: 'سيتم توفير بيانات التقويم قريباً.',
+        });
+      case 'reports':
+        // v132 Phase 1: temporary placeholder — full handler in Phase 7.
+        return NextResponse.json({
+          success: true,
+          section,
+          items: [],
+          note: 'سيتم توفير بيانات البلاغات قريباً.',
+        });
+      default:
+        return NextResponse.json({
+          success: true,
+          section,
+          items: [],
+          note: 'هذا القسم غير مُفعّل للعرض كمعاينة وكيل.',
         });
     }
   } catch (err) {
