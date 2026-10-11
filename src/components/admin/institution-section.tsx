@@ -233,7 +233,13 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
 
       const result = await res.json();
       if (!res.ok || result.error) {
-        toast.error(result.error || t('common.unexpectedError'));
+        // v132b: show the actual DB error details (if provided by the
+        // API) alongside the Arabic message, so the admin can diagnose
+        // the root cause without needing server logs.
+        const errMsg = result.details
+          ? `${result.error} (${result.details})`
+          : (result.error || t('common.unexpectedError'));
+        toast.error(errMsg);
         return;
       }
 

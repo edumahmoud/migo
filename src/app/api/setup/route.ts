@@ -184,7 +184,31 @@ export async function POST(request: NextRequest) {
           .update(updateObj)
           .eq('id', existing.id);
 
-        // If tagline column doesn't exist, retry without it
+        // v132b: If a column doesn't exist (tagline OR timezone), retry
+        // without the offending column(s). This handles the case where
+        // the migration hasn't been run yet on this database.
+        if (error && (error.code === '42703' || error.message?.includes('does not exist'))) {
+          const missingCols: string[] = [];
+          if (error.message?.includes('tagline') && 'tagline' in updateObj) {
+            missingCols.push('tagline');
+            delete updateObj.tagline;
+          }
+          if (error.message?.includes('timezone') && 'timezone' in updateObj) {
+            missingCols.push('timezone');
+            delete updateObj.timezone;
+          }
+          if (missingCols.length > 0) {
+            console.warn('[setup] Retrying update without missing columns:', missingCols);
+            const retryResult = await supabaseServer
+              .from('institution_settings')
+              .update(updateObj)
+              .eq('id', existing.id);
+            error = retryResult.error;
+          }
+        }
+
+        // Legacy: if the error specifically mentions tagline, retry without it
+        // (kept for backward compat with older DB states)
         if (error && tagline !== undefined && error.message?.includes('tagline')) {
           delete updateObj.tagline;
           const retryResult = await supabaseServer
@@ -196,7 +220,14 @@ export async function POST(request: NextRequest) {
 
         if (error) {
           console.error('[setup] Error updating institution:', error);
-          return NextResponse.json({ error: 'فشل في تحديث بيانات المؤسسة' }, { status: 500 });
+          // v132b: return the actual DB error message so the admin can
+          // see what went wrong (was previously swallowed behind a
+          // generic Arabic message that made debugging impossible).
+          return NextResponse.json({
+            error: 'فشل في تحديث بيانات المؤسسة',
+            details: error.message || String(error),
+            code: error.code,
+          }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, action: 'updated', via: 'direct' });
@@ -228,7 +259,23 @@ export async function POST(request: NextRequest) {
         .from('institution_settings')
         .insert(insertObj);
 
-      // If tagline column doesn't exist, retry without it
+      // v132b: If a column doesn't exist (tagline OR timezone), retry
+      // without the offending column(s). Handles pre-migration DBs.
+      if (insertError && (insertError.code === '42703' || insertError.message?.includes('does not exist'))) {
+        if (insertError.message?.includes('tagline') && 'tagline' in insertObj) {
+          delete insertObj.tagline;
+        }
+        if (insertError.message?.includes('timezone') && 'timezone' in insertObj) {
+          delete insertObj.timezone;
+        }
+        console.warn('[setup] Retrying insert without missing columns');
+        const retryResult = await supabaseServer
+          .from('institution_settings')
+          .insert(insertObj);
+        insertError = retryResult.error;
+      }
+
+      // Legacy: if the error specifically mentions tagline, retry without it
       if (insertError && tagline !== undefined && insertError.message?.includes('tagline')) {
         delete insertObj.tagline;
         const retryResult = await supabaseServer
