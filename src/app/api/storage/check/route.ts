@@ -25,16 +25,21 @@ export async function GET(request: NextRequest) {
   const userId = auth.user.id;
 
   // 1. Get default quota from locked_sections_config.
+  // v134k: free_quota_mb is the free tier (always active, admin-controlled).
+  // student/teacher_monthly_limit are kept for backward compat but
+  // free_quota_mb takes precedence for the files section.
   const { data: config } = await supabaseServer
     .from('locked_sections_config')
-    .select('student_monthly_limit, teacher_monthly_limit')
+    .select('free_quota_mb, student_monthly_limit, teacher_monthly_limit')
     .eq('section_key', 'files')
     .maybeSingle();
 
   const cfg = config as Record<string, unknown> | null;
-  const defaultQuota = role === 'student'
-    ? (cfg?.student_monthly_limit as number) ?? 100
-    : (cfg?.teacher_monthly_limit as number) ?? 500;
+  // v134k: use free_quota_mb first, fall back to monthly_limit.
+  const freeQuota = (cfg?.free_quota_mb as number) ??
+    (role === 'student'
+      ? (cfg?.student_monthly_limit as number) ?? 100
+      : (cfg?.teacher_monthly_limit as number) ?? 500);
 
   // 2. Get active upgrade.
   const { data: upgrade } = await supabaseServer
@@ -46,19 +51,30 @@ export async function GET(request: NextRequest) {
 
   const upgradeSize = (upgrade as Record<string, unknown> | null)?.size_mb as number ?? 0;
 
-  // 3. Count total file size.
+  // 3. Count total file size (user_files + subject_videos).
   const { data: files } = await supabaseServer
     .from('user_files')
     .select('file_size')
     .eq('user_id', userId);
 
-  const totalBytes = (files ?? []).reduce((sum: number, f: { file_size: number | null }) => {
+  // v134k: also count subject_videos uploaded by this user.
+  const { data: videos } = await supabaseServer
+    .from('subject_videos')
+    .select('video_size')
+    .eq('uploaded_by', userId);
+
+  const filesBytes = (files ?? []).reduce((sum: number, f: { file_size: number | null }) => {
     return sum + (f.file_size ?? 0);
   }, 0);
-  const usedMb = Math.round(totalBytes / (1024 * 1024));
+  const videosBytes = (videos ?? []).reduce((sum: number, v: { video_size: number | null }) => {
+    return sum + (v.video_size ?? 0);
+  }, 0);
+  const totalBytes = filesBytes + videosBytes;
 
   // 4. Calculate totals.
-  const totalQuota = defaultQuota + upgradeSize;
+  // v134k: total = free_quota (free tier) + upgrade_size (commercial).
+  const totalQuota = freeQuota + upgradeSize;
+  const usedMb = Math.round(totalBytes / (1024 * 1024));
   const remainingMb = Math.max(0, totalQuota - usedMb);
   const pct = totalQuota > 0 ? Math.min(100, (usedMb / totalQuota) * 100) : 0;
   const isFull = usedMb >= totalQuota;
@@ -72,9 +88,9 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    default_quota: defaultQuota,
-    upgrade_size: upgradeSize,
-    total_quota: totalQuota,
+    free_quota: freeQuota,           // v134k: free tier (admin-controlled)
+    upgrade_size: upgradeSize,        // v134k: purchased commercial storage
+    total_quota: totalQuota,          // free + purchased
     used_mb: usedMb,
     remaining_mb: remainingMb,
     pct: Math.round(pct),

@@ -1,15 +1,20 @@
 'use client';
 
 /**
- * UsageCounter — v134j
+ * UsageCounter — v134k
  *
- * v134j: collapsible (show/hide toggle). When collapsed, shows only a
- * compact one-line summary. When expanded, shows the full progress bar.
- * When storage is full, auto-expands + shows upgrade button.
+ * v134k: unified storage counter using /api/storage/check.
+ * Shows free + purchased breakdown, collapsible, with upgrade button.
+ *
+ * For 'count' mode (summaries/quizzes): uses /api/sections/check-usage
+ * as before.
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, AlertCircle, HardDrive, Zap, ArrowUpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Loader2, AlertCircle, HardDrive, Zap, ArrowUpCircle,
+  ChevronDown, ChevronUp, Sparkles,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -22,42 +27,75 @@ interface Props {
   onUpgradeClick?: () => void;
 }
 
-interface UsageData {
+interface StorageData {
+  free_quota: number;
+  upgrade_size: number;
+  total_quota: number;
+  used_mb: number;
+  remaining_mb: number;
+  pct: number;
+  is_full: boolean;
+}
+
+interface CountData {
   used: number;
   limit: number | null;
   remaining: number | null;
-  locked: boolean;
-  isUnlocked: boolean;
-  metric: string | null;
   canUse: boolean;
 }
 
+function formatSize(mb: number): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} جيجابايت`;
+  return `${mb} ميجابايت`;
+}
+
 export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClick }: Props) {
-  const [data, setData] = useState<UsageData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Storage data (from /api/storage/check)
+  const [storageData, setStorageData] = useState<StorageData | null>(null);
+  // Count data (from /api/sections/check-usage)
+  const [countData, setCountData] = useState<CountData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    const fetchUsage = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(
-          `/api/sections/check-usage?sectionKey=${encodeURIComponent(sectionKey)}`,
-          { headers: await getCachedAuthHeaders() },
-        );
-        const json = await res.json();
-        if (cancelled) return;
-        if (json.success) {
-          setData({
-            used: json.used ?? 0,
-            limit: json.limit ?? null,
-            remaining: json.remaining ?? null,
-            locked: json.locked ?? false,
-            isUnlocked: json.isUnlocked ?? false,
-            metric: json.metric ?? null,
-            canUse: json.canUse ?? true,
-          });
+        const headers = await getCachedAuthHeaders();
+        if (mode === 'storage') {
+          // v134k: use the unified /api/storage/check endpoint.
+          const res = await fetch('/api/storage/check', { headers });
+          const json = await res.json();
+          if (cancelled) return;
+          if (json.success) {
+            setStorageData({
+              free_quota: json.free_quota ?? 0,
+              upgrade_size: json.upgrade_size ?? 0,
+              total_quota: json.total_quota ?? 0,
+              used_mb: json.used_mb ?? 0,
+              remaining_mb: json.remaining_mb ?? 0,
+              pct: json.pct ?? 0,
+              is_full: json.is_full ?? false,
+            });
+          }
+        } else {
+          // Count mode: use /api/sections/check-usage
+          const res = await fetch(
+            `/api/sections/check-usage?sectionKey=${encodeURIComponent(sectionKey)}`,
+            { headers },
+          );
+          const json = await res.json();
+          if (cancelled) return;
+          if (json.success) {
+            setCountData({
+              used: json.used ?? 0,
+              limit: json.limit ?? null,
+              remaining: json.remaining ?? null,
+              canUse: json.canUse ?? true,
+            });
+          }
         }
       } catch {
         // Silent
@@ -66,10 +104,10 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
       }
     };
 
-    fetchUsage();
-    const interval = setInterval(fetchUsage, 30000);
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [sectionKey]);
+  }, [sectionKey, mode]);
 
   if (loading) {
     return (
@@ -79,65 +117,57 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
     );
   }
 
-  if (!data || data.limit === null) {
-    return null;
-  }
-
-  const { used, limit, remaining, canUse } = data;
-  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-  const isWarning = pct >= 80;
-  const isCritical = pct >= 100;
-  // v134j: auto-expand when critical (storage full / limit reached).
-  const effectiveCollapsed = collapsed && !isCritical;
-
-  // ─── Collapsed view (compact one-liner) ───
-  if (effectiveCollapsed) {
-    return (
-      <button
-        onClick={() => setCollapsed(false)}
-        className="w-full flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:bg-muted/30 transition-colors"
-      >
-        <div className="flex items-center gap-1.5">
-          {mode === 'storage' ? (
-            <HardDrive className="h-3.5 w-3.5 text-sky-600" />
-          ) : (
-            <Zap className="h-3.5 w-3.5 text-amber-500" />
-          )}
-          <span className="text-muted-foreground">
-            {mode === 'storage'
-              ? `${used} / ${limit} ميجابايت`
-              : `${remaining} / ${limit} متبقية`}
-          </span>
-        </div>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
-    );
-  }
-
-  // ─── Storage mode (MB with progress bar) ───
+  // ─── Storage mode ───
   if (mode === 'storage') {
+    if (!storageData || storageData.total_quota === 0) return null;
+
+    const { free_quota, upgrade_size, total_quota, used_mb, remaining_mb, pct, is_full } = storageData;
+    const isWarning = pct >= 80;
+    const isCritical = is_full;
+    const effectiveCollapsed = collapsed && !isCritical;
+
+    // Collapsed: compact one-liner
+    if (effectiveCollapsed) {
+      return (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="w-full flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-center gap-1.5">
+            <HardDrive className="h-3.5 w-3.5 text-sky-600" />
+            <span className="text-muted-foreground">
+              {used_mb} / {total_quota} ميجابايت · {pct}%
+            </span>
+          </div>
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      );
+    }
+
+    // Expanded
     return (
-      <Card className="border-border/60">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between mb-1.5">
+      <Card className={`border-2 ${isCritical ? 'border-rose-300' : isWarning ? 'border-amber-300' : 'border-border/60'}`}>
+        <CardContent className="p-3 space-y-2">
+          {/* Header */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <HardDrive className="h-3.5 w-3.5 text-sky-600" />
-              <span className="text-xs font-medium">المساحة المستخدمة</span>
+              <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                isCritical ? 'bg-rose-100 text-rose-600' :
+                isWarning ? 'bg-amber-100 text-amber-600' :
+                'bg-sky-100 text-sky-600'
+              }`}>
+                <HardDrive className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium">مساحة التخزين</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Badge
-                variant="outline"
-                className={`text-[9px] ${
-                  isCritical
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : isWarning
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                }`}
-              >
-                {used} / {limit} ميجابايت
+              <Badge variant="outline" className={`text-[9px] ${
+                isCritical ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                isWarning ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                {used_mb} / {total_quota} ميجابايت
               </Badge>
-              {/* v134j: collapse toggle */}
               {!isCritical && (
                 <button onClick={() => setCollapsed(true)} className="text-muted-foreground hover:text-foreground">
                   <ChevronUp className="h-3.5 w-3.5" />
@@ -145,19 +175,36 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
               )}
             </div>
           </div>
+
+          {/* Progress bar */}
           <Progress
             value={pct}
-            className={`h-2 ${isCritical ? '[&>div]:bg-rose-500' : isWarning ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'}`}
+            className={`h-2 ${
+              isCritical ? '[&>div]:bg-rose-500' :
+              isWarning ? '[&>div]:bg-amber-500' :
+              '[&>div]:bg-emerald-500'
+            }`}
           />
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-[10px] text-muted-foreground">
-              {Math.round(pct)}% مستخدم
-            </span>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-muted-foreground">{pct}% مستخدم</span>
+              <Badge variant="outline" className="text-[8px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                مجاني: {formatSize(free_quota)}
+              </Badge>
+              {upgrade_size > 0 && (
+                <Badge variant="outline" className="text-[8px] bg-sky-50 text-sky-700 border-sky-200">
+                  <Sparkles className="h-2 w-2 me-0.5" />
+                  +{formatSize(upgrade_size)}
+                </Badge>
+              )}
+            </div>
             {isCritical ? (
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
-                  المساحة ممتلئة
+                  ممتلئة
                 </span>
                 {onUpgradeClick && (
                   <Button
@@ -167,17 +214,13 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
                     onClick={onUpgradeClick}
                   >
                     <ArrowUpCircle className="h-3 w-3 me-1" />
-                    تزويد المساحة
+                    تزويد
                   </Button>
                 )}
               </div>
-            ) : isWarning ? (
-              <span className="text-[10px] text-amber-600">
-                تبقى {remaining} ميجابايت
-              </span>
             ) : (
-              <span className="text-[10px] text-emerald-600">
-                تبقى {remaining} ميجابايت
+              <span className={`text-[10px] ${isWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
+                تبقى {formatSize(remaining_mb)}
               </span>
             )}
           </div>
@@ -186,7 +229,14 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
     );
   }
 
-  // ─── Count mode (attempts) ───
+  // ─── Count mode ───
+  if (!countData || countData.limit === null) return null;
+
+  const { used, limit, remaining, canUse } = countData;
+  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+  const isWarning = pct >= 80;
+  const isCritical = pct >= 100 || !canUse;
+
   if (!canUse) {
     return (
       <div className="flex items-center gap-2 py-1">
@@ -201,17 +251,13 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
   return (
     <div className="flex items-center gap-2 py-1">
       <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-      <span className="text-[11px] text-muted-foreground">
-        المحاولات المتبقية:
-      </span>
+      <span className="text-[11px] text-muted-foreground">المحاولات المتبقية:</span>
       <Badge
         variant="outline"
         className={`text-[9px] ${
-          isCritical
-            ? 'bg-rose-50 text-rose-700 border-rose-200'
-            : isWarning
-              ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          isCritical ? 'bg-rose-50 text-rose-700 border-rose-200' :
+          isWarning ? 'bg-amber-50 text-amber-700 border-amber-200' :
+          'bg-emerald-50 text-emerald-700 border-emerald-200'
         }`}
       >
         {remaining} / {limit}
