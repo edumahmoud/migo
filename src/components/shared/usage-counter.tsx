@@ -25,9 +25,7 @@ import { getCachedAuthHeaders } from '@/lib/client-auth';
 
 interface Props {
   sectionKey: string;
-  /** 'count' = attempts-based, 'storage' = MB-based */
   mode?: 'count' | 'storage';
-  /** When storage is full, clicking this opens the upgrade view */
   onUpgradeClick?: () => void;
 }
 
