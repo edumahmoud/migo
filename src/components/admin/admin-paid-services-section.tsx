@@ -42,6 +42,7 @@ type ConfigRow = {
   teacher_monthly_price: number; teacher_yearly_price: number;
   currency: string; student_max_usage: number | null; teacher_max_usage: number | null;
   usage_period_days: number; usage_metric: string | null; is_active: boolean;
+  teacher_only?: boolean;
 };
 
 type UnlockRow = {
@@ -349,13 +350,14 @@ export default function AdminPaidServicesSection() {
               {configs.map(c => {
                 const isStorage = c.usage_metric === 'storage';
                 const isCombined = c.usage_metric === 'combined';
+                const isTeacherOnly = c.teacher_only === true;
                 const metricLabel = isStorage
                   ? 'ميجابايت'
                   : isCombined
                     ? 'عملية (تلخيص + اختبار ذكي)'
                     : 'عملية';
                 const metricDesc = isStorage
-                  ? 'إجمالي مساحة الملفات المرفوعة'
+                  ? 'إجمالي مساحة الملفات المرفوعة (تُطبق دائماً حتى بدون قفل)'
                   : isCombined
                     ? 'يشمل الملخصات والاختبارات المُولّدة بالذكاء الاصطناعي'
                     : '';
@@ -366,7 +368,14 @@ export default function AdminPaidServicesSection() {
                       {/* Section header */}
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="font-medium text-sm">{c.section_label}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{c.section_label}</p>
+                            {isTeacherOnly && (
+                              <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-700 border-teal-200">
+                                للمعلمين فقط
+                              </Badge>
+                            )}
+                          </div>
                           {metricDesc && (
                             <p className="text-[10px] text-muted-foreground mt-0.5">{metricDesc}</p>
                           )}
@@ -390,22 +399,24 @@ export default function AdminPaidServicesSection() {
                         </div>
                       </div>
 
-                      {/* Lock toggles */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
-                          c.student_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            checked={c.student_locked}
-                            onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
-                            className="h-4 w-4"
-                          />
-                          <div>
-                            <span className="text-xs font-medium">قفل للطلاب</span>
-                            <p className="text-[10px] text-muted-foreground">يصبح القسم مدفوعاً للطلاب</p>
-                          </div>
-                        </label>
+                      {/* Lock toggles — hide student toggle for teacher-only sections */}
+                      <div className={`grid gap-2 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {!isTeacherOnly && (
+                          <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
+                            c.student_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={c.student_locked}
+                              onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
+                              className="h-4 w-4"
+                            />
+                            <div>
+                              <span className="text-xs font-medium">قفل للطلاب</span>
+                              <p className="text-[10px] text-muted-foreground">يصبح القسم مدفوعاً للطلاب</p>
+                            </div>
+                          </label>
+                        )}
                         <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
                           c.teacher_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
                         }`}>
@@ -422,38 +433,40 @@ export default function AdminPaidServicesSection() {
                         </label>
                       </div>
 
-                      {/* Pricing — always visible */}
+                      {/* Pricing — hide student pricing for teacher-only sections */}
                       <div className="border-t pt-3">
                         <p className="text-xs font-medium text-muted-foreground mb-2">الأسعار ({c.currency})</p>
-                        <div className="grid grid-cols-2 gap-3">
-                          {/* Student pricing */}
-                          <div className="space-y-1.5">
-                            <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <div>
-                                <Label className="text-[10px] text-muted-foreground">شهري</Label>
-                                <Input
-                                  type="number"
-                                  defaultValue={c.student_monthly_price}
-                                  onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
-                                  className="h-8 text-xs"
-                                  placeholder="0"
-                                  dir="ltr"
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-[10px] text-muted-foreground">سنوي</Label>
-                                <Input
-                                  type="number"
-                                  defaultValue={c.student_yearly_price}
-                                  onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
-                                  className="h-8 text-xs"
-                                  placeholder="0"
-                                  dir="ltr"
-                                />
+                        <div className={`grid gap-3 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                          {/* Student pricing — hidden for teacher-only */}
+                          {!isTeacherOnly && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                                  <Input
+                                    type="number"
+                                    defaultValue={c.student_monthly_price}
+                                    onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
+                                    className="h-8 text-xs"
+                                    placeholder="0"
+                                    dir="ltr"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                                  <Input
+                                    type="number"
+                                    defaultValue={c.student_yearly_price}
+                                    onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
+                                    className="h-8 text-xs"
+                                    placeholder="0"
+                                    dir="ltr"
+                                  />
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          )}
                           {/* Teacher pricing */}
                           <div className="space-y-1.5">
                             <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
@@ -485,27 +498,31 @@ export default function AdminPaidServicesSection() {
                         </div>
                       </div>
 
-                      {/* Usage limits — always visible (even when not locked) */}
+                      {/* Usage limits — clarify it applies per subscription period */}
                       {c.usage_metric && (
                         <div className="border-t pt-3">
                           <p className="text-xs font-medium text-muted-foreground mb-1">
-                            حد الاستخدام (يُطبق دائماً)
+                            حد الاستخدام لكل فترة اشتراك
                           </p>
                           <p className="text-[10px] text-muted-foreground mb-2">
-                            الوحدة: {metricLabel} — اتركه فارغاً لـ "غير محدود"
+                            الوحدة: {metricLabel} — يُطبق طوال مدة الاشتراك (شهري = 30 يوم، سنوي = 365 يوم).
+                            اتركه فارغاً لـ "غير محدود".
+                            {isStorage && ' هذا الحد مُفعّل دائماً حتى بدون قفل القسم.'}
                           </p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <Label className="text-[10px] font-medium text-sky-700 dark:text-sky-400">حد الطالب</Label>
-                              <Input
-                                type="number"
-                                defaultValue={c.student_max_usage ?? ''}
-                                onBlur={(e) => updateConfig(c.section_key, { student_max_usage: e.target.value ? Number(e.target.value) : null })}
-                                className="h-8 text-xs"
-                                placeholder="غير محدود"
-                                dir="ltr"
-                              />
-                            </div>
+                          <div className={`grid gap-3 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {!isTeacherOnly && (
+                              <div>
+                                <Label className="text-[10px] font-medium text-sky-700 dark:text-sky-400">حد الطالب</Label>
+                                <Input
+                                  type="number"
+                                  defaultValue={c.student_max_usage ?? ''}
+                                  onBlur={(e) => updateConfig(c.section_key, { student_max_usage: e.target.value ? Number(e.target.value) : null })}
+                                  className="h-8 text-xs"
+                                  placeholder="غير محدود"
+                                  dir="ltr"
+                                />
+                              </div>
+                            )}
                             <div>
                               <Label className="text-[10px] font-medium text-teal-700 dark:text-teal-400">حد المعلم</Label>
                               <Input

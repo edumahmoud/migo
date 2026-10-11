@@ -58,8 +58,57 @@ export async function GET(request: NextRequest) {
   const limit = (config[roleMaxField] as number | null) ?? null;
   const metric = config.usage_metric as string | null;
   const periodDays = (config.usage_period_days as number) ?? 30;
+  const teacherOnly = config.teacher_only === true;
 
-  // 2. Check if the user has an active unlock.
+  // v134f: if this is a teacher-only section and the user is a student,
+  // return "not locked, no limit" — students should never see this section
+  // as locked.
+  if (teacherOnly && role === 'student') {
+    return NextResponse.json({
+      success: true, sectionKey, metric: null, used: 0, limit: null,
+      remaining: null, locked: false, canUse: true, isUnlocked: false,
+    });
+  }
+
+  // v134f: for storage metric (files), the limit ALWAYS applies — even
+  // when the section is NOT locked. The lock only controls whether the
+  // section requires a paid subscription to ACCESS; the storage quota
+  // is enforced regardless.
+  //
+  // For other metrics (combined, summaries), the limit only applies
+  // when the section IS locked (because without a lock, the feature
+  // is free and unlimited).
+
+  // If the section is NOT locked for this role:
+  //   - storage metric → still enforce the limit (return it)
+  //   - other metrics → no limit (return null)
+  if (!isLocked) {
+    if (metric === 'storage' && limit !== null) {
+      // Storage quota always applies — count usage and return.
+      const periodStart2 = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
+      const { data: files } = await supabaseServer
+        .from('user_files')
+        .select('file_size')
+        .eq('user_id', auth.user.id);
+      const totalBytes = (files ?? []).reduce((sum: number, f: { file_size: number | null }) => {
+        return sum + (f.file_size ?? 0);
+      }, 0);
+      const usedForStorage = Math.round(totalBytes / (1024 * 1024));
+      const remainingForStorage = Math.max(0, limit - usedForStorage);
+      return NextResponse.json({
+        success: true, sectionKey, metric, used: usedForStorage, limit,
+        remaining: remainingForStorage, periodDays,
+        periodStart: periodStart2,
+        locked: false, canUse: remainingForStorage > 0, isUnlocked: false,
+      });
+    }
+    return NextResponse.json({
+      success: true, sectionKey, metric: null, used: 0, limit: null,
+      remaining: null, locked: false, canUse: true, isUnlocked: false,
+    });
+  }
+
+  // v134f: check if the user has an active unlock (for locked sections).
   const now = new Date().toISOString();
   const { data: personalUnlock } = await supabaseServer
     .from('user_section_unlocks')
@@ -94,14 +143,6 @@ export async function GET(request: NextRequest) {
         if (userCreated >= trialStart) isUnlocked = true;
       }
     }
-  }
-
-  // If the section is NOT locked for this role, no limit applies.
-  if (!isLocked) {
-    return NextResponse.json({
-      success: true, sectionKey, metric: null, used: 0, limit: null,
-      remaining: null, locked: false, canUse: true, isUnlocked: false,
-    });
   }
 
   // 3. Count usage (ALWAYS, even if unlocked — for the counter display).
