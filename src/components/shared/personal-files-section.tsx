@@ -1030,13 +1030,37 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Upload all pending files — delegates to global background store
   // Modal closes immediately; uploads continue in the background.
   // -------------------------------------------------------
-  const handleUploadAll = () => {
+  const handleUploadAll = async () => {
     const toUpload = pendingUploadsRef.current.filter(
       (p) => !p.done && !p.uploading
     );
     if (toUpload.length === 0) {
       toast.info(t('files.toastNoFilesToUpload'));
       return;
+    }
+
+    // v134k: Pre-check TOTAL size of all pending files vs remaining storage.
+    // Each file individually might fit, but the combined total might exceed
+    // the remaining quota. We block the entire batch if the total doesn't fit.
+    const totalBatchSize = toUpload.reduce((sum, item) => sum + (item.fileSize || 0), 0);
+    const totalBatchSizeMb = totalBatchSize / (1024 * 1024);
+    try {
+      const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+      const headers = await getCachedAuthHeaders();
+      const checkRes = await fetch('/api/storage/check', { headers });
+      const checkJson = await checkRes.json();
+      if (checkJson.success) {
+        const remainingMb = checkJson.remaining_mb ?? 0;
+        if (totalBatchSizeMb > remainingMb) {
+          toast.error(
+            `إجمالي حجم الملفات (${totalBatchSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). ` +
+            `لا يمكن رفع جميع الملفات. يرجى تزويد المساحة أو تقليل عدد الملفات.`
+          );
+          return;
+        }
+      }
+    } catch {
+      // Non-critical — if the check fails, proceed with the upload.
     }
 
     const subjectIds = Array.from(selectedSubjectForUploadIds);
