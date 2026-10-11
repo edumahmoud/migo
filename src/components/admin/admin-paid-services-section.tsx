@@ -40,7 +40,9 @@ type ConfigRow = {
   student_locked: boolean; teacher_locked: boolean;
   student_monthly_price: number; student_yearly_price: number;
   teacher_monthly_price: number; teacher_yearly_price: number;
-  currency: string; student_max_usage: number | null; teacher_max_usage: number | null;
+  currency: string;
+  student_monthly_limit: number | null; student_yearly_limit: number | null;
+  teacher_monthly_limit: number | null; teacher_yearly_limit: number | null;
   usage_period_days: number; usage_metric: string | null; is_active: boolean;
   teacher_only?: boolean;
 };
@@ -498,41 +500,75 @@ export default function AdminPaidServicesSection() {
                         </div>
                       </div>
 
-                      {/* Usage limits — clarify it applies per subscription period */}
+                      {/* Usage limits — per plan (monthly/yearly separate) */}
                       {c.usage_metric && (
                         <div className="border-t pt-3">
                           <p className="text-xs font-medium text-muted-foreground mb-1">
-                            حد الاستخدام لكل فترة اشتراك
+                            حد الاستخدام لكل خطة
                           </p>
                           <p className="text-[10px] text-muted-foreground mb-2">
-                            الوحدة: {metricLabel} — يُطبق طوال مدة الاشتراك (شهري = 30 يوم، سنوي = 365 يوم).
+                            الوحدة: {metricLabel} — حد منفصل لكل خطة.
+                            {isStorage ? ' يُطبق دائماً حتى بدون قفل القسم.' : ' يُطبق طوال مدة الاشتراك المختارة.'}
                             اتركه فارغاً لـ "غير محدود".
-                            {isStorage && ' هذا الحد مُفعّل دائماً حتى بدون قفل القسم.'}
                           </p>
                           <div className={`grid gap-3 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {/* Student limits */}
                             {!isTeacherOnly && (
-                              <div>
-                                <Label className="text-[10px] font-medium text-sky-700 dark:text-sky-400">حد الطالب</Label>
-                                <Input
-                                  type="number"
-                                  defaultValue={c.student_max_usage ?? ''}
-                                  onBlur={(e) => updateConfig(c.section_key, { student_max_usage: e.target.value ? Number(e.target.value) : null })}
-                                  className="h-8 text-xs"
-                                  placeholder="غير محدود"
-                                  dir="ltr"
-                                />
+                              <div className="space-y-1.5">
+                                <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <div>
+                                    <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
+                                    <Input
+                                      type="number"
+                                      defaultValue={c.student_monthly_limit ?? ''}
+                                      onBlur={(e) => updateConfig(c.section_key, { student_monthly_limit: e.target.value ? Number(e.target.value) : null })}
+                                      className="h-8 text-xs"
+                                      placeholder="غير محدود"
+                                      dir="ltr"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
+                                    <Input
+                                      type="number"
+                                      defaultValue={c.student_yearly_limit ?? ''}
+                                      onBlur={(e) => updateConfig(c.section_key, { student_yearly_limit: e.target.value ? Number(e.target.value) : null })}
+                                      className="h-8 text-xs"
+                                      placeholder="غير محدود"
+                                      dir="ltr"
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             )}
-                            <div>
-                              <Label className="text-[10px] font-medium text-teal-700 dark:text-teal-400">حد المعلم</Label>
-                              <Input
-                                type="number"
-                                defaultValue={c.teacher_max_usage ?? ''}
-                                onBlur={(e) => updateConfig(c.section_key, { teacher_max_usage: e.target.value ? Number(e.target.value) : null })}
-                                className="h-8 text-xs"
-                                placeholder="غير محدود"
-                                dir="ltr"
-                              />
+                            {/* Teacher limits */}
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
+                                  <Input
+                                    type="number"
+                                    defaultValue={c.teacher_monthly_limit ?? ''}
+                                    onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_limit: e.target.value ? Number(e.target.value) : null })}
+                                    className="h-8 text-xs"
+                                    placeholder="غير محدود"
+                                    dir="ltr"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
+                                  <Input
+                                    type="number"
+                                    defaultValue={c.teacher_yearly_limit ?? ''}
+                                    onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_limit: e.target.value ? Number(e.target.value) : null })}
+                                    className="h-8 text-xs"
+                                    placeholder="غير محدود"
+                                    dir="ltr"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>

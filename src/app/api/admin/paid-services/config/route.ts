@@ -64,9 +64,11 @@ export async function POST(request: NextRequest) {
     'student_locked', 'teacher_locked',
     'student_monthly_price', 'student_yearly_price',
     'teacher_monthly_price', 'teacher_yearly_price',
-    'currency', 'student_max_usage', 'teacher_max_usage',
+    'currency',
+    'student_monthly_limit', 'student_yearly_limit',
+    'teacher_monthly_limit', 'teacher_yearly_limit',
     'usage_period_days', 'usage_metric', 'is_active',
-    'section_label',
+    'section_label', 'teacher_only',
   ];
   const cleanUpdates: Record<string, unknown> = {};
   for (const key of allowed) {

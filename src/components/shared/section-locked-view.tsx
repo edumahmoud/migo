@@ -30,8 +30,10 @@ interface SectionConfig {
   teacher_monthly_price: number;
   teacher_yearly_price: number;
   currency: string;
-  student_max_usage: number | null;
-  teacher_max_usage: number | null;
+  student_monthly_limit: number | null;
+  student_yearly_limit: number | null;
+  teacher_monthly_limit: number | null;
+  teacher_yearly_limit: number | null;
   usage_period_days: number;
   usage_metric: string | null;
 }
@@ -154,10 +156,11 @@ export default function SectionLockedView({
 
   const savingsText = formatSavings(Number(yearlyPrice), Number(monthlyPrice));
 
-  // v134e: dynamic usage limit based on the SELECTED PLAN + role.
+  // v134g: dynamic usage limit based on the SELECTED PLAN + role.
+  // Each plan (monthly/yearly) has its own limit.
   const usageLimit = userRole === 'student'
-    ? config.student_max_usage
-    : config.teacher_max_usage;
+    ? (planType === 'yearly' ? config.student_yearly_limit : config.student_monthly_limit)
+    : (planType === 'yearly' ? config.teacher_yearly_limit : config.teacher_monthly_limit);
   const usageInfo = config.usage_metric
     ? formatUsageLimit(usageLimit, planType, config.usage_metric)
     : null;

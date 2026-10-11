@@ -112,8 +112,10 @@ export async function GET(request: NextRequest) {
       teacher_monthly_price: cfg.teacher_monthly_price,
       teacher_yearly_price: cfg.teacher_yearly_price,
       currency: cfg.currency,
-      student_max_usage: cfg.student_max_usage,
-      teacher_max_usage: cfg.teacher_max_usage,
+      student_monthly_limit: cfg.student_monthly_limit,
+      student_yearly_limit: cfg.student_yearly_limit,
+      teacher_monthly_limit: cfg.teacher_monthly_limit,
+      teacher_yearly_limit: cfg.teacher_yearly_limit,
       usage_period_days: cfg.usage_period_days,
       usage_metric: cfg.usage_metric,
     };

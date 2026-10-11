@@ -27,8 +27,10 @@ export interface LockedSectionInfo {
     teacher_monthly_price: number;
     teacher_yearly_price: number;
     currency: string;
-    student_max_usage: number | null;
-    teacher_max_usage: number | null;
+    student_monthly_limit: number | null;
+    student_yearly_limit: number | null;
+    teacher_monthly_limit: number | null;
+    teacher_yearly_limit: number | null;
     usage_period_days: number;
     usage_metric: string | null;
   };
