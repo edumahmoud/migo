@@ -1,16 +1,19 @@
 'use client';
 
 /**
- * BrandLogo — v132d
+ * BrandLogo — v132e
  *
  * A reusable brand logo component that shows the institution's logo
  * image when available, falling back to the default gradient +
  * GraduationCap icon.
  *
+ * v132e change: reads localStorage SYNCHRONOUSLY in useState's lazy
+ * initializer (instead of useEffect) so the logo is available on the
+ * very first render — no GraduationCap flash. Also adds a subtle
+ * fade-in + scale animation when the logo appears.
+ *
  * v132d change: when a logo is present, the container has NO gradient
- * background — just a transparent/white surface so the logo appears
- * naturally without a colored gradient behind it. The gradient is only
- * used for the fallback GraduationCap icon.
+ * background — just a transparent surface so the logo appears naturally.
  *
  * Used in:
  *   - All loading/splash screens (replaces the hardcoded GraduationCap)
@@ -20,10 +23,8 @@
  * The logo URL is read from two sources (in priority order):
  *   1. The institution store (if populated — for components inside
  *      the React tree after the store has loaded)
- *   2. localStorage 'attendo-institution-logo' (set by InstitutionHead
- *      on every store update — gives instant logo on first paint,
- *      eliminating the race condition where the loading screen renders
- *      before the store fetch resolves)
+ *   2. localStorage 'attendo-institution-logo' (read SYNCHRONOUSLY in
+ *      useState's lazy initializer — gives instant logo on first paint)
  *
  * If neither source has a logo URL, the fallback gradient box with
  * GraduationCap is shown.
@@ -36,6 +37,19 @@ import { useInstitutionStore } from '@/stores/institution-store';
 // Cache key for localStorage — must match the key used in
 // institution-store.ts / institution-head.tsx.
 const LOGO_STORAGE_KEY = 'attendo-institution-logo';
+
+/** Read the logo URL from localStorage SYNCHRONOUSLY. */
+function readLogoFromStorage(): string | null {
+  try {
+    const stored = localStorage.getItem(LOGO_STORAGE_KEY);
+    if (stored && stored !== 'null' && stored !== 'undefined') {
+      return stored;
+    }
+  } catch {
+    // localStorage may be unavailable (private mode, SSR, etc.)
+  }
+  return null;
+}
 
 export function BrandLogo({
   size = 'md',
@@ -50,20 +64,12 @@ export function BrandLogo({
   // when the store is populated).
   const storeLogo = useInstitutionStore((s) => s.institution?.logo_url);
 
-  // Also keep a localStorage-backed state for the first paint (before
-  // the store has loaded). This is what eliminates the race condition.
-  const [cachedLogo, setCachedLogo] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LOGO_STORAGE_KEY);
-      if (stored && stored !== 'null' && stored !== 'undefined') {
-        setCachedLogo(stored);
-      }
-    } catch {
-      // localStorage may be unavailable (private mode, SSR, etc.)
-    }
-  }, []);
+  // v132e: read localStorage SYNCHRONOUSLY in the lazy initializer.
+  // This makes the logo available on the VERY FIRST render — no flash
+  // of the GraduationCap fallback. The previous approach used useEffect
+  // to read localStorage, which meant the first render saw null → showed
+  // GraduationCap for one frame → then swapped to the logo.
+  const [cachedLogo, setCachedLogo] = useState<string | null>(readLogoFromStorage);
 
   // When the store updates, also update the localStorage cache + state.
   useEffect(() => {
@@ -88,12 +94,12 @@ export function BrandLogo({
 
   if (logoUrl) {
     // v132d: NO gradient background — just a transparent surface so
-    // the logo appears naturally without a colored gradient behind it.
-    // The rounded corners + overflow-hidden still clip the logo to the
-    // box shape. We keep the shadow for visual depth on loading screens.
+    // the logo appears naturally. v132e: add a subtle fade-in + scale
+    // animation so the logo "pops in" smoothly instead of appearing
+    // abruptly.
     return (
       <div
-        className={`${dims.box} ${shadowClass} overflow-hidden flex items-center justify-center shrink-0 bg-transparent ${className}`}
+        className={`${dims.box} ${shadowClass} overflow-hidden flex items-center justify-center shrink-0 bg-transparent animate-in fade-in zoom-in duration-300 ${className}`}
       >
         <img
           src={logoUrl}
@@ -109,7 +115,8 @@ export function BrandLogo({
     );
   }
 
-  // Fallback: gradient box + GraduationCap icon (the original look).
+  // Fallback: gradient box + GraduationCap icon (only when NO logo
+  // exists at all — e.g., fresh install before setup wizard).
   return (
     <div
       className={`${dims.box} ${shadowClass} bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shrink-0 ${className}`}
@@ -129,13 +136,5 @@ export function BrandLogo({
  * Returns null if no logo is cached or localStorage is unavailable.
  */
 export function getInstitutionLogoFromStorage(): string | null {
-  try {
-    const stored = localStorage.getItem(LOGO_STORAGE_KEY);
-    if (stored && stored !== 'null' && stored !== 'undefined') {
-      return stored;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return null;
+  return readLogoFromStorage();
 }
