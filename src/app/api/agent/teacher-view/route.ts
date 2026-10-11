@@ -88,9 +88,8 @@ export async function GET(request: NextRequest) {
       case 'pendingOrders':
         return await handlePendingOrders(teacherId, limit, offset);
       case 'financialManagement':
-        // v132 Phase 1: keep the existing monthly-aggregate handler.
-        // Phase 6 will expand this to per-transaction view.
-        return await handleFinancial(teacherId);
+        // v132 Phase 6: per-transaction financial view (excludes payout methods).
+        return await handleFinancial(teacherId, limit, offset);
       case 'tracking':
         // v132 Phase 5: per-student performance metrics.
         return await handleTracking(teacherId, limit, offset);
@@ -536,42 +535,177 @@ async function handleScormLibrary(teacherId: string, limit: number, offset: numb
   });
 }
 
-async function handleFinancial(teacherId: string) {
-  // Aggregate gross + teacher_share + platform_share from financial_ledger
-  // for the current month.
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+async function handleFinancial(teacherId: string, limit: number, offset: number) {
+  // v132 Phase 6: expanded from a monthly-aggregate-only view to a full
+  // per-transaction view. Returns:
+  //   - summary: per-currency aggregates across ALL transactions
+  //     (not just the current month) so the numbers match the teacher's
+  //     actual lifetime earnings.
+  //   - transactions: paginated list of individual ledger rows with
+  //     student + subject + plan info joined.
+  //
+  // Per the user's instruction, payout methods are EXCLUDED — those stay
+  // with the teacher only (the agent doesn't manage payout configuration).
+  //
+  // financial_ledger stores teacher_share + platform_share per row
+  // (snapshotted at payment time), so the summary is a simple SUM.
 
-  const { data: ledger, error } = await supabaseServer
+  // 1. Fetch ALL ledger rows for the teacher (for the summary).
+  //    We don't paginate this because we need the full totals.
+  const { data: allLedger, error: allErr } = await supabaseServer
     .from('financial_ledger')
-    .select('gross_amount, teacher_share, platform_share, currency')
+    .select('gross_amount, teacher_share, platform_share, gateway_fee, currency, status, created_at')
     .eq('teacher_id', teacherId)
-    .gte('created_at', monthStart)
-    .lt('created_at', monthEnd);
+    .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (allErr) throw allErr;
 
-  type Row = { gross_amount: number; teacher_share: number; platform_share: number; currency: string };
-  const byCurrency = new Map<string, { gross: number; teacher: number; platform: number; count: number }>();
-  for (const r of (ledger ?? []) as Row[]) {
+  type LedgerRow = {
+    gross_amount: number; teacher_share: number; platform_share: number;
+    gateway_fee: number; currency: string; status: string; created_at: string;
+    order_id: string; student_id: string; subject_id: string;
+  };
+
+  // 2. Build the per-currency summary from all rows.
+  const byCurrency = new Map<string, {
+    gross: number; teacher: number; platform: number; fees: number; count: number;
+  }>();
+  for (const r of (allLedger ?? []) as unknown as Array<LedgerRow>) {
     const cur = r.currency || 'EGP';
-    if (!byCurrency.has(cur)) byCurrency.set(cur, { gross: 0, teacher: 0, platform: 0, count: 0 });
+    if (!byCurrency.has(cur)) byCurrency.set(cur, { gross: 0, teacher: 0, platform: 0, fees: 0, count: 0 });
     const agg = byCurrency.get(cur)!;
     agg.gross += Number(r.gross_amount) || 0;
     agg.teacher += Number(r.teacher_share) || 0;
     agg.platform += Number(r.platform_share) || 0;
+    agg.fees += Number(r.gateway_fee) || 0;
     agg.count += 1;
   }
+
+  // 3. Fetch the paginated transaction list with joined student/subject/plan.
+  //    We use a range query on financial_ledger ordered by created_at desc.
+  const { data: pageRows, error: pageErr } = await supabaseServer
+    .from('financial_ledger')
+    .select(`
+      id, gross_amount, teacher_share, platform_share, gateway_fee,
+      net_amount, currency, status, created_at,
+      order_id, student_id, subject_id
+    `)
+    .eq('teacher_id', teacherId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (pageErr) throw pageErr;
+
+  type PageRow = {
+    id: string; gross_amount: number; teacher_share: number; platform_share: number;
+    gateway_fee: number; net_amount: number; currency: string; status: string;
+    created_at: string; order_id: string; student_id: string; subject_id: string;
+  };
+  const transactions = (pageRows ?? []) as unknown as PageRow[];
+
+  // 4. Resolve student names + subject names + plan labels for the page.
+  const studentIds = Array.from(new Set(transactions.map(t => t.student_id))).filter(Boolean);
+  const subjectIds = Array.from(new Set(transactions.map(t => t.subject_id))).filter(Boolean);
+  const orderIds = Array.from(new Set(transactions.map(t => t.order_id))).filter(Boolean);
+
+  let studentNameById = new Map<string, { name: string | null; student_code: string | null }>();
+  if (studentIds.length > 0) {
+    const { data: students } = await supabaseServer
+      .from('users')
+      .select('id, name, student_code')
+      .in('id', studentIds);
+    for (const u of (students ?? []) as unknown as Array<{ id: string; name: string | null; student_code: string | null }>) {
+      studentNameById.set(u.id, { name: u.name, student_code: u.student_code });
+    }
+  }
+
+  let subjectNameById = new Map<string, string>();
+  if (subjectIds.length > 0) {
+    const { data: subjects } = await supabaseServer
+      .from('subjects')
+      .select('id, name')
+      .in('id', subjectIds);
+    for (const s of (subjects ?? []) as unknown as Array<{ id: string; name: string }>) {
+      subjectNameById.set(s.id, s.name);
+    }
+  }
+
+  // Fetch plan info from orders (plan_id + plan_duration_days).
+  let planByOrderId = new Map<string, { period_label: string | null; duration_days: number | null }>();
+  if (orderIds.length > 0) {
+    const { data: orders } = await supabaseServer
+      .from('orders')
+      .select('id, plan_id, plan_duration_days')
+      .in('id', orderIds);
+    const planIds = (orders ?? []).map((o: { plan_id: string | null }) => o.plan_id).filter(Boolean) as string[];
+    let planLabelById = new Map<string, string>();
+    if (planIds.length > 0) {
+      const { data: plans } = await supabaseServer
+        .from('subject_subscription_plans')
+        .select('id, period_label, period_type')
+        .in('id', planIds);
+      for (const p of (plans ?? []) as unknown as Array<{ id: string; period_label: string; period_type: string }>) {
+        planLabelById.set(p.id, p.period_label || p.period_type);
+      }
+    }
+    for (const o of (orders ?? []) as unknown as Array<{ id: string; plan_id: string | null; plan_duration_days: number | null }>) {
+      planByOrderId.set(o.id, {
+        period_label: o.plan_id ? (planLabelById.get(o.plan_id) ?? null) : null,
+        duration_days: o.plan_duration_days,
+      });
+    }
+  }
+
+  // 5. Build the transaction items.
+  const items = transactions.map(t => {
+    const student = studentNameById.get(t.student_id);
+    const plan = planByOrderId.get(t.order_id);
+    return {
+      id: t.id,
+      created_at: t.created_at,
+      status: t.status,
+      gross_amount: Number(t.gross_amount) || 0,
+      teacher_share: Number(t.teacher_share) || 0,
+      platform_share: Number(t.platform_share) || 0,
+      gateway_fee: Number(t.gateway_fee) || 0,
+      net_amount: Number(t.net_amount) || 0,
+      currency: t.currency,
+      student: {
+        id: t.student_id,
+        name: student?.name ?? null,
+        student_code: student?.student_code ?? null,
+      },
+      subject: {
+        id: t.subject_id,
+        name: subjectNameById.get(t.subject_id) ?? null,
+      },
+      plan: plan ? {
+        period_label: plan.period_label,
+        duration_days: plan.duration_days,
+      } : null,
+    };
+  });
+
+  const totalCount = (allLedger ?? []).length;
 
   return NextResponse.json({
     success: true,
     section: 'financialManagement',
-    period: { from: monthStart, to: monthEnd },
-    items: Array.from(byCurrency.entries()).map(([currency, agg]) => ({
+    // Summary: per-currency aggregates across ALL transactions (lifetime).
+    summary: Array.from(byCurrency.entries()).map(([currency, agg]) => ({
       currency,
-      ...agg,
+      gross: Number(agg.gross.toFixed(2)),
+      teacher: Number(agg.teacher.toFixed(2)),
+      platform: Number(agg.platform.toFixed(2)),
+      fees: Number(agg.fees.toFixed(2)),
+      count: agg.count,
     })),
+    // Paginated transaction list.
+    items,
+    total_count: totalCount,
+    has_more: offset + items.length < totalCount,
+    limit,
+    offset,
   });
 }
 

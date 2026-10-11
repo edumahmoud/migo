@@ -2355,43 +2355,138 @@ function ItemsListView({ data, idField, titleField, subtitleField, emptyMsg }: {
 }
 
 function FinancialView({ data }: { data: Record<string, unknown> }) {
-  const items = (data.items ?? []) as Array<{
-    currency: string; gross: number; teacher: number; platform: number; count: number;
+  // v132 Phase 6: expanded to show BOTH a per-currency summary (lifetime)
+  // AND a paginated list of individual transactions. Payout methods are
+  // excluded per the user's instruction — those stay with the teacher.
+  const summary = (data.summary ?? []) as Array<{
+    currency: string; gross: number; teacher: number; platform: number;
+    fees: number; count: number;
   }>;
-  const period = data.period as { from: string; to: string } | undefined;
-  if (items.length === 0) {
-    return <EmptyState label="لا توجد بيانات مالية لهذا الشهر" />;
+  const items = (data.items ?? []) as Array<{
+    id: string;
+    created_at: string;
+    status: string;
+    gross_amount: number;
+    teacher_share: number;
+    platform_share: number;
+    gateway_fee: number;
+    net_amount: number;
+    currency: string;
+    student: { id: string; name: string | null; student_code: string | null };
+    subject: { id: string; name: string | null };
+    plan: { period_label: string | null; duration_days: number | null } | null;
+  }>;
+  const totalCount = (data.total_count as number) ?? 0;
+
+  const formatDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return '—'; }
+  };
+
+  const statusColor = (status: string): string => {
+    switch (status) {
+      case 'paid': case 'settled': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'pending': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'refunded': case 'reversed': return 'bg-rose-50 text-rose-700 border-rose-200';
+      default: return 'bg-muted/40 text-muted-foreground border-border';
+    }
+  };
+  const statusLabel = (status: string): string => {
+    switch (status) {
+      case 'paid': return 'مدفوع';
+      case 'settled': return 'مُسوّى';
+      case 'pending': return 'معلّق';
+      case 'failed': return 'فشل';
+      case 'refunded': return 'مسترجع';
+      case 'reversed': return 'معكوس';
+      default: return status;
+    }
+  };
+
+  if (summary.length === 0 && items.length === 0) {
+    return <EmptyState label="لا توجد معاملات مالية بعد" />;
   }
+
   return (
-    <div className="space-y-2">
-      {period && (
-        <p className="text-[10px] text-muted-foreground text-center">
-          بيانات الشهر الحالي
-        </p>
-      )}
-      <div className="rounded-md border border-border/60 divide-y">
-        {items.map((row) => (
-          <div key={row.currency} className="p-2.5 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{row.currency}</span>
-              <span className="text-[10px] text-muted-foreground">{row.count} معاملة</span>
-            </div>
-            <div className="grid grid-cols-3 gap-1 mt-1.5 text-[10px]">
-              <div>
-                <p className="text-muted-foreground">الإجمالي</p>
-                <p className="font-medium text-sky-700 dark:text-sky-300">{row.gross.toFixed(2)}</p>
+    <div className="space-y-3">
+      {/* ─── Summary: per-currency lifetime aggregates ─── */}
+      {summary.length > 0 && (
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1.5">الملخص المالي الإجمالي</p>
+          <div className="rounded-md border border-border/60 divide-y">
+            {summary.map((row) => (
+              <div key={row.currency} className="p-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{row.currency}</span>
+                  <span className="text-[10px] text-muted-foreground">{row.count} معاملة</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1 mt-1.5 text-[10px]">
+                  <div>
+                    <p className="text-muted-foreground">الإجمالي</p>
+                    <p className="font-medium text-sky-700 dark:text-sky-300">{row.gross.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">نص المعلم</p>
+                    <p className="font-medium text-emerald-700 dark:text-emerald-300">{row.teacher.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">نص المنصة</p>
+                    <p className="font-medium text-amber-700 dark:text-amber-300">{row.platform.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">الرسوم</p>
+                    <p className="font-medium text-muted-foreground">{row.fees.toFixed(2)}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-muted-foreground">نص المعلم</p>
-                <p className="font-medium text-emerald-700 dark:text-emerald-300">{row.teacher.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">نص المنصة</p>
-                <p className="font-medium text-amber-700 dark:text-amber-300">{row.platform.toFixed(2)}</p>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* ─── Transactions list ─── */}
+      <div>
+        <p className="text-[10px] text-muted-foreground mb-1.5">
+          المعاملات ({totalCount})
+        </p>
+        {items.length === 0 ? (
+          <EmptyState label="لا توجد معاملات" />
+        ) : (
+          <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
+            {items.map((t) => (
+              <div key={t.id} className="p-2.5 text-xs space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium truncate">{t.student?.name ?? '—'}</span>
+                      {t.student?.student_code && (
+                        <span className="font-mono text-[10px] text-muted-foreground">({t.student.student_code})</span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground truncate mt-0.5">
+                      {t.subject?.name ?? '—'}
+                      {t.plan?.period_label && <span className="me-1"> · {t.plan.period_label}</span>}
+                    </div>
+                  </div>
+                  <div className="text-end shrink-0">
+                    <div className="font-medium text-emerald-700 dark:text-emerald-300">
+                      {t.teacher_share.toFixed(2)} {t.currency}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">
+                      من {t.gross_amount.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                  <Badge variant="outline" className={`text-[9px] ${statusColor(t.status)}`}>
+                    {statusLabel(t.status)}
+                  </Badge>
+                  <span className="text-[9px] text-muted-foreground">{formatDate(t.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
