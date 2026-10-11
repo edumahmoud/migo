@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     'currency',
     'student_monthly_limit', 'student_yearly_limit',
     'teacher_monthly_limit', 'teacher_yearly_limit',
+    'free_quota_mb',
     'usage_period_days', 'usage_metric', 'is_active',
     'section_label', 'teacher_only',
   ];

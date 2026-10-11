@@ -14,7 +14,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Lock, Unlock, Clock, Settings, Gift, Users, Check, X, Trash2 } from 'lucide-react';
+import { Loader2, Lock, Unlock, Clock, Settings, Gift, Users, Check, X, Trash2, HardDrive, Plus, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -236,6 +236,10 @@ export default function AdminPaidServicesSection() {
               <TabsTrigger value="trial" className="text-xs gap-1">
                 <Gift className="h-3.5 w-3.5" />
                 الفتح المؤقت
+              </TabsTrigger>
+              <TabsTrigger value="storage" className="text-xs gap-1">
+                <HardDrive className="h-3.5 w-3.5" />
+                إدارة التخزين
               </TabsTrigger>
             </>
           )}
@@ -587,6 +591,13 @@ export default function AdminPaidServicesSection() {
             <TrialManager configs={configs} trials={trials} onCreate={handleCreateTrial} onRevoke={handleRevokeTrial} />
           </TabsContent>
         )}
+
+        {/* ─── Tab 5: Storage Manager (superadmin only) ─── */}
+        {isSuperAdmin && (
+          <TabsContent value="storage">
+            <StorageManager configs={configs} updateConfig={updateConfig} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -667,6 +678,277 @@ function TrialManager({
                       <X className="h-3 w-3" />
                     </Button>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── StorageManager — v134k ───
+// Full admin control over storage:
+//   1. Free quota control (student + teacher)
+//   2. Commercial plans CRUD (add/edit/delete plans)
+function StorageManager({
+  configs,
+  updateConfig,
+}: {
+  configs: ConfigRow[];
+  updateConfig: (sectionKey: string, updates: Record<string, unknown>) => Promise<void>;
+}) {
+  const [plans, setPlans] = useState<Array<{
+    id: string; name: string; name_en: string | null; size_mb: number;
+    price: number; currency: string; is_active: boolean; sort_order: number;
+  }>>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newPlan, setNewPlan] = useState({
+    name: '', name_en: '', size_mb: '', price: '', currency: 'EGP',
+  });
+  const [adding, setAdding] = useState(false);
+
+  const filesConfig = configs.find(c => c.section_key === 'files');
+
+  const fetchPlans = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/storage-plans', {
+        headers: await getCachedAuthHeaders(),
+      });
+      const json = await res.json();
+      if (json.success) setPlans(json.plans ?? []);
+    } catch { /* silent */ }
+    finally { setLoadingPlans(false); }
+  }, []);
+
+  useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  const handleAddPlan = async () => {
+    if (!newPlan.name || !newPlan.size_mb || !newPlan.price) {
+      toast.error('الاسم والحجم والسعر مطلوبة');
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await fetch('/api/admin/storage-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
+        body: JSON.stringify({
+          name: newPlan.name,
+          name_en: newPlan.name_en || null,
+          size_mb: Number(newPlan.size_mb),
+          price: Number(newPlan.price),
+          currency: newPlan.currency,
+          sort_order: plans.length + 1,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success('تم إضافة الخطة');
+        setNewPlan({ name: '', name_en: '', size_mb: '', price: '', currency: 'EGP' });
+        setShowAddForm(false);
+        fetchPlans();
+      } else { toast.error(json.error || 'فشل'); }
+    } catch { toast.error('حدث خطأ'); }
+    finally { setAdding(false); }
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    try {
+      await fetch('/api/admin/storage-plans', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
+        body: JSON.stringify({ id }),
+      });
+      toast.success('تم حذف الخطة');
+      fetchPlans();
+    } catch { toast.error('فشل'); }
+  };
+
+  const handleUpdatePlan = async (id: string, updates: Record<string, unknown>) => {
+    try {
+      await fetch('/api/admin/storage-plans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
+        body: JSON.stringify({ id, updates }),
+      });
+      toast.success('تم التحديث');
+      fetchPlans();
+    } catch { toast.error('فشل'); }
+  };
+
+  const formatSize = (mb: number) => {
+    if (mb >= 1048576) return `${(mb / 1048576).toFixed(0)} تيرابايت`;
+    if (mb >= 1024) return `${(mb / 1024).toFixed(0)} جيجابايت`;
+    return `${mb} ميجابايت`;
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* ─── Free Quota Control ─── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <HardDrive className="h-4 w-4 text-emerald-600" />
+            المساحة المجانية (الافتراضية)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-[11px] text-muted-foreground">
+            هذه المساحة تُمنح مجاناً لكل المستخدمين. تُطبق دائماً حتى بدون قفل القسم.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-[10px] font-medium text-sky-700">مساحة الطالب المجانية (ميجابايت)</Label>
+              <Input
+                type="number"
+                defaultValue={filesConfig?.student_monthly_limit ?? 100}
+                onBlur={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : null;
+                  updateConfig('files', {
+                    student_monthly_limit: val,
+                    student_yearly_limit: val,
+                    free_quota_mb: val,
+                  });
+                }}
+                className="h-8 text-xs"
+                placeholder="100"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] font-medium text-teal-700">مساحة المعلم المجانية (ميجابايت)</Label>
+              <Input
+                type="number"
+                defaultValue={filesConfig?.teacher_monthly_limit ?? 500}
+                onBlur={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : null;
+                  updateConfig('files', {
+                    teacher_monthly_limit: val,
+                    teacher_yearly_limit: val,
+                  });
+                }}
+                className="h-8 text-xs"
+                placeholder="500"
+                dir="ltr"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Commercial Plans ─── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <HardDrive className="h-4 w-4 text-sky-600" />
+              خطط الترقية التجارية
+            </CardTitle>
+            <Button size="sm" variant="outline" className="h-7 text-xs"
+              onClick={() => setShowAddForm(!showAddForm)}>
+              {showAddForm ? <X className="h-3 w-3 me-1" /> : <Plus className="h-3 w-3 me-1" />}
+              {showAddForm ? 'إلغاء' : 'إضافة خطة'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-[11px] text-muted-foreground">
+            خطط ترقية المساحة (مثل Google Drive). المستخدم يختار خطة → يرسل طلب → الأدمن يوافق → المساحة تُضاف فوق المجانية.
+          </p>
+
+          {/* Add form */}
+          {showAddForm && (
+            <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/10 p-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px]">اسم الخطة (عربي)</Label>
+                  <Input
+                    value={newPlan.name}
+                    onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+                    placeholder="مثال: 50 جيجابايت"
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px]">اسم الخطة (إنجليزي)</Label>
+                  <Input
+                    value={newPlan.name_en}
+                    onChange={(e) => setNewPlan({ ...newPlan, name_en: e.target.value })}
+                    placeholder="e.g. 50 GB"
+                    className="h-8 text-xs"
+                    dir="ltr"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px]">الحجم (ميجابايت)</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.size_mb}
+                    onChange={(e) => setNewPlan({ ...newPlan, size_mb: e.target.value })}
+                    placeholder="مثال: 51200 (50 جيجا)"
+                    className="h-8 text-xs"
+                    dir="ltr"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px]">السعر</Label>
+                  <Input
+                    type="number"
+                    value={newPlan.price}
+                    onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
+                    placeholder="مثال: 20"
+                    className="h-8 text-xs"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+              <Button size="sm" className="w-full" disabled={adding} onClick={handleAddPlan}>
+                {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 me-1" />}
+                إضافة الخطة
+              </Button>
+            </div>
+          )}
+
+          {/* Plans list */}
+          {loadingPlans ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
+            </div>
+          ) : plans.length === 0 ? (
+            <div className="text-center py-4 text-xs text-muted-foreground">لا توجد خطط — أضف خطة جديدة</div>
+          ) : (
+            <div className="space-y-2">
+              {plans.map(p => (
+                <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
+                  <div className="flex items-center gap-2">
+                    <HardDrive className="h-4 w-4 text-sky-600 shrink-0" />
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium">{p.name}</span>
+                        {p.name_en && <span className="text-[10px] text-muted-foreground">({p.name_en})</span>}
+                        {!p.is_active && <Badge variant="secondary" className="text-[8px]">معطّلة</Badge>}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {formatSize(p.size_mb)} · {Number(p.price).toFixed(0)} {p.currency}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="h-6 text-[10px] px-1.5"
+                      onClick={() => {
+                        const newName = prompt('الاسم الجديد:', p.name);
+                        if (newName && newName !== p.name) handleUpdatePlan(p.id, { name: newName });
+                      }}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 text-[10px] text-rose-600 px-1.5"
+                      onClick={() => handleDeletePlan(p.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
