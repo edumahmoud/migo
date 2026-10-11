@@ -94,21 +94,11 @@ export async function GET(request: NextRequest) {
         // v132 Phase 5: per-student performance metrics.
         return await handleTracking(teacherId, limit, offset);
       case 'calendar':
-        // v132 Phase 1: temporary placeholder — full handler in Phase 7.
-        return NextResponse.json({
-          success: true,
-          section,
-          items: [],
-          note: 'سيتم توفير بيانات التقويم قريباً.',
-        });
+        // v132 Phase 7: scheduled events (quizzes + assignments + lectures).
+        return await handleCalendar(teacherId, limit, offset);
       case 'reports':
-        // v132 Phase 1: temporary placeholder — full handler in Phase 7.
-        return NextResponse.json({
-          success: true,
-          section,
-          items: [],
-          note: 'سيتم توفير بيانات البلاغات قريباً.',
-        });
+        // v132 Phase 7: moderation reports.
+        return await handleReports(teacherId, limit, offset);
       default:
         return NextResponse.json({
           success: true,
@@ -1186,5 +1176,277 @@ async function handleAnalytics(teacherId: string) {
       pending_orders: pendingCount ?? 0,
       paid_orders: paidCount ?? 0,
     },
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
+// v132 Phase 7: handleCalendar
+//   Returns scheduled academic events for the teacher's subjects:
+//     - quizzes with scheduled_date/scheduled_time
+//     - assignments with due_date
+//     - lectures with lecture_date
+//   All events are merged into a single list, sorted by event_date asc.
+//   Only FUTURE events (event_date >= now) are returned, so the agent
+//   sees what's coming up. Past events are excluded.
+//
+//   Per the user's instruction: "يتم عرض التقويم على ان يتم تسجيل ما
+//   حدده المعلم ك اختبارات او مهام وغيرها" — i.e., the calendar shows
+//   what the teacher has scheduled (exams/quizzes, assignments, lectures).
+// ──────────────────────────────────────────────────────────────
+async function handleCalendar(teacherId: string, limit: number, offset: number) {
+  // 1. Get the teacher's subject IDs + names.
+  const { data: teacherSubjects } = await supabaseServer
+    .from('subjects')
+    .select('id, name')
+    .eq('teacher_id', teacherId);
+  const subjectIdList = (teacherSubjects ?? []).map((s: { id: string }) => s.id);
+  const subjectNameById = new Map<string, string>(
+    (teacherSubjects ?? []).map((s: { id: string; name: string }) => [s.id, s.name])
+  );
+
+  if (subjectIdList.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'calendar',
+      items: [],
+      total_count: 0,
+      has_more: false,
+      limit,
+      offset,
+    });
+  }
+
+  const nowIso = new Date().toISOString();
+  type CalendarEvent = {
+    id: string;
+    type: 'quiz' | 'assignment' | 'lecture';
+    title: string;
+    subject_id: string;
+    subject_name: string;
+    event_date: string;  // ISO string
+    extra: Record<string, unknown>;
+  };
+
+  const allEvents: CalendarEvent[] = [];
+
+  // 2. Fetch quizzes with scheduled_date.
+  //    quizzes.scheduled_date is TEXT (not DATE), scheduled_time is TEXT.
+  //    We concatenate them to parse a datetime. NULL scheduled_date → skip.
+  const { data: quizzes } = await supabaseServer
+    .from('quizzes')
+    .select('id, title, subject_id, scheduled_date, scheduled_time, duration')
+    .in('subject_id', subjectIdList)
+    .not('scheduled_date', 'is', null);
+  for (const q of (quizzes ?? []) as unknown as Array<{
+    id: string; title: string; subject_id: string;
+    scheduled_date: string | null; scheduled_time: string | null; duration: number | null;
+  }>) {
+    if (!q.scheduled_date) continue;
+    // Try to parse scheduled_date + scheduled_time into an ISO string.
+    // scheduled_date format is unknown (TEXT), so we try Date parsing.
+    const dateStr = q.scheduled_time
+      ? `${q.scheduled_date} ${q.scheduled_time}`
+      : q.scheduled_date;
+    const parsed = new Date(dateStr);
+    if (isNaN(parsed.getTime())) continue;
+    allEvents.push({
+      id: `quiz-${q.id}`,
+      type: 'quiz',
+      title: q.title || 'اختبار',
+      subject_id: q.subject_id,
+      subject_name: subjectNameById.get(q.subject_id) ?? '—',
+      event_date: parsed.toISOString(),
+      extra: { duration: q.duration },
+    });
+  }
+
+  // 3. Fetch assignments with due_date.
+  //    assignments.due_date is DATE (no time component). We parse it as
+  //    midnight UTC.
+  const { data: assignments } = await supabaseServer
+    .from('assignments')
+    .select('id, title, subject_id, due_date, max_score')
+    .in('subject_id', subjectIdList)
+    .not('due_date', 'is', null);
+  for (const a of (assignments ?? []) as unknown as Array<{
+    id: string; title: string; subject_id: string;
+    due_date: string | null; max_score: number | null;
+  }>) {
+    if (!a.due_date) continue;
+    const parsed = new Date(a.due_date);
+    if (isNaN(parsed.getTime())) continue;
+    allEvents.push({
+      id: `assignment-${a.id}`,
+      type: 'assignment',
+      title: a.title || 'واجب',
+      subject_id: a.subject_id,
+      subject_name: subjectNameById.get(a.subject_id) ?? '—',
+      event_date: parsed.toISOString(),
+      extra: { max_score: a.max_score },
+    });
+  }
+
+  // 4. Fetch lectures with lecture_date.
+  const { data: lectures } = await supabaseServer
+    .from('lectures')
+    .select('id, title, subject_id, lecture_date')
+    .in('subject_id', subjectIdList)
+    .not('lecture_date', 'is', null);
+  for (const l of (lectures ?? []) as unknown as Array<{
+    id: string; title: string; subject_id: string; lecture_date: string | null;
+  }>) {
+    if (!l.lecture_date) continue;
+    const parsed = new Date(l.lecture_date);
+    if (isNaN(parsed.getTime())) continue;
+    allEvents.push({
+      id: `lecture-${l.id}`,
+      type: 'lecture',
+      title: l.title || 'محاضرة',
+      subject_id: l.subject_id,
+      subject_name: subjectNameById.get(l.subject_id) ?? '—',
+      event_date: parsed.toISOString(),
+      extra: {},
+    });
+  }
+
+  // 5. Filter to future events + sort by event_date asc.
+  const futureEvents = allEvents
+    .filter(e => e.event_date >= nowIso)
+    .sort((a, b) => a.event_date.localeCompare(b.event_date));
+
+  const totalCount = futureEvents.length;
+  const pageEvents = futureEvents.slice(offset, offset + limit);
+
+  return NextResponse.json({
+    success: true,
+    section: 'calendar',
+    items: pageEvents,
+    total_count: totalCount,
+    has_more: offset + pageEvents.length < totalCount,
+    limit,
+    offset,
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
+// v132 Phase 7: handleReports
+//   Returns moderation reports from the `reports` table. The agent sees
+//   reports filed by students enrolled in the teacher's subjects (so the
+//   agent can follow up on student-reported issues).
+//
+//   The reports table (v35/v38/v41/v45) stores moderation reports:
+//     - reporter_id, target_type (comment/message/user/other), reason
+//     - status (pending/in_progress/resolved/dismissed)
+//     - report_number (RPT-NNNNNN), reporter_count, attachments
+//
+//   We filter to reports where the reporter is a student enrolled in
+//   one of the teacher's subjects. This gives the agent a view of
+//   student-filed reports they can act on.
+// ──────────────────────────────────────────────────────────────
+async function handleReports(teacherId: string, limit: number, offset: number) {
+  // 1. Get the teacher's subject IDs.
+  const { data: teacherSubjects } = await supabaseServer
+    .from('subjects')
+    .select('id')
+    .eq('teacher_id', teacherId);
+  const subjectIdList = (teacherSubjects ?? []).map((s: { id: string }) => s.id);
+
+  if (subjectIdList.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'reports',
+      items: [],
+      total_count: 0,
+      has_more: false,
+      limit,
+      offset,
+    });
+  }
+
+  // 2. Get distinct student IDs enrolled in those subjects.
+  const { data: enrollments } = await supabaseServer
+    .from('subject_students')
+    .select('student_id')
+    .in('subject_id', subjectIdList);
+  const studentIds = Array.from(new Set(
+    (enrollments ?? []).map((e: { student_id: string }) => e.student_id)
+  ));
+
+  if (studentIds.length === 0) {
+    return NextResponse.json({
+      success: true,
+      section: 'reports',
+      items: [],
+      total_count: 0,
+      has_more: false,
+      limit,
+      offset,
+    });
+  }
+
+  // 3. Count total reports by these students.
+  const { count: totalCount } = await supabaseServer
+    .from('reports')
+    .select('id', { count: 'exact', head: true })
+    .in('reporter_id', studentIds);
+
+  // 4. Fetch the paginated report list.
+  const { data: reports, error } = await supabaseServer
+    .from('reports')
+    .select('id, report_number, reporter_id, target_type, reason, description, status, created_at, reporter_count')
+    .in('reporter_id', studentIds)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+
+  // 5. Resolve reporter names.
+  const pageReporterIds = Array.from(new Set(
+    (reports ?? []).map((r: { reporter_id?: string }) => r.reporter_id).filter(Boolean) as string[]
+  ));
+  let reporterNameById = new Map<string, { name: string | null; student_code: string | null }>();
+  if (pageReporterIds.length > 0) {
+    const { data: reporters } = await supabaseServer
+      .from('users')
+      .select('id, name, student_code')
+      .in('id', pageReporterIds);
+    for (const u of (reporters ?? []) as unknown as Array<{ id: string; name: string | null; student_code: string | null }>) {
+      reporterNameById.set(u.id, { name: u.name, student_code: u.student_code });
+    }
+  }
+
+  type ReportRow = {
+    id: string; report_number: string | null; target_type: string;
+    reason: string; description: string | null; status: string;
+    created_at: string; reporter_count: number | null;
+    reporter_id?: string;
+  };
+
+  const items = ((reports ?? []) as unknown as ReportRow[]).map(r => {
+    const reporter = r.reporter_id ? reporterNameById.get(r.reporter_id) : null;
+    return {
+      id: r.id,
+      report_number: r.report_number,
+      target_type: r.target_type,
+      reason: r.reason,
+      description: r.description,
+      status: r.status,
+      created_at: r.created_at,
+      reporter_count: r.reporter_count ?? 1,
+      reporter: reporter ? {
+        name: reporter.name,
+        student_code: reporter.student_code,
+      } : null,
+    };
+  });
+
+  return NextResponse.json({
+    success: true,
+    section: 'reports',
+    items,
+    total_count: totalCount ?? 0,
+    has_more: offset + items.length < (totalCount ?? 0),
+    limit,
+    offset,
   });
 }

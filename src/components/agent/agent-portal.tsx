@@ -1433,6 +1433,12 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
       return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد عناصر" />;
     case 'financialManagement':
       return <FinancialView data={data} />;
+    case 'calendar':
+      // v132 Phase 7: scheduled events (quizzes + assignments + lectures).
+      return <CalendarView data={data} />;
+    case 'reports':
+      // v132 Phase 7: moderation reports.
+      return <ReportsView data={data} />;
     case 'videos':
       return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد فيديوهات" />;
     case 'files':
@@ -2487,6 +2493,211 @@ function FinancialView({ data }: { data: Record<string, unknown> }) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// CalendarView — v132 Phase 7
+//   Shows scheduled academic events (quizzes, assignments, lectures)
+//   for the teacher's subjects. Only future events are shown, sorted
+//   by date ascending. Each event is grouped by date.
+// ──────────────────────────────────────────────────────────────
+function CalendarView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string;
+    type: 'quiz' | 'assignment' | 'lecture';
+    title: string;
+    subject_name: string;
+    event_date: string;
+    extra: Record<string, unknown>;
+  }>;
+  const totalCount = (data.total_count as number) ?? 0;
+
+  if (items.length === 0) {
+    return <EmptyState label="لا توجد أحداث مجدولة قادمة" />;
+  }
+
+  // Group events by date (YYYY-MM-DD).
+  const eventsByDate = new Map<string, typeof items>();
+  for (const e of items) {
+    const dateKey = e.event_date.slice(0, 10); // YYYY-MM-DD
+    if (!eventsByDate.has(dateKey)) eventsByDate.set(dateKey, []);
+    eventsByDate.get(dateKey)!.push(e);
+  }
+
+  const typeIcon = (type: string) => {
+    switch (type) {
+      case 'quiz': return <FileText className="h-3.5 w-3.5 text-amber-600" />;
+      case 'assignment': return <ListTodo className="h-3.5 w-3.5 text-sky-600" />;
+      case 'lecture': return <Video className="h-3.5 w-3.5 text-emerald-600" />;
+      default: return <Clock className="h-3.5 w-3.5 text-muted-foreground" />;
+    }
+  };
+  const typeLabel = (type: string) => {
+    switch (type) {
+      case 'quiz': return 'اختبار';
+      case 'assignment': return 'واجب';
+      case 'lecture': return 'محاضرة';
+      default: return type;
+    }
+  };
+  const typeColor = (type: string) => {
+    switch (type) {
+      case 'quiz': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'assignment': return 'bg-sky-50 text-sky-700 border-sky-200';
+      case 'lecture': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      default: return 'bg-muted/40 text-muted-foreground border-border';
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('ar-EG', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      });
+    } catch { return '—'; }
+  };
+  const formatTime = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] text-muted-foreground">
+        الأحداث القادمة: {totalCount}
+      </div>
+      <div className="space-y-2 max-h-[500px] overflow-y-auto">
+        {Array.from(eventsByDate.entries()).map(([dateKey, dayEvents]) => (
+          <div key={dateKey}>
+            <div className="text-xs font-medium text-muted-foreground py-1 px-2 sticky top-0 bg-card/80 backdrop-blur-sm">
+              {formatDate(dateKey)}
+            </div>
+            <div className="space-y-1">
+              {dayEvents.map(e => (
+                <div key={e.id} className="flex items-start gap-2 rounded-md border border-border/60 p-2 text-xs">
+                  <div className="shrink-0 mt-0.5">{typeIcon(e.type)}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium truncate">{e.title}</span>
+                      <Badge variant="outline" className={`text-[9px] ${typeColor(e.type)}`}>
+                        {typeLabel(e.type)}
+                      </Badge>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {e.subject_name}
+                      {e.event_date && <span className="ms-1">· {formatTime(e.event_date)}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// ReportsView — v132 Phase 7
+//   Shows moderation reports filed by students enrolled in the
+//   teacher's subjects. The agent can follow up on student-reported
+//   issues. Read-only — the agent can't resolve/dismiss reports
+//   (that's an admin/teacher action).
+// ──────────────────────────────────────────────────────────────
+function ReportsView({ data }: { data: Record<string, unknown> }) {
+  const items = (data.items ?? []) as Array<{
+    id: string;
+    report_number: string | null;
+    target_type: string;
+    reason: string;
+    description: string | null;
+    status: string;
+    created_at: string;
+    reporter_count: number;
+    reporter: { name: string | null; student_code: string | null } | null;
+  }>;
+  const totalCount = (data.total_count as number) ?? 0;
+
+  if (items.length === 0) {
+    return <EmptyState label="لا توجد بلاغات من طلابك" />;
+  }
+
+  const statusColor = (status: string): string => {
+    switch (status) {
+      case 'pending': return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'in_progress': return 'bg-sky-50 text-sky-700 border-sky-200';
+      case 'resolved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'dismissed': return 'bg-muted/40 text-muted-foreground border-border';
+      default: return 'bg-muted/40 text-muted-foreground border-border';
+    }
+  };
+  const statusLabel = (status: string): string => {
+    switch (status) {
+      case 'pending': return 'بانتظار المراجعة';
+      case 'in_progress': return 'قيد المعالجة';
+      case 'resolved': return 'تم الحل';
+      case 'dismissed': return 'تم الرفض';
+      default: return status;
+    }
+  };
+  const targetTypeLabel = (type: string): string => {
+    switch (type) {
+      case 'comment': return 'تعليق';
+      case 'message': return 'رسالة';
+      case 'user': return 'مستخدم';
+      case 'other': return 'أخرى';
+      default: return type;
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return '—'; }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] text-muted-foreground">
+        إجمالي البلاغات: {totalCount}
+      </div>
+      <div className="rounded-md border border-border/60 divide-y max-h-[500px] overflow-y-auto">
+        {items.map(r => (
+          <div key={r.id} className="p-2.5 text-xs space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-medium truncate">{r.reason}</span>
+                  {r.report_number && (
+                    <span className="font-mono text-[10px] text-muted-foreground">{r.report_number}</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {r.reporter?.name ?? '—'}
+                  {r.reporter?.student_code && <span className="ms-1">({r.reporter.student_code})</span>}
+                  {' · '}
+                  {targetTypeLabel(r.target_type)}
+                  {r.reporter_count > 1 && <span className="ms-1">· {r.reporter_count} مُبلِّغ</span>}
+                </div>
+              </div>
+              <Badge variant="outline" className={`text-[9px] shrink-0 ${statusColor(r.status)}`}>
+                {statusLabel(r.status)}
+              </Badge>
+            </div>
+            {r.description && (
+              <p className="text-[10px] text-muted-foreground line-clamp-2 pt-1 border-t border-border/40">
+                {r.description}
+              </p>
+            )}
+            <div className="text-[9px] text-muted-foreground text-end">
+              {formatDate(r.created_at)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
