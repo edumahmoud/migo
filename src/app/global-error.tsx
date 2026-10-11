@@ -2,9 +2,10 @@
 
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { AlertTriangle, RefreshCw, X } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { useLocaleStore } from '@/i18n/locale-store';
+import { getInstitutionLogoFromStorage } from '@/components/shared/brand-logo';
 
 /**
  * Global Error Boundary — renders OUTSIDE the normal React tree
@@ -64,6 +65,11 @@ export default function GlobalError({
 
   const s = strings[lang] || strings.ar;
 
+  // v132c: read the institution logo URL from localStorage (if cached).
+  // global-error.tsx runs OUTSIDE the React tree, so we can't use the
+  // institution store — we read from localStorage directly.
+  const cachedLogo = getInstitutionLogoFromStorage();
+
   const handleReload = () => {
     if (typeof window !== 'undefined') {
       try {
@@ -101,14 +107,21 @@ export default function GlobalError({
           style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
         >
           <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
-            {/* Brand icon */}
+            {/* Brand icon — institution logo if available, else fallback */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
+              className="mx-auto mb-4 w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
             >
-              <GraduationCap className="h-7 w-7 text-white" />
+              {cachedLogo ? (
+                <img
+                  src={cachedLogo}
+                  alt="شعار المؤسسة"
+                  className="w-full h-full object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : null}
             </motion.div>
 
             {/* Error icon */}

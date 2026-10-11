@@ -7,10 +7,18 @@ import { join } from 'path';
 const VALID_SIZES = [16, 32, 180, 192, 512] as const;
 type ValidSize = (typeof VALID_SIZES)[number];
 
-// Cache institution logo data for 5 minutes to avoid hitting Supabase on every request
+// v132c: reduced cache TTL from 5 minutes to 30 seconds so logo
+// changes propagate faster.
 let cachedLogoUrl: string | null = null;
 let cacheExpiry = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 30 * 1000; // 30 seconds (was 5 minutes)
+
+/** v132c: Clear the in-memory logo cache. Called by the manifest
+ *  route's POST handler when the admin saves new institution data. */
+export function clearIconCache() {
+  cachedLogoUrl = null;
+  cacheExpiry = 0;
+}
 
 function isValidSize(size: string): boolean {
   return (VALID_SIZES as readonly number[]).includes(Number(size));
@@ -202,12 +210,14 @@ export async function GET(
     }
   }
 
+  // v132c: reduced max-age from 300 to 60 so the browser refetches
+  // icons more often (every 1 minute instead of 5).
   return new NextResponse(new Uint8Array(finalData), {
     status: 200,
     headers: {
       'Content-Type': finalContentType,
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
-      'CDN-Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+      'CDN-Cache-Control': 'public, max-age=60',
     },
   });
 }

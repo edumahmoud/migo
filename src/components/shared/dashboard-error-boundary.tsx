@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, RefreshCw, GraduationCap, LogOut, RotateCcw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, LogOut, RotateCcw } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
+import { BrandLogo } from '@/components/shared/brand-logo';
 
 /**
  * DashboardErrorBoundary
@@ -72,9 +73,7 @@ function DashboardErrorUI({
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-900 dark:via-card dark:to-teal-900 p-4" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+            <BrandLogo size="lg" />
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
@@ -100,14 +99,14 @@ function DashboardErrorUI({
         className="relative z-10 w-full max-w-md mx-auto"
       >
         <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
-          {/* Brand icon */}
+          {/* Brand icon — institution logo if available */}
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
+            className="mx-auto mb-4"
           >
-            <GraduationCap className="h-7 w-7 text-white" />
+            <BrandLogo size="md" />
           </motion.div>
 
           {/* Error icon */}

@@ -1,12 +1,12 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v7';
-const STATIC_CACHE = 'atendo-static-v7';
-const DYNAMIC_CACHE = 'atendo-dynamic-v7';
-const API_CACHE = 'atendo-api-v7';
+const CACHE_NAME = 'atendo-v8';
+const STATIC_CACHE = 'atendo-static-v8';
+const DYNAMIC_CACHE = 'atendo-dynamic-v8';
+const API_CACHE = 'atendo-api-v8';
 
 // Build version — update this comment to force SW cache bust
-// BUILD_VERSION: 2.2.0
+// BUILD_VERSION: 2.3.0-v132c (dynamic push notification icons)
 
 // Static assets to precache
 // NOTE: /manifest.json is removed — the app uses the dynamic manifest at /api/manifest
@@ -232,8 +232,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
       self.registration.showNotification('أتيندو', {
         body: 'لديك إشعار جديد',
-        icon: '/icon-192x192.png',
-        badge: '/icon-192x192.png',
+        icon: '/api/icon/192',
+        badge: '/api/icon/192',
         dir: 'rtl',
         lang: 'ar',
       })
@@ -339,8 +339,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
       self.registration.showNotification('أتيندو', {
         body: 'لديك إشعار جديد',
-        icon: '/icon-192x192.png',
-        badge: '/icon-192x192.png',
+        icon: '/api/icon/192',
+        badge: '/api/icon/192',
         dir: 'rtl',
         lang: 'ar',
       })

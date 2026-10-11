@@ -244,6 +244,24 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       }
 
       toast.success(t('common.success'));
+
+      // v132c: Invalidate the server-side manifest + icon cache so the
+      // PWA icon updates immediately (within 30s instead of 5 min).
+      // This POST call clears the in-memory cache on the server, so the
+      // next GET /api/manifest + /api/icon/* will refetch from the DB.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
+        await fetch('/api/manifest', {
+          method: 'POST',
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        });
+      } catch {
+        // Non-critical — the 30s TTL will expire naturally.
+      }
+
       // Refresh data
       await fetchInstitution();
     } catch {

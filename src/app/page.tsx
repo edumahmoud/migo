@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, Layers, DollarSign, ShieldAlert } from 'lucide-react';
+import { Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, Layers, DollarSign, ShieldAlert } from 'lucide-react';
 import SettingsSection from '@/components/shared/settings-section';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -32,6 +32,7 @@ import AppHeader from '@/components/shared/app-header';
 import AppSidebar from '@/components/shared/app-sidebar';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
+import { BrandLogo } from '@/components/shared/brand-logo';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import StudentSuspensionOverlay from '@/components/shared/student-suspension-overlay';
 import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
@@ -113,9 +114,7 @@ class AppErrorBoundary extends React.Component<
           <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-                  <GraduationCap className="w-9 h-9 text-white" />
-                </div>
+                <BrandLogo size="lg" />
               </div>
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
@@ -803,9 +802,7 @@ function HomeContent() {
           className="flex flex-col items-center gap-4"
         >
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+            <BrandLogo size="lg" />
             <div className="absolute -bottom-1 -end-1 w-5 h-5 rounded-full bg-sky-600 animate-ping" />
           </div>
           <div className="flex items-center gap-2">
@@ -838,9 +835,7 @@ function HomeContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+            <BrandLogo size="lg" />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
@@ -906,9 +901,7 @@ function HomeContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+            <BrandLogo size="lg" />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
@@ -924,9 +917,7 @@ function HomeContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+            <BrandLogo size="lg" />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
@@ -1037,9 +1028,7 @@ onSignOut={async () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
+            <BrandLogo size="lg" />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
@@ -1423,9 +1412,7 @@ function LoadingFallback() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
       <div className="flex flex-col items-center gap-4">
         <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-            <GraduationCap className="w-9 h-9 text-white" />
-          </div>
+          <BrandLogo size="lg" />
         </div>
         <div className="flex items-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin text-sky-700" />

@@ -1,8 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Database, AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { Database, AlertTriangle, RefreshCw, X } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
+import { BrandLogo } from '@/components/shared/brand-logo';
 
 const REQUIRED_ENV_VARS = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -69,14 +70,14 @@ export default function SupabaseConfigError() {
         className="relative z-10 w-full max-w-md mx-auto"
       >
         <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
-          {/* Brand icon */}
+          {/* Brand icon — institution logo if available */}
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
+            className="mx-auto mb-4"
           >
-            <GraduationCap className="h-8 w-8 text-white" />
+            <BrandLogo size="md" />
           </motion.div>
 
           {/* Error icon */}

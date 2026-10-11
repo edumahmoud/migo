@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw, RotateCcw, GraduationCap } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
+import { BrandLogo } from '@/components/shared/brand-logo';
 
 export default function ErrorPage({
   error,
@@ -83,9 +84,7 @@ export default function ErrorPage({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={direction}>
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-            <GraduationCap className="w-9 h-9 text-white" />
-          </div>
+          <BrandLogo size="lg" />
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">{t('errorBoundary.recoveringAuto')}</span>
@@ -104,8 +103,8 @@ export default function ErrorPage({
 
       <div className="relative z-10 w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30">
-            <GraduationCap className="h-7 w-7 text-white" />
+          <div className="mx-auto mb-4">
+            <BrandLogo size="md" withShadow={true} />
           </div>
 
           <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
