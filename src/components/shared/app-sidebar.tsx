@@ -32,6 +32,7 @@ import {
   Clock,
   History,
   DollarSign,
+  Lock,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -45,6 +46,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useLockedSectionsStore } from '@/stores/locked-sections-store';
 import StickyNoteModal from '@/components/shared/sticky-note-modal';
 
 // -------------------------------------------------------
@@ -127,11 +129,14 @@ function NavItems({
 }) {
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
   const { t, isRTL } = useTranslations();
+  // v134: check if any nav items are locked for this user.
+  const isLocked = useLockedSectionsStore((s) => s.isLocked);
 
   return (
     <ul className="space-y-1">
       {navItems.map((item) => {
         const isActive = activeSection === item.id;
+        const locked = isLocked(item.id);
         return (
           <li key={item.id}>
             <motion.button
@@ -149,7 +154,7 @@ function NavItems({
                 isActive
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground border border-sidebar-primary shadow-sm'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground border border-transparent'
-              }`}
+              } ${locked ? 'opacity-75' : ''}`}
               title={collapsed ? (item.label || t(item.labelKey || '')) : undefined}
             >
               <span
@@ -158,6 +163,12 @@ function NavItems({
                 }`}
               >
                 {item.icon}
+                {/* v134: lock badge for locked sections */}
+                {locked && (
+                  <span className="absolute -top-1 -end-1 flex items-center justify-center rounded-full bg-amber-500 text-white">
+                    <Lock className="h-2.5 w-2.5" />
+                  </span>
+                )}
                 {/* Notification badge on chat icon */}
                 {item.id === 'chat' && chatUnreadCount > 0 && (
                   <span

@@ -85,9 +85,11 @@ import CalendarSection from '@/components/shared/calendar-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
+import { useLockedSectionsStore } from '@/stores/locked-sections-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { playNotificationFeedback, useNotificationStore } from '@/stores/notification-store';
+import SectionLockedView from '@/components/shared/section-locked-view';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
 import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
@@ -284,6 +286,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<StudentSection>(storedStudentSection || 'dashboard');
+  // v134: when the user clicks a locked section, we set this instead of
+  // switching activeSection. renderSection() checks this and shows
+  // SectionLockedView instead of the normal section content.
+  const [lockedSectionView, setLockedSectionView] = useState<string | null>(null);
 
   // Keep local state in sync when store changes (e.g. notification navigation)
   useEffect(() => {
@@ -1024,6 +1030,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const fetchAllData = useCallback(async (silent = false) => {
     if (!silent) setLoadingData(true);
 
+    // v134: fetch locked sections status in parallel.
+    useLockedSectionsStore.getState().fetchLockedSections();
+
     // Start all fetches in parallel but don't await them all before showing UI
     const fetchPromises = [
       fetchSummaries(),
@@ -1557,6 +1566,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
+    // v134: if the section is locked, show the locked view instead.
+    const lockedSectionsStore = useLockedSectionsStore.getState();
+    if (lockedSectionsStore.isLocked(section)) {
+      setLockedSectionView(section);
+      return;
+    }
+    // Clear any locked view when switching to a normal section.
+    setLockedSectionView(null);
+
     // If viewing a summary and user navigates via sidebar,
     // clear the summary view so the new section is shown.
     // This also applies when clicking "summaries" — the user wants the list, not the detail.
@@ -4901,6 +4919,26 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Render: Section content
   // -------------------------------------------------------
   const renderSection = () => {
+    // v134: if the user clicked a locked section, show the locked view.
+    if (lockedSectionView) {
+      const sectionInfo = useLockedSectionsStore.getState().getSection(lockedSectionView);
+      if (sectionInfo) {
+        return (
+          <SectionLockedView
+            sectionKey={lockedSectionView}
+            sectionLabel={sectionInfo.config.section_label}
+            config={sectionInfo.config}
+            userRole="student"
+            onRequestSubmitted={() => {
+              // Refresh locked status after a request is submitted.
+              useLockedSectionsStore.setState({ loaded: false });
+              useLockedSectionsStore.getState().fetchLockedSections();
+            }}
+          />
+        );
+      }
+    }
+
     // If viewing a summary, render SummaryView inside the dashboard layout
     // This keeps the sidebar and header visible on mobile
     if (viewingSummaryId) {

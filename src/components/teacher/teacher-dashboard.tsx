@@ -82,9 +82,11 @@ import TeacherFinancialManagementSection from '@/components/teacher/teacher-fina
 import TeacherPendingOrdersSection from '@/components/teacher/teacher-pending-orders-section';
 import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
+import { useLockedSectionsStore } from '@/stores/locked-sections-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
+import SectionLockedView from '@/components/shared/section-locked-view';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -178,6 +180,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<TeacherSection>(storedTeacherSection || 'dashboard');
+  // v134: locked section view state.
+  const [lockedSectionView, setLockedSectionView] = useState<string | null>(null);
 
   // Keep local state in sync when store changes (e.g. notification navigation)
   useEffect(() => {
@@ -456,6 +460,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const fetchAllData = useCallback(async (silent = false) => {
     if (!silent) setLoadingData(true);
 
+    // v134: fetch locked sections status.
+    useLockedSectionsStore.getState().fetchLockedSections();
+
     // Start all fetches in parallel but don't await them all before showing UI
     const fetchPromises = [
       fetchStudents(),
@@ -637,6 +644,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
+    // v134: if the section is locked, show the locked view instead.
+    const lockedSectionsStore = useLockedSectionsStore.getState();
+    if (lockedSectionsStore.isLocked(section)) {
+      setLockedSectionView(section);
+      return;
+    }
+    setLockedSectionView(null);
     setActiveSection(section as TeacherSection);
     storeSetTeacherSection(section as TeacherSection);
   };
@@ -2509,12 +2523,32 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           ) : (
             <AnimatePresence mode="wait">
               <motion.div
-                key={activeSection}
+                key={lockedSectionView || activeSection}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
                 transition={{ duration: 0.2 }}
               >
+                {/* v134: locked section view */}
+                {lockedSectionView ? (() => {
+                  const sectionInfo = useLockedSectionsStore.getState().getSection(lockedSectionView);
+                  if (sectionInfo) {
+                    return (
+                      <SectionLockedView
+                        sectionKey={lockedSectionView}
+                        sectionLabel={sectionInfo.config.section_label}
+                        config={sectionInfo.config}
+                        userRole="teacher"
+                        onRequestSubmitted={() => {
+                          useLockedSectionsStore.setState({ loaded: false });
+                          useLockedSectionsStore.getState().fetchLockedSections();
+                        }}
+                      />
+                    );
+                  }
+                  return null;
+                })() : (
+                  <>
                 {activeSection === 'dashboard' && renderDashboard()}
                 {activeSection === 'subjects' && (selectedSubjectId
                   ? <SectionErrorBoundary name="Course"><CoursePage profile={profile} role="teacher" /></SectionErrorBoundary>
@@ -2548,6 +2582,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'chat' && <SectionErrorBoundary name="Chat"><ChatSection profile={profile} role="teacher" /></SectionErrorBoundary>}
                 {activeSection === 'settings' && <SectionErrorBoundary name="Settings"><SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} /></SectionErrorBoundary>}
                 {activeSection === 'notifications' && <SectionErrorBoundary name="Notifications"><NotificationsSection /></SectionErrorBoundary>}
+                  </>
+                )}
               </motion.div>
             </AnimatePresence>
           )}
