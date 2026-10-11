@@ -198,9 +198,19 @@ export async function POST(request: NextRequest) {
   // ─── Handle the users table specially ───
   // If 'users' category is selected, delete all users EXCEPT the admin
   // (unless deleteSelf is true, then delete the admin too — but LAST).
+  // v134c: Also delete the corresponding auth.users entries to avoid
+  // orphaned auth accounts that block future signups with the same email.
   if (categories.includes('users')) {
+    // v134c: Fetch all user IDs that will be deleted (for auth cleanup).
+    const { data: usersToDelete } = await supabaseServer
+      .from('users')
+      .select('id')
+      .neq('id', auth.user.id);
+
+    const userIdsToDelete = (usersToDelete ?? []).map((u: { id: string }) => u.id);
+
     if (deleteSelf) {
-      // Delete all other users first.
+      // Delete all other users first (public.users).
       const { count: othersCount } = await supabaseServer
         .from('users')
         .delete({ count: 'exact' })
@@ -210,6 +220,23 @@ export async function POST(request: NextRequest) {
         table: 'users (other than self)',
         deleted: othersCount ?? 0,
       });
+
+      // v134c: Delete corresponding auth.users entries for deleted users.
+      let authDeletedCount = 0;
+      for (const userId of userIdsToDelete) {
+        try {
+          const { error: delErr } = await supabaseServer.auth.admin.deleteUser(userId);
+          if (!delErr) authDeletedCount++;
+        } catch { /* skip */ }
+      }
+      if (authDeletedCount > 0) {
+        results.push({
+          category: 'users',
+          table: 'auth.users (orphaned accounts)',
+          deleted: authDeletedCount,
+        });
+      }
+
       // Delete admin's users row.
       const { count: selfCount } = await supabaseServer
         .from('users')
@@ -220,15 +247,12 @@ export async function POST(request: NextRequest) {
         table: 'users (self)',
         deleted: selfCount ?? 0,
       });
-      // Delete admin's auth account (Supabase Auth) — done LAST so we
-      // can still send the response.
-      // We don't await this — the response should be sent before the
-      // auth account is destroyed.
+      // Delete admin's auth account (Supabase Auth) — done LAST.
       supabaseServer.auth.admin.deleteUser(auth.user.id).catch((err) => {
         console.error('[destruct] failed to delete self auth account:', err);
       });
     } else {
-      // Delete all users EXCEPT the admin.
+      // Delete all users EXCEPT the admin (public.users).
       const { count, error } = await supabaseServer
         .from('users')
         .delete({ count: 'exact' })
@@ -239,6 +263,22 @@ export async function POST(request: NextRequest) {
         deleted: count ?? 0,
         error: error?.message,
       });
+
+      // v134c: Delete corresponding auth.users entries for deleted users.
+      let authDeletedCount = 0;
+      for (const userId of userIdsToDelete) {
+        try {
+          const { error: delErr } = await supabaseServer.auth.admin.deleteUser(userId);
+          if (!delErr) authDeletedCount++;
+        } catch { /* skip */ }
+      }
+      if (authDeletedCount > 0) {
+        results.push({
+          category: 'users',
+          table: 'auth.users (orphaned accounts)',
+          deleted: authDeletedCount,
+        });
+      }
     }
   }
 
