@@ -28,6 +28,7 @@ import {
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile } from '@/lib/pdf-client';
+import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -514,6 +515,17 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   // Handle create summary (teacher version)
   // -------------------------------------------------------
   const handleCreateSummary = async () => {
+    // v134: check usage limit before allowing summary creation.
+    const usageCheck = await checkSectionUsage('summaries');
+    if (!usageCheck.canUse) {
+      toast.error(
+        usageCheck.limit !== null
+          ? `لقد وصلت إلى الحد الأقصى (${usageCheck.limit} عملية). فعّل القسم للمتابعة.`
+          : 'لا يمكن إنشاء ملخصات جديدة. فعّل القسم للمتابعة.'
+      );
+      return;
+    }
+
     const title = summaryTitle.trim();
     if (!title) {
       toast.error(t('summaryTitleRequired'));

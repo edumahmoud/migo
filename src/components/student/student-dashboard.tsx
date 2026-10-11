@@ -90,6 +90,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { playNotificationFeedback, useNotificationStore } from '@/stores/notification-store';
 import SectionLockedView from '@/components/shared/section-locked-view';
+import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
 import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
@@ -1613,6 +1614,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // A small banner shows progress at the top of the summaries section.
   // -------------------------------------------------------
   const handleCreateSummary = async () => {
+    // v134: check usage limit before allowing summary creation.
+    const usageCheck = await checkSectionUsage('summaries');
+    if (!usageCheck.canUse) {
+      toast.error(
+        usageCheck.limit !== null
+          ? `لقد وصلت إلى الحد الأقصى (${usageCheck.limit} عملية). فعّل القسم للمتابعة.`
+          : 'لا يمكن إنشاء ملخصات جديدة. فعّل القسم للمتابعة.'
+      );
+      return;
+    }
+
     const title = summaryTitle.trim();
     if (!title) {
       toast.error(t('student.enterTitle'));
@@ -2517,6 +2529,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   const handleCreateQuizFromSummary = async () => {
     if (!quizConfigSummaryId) return;
+
+    // v134: check usage limit before allowing AI quiz creation.
+    const usageCheck = await checkSectionUsage('summaries');
+    if (!usageCheck.canUse) {
+      toast.error(
+        usageCheck.limit !== null
+          ? `لقد وصلت إلى الحد الأقصى (${usageCheck.limit} عملية). فعّل القسم للمتابعة.`
+          : 'لا يمكن إنشاء اختبارات جديدة. فعّل القسم للمتابعة.'
+      );
+      return;
+    }
 
     const totalQ = quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching;
     if (totalQ === 0) {
