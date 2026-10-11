@@ -13,7 +13,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Lock, Loader2, CheckCircle2, Clock, XCircle, Sparkles, HardDrive } from 'lucide-react';
+import { Lock, Loader2, CheckCircle2, Clock, XCircle, Sparkles, HardDrive, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -246,31 +246,62 @@ export default function SectionLockedView({
               </Card>
             )}
 
-            {/* v134h: for storage sections — show storage purchase (not monthly/yearly) */}
+            {/* v134h: for storage sections — show storage upgrade plans */}
             {isStorage ? (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <HardDrive className="h-4 w-4 text-sky-600" />
-                    شراء مساحة تخزين
+                    تزويد مساحة التخزين
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className={`rounded-lg border p-3 ${'border-amber-400 bg-amber-50 dark:bg-amber-900/20'}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">
-                          {storageQuota ?? 'غير محدود'} ميجابايت
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">مساحة تخزينية</div>
-                      </div>
-                      <div className="font-bold text-amber-700 dark:text-amber-400">
-                        {Number(monthlyPrice).toFixed(0)} {config.currency}
+                  <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>مساحة التخزين ممتلئة. اختر خطة لتزويد المساحة:</span>
+                  </div>
+                  {/* Monthly upgrade */}
+                  <button
+                    type="button"
+                    onClick={() => setPlanType('monthly')}
+                    className={`w-full flex items-center justify-between gap-2 rounded-lg border p-3 text-start transition-colors ${
+                      planType === 'monthly'
+                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-medium text-sm">خطة شهرية</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {storageQuota ?? 'غير محدود'} ميجابايت · 30 يوماً
                       </div>
                     </div>
-                  </div>
+                    <div className="font-bold text-amber-700 dark:text-amber-400">
+                      {Number(monthlyPrice).toFixed(0)} {config.currency}
+                    </div>
+                  </button>
+                  {/* Yearly upgrade */}
+                  <button
+                    type="button"
+                    onClick={() => setPlanType('yearly')}
+                    className={`w-full flex items-center justify-between gap-2 rounded-lg border p-3 text-start transition-colors ${
+                      planType === 'yearly'
+                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-medium text-sm">خطة سنوية</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {storageQuota ?? 'غير محدود'} ميجابايت · 365 يوماً {savingsText}
+                      </div>
+                    </div>
+                    <div className="font-bold text-amber-700 dark:text-amber-400">
+                      {Number(yearlyPrice).toFixed(0)} {config.currency}
+                    </div>
+                  </button>
                   <div className="rounded-md bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3 text-xs text-sky-700 dark:text-sky-300">
-                    تشمل المساحة جميع الملفات المرفوعة. المحذوفة محسوبة من الإجمالي حتى لا يتم استغلال الحذف لتجاوز المساحة.
+                    تشمل المساحة جميع الملفات المرفوعة. المحذوفة محسوبة من الإجمالي.
                   </div>
                 </CardContent>
               </Card>
@@ -354,7 +385,7 @@ export default function SectionLockedView({
                 >
                   {submitting ? <Loader2 className="h-4 w-4 me-1 animate-spin" /> : <Lock className="h-4 w-4 me-1" />}
                   {isStorage
-                    ? `إرسال طلب شراء مساحة`
+                    ? `إرسال طلب تزويد المساحة (${planType === 'yearly' ? 'سنوي' : 'شهري'})`
                     : `إرسال طلب التفعيل (${planType === 'yearly' ? 'سنوي' : 'شهري'})`}
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">
