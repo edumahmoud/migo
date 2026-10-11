@@ -20,6 +20,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -353,7 +357,7 @@ export default function AdminPaidServicesSection() {
                 </ul>
               </div>
 
-              {configs.map(c => {
+              {configs.filter(c => c.section_key !== 'files').map(c => {
                 const isStorage = c.usage_metric === 'storage';
                 const isCombined = c.usage_metric === 'combined';
                 const isTeacherOnly = c.teacher_only === true;
@@ -688,10 +692,7 @@ function TrialManager({
   );
 }
 
-// ─── StorageManager — v134k ───
-// Full admin control over storage:
-//   1. Free quota control (student + teacher)
-//   2. Commercial plans CRUD (add/edit/delete plans)
+// ─── StorageManager — v134k (redesigned) ───
 function StorageManager({
   configs,
   updateConfig,
@@ -704,19 +705,30 @@ function StorageManager({
     price: number; currency: string; is_active: boolean; sort_order: number;
   }>>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newPlan, setNewPlan] = useState({
-    name: '', name_en: '', size_mb: '', price: '', currency: 'EGP',
-  });
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<typeof plans[number] | null>(null);
+  const [newPlan, setNewPlan] = useState({ name: '', name_en: '', size_mb: '', price: '', currency: 'EGP' });
+  const [editForm, setEditForm] = useState({ name: '', name_en: '', size_mb: '', price: '' });
   const [adding, setAdding] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [freeStudent, setFreeStudent] = useState('');
+  const [freeTeacher, setFreeTeacher] = useState('');
+  const [savingFree, setSavingFree] = useState(false);
 
   const filesConfig = configs.find(c => c.section_key === 'files');
 
+  // v134k: init free quota fields from config.
+  useEffect(() => {
+    if (filesConfig) {
+      setFreeStudent(String(filesConfig.student_monthly_limit ?? 100));
+      setFreeTeacher(String(filesConfig.teacher_monthly_limit ?? 500));
+    }
+  }, [filesConfig]);
+
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/storage-plans', {
-        headers: await getCachedAuthHeaders(),
-      });
+      const res = await fetch('/api/admin/storage-plans', { headers: await getCachedAuthHeaders() });
       const json = await res.json();
       if (json.success) setPlans(json.plans ?? []);
     } catch { /* silent */ }
@@ -724,6 +736,19 @@ function StorageManager({
   }, []);
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
+
+  const handleSaveFree = async () => {
+    setSavingFree(true);
+    try {
+      await updateConfig('files', {
+        student_monthly_limit: freeStudent ? Number(freeStudent) : null,
+        student_yearly_limit: freeStudent ? Number(freeStudent) : null,
+        teacher_monthly_limit: freeTeacher ? Number(freeTeacher) : null,
+        teacher_yearly_limit: freeTeacher ? Number(freeTeacher) : null,
+        free_quota_mb: freeStudent ? Number(freeStudent) : null,
+      });
+    } finally { setSavingFree(false); }
+  };
 
   const handleAddPlan = async () => {
     if (!newPlan.name || !newPlan.size_mb || !newPlan.price) {
@@ -736,19 +761,16 @@ function StorageManager({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
         body: JSON.stringify({
-          name: newPlan.name,
-          name_en: newPlan.name_en || null,
-          size_mb: Number(newPlan.size_mb),
-          price: Number(newPlan.price),
-          currency: newPlan.currency,
-          sort_order: plans.length + 1,
+          name: newPlan.name, name_en: newPlan.name_en || null,
+          size_mb: Number(newPlan.size_mb), price: Number(newPlan.price),
+          currency: newPlan.currency, sort_order: plans.length + 1,
         }),
       });
       const json = await res.json();
       if (json.success) {
         toast.success('تم إضافة الخطة');
         setNewPlan({ name: '', name_en: '', size_mb: '', price: '', currency: 'EGP' });
-        setShowAddForm(false);
+        setShowAddDialog(false);
         fetchPlans();
       } else { toast.error(json.error || 'فشل'); }
     } catch { toast.error('حدث خطأ'); }
@@ -756,27 +778,61 @@ function StorageManager({
   };
 
   const handleDeletePlan = async (id: string) => {
+    const ok = window.confirm('هل أنت متأكد من حذف هذه الخطة؟ لا يمكن التراجع.');
+    if (!ok) return;
     try {
-      await fetch('/api/admin/storage-plans', {
+      const res = await fetch('/api/admin/storage-plans', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
         body: JSON.stringify({ id }),
       });
-      toast.success('تم حذف الخطة');
-      fetchPlans();
-    } catch { toast.error('فشل'); }
+      const json = await res.json();
+      if (json.success) { toast.success('تم حذف الخطة'); fetchPlans(); }
+      else { toast.error(json.error || 'فشل'); }
+    } catch { toast.error('حدث خطأ'); }
   };
 
-  const handleUpdatePlan = async (id: string, updates: Record<string, unknown>) => {
+  const openEditDialog = (plan: typeof plans[number]) => {
+    setEditingPlan(plan);
+    setEditForm({
+      name: plan.name,
+      name_en: plan.name_en ?? '',
+      size_mb: String(plan.size_mb),
+      price: String(plan.price),
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPlan) return;
+    if (!editForm.name || !editForm.size_mb || !editForm.price) {
+      toast.error('الاسم والحجم والسعر مطلوبة');
+      return;
+    }
+    setSavingEdit(true);
     try {
-      await fetch('/api/admin/storage-plans', {
+      const res = await fetch('/api/admin/storage-plans', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
-        body: JSON.stringify({ id, updates }),
+        body: JSON.stringify({
+          id: editingPlan.id,
+          updates: {
+            name: editForm.name,
+            name_en: editForm.name_en || null,
+            size_mb: Number(editForm.size_mb),
+            price: Number(editForm.price),
+          },
+        }),
       });
-      toast.success('تم التحديث');
-      fetchPlans();
-    } catch { toast.error('فشل'); }
+      const json = await res.json();
+      if (json.success) {
+        toast.success('تم تحديث الخطة');
+        setShowEditDialog(false);
+        setEditingPlan(null);
+        fetchPlans();
+      } else { toast.error(json.error || 'فشل'); }
+    } catch { toast.error('حدث خطأ'); }
+    finally { setSavingEdit(false); }
   };
 
   const formatSize = (mb: number) => {
@@ -787,7 +843,7 @@ function StorageManager({
 
   return (
     <div className="space-y-3">
-      {/* ─── Free Quota Control ─── */}
+      {/* ─── Free Quota ─── */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -797,45 +853,36 @@ function StorageManager({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-[11px] text-muted-foreground">
-            هذه المساحة تُمنح مجاناً لكل المستخدمين. تُطبق دائماً حتى بدون قفل القسم.
+            تُمنح مجاناً لكل المستخدمين. تُطبق دائماً حتى بدون قفل القسم.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[10px] font-medium text-sky-700">مساحة الطالب المجانية (ميجابايت)</Label>
+              <Label className="text-[10px] font-medium text-sky-700">مساحة الطالب (ميجابايت)</Label>
               <Input
                 type="number"
-                defaultValue={filesConfig?.student_monthly_limit ?? 100}
-                onBlur={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null;
-                  updateConfig('files', {
-                    student_monthly_limit: val,
-                    student_yearly_limit: val,
-                    free_quota_mb: val,
-                  });
-                }}
+                value={freeStudent}
+                onChange={(e) => setFreeStudent(e.target.value)}
                 className="h-8 text-xs"
                 placeholder="100"
                 dir="ltr"
               />
             </div>
             <div>
-              <Label className="text-[10px] font-medium text-teal-700">مساحة المعلم المجانية (ميجابايت)</Label>
+              <Label className="text-[10px] font-medium text-teal-700">مساحة المعلم (ميجابايت)</Label>
               <Input
                 type="number"
-                defaultValue={filesConfig?.teacher_monthly_limit ?? 500}
-                onBlur={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null;
-                  updateConfig('files', {
-                    teacher_monthly_limit: val,
-                    teacher_yearly_limit: val,
-                  });
-                }}
+                value={freeTeacher}
+                onChange={(e) => setFreeTeacher(e.target.value)}
                 className="h-8 text-xs"
                 placeholder="500"
                 dir="ltr"
               />
             </div>
           </div>
+          <Button size="sm" className="w-full" disabled={savingFree} onClick={handleSaveFree}>
+            {savingFree ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Check className="h-3 w-3 me-1" />}
+            حفظ المساحة المجانية
+          </Button>
         </CardContent>
       </Card>
 
@@ -845,74 +892,16 @@ function StorageManager({
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
               <HardDrive className="h-4 w-4 text-sky-600" />
-              خطط الترقية التجارية
+              خطط الترقية التجارية ({plans.length})
             </CardTitle>
             <Button size="sm" variant="outline" className="h-7 text-xs"
-              onClick={() => setShowAddForm(!showAddForm)}>
-              {showAddForm ? <X className="h-3 w-3 me-1" /> : <Plus className="h-3 w-3 me-1" />}
-              {showAddForm ? 'إلغاء' : 'إضافة خطة'}
+              onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-3 w-3 me-1" />
+              إضافة خطة
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-[11px] text-muted-foreground">
-            خطط ترقية المساحة (مثل Google Drive). المستخدم يختار خطة → يرسل طلب → الأدمن يوافق → المساحة تُضاف فوق المجانية.
-          </p>
-
-          {/* Add form */}
-          {showAddForm && (
-            <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/10 p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px]">اسم الخطة (عربي)</Label>
-                  <Input
-                    value={newPlan.name}
-                    onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
-                    placeholder="مثال: 50 جيجابايت"
-                    className="h-8 text-xs"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px]">اسم الخطة (إنجليزي)</Label>
-                  <Input
-                    value={newPlan.name_en}
-                    onChange={(e) => setNewPlan({ ...newPlan, name_en: e.target.value })}
-                    placeholder="e.g. 50 GB"
-                    className="h-8 text-xs"
-                    dir="ltr"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px]">الحجم (ميجابايت)</Label>
-                  <Input
-                    type="number"
-                    value={newPlan.size_mb}
-                    onChange={(e) => setNewPlan({ ...newPlan, size_mb: e.target.value })}
-                    placeholder="مثال: 51200 (50 جيجا)"
-                    className="h-8 text-xs"
-                    dir="ltr"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px]">السعر</Label>
-                  <Input
-                    type="number"
-                    value={newPlan.price}
-                    onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
-                    placeholder="مثال: 20"
-                    className="h-8 text-xs"
-                    dir="ltr"
-                  />
-                </div>
-              </div>
-              <Button size="sm" className="w-full" disabled={adding} onClick={handleAddPlan}>
-                {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 me-1" />}
-                إضافة الخطة
-              </Button>
-            </div>
-          )}
-
-          {/* Plans list */}
+        <CardContent className="space-y-2">
           {loadingPlans ? (
             <div className="flex justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
@@ -923,25 +912,21 @@ function StorageManager({
             <div className="space-y-2">
               {plans.map(p => (
                 <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <HardDrive className="h-4 w-4 text-sky-600 shrink-0" />
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium">{p.name}</span>
+                        <span className="text-xs font-medium truncate">{p.name}</span>
                         {p.name_en && <span className="text-[10px] text-muted-foreground">({p.name_en})</span>}
-                        {!p.is_active && <Badge variant="secondary" className="text-[8px]">معطّلة</Badge>}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
                         {formatSize(p.size_mb)} · {Number(p.price).toFixed(0)} {p.currency}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button size="sm" variant="ghost" className="h-6 text-[10px] px-1.5"
-                      onClick={() => {
-                        const newName = prompt('الاسم الجديد:', p.name);
-                        if (newName && newName !== p.name) handleUpdatePlan(p.id, { name: newName });
-                      }}>
+                      onClick={() => openEditDialog(p)}>
                       <Edit className="h-3 w-3" />
                     </Button>
                     <Button size="sm" variant="ghost" className="h-6 text-[10px] text-rose-600 px-1.5"
@@ -955,6 +940,90 @@ function StorageManager({
           )}
         </CardContent>
       </Card>
+
+      {/* ─── Add Plan Dialog ─── */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>إضافة خطة جديدة</DialogTitle>
+            <DialogDescription>أدخل بيانات خطة الترقية الجديدة</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div>
+              <Label className="text-xs">اسم الخطة (عربي)</Label>
+              <Input value={newPlan.name} onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+                placeholder="مثال: 50 جيجابايت" className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-xs">الاسم (إنجليزي)</Label>
+              <Input value={newPlan.name_en} onChange={(e) => setNewPlan({ ...newPlan, name_en: e.target.value })}
+                placeholder="50 GB" className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div>
+              <Label className="text-xs">الحجم (ميجابايت)</Label>
+              <Input type="number" value={newPlan.size_mb}
+                onChange={(e) => setNewPlan({ ...newPlan, size_mb: e.target.value })}
+                placeholder="51200" className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div>
+              <Label className="text-xs">السعر</Label>
+              <Input type="number" value={newPlan.price}
+                onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
+                placeholder="20" className="h-8 text-xs" dir="ltr" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowAddDialog(false)}>إلغاء</Button>
+            <Button size="sm" disabled={adding} onClick={handleAddPlan}>
+              {adding ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Plus className="h-3 w-3 me-1" />}
+              إضافة
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Edit Plan Dialog ─── */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>تعديل الخطة</DialogTitle>
+            <DialogDescription>عدّل بيانات الخطة ثم اضغط حفظ</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            <div>
+              <Label className="text-xs">اسم الخطة (عربي)</Label>
+              <Input value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-xs">الاسم (إنجليزي)</Label>
+              <Input value={editForm.name_en}
+                onChange={(e) => setEditForm({ ...editForm, name_en: e.target.value })}
+                className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div>
+              <Label className="text-xs">الحجم (ميجابايت)</Label>
+              <Input type="number" value={editForm.size_mb}
+                onChange={(e) => setEditForm({ ...editForm, size_mb: e.target.value })}
+                className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div>
+              <Label className="text-xs">السعر</Label>
+              <Input type="number" value={editForm.price}
+                onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                className="h-8 text-xs" dir="ltr" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setShowEditDialog(false)}>إلغاء</Button>
+            <Button size="sm" disabled={savingEdit} onClick={handleSaveEdit}>
+              {savingEdit ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Check className="h-3 w-3 me-1" />}
+              حفظ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

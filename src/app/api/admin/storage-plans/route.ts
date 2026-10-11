@@ -119,10 +119,10 @@ export async function DELETE(request: NextRequest) {
   const { id } = body as { id?: string };
   if (!id) return NextResponse.json({ error: 'id مطلوب' }, { status: 400 });
 
-  // Soft delete: set is_active=false.
+  // v134k: HARD DELETE the plan (not soft delete). The admin wants it gone.
   const { error } = await supabaseServer
     .from('storage_plans')
-    .update({ is_active: false })
+    .delete()
     .eq('id', id);
 
   if (error) return NextResponse.json({ error: 'فشل حذف الخطة' }, { status: 500 });
