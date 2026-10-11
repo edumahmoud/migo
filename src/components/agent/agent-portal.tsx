@@ -30,13 +30,16 @@ import {
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronRight, ChevronDown,
   AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, CheckCircle2,
-  LogOut, Power,
+  LogOut, Power, Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
@@ -1670,7 +1673,10 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
   }>;
 
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string; subjects: Array<{ id: string; name: string }> } | null>(null);
+  // v132: replaced suspendTarget (which opened the AgentStudentSuspendDialog)
+  // with viewTarget — a read-only info modal showing the student's details
+  // + their enrollments. No suspend/activate actions from this view.
+  const [viewTarget, setViewTarget] = useState<typeof items[number] | null>(null);
   const [studentSearch, setStudentSearch] = useState('');
 
   // v130: client-side search filter — filters by name, email, or code
@@ -1827,44 +1833,24 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                       >
                         {s.account_status === 'active' ? 'نشط' : 'قيد'}
                       </Badge>
-                      {(() => {
-                        const subjects = (s.enrollments ?? []).filter(e => e.status === 'approved').map(e => ({ id: e.subject_id, name: e.subject_name }));
-                        if (subjects.length === 0) return null;
-                        return (
-                          <Button
-                            size="sm" variant="outline"
-                            className="h-7 text-[10px] px-2.5 border-amber-300 text-amber-700 hover:bg-amber-50"
-                            onClick={() => setSuspendTarget({
-                              id: s.id,
-                              name: s.name ?? s.email ?? '—',
-                              subjects,
-                            })}
-                          >
-                            <PauseCircle className="h-3 w-3 me-1" />
-                            إدارة
-                          </Button>
-                        );
-                      })()}
+                      {/* v132: replaced 'إدارة' (which opened the suspend
+                          dialog) with 'عرض' — a read-only info modal.
+                          The button is always shown (no longer hidden when
+                          the student has no enrollments) because every
+                          student has info worth viewing. */}
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-7 text-[10px] px-2.5 border-sky-300 text-sky-700 hover:bg-sky-50"
+                        onClick={() => setViewTarget(s)}
+                      >
+                        <Eye className="h-3 w-3 me-1" />
+                        عرض
+                      </Button>
                     </div>
                   </div>
-                  {/* Enrollments with free/paid + paused badges */}
-                  {s.enrollments.length > 0 && (
-                    <div className="flex items-center gap-1 flex-wrap text-[10px] text-muted-foreground mt-1.5 pt-1.5 border-t border-border/40">
-                      {s.enrollments.map((e, idx) => (
-                        <span key={`${e.subject_id}-${idx}`} className="rounded bg-muted/60 px-1.5 py-0.5 flex items-center gap-1">
-                          {e.subject_name}
-                          {e.is_free ? (
-                            <span className="text-sky-600">مجاني</span>
-                          ) : (
-                            <span className="text-emerald-600">مدفوع</span>
-                          )}
-                          <span className={e.status === 'approved' ? 'text-emerald-600' : 'text-amber-600'}>
-                            · {e.status === 'approved' ? 'نشط' : e.status}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {/* v132: removed the enrollments chips row that was here.
+                      The student's enrollments are now only visible inside
+                      the 'عرض' info modal — keeps the list clean. */}
                 </div>
               ))}
             </div>
@@ -1872,21 +1858,129 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* v116 (C3): suspend/activate dialog for the selected student */}
-      {suspendTarget && (
-        <AgentStudentSuspendDialog
-          open={true}
-          studentId={suspendTarget.id}
-          studentName={suspendTarget.name}
-          subjects={suspendTarget.subjects}
-          onClose={() => setSuspendTarget(null)}
-          onChanged={() => {
-            // v130: silent update — refetch section data without page refresh
-            window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
-          }}
-        />
+      {/* v132: Student info modal (read-only) — replaces the old
+          AgentStudentSuspendDialog that was opened by 'إدارة'. Shows
+          the student's details + their enrollments. No action buttons. */}
+      {viewTarget && (
+        <StudentInfoModal student={viewTarget} onClose={() => setViewTarget(null)} />
       )}
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// StudentInfoModal — v132
+//   Read-only modal showing a student's details + their enrollments.
+//   Replaces the old AgentStudentSuspendDialog that was opened by the
+//   'إدارة' button. No suspend/activate actions — this view is purely
+//   informational. To suspend/activate a student, the agent uses the
+//   'search' section (which has the full suspend dialog).
+// ──────────────────────────────────────────────────────────────
+function StudentInfoModal({
+  student,
+  onClose,
+}: {
+  student: {
+    id: string; name: string | null; email: string;
+    student_code: string | null; account_status: string | null;
+    enrollments: Array<{ subject_id: string; subject_name: string; status: string; is_free: boolean; enrolled_at: string | null }>;
+  };
+  onClose: () => void;
+}) {
+  const { direction } = useTranslations();
+  const formatDate = (iso: string | null) => {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return '—'; }
+  };
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md max-h-[90vh] flex flex-col p-0" dir={direction}>
+        <DialogHeader className="shrink-0 p-6 pb-3">
+          <DialogTitle className="flex items-center gap-2">
+            <Eye className="h-5 w-5 text-sky-600" />
+            معلومات الطالب
+          </DialogTitle>
+          <DialogDescription>
+            عرض بيانات الطالب وتسجيلاته (للقراءة فقط)
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
+          {/* Student details */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">الاسم</p>
+              <p className="font-medium truncate">{student.name ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">كود الطالب</p>
+              <p className="font-mono text-xs" dir="ltr">{student.student_code ?? '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-muted-foreground">البريد الإلكتروني</p>
+              <p className="font-medium truncate text-xs" dir="ltr">{student.email}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">حالة الحساب</p>
+              <Badge variant={student.account_status === 'active' ? 'default' : 'secondary'} className="text-[10px]">
+                {student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Enrollments */}
+          <div className="border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">
+              الاشتراكات ({student.enrollments.length})
+            </p>
+            {student.enrollments.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-4">
+                لا توجد اشتراكات
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                {student.enrollments.map((e, idx) => (
+                  <div key={`${e.subject_id}-${idx}`} className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-2.5 py-2 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium truncate block">{e.subject_name}</span>
+                      {e.enrolled_at && (
+                        <span className="text-[10px] text-muted-foreground">
+                          سجّل في: {formatDate(e.enrolled_at)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {e.is_free ? (
+                        <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
+                          <Gift className="h-2.5 w-2.5 me-0.5" />
+                          مجاني
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                          <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
+                          مدفوع
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={e.status === 'approved' ? 'default' : 'secondary'}
+                        className="text-[9px]"
+                      >
+                        {e.status === 'approved' ? 'نشط' : e.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 border-t px-6 py-3 flex justify-end bg-card">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            إغلاق
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
