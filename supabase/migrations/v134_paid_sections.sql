@@ -106,7 +106,7 @@ ALTER TABLE public.section_activation_requests ENABLE ROW LEVEL SECURITY;
 -- Users can read their own requests; admins can read all.
 CREATE POLICY "Users read own section requests"
   ON public.section_activation_requests FOR SELECT
-  USING (student_id = auth.uid() OR public.is_admin());
+  USING (user_id = auth.uid() OR public.is_admin());
 -- Users can create their own requests.
 CREATE POLICY "Users create own section requests"
   ON public.section_activation_requests FOR INSERT

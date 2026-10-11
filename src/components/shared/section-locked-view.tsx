@@ -1,17 +1,19 @@
 'use client';
 
 /**
- * SectionLockedView — v134
+ * SectionLockedView — v134d
  *
  * Shown when a student/teacher clicks a locked section. Displays:
  *   - The section name + a lock icon
  *   - The pricing for the user's role (monthly + yearly)
- *   - A form to submit an activation request (name, email, phone, notes)
+ *   - Dynamic usage limit info (changes based on selected plan)
+ *   - A form to submit an activation request
  *   - The status of any existing request
  *
- * The user picks a plan (monthly/yearly), fills the form, and submits.
- * The request goes to the admin's "paid services" section for manual
- * processing. (Automatic payment will be added later.)
+ * v134d changes:
+ *   - Usage limit message is now dynamic (reflects the admin's settings)
+ *   - "وفور" → "وفًر" with proper Arabic pluralization
+ *   - Better error handling for the submit flow (shows actual error)
  */
 
 import { useState, useEffect } from 'react';
@@ -45,6 +47,47 @@ interface Props {
   config: SectionConfig;
   userRole: 'student' | 'teacher';
   onRequestSubmitted?: () => void;
+}
+
+/** Format the savings text in proper Arabic. */
+function formatSavings(yearlyPrice: number, monthlyPrice: number): string {
+  if (monthlyPrice <= 0 || yearlyPrice <= 0) return '';
+  const monthlyTotal = monthlyPrice * 12;
+  if (yearlyPrice >= monthlyTotal) return '';
+  const saved = monthlyTotal - yearlyPrice;
+  const savedMonths = Math.round(saved / monthlyPrice);
+  if (savedMonths === 1) return '(وفًر شهر)';
+  if (savedMonths === 2) return '(وفًر شهرين)';
+  if (savedMonths >= 3 && savedMonths <= 10) return `(وفًر ${savedMonths} أشهر)`;
+  if (savedMonths > 10) return `(وفًر ${savedMonths} شهر)`;
+  return '';
+}
+
+/** Format the usage limit message dynamically. */
+function formatUsageLimit(
+  maxUsage: number | null,
+  periodDays: number,
+  metric: string | null,
+): string {
+  const limitText = maxUsage !== null && maxUsage > 0
+    ? `${maxUsage} عملية`
+    : 'غير محدود';
+
+  const periodText = periodDays === 30
+    ? 'شهرياً'
+    : periodDays === 365
+      ? 'سنوياً'
+      : `كل ${periodDays} يوماً`;
+
+  const metricText = metric === 'combined'
+    ? '(يشمل الملخصات + الاختبارات الذكية، المحذوفة محسوبة من الإجمالي)'
+    : metric === 'summaries'
+      ? '(يشمل الملخصات، المحذوفة محسوبة من الإجمالي)'
+      : metric === 'quiz_attempts'
+        ? '(يشمل محاولات الاختبارات، المحذوفة محسوبة من الإجمالي)'
+        : '';
+
+  return `${limitText} ${periodText} ${metricText}`;
 }
 
 export default function SectionLockedView({
@@ -100,6 +143,16 @@ export default function SectionLockedView({
     ? config.student_yearly_price
     : config.teacher_yearly_price;
 
+  const savingsText = formatSavings(Number(yearlyPrice), Number(monthlyPrice));
+
+  // v134d: dynamic usage limit based on the user's role.
+  const usageLimit = userRole === 'student'
+    ? config.student_max_usage
+    : config.teacher_max_usage;
+  const usageLimitText = config.usage_metric
+    ? formatUsageLimit(usageLimit, config.usage_period_days, config.usage_metric)
+    : null;
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
@@ -114,10 +167,14 @@ export default function SectionLockedView({
         setExistingRequest({ status: 'pending', plan_type: planType, created_at: new Date().toISOString() });
         onRequestSubmitted?.();
       } else {
-        toast.error(json.error || 'فشل إرسال الطلب');
+        // v134d: show the actual error from the server, not a generic message.
+        const errMsg = json.error || 'فشل إرسال الطلب';
+        toast.error(errMsg);
+        console.error('[SectionLockedView] submit error:', json);
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (err) {
+      console.error('[SectionLockedView] network error:', err);
+      toast.error('حدث خطأ غير متوقع أثناء إرسال الطلب');
     } finally {
       setSubmitting(false);
     }
@@ -207,7 +264,9 @@ export default function SectionLockedView({
                 >
                   <div>
                     <div className="font-medium text-sm">اشتراك سنوي</div>
-                    <div className="text-[11px] text-muted-foreground">لمدة 365 يوماً (وفور 2 شهر)</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      لمدة 365 يوماً {savingsText}
+                    </div>
                   </div>
                   <div className="font-bold text-amber-700 dark:text-amber-400">
                     {Number(yearlyPrice).toFixed(0)} {config.currency}
@@ -216,15 +275,12 @@ export default function SectionLockedView({
               </CardContent>
             </Card>
 
-            {/* Usage limit info */}
-            {config.usage_metric && (
+            {/* v134d: Dynamic usage limit info */}
+            {usageLimitText && (
               <Card>
                 <CardContent className="p-3 text-xs text-muted-foreground">
                   <p className="font-medium text-foreground mb-1">حد الاستخدام</p>
-                  <p>
-                    {userRole === 'student' ? config.student_max_usage : config.teacher_max_usage ?? 'غير محدود'} عملية لكل {config.usage_period_days} يوماً
-                    (يشمل الملخصات + الاختبارات الذكية، المحذوفة محسوبة من الإجمالي).
-                  </p>
+                  <p>{usageLimitText}</p>
                 </CardContent>
               </Card>
             )}
