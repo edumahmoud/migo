@@ -48,13 +48,13 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
     }
   }, []);
 
-  const tabs: Array<{ id: FinancialTab; label: string; icon: typeof DollarSign; superadminOnly?: boolean }> = [
-    { id: 'dashboard', label: 'اللوحة المالية', icon: DollarSign },
-    { id: 'breakdown', label: 'التقسيم الزمني', icon: Calendar },
-    { id: 'payouts', label: 'المدفوعات', icon: CreditCard },
-    { id: 'teachers', label: 'حسابات المعلمين', icon: Users },
-    { id: 'fees', label: 'الرسوم', icon: Receipt },
-    { id: 'gateways', label: 'بوابات الدفع', icon: Wallet, superadminOnly: true },
+  const tabs: Array<{ id: FinancialTab; labelKey: string; icon: typeof DollarSign; superadminOnly?: boolean }> = [
+    { id: 'dashboard', labelKey: 'financial.tabDashboard', icon: DollarSign },
+    { id: 'breakdown', labelKey: 'financial.tabBreakdown', icon: Calendar },
+    { id: 'payouts', labelKey: 'financial.tabPayouts', icon: CreditCard },
+    { id: 'teachers', labelKey: 'financial.tabTeachers', icon: Users },
+    { id: 'fees', labelKey: 'financial.tabFees', icon: Receipt },
+    { id: 'gateways', labelKey: 'financial.tabGateways', icon: Wallet, superadminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(tab => !tab.superadminOnly || isSuperadmin);
@@ -78,7 +78,7 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
               }}
             >
               <Icon className="h-3.5 w-3.5 me-1.5" />
-              {tab.label}
+              {t(tab.labelKey)}
             </Button>
           );
         })}

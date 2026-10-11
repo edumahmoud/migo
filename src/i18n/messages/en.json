@@ -3594,6 +3594,12 @@
   "financial": {
     "title": "Financial Revenue",
     "subtitle": "Detailed summary of your revenue from completed transactions",
+    "tabDashboard": "Financial Dashboard",
+    "tabBreakdown": "Time Breakdown",
+    "tabPayouts": "Payouts",
+    "tabTeachers": "Teacher Accounts",
+    "tabFees": "Fees",
+    "tabGateways": "Payment Gateways",
     "tabs": {
       "overview": "Overview",
       "transactions": "Transactions"

@@ -3595,6 +3595,12 @@
   "financial": {
     "title": "الإيرادات المالية",
     "subtitle": "ملخص تفصيلي لإيراداتك من المعاملات المُكتملة",
+    "tabDashboard": "اللوحة المالية",
+    "tabBreakdown": "التقسيم الزمني",
+    "tabPayouts": "المدفوعات",
+    "tabTeachers": "حسابات المعلمين",
+    "tabFees": "الرسوم",
+    "tabGateways": "بوابات الدفع",
     "tabs": {
       "overview": "الملخص",
       "transactions": "العمليات المسجلة"
