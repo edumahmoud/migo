@@ -233,17 +233,25 @@ export default function AdminPaidServicesSection() {
           </TabsTrigger>
           {isSuperAdmin && (
             <>
-              <TabsTrigger value="config" className="text-xs gap-1">
-                <Settings className="h-3.5 w-3.5" />
-                إعدادات القفل
-              </TabsTrigger>
               <TabsTrigger value="trial" className="text-xs gap-1">
                 <Gift className="h-3.5 w-3.5" />
                 الفتح المؤقت
               </TabsTrigger>
               <TabsTrigger value="storage" className="text-xs gap-1">
                 <HardDrive className="h-3.5 w-3.5" />
-                إدارة التخزين
+                مساحات التخزين
+              </TabsTrigger>
+              <TabsTrigger value="summaries" className="text-xs gap-1">
+                <Settings className="h-3.5 w-3.5" />
+                التلخيصات والاختبارات
+              </TabsTrigger>
+              <TabsTrigger value="questionBank" className="text-xs gap-1">
+                <Settings className="h-3.5 w-3.5" />
+                توليد الأسئلة AI
+              </TabsTrigger>
+              <TabsTrigger value="googleForms" className="text-xs gap-1">
+                <Settings className="h-3.5 w-3.5" />
+                Google Forms
               </TabsTrigger>
             </>
           )}
@@ -342,250 +350,45 @@ export default function AdminPaidServicesSection() {
           </Card>
         </TabsContent>
 
-        {/* ─── Tab 3: Config (superadmin only) ─── */}
+        {/* ─── Tab: Summaries (superadmin only) ─── */}
         {isSuperAdmin && (
-          <TabsContent value="config">
-            <div className="space-y-3">
-              {/* Help banner */}
-              <div className="rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3 text-xs text-sky-700 dark:text-sky-300 space-y-1">
-                <p className="font-medium">دليل الإعدادات</p>
-                <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                  <li><b>قفل القسم</b>: فعّل القفل ليصبح القسم مدفوعاً للمستخدمين</li>
-                  <li><b>الأسعار</b>: حدد سعر الاشتراك الشهري والسنوي لكل دور (بالعملة المحددة)</li>
-                  <li><b>حد الاستخدام</b>: الحد الأقصى للعمليات خلال فترة الاشتراك — اتركه فارغاً لـ "غير محدود"</li>
-                  <li><b>الحدود الافتراضية</b>: تُطبق دائماً حتى لو لم يُفعّل القفل (مثل حصة التخزين للملفات)</li>
-                </ul>
-              </div>
+          <TabsContent value="summaries">
+            <SectionConfigCard
+              config={configs.find(c => c.section_key === 'summaries')}
+              updateConfig={updateConfig}
+              title="التلخيصات والاختبارات الذكية"
+              description="يشمل الملخصات والاختبارات المُولّدة بالذكاء الاصطناعي"
+              metricLabel="عملية (تلخيص + اختبار ذكي)"
+            />
+          </TabsContent>
+        )}
 
-              {configs.filter(c => c.section_key !== 'files').map(c => {
-                const isStorage = c.usage_metric === 'storage';
-                const isCombined = c.usage_metric === 'combined';
-                const isTeacherOnly = c.teacher_only === true;
-                const metricLabel = isStorage
-                  ? 'ميجابايت'
-                  : isCombined
-                    ? 'عملية (تلخيص + اختبار ذكي)'
-                    : 'عملية';
-                const metricDesc = isStorage
-                  ? 'إجمالي مساحة الملفات المرفوعة (تُطبق دائماً حتى بدون قفل)'
-                  : isCombined
-                    ? 'يشمل الملخصات والاختبارات المُولّدة بالذكاء الاصطناعي'
-                    : '';
+        {/* ─── Tab: Question Bank AI (superadmin only) ─── */}
+        {isSuperAdmin && (
+          <TabsContent value="questionBank">
+            <SectionConfigCard
+              config={configs.find(c => c.section_key === 'questionBankAI')}
+              updateConfig={updateConfig}
+              title="توليد الأسئلة بالذكاء الاصطناعي"
+              description="توليد أسئلة من الملفات باستخدام الذكاء الاصطناعي (للمعلمين فقط)"
+              metricLabel="عملية"
+              teacherOnly
+            />
+          </TabsContent>
+        )}
 
-                return (
-                  <Card key={c.id} className={c.student_locked || c.teacher_locked ? 'border-amber-300' : ''}>
-                    <CardContent className="p-4 space-y-3">
-                      {/* Section header */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm">{c.section_label}</p>
-                            {isTeacherOnly && (
-                              <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-700 border-teal-200">
-                                للمعلمين فقط
-                              </Badge>
-                            )}
-                          </div>
-                          {metricDesc && (
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{metricDesc}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          {c.student_locked && (
-                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
-                              مقفل للطلاب
-                            </Badge>
-                          )}
-                          {c.teacher_locked && (
-                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
-                              مقفل للمعلمين
-                            </Badge>
-                          )}
-                          {!c.student_locked && !c.teacher_locked && (
-                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                              مفتوح
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Lock toggles — hide student toggle for teacher-only sections */}
-                      <div className={`grid gap-2 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                        {!isTeacherOnly && (
-                          <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
-                            c.student_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={c.student_locked}
-                              onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
-                              className="h-4 w-4"
-                            />
-                            <div>
-                              <span className="text-xs font-medium">قفل للطلاب</span>
-                              <p className="text-[10px] text-muted-foreground">يصبح القسم مدفوعاً للطلاب</p>
-                            </div>
-                          </label>
-                        )}
-                        <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
-                          c.teacher_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
-                        }`}>
-                          <input
-                            type="checkbox"
-                            checked={c.teacher_locked}
-                            onChange={(e) => updateConfig(c.section_key, { teacher_locked: e.target.checked })}
-                            className="h-4 w-4"
-                          />
-                          <div>
-                            <span className="text-xs font-medium">قفل للمعلمين</span>
-                            <p className="text-[10px] text-muted-foreground">يصبح القسم مدفوعاً للمعلمين</p>
-                          </div>
-                        </label>
-                      </div>
-
-                      {/* Pricing — hide student pricing for teacher-only sections */}
-                      <div className="border-t pt-3">
-                        <p className="text-xs font-medium text-muted-foreground mb-2">الأسعار ({c.currency})</p>
-                        <div className={`grid gap-3 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                          {/* Student pricing — hidden for teacher-only */}
-                          {!isTeacherOnly && (
-                            <div className="space-y-1.5">
-                              <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
-                              <div className="grid grid-cols-2 gap-1.5">
-                                <div>
-                                  <Label className="text-[10px] text-muted-foreground">شهري</Label>
-                                  <Input
-                                    type="number"
-                                    defaultValue={c.student_monthly_price}
-                                    onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
-                                    className="h-8 text-xs"
-                                    placeholder="0"
-                                    dir="ltr"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-[10px] text-muted-foreground">سنوي</Label>
-                                  <Input
-                                    type="number"
-                                    defaultValue={c.student_yearly_price}
-                                    onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
-                                    className="h-8 text-xs"
-                                    placeholder="0"
-                                    dir="ltr"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          {/* Teacher pricing */}
-                          <div className="space-y-1.5">
-                            <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <div>
-                                <Label className="text-[10px] text-muted-foreground">شهري</Label>
-                                <Input
-                                  type="number"
-                                  defaultValue={c.teacher_monthly_price}
-                                  onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_price: Number(e.target.value) })}
-                                  className="h-8 text-xs"
-                                  placeholder="0"
-                                  dir="ltr"
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-[10px] text-muted-foreground">سنوي</Label>
-                                <Input
-                                  type="number"
-                                  defaultValue={c.teacher_yearly_price}
-                                  onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_price: Number(e.target.value) })}
-                                  className="h-8 text-xs"
-                                  placeholder="0"
-                                  dir="ltr"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Usage limits — per plan (monthly/yearly separate) */}
-                      {c.usage_metric && (
-                        <div className="border-t pt-3">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                            حد الاستخدام لكل خطة
-                          </p>
-                          <p className="text-[10px] text-muted-foreground mb-2">
-                            الوحدة: {metricLabel} — حد منفصل لكل خطة.
-                            {isStorage ? ' يُطبق دائماً حتى بدون قفل القسم.' : ' يُطبق طوال مدة الاشتراك المختارة.'}
-                            اتركه فارغاً لـ "غير محدود".
-                          </p>
-                          <div className={`grid gap-3 ${isTeacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                            {/* Student limits */}
-                            {!isTeacherOnly && (
-                              <div className="space-y-1.5">
-                                <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  <div>
-                                    <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
-                                    <Input
-                                      type="number"
-                                      defaultValue={c.student_monthly_limit ?? ''}
-                                      onBlur={(e) => updateConfig(c.section_key, { student_monthly_limit: e.target.value ? Number(e.target.value) : null })}
-                                      className="h-8 text-xs"
-                                      placeholder="غير محدود"
-                                      dir="ltr"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
-                                    <Input
-                                      type="number"
-                                      defaultValue={c.student_yearly_limit ?? ''}
-                                      onBlur={(e) => updateConfig(c.section_key, { student_yearly_limit: e.target.value ? Number(e.target.value) : null })}
-                                      className="h-8 text-xs"
-                                      placeholder="غير محدود"
-                                      dir="ltr"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {/* Teacher limits */}
-                            <div className="space-y-1.5">
-                              <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
-                              <div className="grid grid-cols-2 gap-1.5">
-                                <div>
-                                  <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
-                                  <Input
-                                    type="number"
-                                    defaultValue={c.teacher_monthly_limit ?? ''}
-                                    onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_limit: e.target.value ? Number(e.target.value) : null })}
-                                    className="h-8 text-xs"
-                                    placeholder="غير محدود"
-                                    dir="ltr"
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
-                                  <Input
-                                    type="number"
-                                    defaultValue={c.teacher_yearly_limit ?? ''}
-                                    onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_limit: e.target.value ? Number(e.target.value) : null })}
-                                    className="h-8 text-xs"
-                                    placeholder="غير محدود"
-                                    dir="ltr"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+        {/* ─── Tab: Google Forms (superadmin only) ─── */}
+        {isSuperAdmin && (
+          <TabsContent value="googleForms">
+            <SectionConfigCard
+              config={configs.find(c => c.section_key === 'googleForms')}
+              updateConfig={updateConfig}
+              title="مشاركة الأسئلة على Google Forms"
+              description="تصدير الأسئلة إلى Google Forms (للمعلمين فقط)"
+              metricLabel=""
+              teacherOnly
+              noMetric
+            />
           </TabsContent>
         )}
 
@@ -1024,6 +827,169 @@ function StorageManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─── SectionConfigCard — v134k ───
+// A self-contained config card for a single section (summaries, questionBankAI, googleForms).
+// Each section gets its own tab with this card inside.
+function SectionConfigCard({
+  config,
+  updateConfig,
+  title,
+  description,
+  metricLabel,
+  teacherOnly = false,
+  noMetric = false,
+}: {
+  config: ConfigRow | undefined;
+  updateConfig: (sectionKey: string, updates: Record<string, unknown>) => Promise<void>;
+  title: string;
+  description: string;
+  metricLabel: string;
+  teacherOnly?: boolean;
+  noMetric?: boolean;
+}) {
+  if (!config) {
+    return <div className="text-center py-8 text-sm text-muted-foreground">لا توجد إعدادات لهذا القسم</div>;
+  }
+
+  const c = config;
+  const hasMetric = !noMetric && c.usage_metric;
+
+  return (
+    <div className="space-y-3">
+      {/* Status badges */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {c.student_locked && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">مقفل للطلاب</Badge>}
+        {c.teacher_locked && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">مقفل للمعلمين</Badge>}
+        {!c.student_locked && !c.teacher_locked && <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">مفتوح</Badge>}
+        {teacherOnly && <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-700 border-teal-200">للمعلمين فقط</Badge>}
+      </div>
+
+      {/* Lock toggles */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">{title}</CardTitle>
+          <p className="text-[10px] text-muted-foreground">{description}</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className={`grid gap-2 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {!teacherOnly && (
+              <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${c.student_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'}`}>
+                <input type="checkbox" checked={c.student_locked}
+                  onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
+                  className="h-4 w-4" />
+                <div>
+                  <span className="text-xs font-medium">قفل للطلاب</span>
+                  <p className="text-[10px] text-muted-foreground">يصبح مدفوعاً للطلاب</p>
+                </div>
+              </label>
+            )}
+            <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${c.teacher_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'}`}>
+              <input type="checkbox" checked={c.teacher_locked}
+                onChange={(e) => updateConfig(c.section_key, { teacher_locked: e.target.checked })}
+                className="h-4 w-4" />
+              <div>
+                <span className="text-xs font-medium">قفل للمعلمين</span>
+                <p className="text-[10px] text-muted-foreground">يصبح مدفوعاً للمعلمين</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Pricing */}
+          <div className="border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">الأسعار ({c.currency})</p>
+            <div className={`grid gap-3 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {!teacherOnly && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                      <Input type="number" defaultValue={c.student_monthly_price}
+                        onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
+                        className="h-8 text-xs" placeholder="0" dir="ltr" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                      <Input type="number" defaultValue={c.student_yearly_price}
+                        onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
+                        className="h-8 text-xs" placeholder="0" dir="ltr" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                    <Input type="number" defaultValue={c.teacher_monthly_price}
+                      onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_price: Number(e.target.value) })}
+                      className="h-8 text-xs" placeholder="0" dir="ltr" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                    <Input type="number" defaultValue={c.teacher_yearly_price}
+                      onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_price: Number(e.target.value) })}
+                      className="h-8 text-xs" placeholder="0" dir="ltr" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Usage limits */}
+          {hasMetric && (
+            <div className="border-t pt-3">
+              <p className="text-xs font-medium text-muted-foreground mb-1">حد الاستخدام لكل خطة</p>
+              <p className="text-[10px] text-muted-foreground mb-2">
+                الوحدة: {metricLabel} — حد منفصل لكل خطة. يُطبق طوال مدة الاشتراك. اتركه فارغاً لـ "غير محدود".
+              </p>
+              <div className={`grid gap-3 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {!teacherOnly && (
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
+                        <Input type="number" defaultValue={c.student_monthly_limit ?? ''}
+                          onBlur={(e) => updateConfig(c.section_key, { student_monthly_limit: e.target.value ? Number(e.target.value) : null })}
+                          className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
+                        <Input type="number" defaultValue={c.student_yearly_limit ?? ''}
+                          onBlur={(e) => updateConfig(c.section_key, { student_yearly_limit: e.target.value ? Number(e.target.value) : null })}
+                          className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
+                      <Input type="number" defaultValue={c.teacher_monthly_limit ?? ''}
+                        onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_limit: e.target.value ? Number(e.target.value) : null })}
+                        className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
+                      <Input type="number" defaultValue={c.teacher_yearly_limit ?? ''}
+                        onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_limit: e.target.value ? Number(e.target.value) : null })}
+                        className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
