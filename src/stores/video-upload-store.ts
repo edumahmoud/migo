@@ -173,18 +173,35 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
         return;
       }
 
-      // v134j: Check storage quota BEFORE starting the upload.
+      // v134k: Check storage quota BEFORE starting the upload.
+      // Use /api/storage/check for unified storage (free + purchased).
       try {
-        const checkRes = await fetch('/api/sections/check-usage?sectionKey=files', {
+        const checkRes = await fetch('/api/storage/check', {
           headers: { 'Authorization': `Bearer ${session.access_token}` },
         });
         const checkJson = await checkRes.json();
-        if (checkJson.success && checkJson.limit !== null && !checkJson.canUse) {
-          get().updateTask(id, {
-            status: 'error',
-            error: `المساحة ممتلئة (${checkJson.used}/${checkJson.limit} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`,
-          });
-          return;
+        if (checkJson.success) {
+          const remainingMb = checkJson.remaining_mb ?? 0;
+          const totalQuotaMb = checkJson.total_quota ?? 0;
+          const usedMb = checkJson.used_mb ?? 0;
+          const fileSizeMb = file.size ? file.size / (1024 * 1024) : 0;
+
+          if (remainingMb <= 0) {
+            get().updateTask(id, {
+              status: 'error',
+              error: `المساحة ممتلئة (${usedMb}/${totalQuotaMb} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`,
+            });
+            return;
+          }
+
+          // v134k: Block if video size exceeds remaining space.
+          if (fileSizeMb > remainingMb) {
+            get().updateTask(id, {
+              status: 'error',
+              error: `حجم الفيديو (${fileSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). يرجى تزويد المساحة أو حذف بعض الملفات.`,
+            });
+            return;
+          }
         }
       } catch {
         // Non-critical — if the check fails, allow the upload.

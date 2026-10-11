@@ -91,6 +91,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { playNotificationFeedback, useNotificationStore } from '@/stores/notification-store';
 import SectionLockedView from '@/components/shared/section-locked-view';
 import UsageCounter from '@/components/shared/usage-counter';
+import StoragePlansView from '@/components/shared/storage-plans-view';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
@@ -5003,7 +5004,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       case 'files':
         return (
           <div className="space-y-2">
-            <UsageCounter sectionKey="files" mode="storage" />
+            <StoragePlansView />
             <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="student" /></SectionErrorBoundary>
           </div>
         );

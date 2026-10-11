@@ -88,6 +88,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import SectionLockedView from '@/components/shared/section-locked-view';
 import UsageCounter from '@/components/shared/usage-counter';
+import StoragePlansView from '@/components/shared/storage-plans-view';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -2585,7 +2586,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && (
                   <div className="space-y-2">
-                    <UsageCounter sectionKey="files" mode="storage" />
+                    <StoragePlansView />
                     <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="teacher" /></SectionErrorBoundary>
                   </div>
                 )}
