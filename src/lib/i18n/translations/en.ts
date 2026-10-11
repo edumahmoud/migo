@@ -232,6 +232,7 @@ export const en: TranslationDict = {
     banned: 'Banned',
     polls: 'Polls',
     institution: 'Institution',
+    dataManagement: 'Data Management',
     sheetTitle: 'Main Menu',
     collapseSidebar: 'Collapse menu',
   },

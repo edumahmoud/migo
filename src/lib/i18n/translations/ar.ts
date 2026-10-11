@@ -244,6 +244,7 @@ export const ar: TranslationDict = {
     banned: 'المحظورون',
     polls: 'استفتاءات',
     institution: 'المؤسسة',
+    dataManagement: 'إدارة البيانات',
     sheetTitle: 'القائمة الرئيسية',
     collapseSidebar: 'طي القائمة',
   },

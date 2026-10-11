@@ -80,6 +80,7 @@ import ChatSection from '@/components/shared/chat-section';
 import InstitutionSection from '@/components/admin/institution-section';
 import PaymentGatewaysSection from '@/components/admin/payment-gateways-section';
 import AdminFinancialManagementSection from '@/components/admin/admin-financial-management-section';
+import AdminDataManagementSection from '@/components/admin/admin-data-management-section';
 import ReportsSection from '@/components/reports/reports-section';
 import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
@@ -145,6 +146,7 @@ const adminNavItemDefs = [
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
   { id: 'financialManagement', labelKey: 'nav.financialManagement', icon: <DollarSign className="h-5 w-5" /> },
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
+  { id: 'dataManagement', labelKey: 'nav.dataManagement', icon: <ShieldAlert className="h-5 w-5" />, superadminOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -4078,6 +4080,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'financialManagement' && (
                 <motion.div key="financialManagement" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   <AdminFinancialManagementSection profile={profile} />
+                </motion.div>
+              )}
+              {activeSection === 'dataManagement' && (
+                <motion.div key="dataManagement" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <AdminDataManagementSection />
                 </motion.div>
               )}
             </AnimatePresence>
