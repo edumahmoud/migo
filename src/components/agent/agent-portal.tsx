@@ -25,11 +25,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2, Ban, BadgeCheck, Clock, RefreshCw, Search, Users,
-  Settings, Inbox, BookOpen, ShieldCheck,
-  LayoutDashboard, FileText, Database, DollarSign, MessageCircle,
+  Settings, Inbox, BookOpen,
+  LayoutDashboard, FileText, Database, DollarSign,
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
-  ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronRight, ChevronDown,
-  AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, CheckCircle2,
+  ShieldAlert, TrendingUp, Bell, Package, ChevronRight, ChevronDown,
+  AlertCircle, Gift, PauseCircle, XCircle, CheckCircle2,
   LogOut, Power, Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -1222,25 +1222,17 @@ function TopLevelSection({
 //   View is a secondary feature; the teacher should use their own login
 //   for those.
 // ──────────────────────────────────────────────────────────────
+// v132: reduced to the 9 active sections. Old labels removed.
 const SECTION_LABELS: Record<string, string> = {
+  search: 'البحث عن طالب',
+  pendingOrders: 'الطلبات المعلّقة',
   dashboard: 'الرئيسية',
   subjects: 'المقررات',
   students: 'الطلاب',
-  tracking: 'التتبع',
-  summaries: 'الملخصات',
-  questionBank: 'بنك الأسئلة',
-  scormLibrary: 'مكتبة SCORM',
-  pendingOrders: 'طلبات معلّقة',
+  tracking: 'تتبع الأداء',
   financialManagement: 'الإدارة المالية',
-  chat: 'المحادثة',
-  videos: 'الفيديوهات',
-  files: 'الملفات',
-  todos: 'المهام',
   calendar: 'التقويم',
   reports: 'البلاغات',
-  analytics: 'التحليلات',
-  notifications: 'الإشعارات',
-  registration: 'وكلاء التسجيل',
 };
 
 function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
