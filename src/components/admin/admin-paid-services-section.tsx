@@ -334,100 +334,196 @@ export default function AdminPaidServicesSection() {
         {/* ─── Tab 3: Config (superadmin only) ─── */}
         {isSuperAdmin && (
           <TabsContent value="config">
-            <div className="space-y-2">
-              {configs.map(c => (
-                <Card key={c.id}>
-                  <CardContent className="p-3 text-xs space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{c.section_label}</span>
-                      <Badge variant={c.is_active ? 'default' : 'secondary'} className="text-[9px]">
-                        {c.is_active ? 'مفعّل' : 'معطّل'}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* Student lock */}
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={c.student_locked}
-                          onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
-                          className="h-3 w-3"
-                        />
-                        <span className="text-[10px]">قفل للطلاب</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={c.teacher_locked}
-                          onChange={(e) => updateConfig(c.section_key, { teacher_locked: e.target.checked })}
-                          className="h-3 w-3"
-                        />
-                        <span className="text-[10px]">قفل للمعلمين</span>
-                      </label>
-                    </div>
-                    {(c.student_locked || c.teacher_locked) && (
-                      <div className="grid grid-cols-2 gap-2 pt-1 border-t">
+            <div className="space-y-3">
+              {/* Help banner */}
+              <div className="rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3 text-xs text-sky-700 dark:text-sky-300 space-y-1">
+                <p className="font-medium">دليل الإعدادات</p>
+                <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                  <li><b>قفل القسم</b>: فعّل القفل ليصبح القسم مدفوعاً للمستخدمين</li>
+                  <li><b>الأسعار</b>: حدد سعر الاشتراك الشهري والسنوي لكل دور (بالعملة المحددة)</li>
+                  <li><b>حد الاستخدام</b>: الحد الأقصى للعمليات خلال فترة الاشتراك — اتركه فارغاً لـ "غير محدود"</li>
+                  <li><b>الحدود الافتراضية</b>: تُطبق دائماً حتى لو لم يُفعّل القفل (مثل حصة التخزين للملفات)</li>
+                </ul>
+              </div>
+
+              {configs.map(c => {
+                const isStorage = c.usage_metric === 'storage';
+                const isCombined = c.usage_metric === 'combined';
+                const metricLabel = isStorage
+                  ? 'ميجابايت'
+                  : isCombined
+                    ? 'عملية (تلخيص + اختبار ذكي)'
+                    : 'عملية';
+                const metricDesc = isStorage
+                  ? 'إجمالي مساحة الملفات المرفوعة'
+                  : isCombined
+                    ? 'يشمل الملخصات والاختبارات المُولّدة بالذكاء الاصطناعي'
+                    : '';
+
+                return (
+                  <Card key={c.id} className={c.student_locked || c.teacher_locked ? 'border-amber-300' : ''}>
+                    <CardContent className="p-4 space-y-3">
+                      {/* Section header */}
+                      <div className="flex items-center justify-between gap-2">
                         <div>
-                          <Label className="text-[9px]">سعر الطالب شهري</Label>
-                          <Input
-                            type="number"
-                            defaultValue={c.student_monthly_price}
-                            onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
-                            className="h-7 text-xs"
-                          />
+                          <p className="font-medium text-sm">{c.section_label}</p>
+                          {metricDesc && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{metricDesc}</p>
+                          )}
                         </div>
-                        <div>
-                          <Label className="text-[9px]">سعر الطالب سنوي</Label>
-                          <Input
-                            type="number"
-                            defaultValue={c.student_yearly_price}
-                            onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[9px]">سعر المعلم شهري</Label>
-                          <Input
-                            type="number"
-                            defaultValue={c.teacher_monthly_price}
-                            onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_price: Number(e.target.value) })}
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[9px]">سعر المعلم سنوي</Label>
-                          <Input
-                            type="number"
-                            defaultValue={c.teacher_yearly_price}
-                            onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_price: Number(e.target.value) })}
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[9px]">حد الطالب</Label>
-                          <Input
-                            type="number"
-                            defaultValue={c.student_max_usage ?? ''}
-                            placeholder="غير محدود"
-                            onBlur={(e) => updateConfig(c.section_key, { student_max_usage: e.target.value ? Number(e.target.value) : null })}
-                            className="h-7 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-[9px]">حد المعلم</Label>
-                          <Input
-                            type="number"
-                            defaultValue={c.teacher_max_usage ?? ''}
-                            placeholder="غير محدود"
-                            onBlur={(e) => updateConfig(c.section_key, { teacher_max_usage: e.target.value ? Number(e.target.value) : null })}
-                            className="h-7 text-xs"
-                          />
+                        <div className="flex items-center gap-1.5">
+                          {c.student_locked && (
+                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
+                              مقفل للطلاب
+                            </Badge>
+                          )}
+                          {c.teacher_locked && (
+                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
+                              مقفل للمعلمين
+                            </Badge>
+                          )}
+                          {!c.student_locked && !c.teacher_locked && (
+                            <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                              مفتوح
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {/* Lock toggles */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
+                          c.student_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={c.student_locked}
+                            onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
+                            className="h-4 w-4"
+                          />
+                          <div>
+                            <span className="text-xs font-medium">قفل للطلاب</span>
+                            <p className="text-[10px] text-muted-foreground">يصبح القسم مدفوعاً للطلاب</p>
+                          </div>
+                        </label>
+                        <label className={`flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-colors ${
+                          c.teacher_locked ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-900/10' : 'border-border'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={c.teacher_locked}
+                            onChange={(e) => updateConfig(c.section_key, { teacher_locked: e.target.checked })}
+                            className="h-4 w-4"
+                          />
+                          <div>
+                            <span className="text-xs font-medium">قفل للمعلمين</span>
+                            <p className="text-[10px] text-muted-foreground">يصبح القسم مدفوعاً للمعلمين</p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Pricing — always visible */}
+                      <div className="border-t pt-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">الأسعار ({c.currency})</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Student pricing */}
+                          <div className="space-y-1.5">
+                            <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                                <Input
+                                  type="number"
+                                  defaultValue={c.student_monthly_price}
+                                  onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
+                                  className="h-8 text-xs"
+                                  placeholder="0"
+                                  dir="ltr"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                                <Input
+                                  type="number"
+                                  defaultValue={c.student_yearly_price}
+                                  onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
+                                  className="h-8 text-xs"
+                                  placeholder="0"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          {/* Teacher pricing */}
+                          <div className="space-y-1.5">
+                            <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                                <Input
+                                  type="number"
+                                  defaultValue={c.teacher_monthly_price}
+                                  onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_price: Number(e.target.value) })}
+                                  className="h-8 text-xs"
+                                  placeholder="0"
+                                  dir="ltr"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                                <Input
+                                  type="number"
+                                  defaultValue={c.teacher_yearly_price}
+                                  onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_price: Number(e.target.value) })}
+                                  className="h-8 text-xs"
+                                  placeholder="0"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Usage limits — always visible (even when not locked) */}
+                      {c.usage_metric && (
+                        <div className="border-t pt-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            حد الاستخدام (يُطبق دائماً)
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mb-2">
+                            الوحدة: {metricLabel} — اتركه فارغاً لـ "غير محدود"
+                          </p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-[10px] font-medium text-sky-700 dark:text-sky-400">حد الطالب</Label>
+                              <Input
+                                type="number"
+                                defaultValue={c.student_max_usage ?? ''}
+                                onBlur={(e) => updateConfig(c.section_key, { student_max_usage: e.target.value ? Number(e.target.value) : null })}
+                                className="h-8 text-xs"
+                                placeholder="غير محدود"
+                                dir="ltr"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px] font-medium text-teal-700 dark:text-teal-400">حد المعلم</Label>
+                              <Input
+                                type="number"
+                                defaultValue={c.teacher_max_usage ?? ''}
+                                onBlur={(e) => updateConfig(c.section_key, { teacher_max_usage: e.target.value ? Number(e.target.value) : null })}
+                                className="h-8 text-xs"
+                                placeholder="غير محدود"
+                                dir="ltr"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
         )}
