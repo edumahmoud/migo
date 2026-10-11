@@ -87,6 +87,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import SectionLockedView from '@/components/shared/section-locked-view';
+import UsageCounter from '@/components/shared/usage-counter';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -2553,8 +2554,18 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'subjects' && (selectedSubjectId
                   ? <SectionErrorBoundary name="Course"><CoursePage profile={profile} role="teacher" /></SectionErrorBoundary>
                   : <SectionErrorBoundary name="Subjects"><SubjectsSection profile={profile} role="teacher" /></SectionErrorBoundary>)}
-                {activeSection === 'summaries' && <SectionErrorBoundary name="Summaries"><TeacherSummariesSection profile={profile} /></SectionErrorBoundary>}
-                {activeSection === 'questionBank' && <SectionErrorBoundary name="QuestionBank"><QuestionBankSection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} /></SectionErrorBoundary>}
+                {activeSection === 'summaries' && (
+                  <div className="space-y-2">
+                    <UsageCounter sectionKey="summaries" mode="count" />
+                    <SectionErrorBoundary name="Summaries"><TeacherSummariesSection profile={profile} /></SectionErrorBoundary>
+                  </div>
+                )}
+                {activeSection === 'questionBank' && (
+                  <div className="space-y-2">
+                    <UsageCounter sectionKey="questionBankAI" mode="count" />
+                    <SectionErrorBoundary name="QuestionBank"><QuestionBankSection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} /></SectionErrorBoundary>
+                  </div>
+                )}
                 {activeSection === 'scormLibrary' && <SectionErrorBoundary name="ScormLibrary"><ScormLibrarySection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} /></SectionErrorBoundary>}
                 {activeSection === 'registration' && (
                   <SectionErrorBoundary name="Registration">
@@ -2572,7 +2583,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   </SectionErrorBoundary>
                 )}
                 {activeSection === 'students' && renderStudents()}
-                {activeSection === 'files' && <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="teacher" /></SectionErrorBoundary>}
+                {activeSection === 'files' && (
+                  <div className="space-y-2">
+                    <UsageCounter sectionKey="files" mode="storage" />
+                    <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="teacher" /></SectionErrorBoundary>
+                  </div>
+                )}
                 {activeSection === 'videos' && <SectionErrorBoundary name="Videos"><AllVideosSection profile={profile} role="teacher" /></SectionErrorBoundary>}
                 {activeSection === 'reports' && <SectionErrorBoundary name="Reports"><ReportsSection profile={profile} role="teacher" /></SectionErrorBoundary>}
                 {activeSection === 'todos' && <SectionErrorBoundary name="Todos"><TodoSection profile={profile} /></SectionErrorBoundary>}

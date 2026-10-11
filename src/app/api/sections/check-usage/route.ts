@@ -6,29 +6,20 @@ import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-
  * GET /api/sections/check-usage?sectionKey=summaries
  *
  * Returns the current usage count + the limit for the given section.
- * Used by the frontend to block summary/quiz creation when the limit
- * is reached.
  *
- * The usage metric is defined in locked_sections_config.usage_metric:
- *   - 'summaries'     → COUNT(summaries WHERE user_id = me AND created_at >= periodStart)
- *   - 'quiz_attempts' → COUNT(scores WHERE student_id = me AND completed_at >= periodStart)
- *   - 'combined'      → COUNT(summaries) + COUNT(quizzes WHERE user_id = me AND summary_id IS NOT NULL)
+ * v134e: ALWAYS returns limit + used (even when unlocked) so the UI
+ * can show a usage counter inside the section. Previously, when the
+ * user had an active unlock, the API returned limit=null which made
+ * the counter show "غير محدود" even though the admin set a limit.
  *
- * NOTE: Deleted items ARE counted (we use created_at, not deleted_at).
- * The user's quota is consumed permanently for the period.
+ * v134e: supports 'storage' metric for files — counts total file
+ * size in MB instead of row count.
  *
  * Response:
  *   {
  *     success: true,
- *     sectionKey: 'summaries',
- *     metric: 'combined',
- *     used: 7,
- *     limit: 10,
- *     remaining: 3,
- *     periodDays: 30,
- *     periodStart: '2024-...',
- *     locked: true,        // is the section locked for this user?
- *     canUse: true         // remaining > 0 (or no limit)
+ *     sectionKey, metric, used, limit, remaining,
+ *     periodDays, periodStart, locked, canUse, isUnlocked
  *   }
  */
 export async function GET(request: NextRequest) {
@@ -55,16 +46,9 @@ export async function GET(request: NextRequest) {
 
   const config = configRow as Record<string, unknown> | null;
   if (!config || !config.is_active) {
-    // Section not locked → unlimited.
     return NextResponse.json({
-      success: true,
-      sectionKey,
-      metric: null,
-      used: 0,
-      limit: null,
-      remaining: null,
-      locked: false,
-      canUse: true,
+      success: true, sectionKey, metric: null, used: 0, limit: null,
+      remaining: null, locked: false, canUse: true, isUnlocked: false,
     });
   }
 
@@ -75,26 +59,11 @@ export async function GET(request: NextRequest) {
   const metric = config.usage_metric as string | null;
   const periodDays = (config.usage_period_days as number) ?? 30;
 
-  // If the section is NOT locked for this role, no limit applies.
-  if (!isLocked) {
-    return NextResponse.json({
-      success: true,
-      sectionKey,
-      metric,
-      used: 0,
-      limit: null,
-      remaining: null,
-      locked: false,
-      canUse: true,
-    });
-  }
-
-  // 2. Check if the user has an active unlock (personal or global).
-  //    If unlocked → no limit applies during the unlock period.
+  // 2. Check if the user has an active unlock.
   const now = new Date().toISOString();
   const { data: personalUnlock } = await supabaseServer
     .from('user_section_unlocks')
-    .select('id')
+    .select('id, expires_at')
     .eq('user_id', auth.user.id)
     .eq('section_key', sectionKey)
     .eq('is_active', true)
@@ -120,27 +89,22 @@ export async function GET(request: NextRequest) {
         .eq('id', auth.user.id)
         .maybeSingle();
       if (userRow?.created_at) {
-        const trialStart = new Date(globalUnlock.started_at);
-        const userCreated = new Date(userRow.created_at);
+        const trialStart = new Date(globalUnlock.started_at as string);
+        const userCreated = new Date(userRow.created_at as string);
         if (userCreated >= trialStart) isUnlocked = true;
       }
     }
   }
 
-  if (isUnlocked) {
+  // If the section is NOT locked for this role, no limit applies.
+  if (!isLocked) {
     return NextResponse.json({
-      success: true,
-      sectionKey,
-      metric,
-      used: 0,
-      limit: null,
-      remaining: null,
-      locked: false,
-      canUse: true,
+      success: true, sectionKey, metric: null, used: 0, limit: null,
+      remaining: null, locked: false, canUse: true, isUnlocked: false,
     });
   }
 
-  // 3. Count usage in the current period.
+  // 3. Count usage (ALWAYS, even if unlocked — for the counter display).
   const periodStart = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
   let used = 0;
 
@@ -154,7 +118,6 @@ export async function GET(request: NextRequest) {
   }
 
   if (metric === 'quiz_attempts') {
-    // Count student quiz attempts (scores).
     const { count } = await supabaseServer
       .from('scores')
       .select('*', { count: 'exact', head: true })
@@ -164,8 +127,6 @@ export async function GET(request: NextRequest) {
   }
 
   if (metric === 'combined') {
-    // Also count AI-generated quizzes (quizzes with summary_id IS NOT NULL,
-    // owned by this user).
     const { count } = await supabaseServer
       .from('quizzes')
       .select('*', { count: 'exact', head: true })
@@ -175,8 +136,35 @@ export async function GET(request: NextRequest) {
     used += count ?? 0;
   }
 
+  // v134e: storage metric — count total file size in bytes, convert to MB.
+  if (metric === 'storage') {
+    const { data: files } = await supabaseServer
+      .from('user_files')
+      .select('file_size')
+      .eq('user_id', auth.user.id);
+    const totalBytes = (files ?? []).reduce((sum: number, f: { file_size: number | null }) => {
+      return sum + (f.file_size ?? 0);
+    }, 0);
+    used = Math.round(totalBytes / (1024 * 1024)); // convert to MB
+  }
+
+  // v134e: questionBankAI metric — count AI-generated question bank
+  // questions (bank_questions where is_ai_generated=true).
+  if (metric === 'combined' && sectionKey === 'questionBankAI') {
+    // Count AI-generated bank questions by this user.
+    const { count: aiQuestions } = await supabaseServer
+      .from('bank_questions')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', auth.user.id)
+      .eq('is_ai_generated', true)
+      .gte('created_at', periodStart);
+    used = aiQuestions ?? 0;
+  }
+
   const remaining = limit !== null ? Math.max(0, limit - used) : null;
-  const canUse = limit === null ? true : (remaining !== null && remaining > 0);
+  // canUse: if unlocked → always true (but counter still shows).
+  // If not unlocked → depends on remaining.
+  const canUse = isUnlocked ? true : (limit === null ? true : (remaining !== null && remaining > 0));
 
   return NextResponse.json({
     success: true,
@@ -187,7 +175,9 @@ export async function GET(request: NextRequest) {
     remaining,
     periodDays,
     periodStart,
-    locked: true,
+    locked: !isUnlocked,
     canUse,
+    isUnlocked,
+    expiresAt: (personalUnlock as Record<string, unknown> | null)?.expires_at ?? null,
   });
 }

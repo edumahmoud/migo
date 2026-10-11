@@ -90,6 +90,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { playNotificationFeedback, useNotificationStore } from '@/stores/notification-store';
 import SectionLockedView from '@/components/shared/section-locked-view';
+import UsageCounter from '@/components/shared/usage-counter';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
@@ -4991,11 +4992,21 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           ? <SectionErrorBoundary name="Course"><CoursePage profile={profile} role="student" /></SectionErrorBoundary>
           : <SectionErrorBoundary name="Subjects"><SubjectsSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'summaries':
-        return renderSummaries();
+        return (
+          <div className="space-y-2">
+            <UsageCounter sectionKey="summaries" mode="count" />
+            {renderSummaries()}
+          </div>
+        );
       case 'assignments':
         return <SectionErrorBoundary name="Assignments"><AssignmentsSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'files':
-        return <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="student" /></SectionErrorBoundary>;
+        return (
+          <div className="space-y-2">
+            <UsageCounter sectionKey="files" mode="storage" />
+            <SectionErrorBoundary name="Files"><PersonalFilesSection profile={profile} role="student" /></SectionErrorBoundary>
+          </div>
+        );
       case 'videos':
         return <SectionErrorBoundary name="Videos"><AllVideosSection profile={profile} role="student" /></SectionErrorBoundary>;
       case 'teachers':

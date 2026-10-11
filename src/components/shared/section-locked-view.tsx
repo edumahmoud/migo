@@ -1,19 +1,14 @@
 'use client';
 
 /**
- * SectionLockedView — v134d
+ * SectionLockedView — v134e
  *
- * Shown when a student/teacher clicks a locked section. Displays:
- *   - The section name + a lock icon
- *   - The pricing for the user's role (monthly + yearly)
- *   - Dynamic usage limit info (changes based on selected plan)
- *   - A form to submit an activation request
- *   - The status of any existing request
- *
- * v134d changes:
- *   - Usage limit message is now dynamic (reflects the admin's settings)
- *   - "وفور" → "وفًر" with proper Arabic pluralization
- *   - Better error handling for the submit flow (shows actual error)
+ * v134e changes:
+ *   - Usage limit message is now FULLY dynamic and changes based on
+ *     the selected plan (monthly shows period=30d, yearly shows period=365d)
+ *   - The usage metric text adapts: 'combined', 'summaries', 'storage', etc.
+ *   - For 'storage' metric: shows MB instead of "عملية"
+ *   - Better error handling
  */
 
 import { useState, useEffect } from 'react';
@@ -63,31 +58,45 @@ function formatSavings(yearlyPrice: number, monthlyPrice: number): string {
   return '';
 }
 
-/** Format the usage limit message dynamically. */
+/**
+ * v134e: Format the usage limit message dynamically based on:
+ *   - The selected plan (monthly → period=30d, yearly → period=365d)
+ *   - The admin's configured max_usage
+ *   - The metric type (combined/summaries/storage)
+ */
 function formatUsageLimit(
   maxUsage: number | null,
-  periodDays: number,
+  planType: 'monthly' | 'yearly',
   metric: string | null,
-): string {
-  const limitText = maxUsage !== null && maxUsage > 0
-    ? `${maxUsage} عملية`
-    : 'غير محدود';
+): { limitText: string; periodText: string; metricText: string } {
+  // Period depends on the SELECTED PLAN, not the admin's config.
+  const periodText = planType === 'monthly' ? 'شهرياً' : 'سنوياً';
 
-  const periodText = periodDays === 30
-    ? 'شهرياً'
-    : periodDays === 365
-      ? 'سنوياً'
-      : `كل ${periodDays} يوماً`;
+  // Limit text depends on metric type.
+  let limitText: string;
+  if (metric === 'storage') {
+    limitText = maxUsage !== null && maxUsage > 0
+      ? `${maxUsage} ميجابايت`
+      : 'مساحة غير محدودة';
+  } else {
+    limitText = maxUsage !== null && maxUsage > 0
+      ? `${maxUsage} عملية`
+      : 'غير محدود';
+  }
 
-  const metricText = metric === 'combined'
-    ? '(يشمل الملخصات + الاختبارات الذكية، المحذوفة محسوبة من الإجمالي)'
-    : metric === 'summaries'
-      ? '(يشمل الملخصات، المحذوفة محسوبة من الإجمالي)'
-      : metric === 'quiz_attempts'
-        ? '(يشمل محاولات الاختبارات، المحذوفة محسوبة من الإجمالي)'
-        : '';
+  // Metric description text.
+  let metricText = '';
+  if (metric === 'combined') {
+    metricText = '(يشمل الملخصات + الاختبارات الذكية، المحذوفة محسوبة من الإجمالي)';
+  } else if (metric === 'summaries') {
+    metricText = '(يشمل الملخصات، المحذوفة محسوبة من الإجمالي)';
+  } else if (metric === 'quiz_attempts') {
+    metricText = '(يشمل محاولات الاختبارات، المحذوفة محسوبة من الإجمالي)';
+  } else if (metric === 'storage') {
+    metricText = '(تشمل جميع الملفات المرفوعة، المحذوفة محسوبة من الإجمالي)';
+  }
 
-  return `${limitText} ${periodText} ${metricText}`;
+  return { limitText, periodText, metricText };
 }
 
 export default function SectionLockedView({
@@ -145,12 +154,12 @@ export default function SectionLockedView({
 
   const savingsText = formatSavings(Number(yearlyPrice), Number(monthlyPrice));
 
-  // v134d: dynamic usage limit based on the user's role.
+  // v134e: dynamic usage limit based on the SELECTED PLAN + role.
   const usageLimit = userRole === 'student'
     ? config.student_max_usage
     : config.teacher_max_usage;
-  const usageLimitText = config.usage_metric
-    ? formatUsageLimit(usageLimit, config.usage_period_days, config.usage_metric)
+  const usageInfo = config.usage_metric
+    ? formatUsageLimit(usageLimit, planType, config.usage_metric)
     : null;
 
   const handleSubmit = async () => {
@@ -167,7 +176,6 @@ export default function SectionLockedView({
         setExistingRequest({ status: 'pending', plan_type: planType, created_at: new Date().toISOString() });
         onRequestSubmitted?.();
       } else {
-        // v134d: show the actual error from the server, not a generic message.
         const errMsg = json.error || 'فشل إرسال الطلب';
         toast.error(errMsg);
         console.error('[SectionLockedView] submit error:', json);
@@ -275,12 +283,15 @@ export default function SectionLockedView({
               </CardContent>
             </Card>
 
-            {/* v134d: Dynamic usage limit info */}
-            {usageLimitText && (
+            {/* v134e: Dynamic usage limit — changes based on selected plan */}
+            {usageInfo && (
               <Card>
                 <CardContent className="p-3 text-xs text-muted-foreground">
                   <p className="font-medium text-foreground mb-1">حد الاستخدام</p>
-                  <p>{usageLimitText}</p>
+                  <p>
+                    {usageInfo.limitText} {usageInfo.periodText}{' '}
+                    {usageInfo.metricText}
+                  </p>
                 </CardContent>
               </Card>
             )}
