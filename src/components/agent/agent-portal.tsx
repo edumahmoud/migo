@@ -30,7 +30,7 @@ import {
   Activity, Video, FolderOpen, ListTodo, Calendar as CalendarIcon,
   ShieldAlert, TrendingUp, Bell, Package, UserCog, ChevronRight, ChevronDown,
   AlertCircle, Gift, Tag, PauseCircle, XCircle, ArrowRight, CheckCircle2,
-  LogOut,
+  LogOut, Power,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -173,11 +173,20 @@ export default function AgentPortal({
   const [suspendStudentId, setSuspendStudentId] = useState<string | null>(null);
   const [suspendStudentName, setSuspendStudentName] = useState<string>('');
   const [suspendSubjects, setSuspendSubjects] = useState<Array<{ id: string; name: string }>>([]);
-  // v130: active suspensions fetched for the searched student — shown in search results (not modal)
+  // v131: active suspensions fetched for the searched student — shown in
+  // search results (collapsible card with per-row reactivate button).
+  // Fetched via the server endpoint /api/agent/students/[id]/suspensions
+  // (NOT the browser supabase client — RLS on `subjects` blocks the
+  // agent from resolving subject names client-side because the agent's
+  // auth.uid() != the teacher's id).
   const [studentSuspendedSubjects, setStudentSuspendedSubjects] = useState<Array<{
     id: string; subject_id: string; subject_name: string; reason: string | null;
     suspended_at: string; expires_at: string | null;
   }>>([]);
+  // v131: collapsible state for the active suspensions card + per-row
+  // reactivation loading state.
+  const [suspensionsExpanded, setSuspensionsExpanded] = useState(true);
+  const [reactivatingSubjectId, setReactivatingSubjectId] = useState<string | null>(null);
   // v116 fix: initial state is '' (empty) so the GRID shows first when
   // the user opens Teacher View. Before this fix, the initial state was
   // 'dashboard' → the component skipped the grid and went straight to
@@ -264,7 +273,6 @@ export default function AgentPortal({
     if (!searchCode.trim()) { toast.error('أدخل كود الطالب'); return; }
     setSearching(true);
     setStudentResult(null);
-    setStudentSuspendedSubjects([]); // reset suspensions
     try {
       const res = await fetch('/api/agent/search-student', {
         method: 'POST',
@@ -274,54 +282,82 @@ export default function AgentPortal({
       const json = await res.json();
       if (json.success) {
         setStudentResult(json);
-        // v130: fetch active suspensions for this student
-        if (json.student?.id) {
-          fetchStudentSuspensions(json.student.id);
-        }
+        // v131: fetch active suspensions for this student so the
+        // collapsible card shows real-time data after each search.
+        if (json.student?.id) fetchStudentSuspensions(json.student.id);
       }
       else { toast.error(json.error || 'لم يتم العثور على الطالب'); }
     } catch { toast.error('حدث خطأ غير متوقع'); }
     finally { setSearching(false); }
   };
 
-  // v130: Fetch active suspensions for a student — shown in search results (not modal)
+  // v131: Fetch active suspensions via the server endpoint (NOT the
+  // browser supabase client). The previous client-side query was subject
+  // to RLS on `subjects` (which requires `teacher_id = auth.uid()`) —
+  // since the agent's auth.uid() is their own user id (not the teacher's),
+  // the subject name lookup returned an empty list and the UI showed
+  // "مقرر غير معروف" for every suspension. The server endpoint uses the
+  // service role to bypass RLS and resolves the subject name server-side.
   const fetchStudentSuspensions = useCallback(async (studentId: string) => {
     try {
-      const { supabase } = await import('@/lib/supabase');
-      const nowIso = new Date().toISOString();
-      const { data, error } = await supabase
-        .from('student_suspensions')
-        .select('id, subject_id, reason, suspended_at, expires_at, is_active')
-        .eq('student_id', studentId)
-        .eq('scope', 'course')
-        .eq('is_active', true);
-
-      if (error) throw error;
-
-      type Row = { id: string; subject_id: string; reason: string | null; suspended_at: string; expires_at: string | null; is_active: boolean; };
-      const rows = ((data ?? []) as unknown) as Row[];
-      const active = rows.filter(r => r.is_active && (r.expires_at === null || r.expires_at > nowIso));
-
-      // Fetch subject names from DB
-      const suspendedIds = active.map(r => r.subject_id);
-      let nameMap: Record<string, string> = {};
-      if (suspendedIds.length > 0) {
-        const { data: subjRows } = await supabase.from('subjects').select('id, name').in('id', suspendedIds);
-        (subjRows ?? []).forEach((s: { id: string; name: string }) => { nameMap[s.id] = s.name; });
+      const res = await fetch(
+        `/api/agent/students/${studentId}/suspensions`,
+        { headers: await getCachedAuthHeaders() },
+      );
+      const json = await res.json();
+      if (!json.success) {
+        setStudentSuspendedSubjects([]);
+        return;
       }
-
-      setStudentSuspendedSubjects(active.map(r => ({
-        id: r.id,
-        subject_id: r.subject_id,
-        subject_name: nameMap[r.subject_id] ?? 'مقرر غير معروف',
-        reason: r.reason,
-        suspended_at: r.suspended_at,
-        expires_at: r.expires_at,
-      })));
+      const list = (json.suspensions ?? []) as Array<{
+        id: string;
+        subject_id: string;
+        subject_name: string;
+        reason: string | null;
+        suspended_at: string;
+        expires_at: string | null;
+      }>;
+      setStudentSuspendedSubjects(list);
     } catch {
       setStudentSuspendedSubjects([]);
     }
   }, []);
+
+  // v131: Reactivate a single suspended subject. Calls the same
+  // /activate endpoint used by the dialog's "lift all" flow, but for
+  // one subject_id at a time. On success, refetches the suspensions
+  // list so the row disappears immediately.
+  const reactivateSubject = async (subjectId: string, subjectName: string) => {
+    if (!studentResult?.student?.id || reactivatingSubjectId) return;
+    const ok = await confirm({
+      title: 'إعادة تفعيل المقرر',
+      description: `سيتم رفع الإيقاف عن المقرر: ${subjectName}`,
+      confirmLabel: 'إعادة التفعيل', cancelLabel: 'تراجع',
+    });
+    if (!ok) return;
+    setReactivatingSubjectId(subjectId);
+    try {
+      const res = await fetch(
+        `/api/agent/students/${studentResult.student.id}/activate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
+          body: JSON.stringify({ subjectId }),
+        },
+      );
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.error || 'فشل رفع الإيقاف');
+        return;
+      }
+      toast.success(`تم رفع الإيقاف عن المقرر: ${subjectName}`);
+      await fetchStudentSuspensions(studentResult.student.id);
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setReactivatingSubjectId(null);
+    }
+  };
 
   // ─── Activate order ───
   const activateOrder = async (orderId: string) => {
@@ -805,38 +841,74 @@ export default function AgentPortal({
                 </CardContent>
               </Card>
 
-              {/* v130: Active suspensions card — moved here from the modal */}
-              {studentSuspendedSubjects.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-2">
+              {/* v131: Active suspensions card — always shown (so the
+                  user sees "لا توجد مقررات موقوفة" when empty), made
+                  COLLAPSIBLE via the header toggle, and each row has its
+                  own reactivate button. Subject names come from the
+                  server endpoint, NOT the browser supabase client
+                  (which is blocked by RLS on `subjects`). */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setSuspensionsExpanded(v => !v)}
+                    className="w-full flex items-center justify-between gap-2 text-start"
+                    aria-expanded={suspensionsExpanded}
+                  >
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Ban className="h-4 w-4 text-rose-600" />
                       الإيقافات النشطة ({studentSuspendedSubjects.length})
                     </CardTitle>
-                  </CardHeader>
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${suspensionsExpanded ? '' : '-rotate-90'}`}
+                    />
+                  </button>
+                </CardHeader>
+                {suspensionsExpanded && (
                   <CardContent className="p-0">
-                    <div className="divide-y">
-                      {studentSuspendedSubjects.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between gap-2 p-3">
-                          <div className="min-w-0 flex-1">
-                            <span className="text-sm font-medium truncate">{s.subject_name}</span>
-                            {s.reason && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">السبب: {s.reason}</p>
-                            )}
-                            <p className="text-[10px] text-muted-foreground">
-                              {s.expires_at ? `ينتهي: ${new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}` : 'غير محدد المدة'}
-                            </p>
+                    {studentSuspendedSubjects.length === 0 ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        لا توجد مقررات موقوفة
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {studentSuspendedSubjects.map((s) => (
+                          <div key={s.id} className="flex items-center justify-between gap-2 p-3">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-sm font-medium truncate block">{s.subject_name}</span>
+                              {s.reason && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">السبب: {s.reason}</p>
+                              )}
+                              <p className="text-[10px] text-muted-foreground">
+                                {s.expires_at ? `ينتهي: ${new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}` : 'غير محدد المدة'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
+                                <Ban className="h-2.5 w-2.5 me-0.5" />
+                                موقوف
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[10px] px-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                disabled={reactivatingSubjectId === s.subject_id}
+                                onClick={() => reactivateSubject(s.subject_id, s.subject_name)}
+                              >
+                                {reactivatingSubjectId === s.subject_id
+                                  ? <Loader2 className="h-3 w-3 me-1 animate-spin" />
+                                  : <Power className="h-3 w-3 me-1" />}
+                                إعادة تفعيل
+                              </Button>
+                            </div>
                           </div>
-                          <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
-                            <Ban className="h-2.5 w-2.5 me-0.5" />
-                            موقوف
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
-                </Card>
-              )}
+                )}
+              </Card>
 
               {/* Pending orders (with activate/cancel) */}
               {studentResult.pending_orders.length > 0 && (
@@ -1004,7 +1076,9 @@ export default function AgentPortal({
         subjects={suspendSubjects}
         onClose={() => setSuspendStudentId(null)}
         onChanged={() => {
-          // v130: silent update — refetch search + suspensions without page refresh
+          // v131: refetch both the student search (to refresh badges)
+          // AND the active suspensions list (so the collapsible card
+          // updates immediately after a suspend/lift action).
           if (searchCode.trim()) searchStudent();
           if (suspendStudentId) fetchStudentSuspensions(suspendStudentId);
         }}

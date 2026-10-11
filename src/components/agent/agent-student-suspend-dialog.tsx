@@ -93,64 +93,24 @@ export default function AgentStudentSuspendDialog({
     if (!sid) return;
     setLoading(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
-      const nowIso = new Date().toISOString();
-      const { data, error } = await supabase
-        .from('student_suspensions')
-        .select(`
-          id, subject_id, reason, suspended_at, expires_at, is_active
-        `)
-        .eq('student_id', sid)
-        .eq('scope', 'course')
-        .eq('is_active', true);
-
-      if (error) throw error;
-
-      type Row = {
-        id: string;
-        subject_id: string;
-        reason: string | null;
-        suspended_at: string;
-        expires_at: string | null;
-        is_active: boolean;
-      };
-
-      const rows = ((data ?? []) as unknown) as Row[];
-      const active = rows.filter(r =>
-        r.is_active && (r.expires_at === null || r.expires_at > nowIso)
+      // v131: use the server endpoint instead of the browser supabase
+      // client. The previous client-side query was subject to RLS on
+      // `subjects` (which requires `teacher_id = auth.uid()`) — since
+      // the agent's auth.uid() is their own user id (not the teacher's),
+      // the subject name lookup returned an empty list and the UI fell
+      // back to "مقرر غير معروف". The server endpoint uses the service
+      // role to bypass RLS and resolves the subject name server-side.
+      const res = await fetch(
+        `/api/agent/students/${sid}/suspensions`,
+        { headers: await getCachedAuthHeaders() },
       );
-
-      // v130 fix: Fetch subject names from DB directly (not from props).
-      // The props 'subjects' only contains courses the student is enrolled in,
-      // but a suspension may be for a course the student was unenrolled from.
-      // We fetch ALL subject names for the suspended subject_ids from the DB.
-      const suspendedSubjectIds = active.map(r => r.subject_id);
-      let subjectNameMap: Record<string, string> = {};
-      if (suspendedSubjectIds.length > 0) {
-        const { data: subjRows } = await supabase
-          .from('subjects')
-          .select('id, name')
-          .in('id', suspendedSubjectIds);
-        (subjRows ?? []).forEach((s: { id: string; name: string }) => {
-          subjectNameMap[s.id] = s.name;
-        });
+      const json = await res.json();
+      if (!json.success) {
+        setActiveSuspensions([]);
+        return;
       }
-
-      // Also merge with props as fallback
-      subjects.forEach(s => {
-        if (!subjectNameMap[s.id]) subjectNameMap[s.id] = s.name;
-      });
-
-      const activeWithNames = active.map(r => ({
-        id: r.id,
-        subject_id: r.subject_id,
-        subject_name: subjectNameMap[r.subject_id] ?? 'مقرر غير معروف',
-        reason: r.reason,
-        suspended_at: r.suspended_at,
-        expires_at: r.expires_at,
-      }));
-
-      setActiveSuspensions(activeWithNames);
+      const list = (json.suspensions ?? []) as ActiveSuspension[];
+      setActiveSuspensions(list);
     } catch (err) {
       console.error('[AgentStudentSuspendDialog] fetchActive error:', err);
       setActiveSuspensions([]);
@@ -173,10 +133,32 @@ export default function AgentStudentSuspendDialog({
         return;
       }
 
-      // v130: If "all courses" selected, loop through each subject
+      // v131: If "all courses" selected, loop through each subject.
+      // EXCLUDE subjects that already have an active suspension — the
+      // server now rejects re-suspending an already-suspended subject,
+      // and skipping them here lets us give a clearer partial-success
+      // message instead of a generic failure.
+      const alreadySuspendedIds = new Set(activeSuspensions.map(s => s.subject_id));
       const targetSubjectIds = selectedSubjectId === '__all__'
-        ? subjects.map(s => s.id)
+        ? subjects.filter(s => !alreadySuspendedIds.has(s.id)).map(s => s.id)
         : [selectedSubjectId];
+
+      // v131: single-subject suspend — if that subject is already
+      // actively suspended, refuse client-side too (the API will also
+      // refuse, but this gives immediate feedback without a round-trip).
+      if (selectedSubjectId !== '__all__' && alreadySuspendedIds.has(selectedSubjectId)) {
+        toast.error('هذا المقرر موقوف بالفعل. ارفع الإيقاف الحالي أولاً لإعادة الإيقاف.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Edge case: "all courses" but every enrolled course is already
+      // suspended → nothing to do.
+      if (targetSubjectIds.length === 0) {
+        toast.info('جميع المقررات موقوفة بالفعل — لا يوجد ما يستدعي الإيقاف.');
+        setSubmitting(false);
+        return;
+      }
 
       let successCount = 0;
       let lastError = '';
@@ -199,11 +181,15 @@ export default function AgentStudentSuspendDialog({
       }
 
       if (successCount === targetSubjectIds.length) {
-        toast.success(
-          selectedSubjectId === '__all__'
-            ? `تم إيقاف الطالب من جميع المقررات (${successCount})`
-            : 'تم إيقاف الطالب من المقرر المحدد'
-        );
+        const skippedCount = selectedSubjectId === '__all__'
+          ? alreadySuspendedIds.size
+          : 0;
+        const msg = selectedSubjectId === '__all__'
+          ? (skippedCount > 0
+              ? `تم إيقاف الطالب من ${successCount} مقرر (تم تخطي ${skippedCount} مقرر لكونه موقوفاً بالفعل)`
+              : `تم إيقاف الطالب من جميع المقررات (${successCount})`)
+          : 'تم إيقاف الطالب من المقرر المحدد';
+        toast.success(msg);
       } else if (successCount > 0) {
         toast.success(`تم إيقاف الطالب من ${successCount} من ${targetSubjectIds.length} مقررات`);
       } else {
@@ -299,9 +285,37 @@ export default function AgentStudentSuspendDialog({
           </div>
         ) : (
           <div className="space-y-3 flex-1 overflow-y-auto px-6 pb-4">
-            {/* v130: Active suspensions list REMOVED from modal —
-                moved to the main search results page instead.
-                The modal now only shows the suspend form + footer. */}
+            {/* Active suspensions list */}
+            {activeSuspensions.length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  الإيقافات النشطة ({activeSuspensions.length})
+                </div>
+                {activeSuspensions.map(s => (
+                  <div key={s.id} className="rounded bg-amber-100/50 dark:bg-amber-900/30 p-2 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-amber-900 dark:text-amber-100 truncate">
+                        {s.subject_name}
+                      </span>
+                      <button
+                        onClick={() => handleLift(s.subject_id, s.subject_name ?? '—')}
+                        disabled={submitting}
+                        className="shrink-0 inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        <Power className="h-3 w-3" />
+                        فك الإيقاف
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-amber-700 dark:text-amber-300">
+                      <div>أُوقف في: {formatDate(s.suspended_at)}</div>
+                      {s.expires_at && <div>ينتهي: {formatDate(s.expires_at)}</div>}
+                      {s.reason && <div>السبب: {s.reason}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Suspend form */}
             <div className="space-y-3 border-t pt-3">
