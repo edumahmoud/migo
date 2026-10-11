@@ -112,7 +112,7 @@ export default function GlobalError({
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-4 w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
+              className="mx-auto mb-4 w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center bg-transparent shadow-lg shadow-sky-600/30"
             >
               {cachedLogo ? (
                 <img

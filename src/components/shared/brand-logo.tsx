@@ -1,11 +1,16 @@
 'use client';
 
 /**
- * BrandLogo — v132c
+ * BrandLogo — v132d
  *
  * A reusable brand logo component that shows the institution's logo
  * image when available, falling back to the default gradient +
  * GraduationCap icon.
+ *
+ * v132d change: when a logo is present, the container has NO gradient
+ * background — just a transparent/white surface so the logo appears
+ * naturally without a colored gradient behind it. The gradient is only
+ * used for the fallback GraduationCap icon.
  *
  * Used in:
  *   - All loading/splash screens (replaces the hardcoded GraduationCap)
@@ -82,9 +87,13 @@ export function BrandLogo({
   const shadowClass = withShadow ? 'shadow-lg shadow-sky-500/30' : '';
 
   if (logoUrl) {
+    // v132d: NO gradient background — just a transparent surface so
+    // the logo appears naturally without a colored gradient behind it.
+    // The rounded corners + overflow-hidden still clip the logo to the
+    // box shape. We keep the shadow for visual depth on loading screens.
     return (
       <div
-        className={`${dims.box} ${shadowClass} overflow-hidden bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shrink-0 ${className}`}
+        className={`${dims.box} ${shadowClass} overflow-hidden flex items-center justify-center shrink-0 bg-transparent ${className}`}
       >
         <img
           src={logoUrl}

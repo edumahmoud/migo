@@ -30,6 +30,16 @@ export default function InstitutionHead() {
     const title = tagline ? `${name} - ${tagline}` : name;
     const hasLogo = !!institution?.logo_url;
 
+    // v132d: build a stable cache-bust key from name + logo_url + tagline.
+    // This changes whenever ANY of these change, which forces the browser
+    // to refetch the manifest + icons. Using a stable key (instead of
+    // Date.now()) means the browser can cache the manifest between
+    // requests for the same institution data, but will refetch when
+    // the data actually changes.
+    const cacheKey = encodeURIComponent(
+      `${institution?.logo_url || ''}|${name}|${tagline || ''}`
+    ).slice(0, 60);
+
     // ─── 1. Update document title ───
     document.title = title;
 
@@ -73,8 +83,8 @@ export default function InstitutionHead() {
         .querySelectorAll("link[rel='icon']:not([data-dynamic])")
         .forEach((l) => l.remove());
 
-      // Add dynamic favicon links (with cache-bust based on logo URL)
-      const cacheBust = `?t=${Date.now()}`;
+      // v132d: use stable cache-bust key (changes when logo/name change)
+      const cacheBust = `?v=${cacheKey}`;
       iconSizes.forEach(({ size, href }) => {
         const link = document.createElement('link');
         link.rel = 'icon';
@@ -102,8 +112,9 @@ export default function InstitutionHead() {
     }
 
     // ─── 5. Update apple-touch-icon ───
+    // v132d: use stable cache-bust key
     const appleIconHref = hasLogo
-      ? `/api/icon/180?t=${Date.now()}`
+      ? `/api/icon/180?v=${cacheKey}`
       : '/apple-touch-icon.png';
 
     let appleLink = document.querySelector(
@@ -121,17 +132,16 @@ export default function InstitutionHead() {
     }
 
     // ─── 6. Update manifest link (for dynamic PWA manifest) ───
-    // The manifest API route reads institution data from DB,
-    // but we add a cache-bust param to force re-fetch when logo changes
+    // v132d: use stable cache-bust key so the manifest refetches when
+    // the institution name/logo/tagline change. This is what makes the
+    // PWA name update without reinstall (the browser sees a new URL,
+    // refetches the manifest, gets the new name, updates the home
+    // screen icon label).
     let manifestLink = document.querySelector(
       "link[rel='manifest']"
     ) as HTMLLinkElement | null;
     if (manifestLink) {
-      if (hasLogo) {
-        manifestLink.href = `/api/manifest?t=${Date.now()}`;
-      } else {
-        manifestLink.href = '/api/manifest';
-      }
+      manifestLink.href = `/api/manifest?v=${cacheKey}`;
     }
   }, [institution, loaded]);
 

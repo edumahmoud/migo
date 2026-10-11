@@ -97,17 +97,20 @@ export async function GET() {
     ? `${displayName} - ${institution.tagline}`
     : 'منصة تعليمية ذكية مدعومة بالذكاء الاصطناعي للطلاب والمعلمين';
 
-  // v132c: cache-bust parameter for icon URLs. When the admin changes
-  // the logo, the logo_url changes, which changes this param, which
-  // forces the browser to treat the icon URLs as NEW resources and
-  // refetch them (bypassing the browser cache). This is what makes
-  // the PWA icon update without requiring reinstall.
+  // v132d: cache-bust parameter for icon URLs. When the admin changes
+  // the logo OR the name, the combined hash changes, which changes this
+  // param, which forces the browser to treat the icon URLs as NEW
+  // resources and refetch them (bypassing the browser cache). This is
+  // what makes BOTH the PWA icon AND the PWA name update without
+  // requiring reinstall.
   //
-  // We use a simple hash of the logo_url (or a fallback timestamp)
-  // so the value is stable across requests for the same logo, but
-  // changes when the logo changes.
-  const logoBust = institution.logo_url
-    ? `?v=${encodeURIComponent(institution.logo_url).slice(0, 40)}`
+  // We combine logo_url + name + tagline into the cache-bust value so
+  // ANY of these changing triggers a refresh. The value is stable
+  // across requests for the same institution data, but changes when
+  // the data changes.
+  const cacheKey = `${institution.logo_url || ''}|${displayName}|${institution.tagline || ''}`;
+  const logoBust = cacheKey
+    ? `?v=${encodeURIComponent(cacheKey).slice(0, 60)}`
     : '';
 
   const manifest = {
