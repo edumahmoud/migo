@@ -1544,14 +1544,18 @@ function DashboardView({ data }: { data: Record<string, unknown> }) {
     total_subjects: number;
     total_students: number;
     pending_orders: number;
-    paid_orders: number;
+    active_subscriptions: number;
   };
+  // v132: replaced 'طلبات مدفوعة' (paid_orders) with 'اشتراكات نشطة'
+  // (active_subscriptions). The value is the count of approved
+  // subject_students rows for the teacher's subjects — i.e., the
+  // number of currently-active enrollments.
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       <StatTile label="المقررات" value={stats.total_subjects ?? 0} color="sky" icon={<BookOpen className="h-3.5 w-3.5" />} />
       <StatTile label="الطلاب" value={stats.total_students ?? 0} color="teal" icon={<Users className="h-3.5 w-3.5" />} />
       <StatTile label="طلبات معلّقة" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
-      <StatTile label="طلبات مدفوعة" value={stats.paid_orders ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+      <StatTile label="اشتراكات نشطة" value={stats.active_subscriptions ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
     </div>
   );
 }
@@ -1581,12 +1585,31 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
   const items = (data.items ?? []) as Array<{
     id: string; name: string; level: string | null; sub_level: string | null;
     price: number | null; is_paused: boolean; students_count: number;
+    // v132: active subscription plans for this subject.
+    plans: Array<{
+      id: string; period_type: string; period_label: string;
+      duration_days: number; price: number; currency: string;
+    }>;
   }>;
   if (items.length === 0) return <EmptyState label="لا توجد مقررات" />;
+
+  // v132: helper to render a human-readable plan label.
+  // Uses period_label if set, otherwise derives from period_type.
+  const planLabel = (p: { period_type: string; period_label: string; duration_days: number }) => {
+    if (p.period_label && p.period_label.trim()) return p.period_label;
+    switch (p.period_type) {
+      case 'monthly': return 'شهري';
+      case 'term': return 'ترم';
+      case 'yearly': return 'سنوي';
+      case 'custom': return `${p.duration_days} يوم`;
+      default: return p.period_type;
+    }
+  };
+
   return (
     <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
       {items.map((s) => (
-        <div key={s.id} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+        <div key={s.id} className="flex items-start justify-between gap-2 p-2.5 text-xs">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium truncate">{s.name}</span>
@@ -1603,12 +1626,24 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
             <div className="text-[10px] text-muted-foreground mt-0.5">
               {s.students_count} طالب
             </div>
-          </div>
-          <div className="shrink-0 text-end">
-            {s.price !== null && s.price > 0 ? (
-              <span className="font-medium text-emerald-700 dark:text-emerald-300">{Number(s.price).toFixed(2)} EGP</span>
+            {/* v132: show all active plans instead of a single default price. */}
+            {s.plans.length > 0 ? (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {s.plans.map((p) => (
+                  <Badge key={p.id} variant="outline" className="text-[9px] bg-muted/40">
+                    {planLabel(p)}: {' '}
+                    {p.price > 0
+                      ? <span className="font-medium text-emerald-700 dark:text-emerald-300">{p.price.toFixed(0)} {p.currency}</span>
+                      : <span className="text-sky-600">مجاني</span>}
+                  </Badge>
+                ))}
+              </div>
             ) : (
-              <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200"><Gift className="h-2.5 w-2.5 me-0.5" />مجاني</Badge>
+              <div className="mt-1">
+                <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
+                  لا توجد خطط مفعّلة
+                </Badge>
+              </div>
             )}
           </div>
         </div>

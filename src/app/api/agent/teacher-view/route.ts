@@ -147,39 +147,39 @@ async function handleDashboard(teacherId: string) {
   // Count subjects directly (1 query).
   const subjectsCount = teacherSubjectIds.length;
 
-  // Count distinct students enrolled in those subjects.
+  // Count distinct students enrolled in those subjects + active subscriptions.
+  // v132: an "active subscription" = a row in subject_students with
+  // status='approved' (one per subject per student). This is the count
+  // of currently-active enrollments, NOT distinct students.
   let studentsCount = 0;
+  let activeSubscriptions = 0;
   if (teacherSubjectIds.length > 0) {
-    // v130 fix: count DISTINCT student_id, not enrollment rows
-    const { data: distinctStudents } = await supabaseServer
+    const { data: enrollments } = await supabaseServer
       .from('subject_students')
       .select('student_id')
       .in('subject_id', teacherSubjectIds)
       .eq('status', 'approved');
-    const uniqueIds = new Set((distinctStudents ?? []).map((r: { student_id: string }) => r.student_id));
+    const rows = (enrollments ?? []) as { student_id: string }[];
+    const uniqueIds = new Set(rows.map(r => r.student_id));
     studentsCount = uniqueIds.size;
+    activeSubscriptions = rows.length;
   }
 
-  // Count pending + paid orders for the teacher's subjects.
+  // Count pending orders for the teacher's subjects.
   let pendingCount = 0;
-  let paidCount = 0;
   if (teacherSubjectIds.length > 0) {
-    const [{ count: pc }, { count: pac }] = await Promise.all([
-      supabaseServer
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending')
-        .in('subject_id', teacherSubjectIds),
-      supabaseServer
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'paid')
-        .in('subject_id', teacherSubjectIds),
-    ]);
+    const { count: pc } = await supabaseServer
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .in('subject_id', teacherSubjectIds);
     pendingCount = pc ?? 0;
-    paidCount = pac ?? 0;
   }
 
+  // v132: replaced paid_orders with active_subscriptions. The dashboard
+  // card now shows "اشتراكات نشطة" (active subscriptions count) instead
+  // of "طلبات مدفوعة" (paid orders count). This is more relevant to the
+  // agent's day-to-day work.
   return NextResponse.json({
     success: true,
     section: 'dashboard',
@@ -187,7 +187,7 @@ async function handleDashboard(teacherId: string) {
       total_subjects: subjectsCount,
       total_students: studentsCount,
       pending_orders: pendingCount,
-      paid_orders: paidCount,
+      active_subscriptions: activeSubscriptions,
     },
   });
 }
@@ -212,6 +212,37 @@ async function handleSubjects(teacherId: string, limit: number, offset: number) 
 
   if (error) throw error;
 
+  // v132: Fetch active subscription plans for each subject in one query.
+  // We'll group them client-side by subject_id. Only is_active=true
+  // plans are included (matches what students see at checkout).
+  const subjectIds = (subjects ?? []).map((s: { id: string }) => s.id);
+  let plansBySubject: Record<string, Array<{
+    id: string; period_type: string; period_label: string;
+    duration_days: number; price: number; currency: string;
+  }>> = {};
+  if (subjectIds.length > 0) {
+    const { data: plans } = await supabaseServer
+      .from('subject_subscription_plans')
+      .select('id, subject_id, period_type, period_label, duration_days, price, currency, is_active, sort_order')
+      .in('subject_id', subjectIds)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+    for (const p of (plans ?? []) as Array<{
+      id: string; subject_id: string; period_type: string; period_label: string;
+      duration_days: number; price: number; currency: string;
+    }>) {
+      if (!plansBySubject[p.subject_id]) plansBySubject[p.subject_id] = [];
+      plansBySubject[p.subject_id].push({
+        id: p.id,
+        period_type: p.period_type,
+        period_label: p.period_label,
+        duration_days: p.duration_days,
+        price: Number(p.price) || 0,
+        currency: p.currency,
+      });
+    }
+  }
+
   const items = (subjects ?? []).map((s: Record<string, unknown>) => ({
     id: s.id as string,
     name: s.name as string,
@@ -220,6 +251,10 @@ async function handleSubjects(teacherId: string, limit: number, offset: number) 
     price: s.price as number | null,
     is_paused: s.is_paused as boolean,
     students_count: Array.isArray(s.subject_students_count) ? (s.subject_students_count[0] as { count: number })?.count ?? 0 : 0,
+    // v132: active subscription plans (monthly/term/yearly/custom) with
+    // their actual prices. The UI shows these instead of a single
+    // default monthly price.
+    plans: plansBySubject[s.id as string] ?? [],
   }));
 
   const total = totalCount ?? 0;
