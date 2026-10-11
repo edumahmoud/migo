@@ -63,7 +63,7 @@ type TrialRow = {
 };
 
 export default function AdminPaidServicesSection() {
-  const { direction } = useTranslations();
+  const { direction, t } = useTranslations();
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === 'superadmin';
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -225,33 +225,33 @@ export default function AdminPaidServicesSection() {
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="requests" className="text-xs gap-1">
             <Clock className="h-3.5 w-3.5" />
-            طلبات التفعيل ({pendingRequests.length})
+            {t('nav.paidServicesRequests')} ({pendingRequests.length})
           </TabsTrigger>
           <TabsTrigger value="unlocks" className="text-xs gap-1">
             <Unlock className="h-3.5 w-3.5" />
-            التفعيلات النشطة
+            {t('nav.paidServicesUnlocks')}
           </TabsTrigger>
           {isSuperAdmin && (
             <>
               <TabsTrigger value="trial" className="text-xs gap-1">
                 <Gift className="h-3.5 w-3.5" />
-                الفتح المؤقت
+                {t('nav.paidServicesTrial')}
               </TabsTrigger>
               <TabsTrigger value="storage" className="text-xs gap-1">
                 <HardDrive className="h-3.5 w-3.5" />
-                مساحات التخزين
+                {t('nav.paidServicesStorage')}
               </TabsTrigger>
               <TabsTrigger value="summaries" className="text-xs gap-1">
                 <Settings className="h-3.5 w-3.5" />
-                التلخيصات والاختبارات
+                {t('nav.paidServicesSummaries')}
               </TabsTrigger>
               <TabsTrigger value="questionBank" className="text-xs gap-1">
                 <Settings className="h-3.5 w-3.5" />
-                توليد الأسئلة AI
+                {t('nav.paidServicesQuestionBank')}
               </TabsTrigger>
               <TabsTrigger value="googleForms" className="text-xs gap-1">
                 <Settings className="h-3.5 w-3.5" />
-                Google Forms
+                {t('nav.paidServicesGoogleForms')}
               </TabsTrigger>
             </>
           )}

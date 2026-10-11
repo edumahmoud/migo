@@ -71,7 +71,7 @@ function formatSize(mb: number): string {
 }
 
 export default function StoragePlansView() {
-  const { direction } = useTranslations();
+  const { direction, t } = useTranslations();
   const [status, setStatus] = useState<StorageStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -102,13 +102,13 @@ export default function StoragePlansView() {
         headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
         body: JSON.stringify({
           sectionKey: 'files',
-          planType: 'monthly',
-          notes: `طلب ترقية مساحة: ${plan.name} (${formatSize(plan.size_mb)}) — ${plan.price} ${plan.currency}`,
+          planType: 'monthly', // backend requires this field but it's irrelevant for storage
+          notes: `طلب شراء مساحة تخزين: ${plan.name} (${formatSize(plan.size_mb)}) — ${plan.price} ${plan.currency}`,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم إرسال طلب الاشتراك في ${plan.name}`);
+        toast.success(`تم إرسال طلب شراء ${plan.name}. سيتم التواصل معك للتأكيد.`);
         setSubmittedPlan(plan.id);
       } else {
         toast.error(json.error || 'فشل إرسال الطلب');
