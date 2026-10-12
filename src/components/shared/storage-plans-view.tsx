@@ -158,7 +158,7 @@ export default function StoragePlansView() {
               <div>
                 <p className="text-sm font-medium">مساحة التخزين</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {formatSize(used_mb * 1024 * 1024 === 0 ? 0 : used_mb)} من {formatSize(total_quota * 1024 * 1024)}
+                  {formatSize(used_mb)} من {formatSize(total_quota)}
                 </p>
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function StoragePlansView() {
                     isWarning ? 'text-amber-600' :
                     'text-emerald-600'
                   }>
-                    {is_full ? 'ممتلئة' : `${formatSize(remaining_mb * 1024 * 1024)} متبقية`}
+                    {is_full ? 'ممتلئة' : `${formatSize(remaining_mb)} متبقية`}
                   </span>
                 </div>
               </div>
@@ -197,12 +197,12 @@ export default function StoragePlansView() {
               {/* Breakdown: free + purchased */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                  مجاني: {formatSize(free_quota * 1024 * 1024)}
+                  مجاني: {formatSize(free_quota)}
                 </Badge>
                 {upgrade_size > 0 && (
                   <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
                     <Sparkles className="h-2.5 w-2.5 me-0.5" />
-                    مشتري: +{formatSize(upgrade_size * 1024 * 1024)}
+                    مشتري: +{formatSize(upgrade_size)}
                   </Badge>
                 )}
               </div>

@@ -643,3 +643,34 @@ Stage Summary:
 - The v117 SQL migration file is now committed alongside the code
   changes — operators can apply it manually via Supabase SQL Editor.
 - Ready for Vercel auto-deploy (if configured) or manual deploy.
+
+---
+Task ID: v134l-storage-format-fix
+Agent: main (Super Z)
+Task: Fix storage size display bug — "1 = 1 تيرا" (1 MB shown as 1 TB) in the student-facing storage plans view.
+
+Root cause:
+- /api/storage/check returns all values ALREADY in megabytes: free_quota, upgrade_size, total_quota, used_mb, remaining_mb (all MB).
+- storage_plans.size_mb in the DB is also in MB.
+- The formatSize(mb) helper in storage-plans-view.tsx expects MB (1024 → GB, 1048576 → TB).
+- BUT the calling code in storage-plans-view.tsx was multiplying these already-MB values by 1024*1024 before passing them to formatSize, which inflated them by 1,048,576×.
+- Result: 100 MB free quota → formatSize(100*1024*1024) = formatSize(104857600) → "100 تيرابايت". 1 MB → 1 TB. The literal bug the user reported.
+
+Fix:
+- Removed the erroneous `* 1024 * 1024` factor from all 4 display sites in storage-plans-view.tsx:
+  · Header: "X من Y" → formatSize(used_mb) من formatSize(total_quota)
+  · Remaining: formatSize(remaining_mb) متبقية
+  · Free badge: formatSize(free_quota)
+  · Purchased badge: formatSize(upgrade_size)
+- Also simplified the weird `used_mb * 1024 * 1024 === 0 ? 0 : used_mb` expression — operator precedence made the conditional pointless; it was equivalent to `used_mb` for non-negative values.
+- Verified other consumers of /api/storage/check (file-upload-store.ts, video-upload-store.ts, personal-files-section.tsx) — they all correctly treat the values as MB, no fix needed there.
+- Verified admin-paid-services-section.tsx's own formatSize is called with plan.size_mb directly (correct).
+
+Files modified:
+- src/components/shared/storage-plans-view.tsx (4 call sites fixed)
+
+Stage Summary:
+- Display now correctly shows: 100 MB as "100 ميجابايت", 1024 MB as "1 جيجابايت", 1048576 MB as "1 تيرابايت".
+- tsc --noEmit clean on the edited file.
+- No DB migration needed.
+- No API changes needed.
