@@ -103,12 +103,14 @@ export default function StoragePlansView() {
         body: JSON.stringify({
           sectionKey: 'files',
           planType: 'monthly', // backend requires this field but it's irrelevant for storage
+          requestType: 'storage_upgrade',
+          planId: plan.id,
           notes: `طلب شراء مساحة تخزين: ${plan.name} (${formatSize(plan.size_mb)}) — ${plan.price} ${plan.currency}`,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم إرسال طلب شراء ${plan.name}. سيتم التواصل معك للتأكيد.`);
+        toast.success(`تم إرسال طلب شراء ${plan.name}. سيتم إشعار الإدارة والمعلم لتفعيل الاشتراك.`);
         setSubmittedPlan(plan.id);
       } else {
         toast.error(json.error || 'فشل إرسال الطلب');

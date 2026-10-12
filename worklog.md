@@ -715,3 +715,59 @@ Stage Summary:
 - Existing pre-v134l databases are handled gracefully via column fallbacks.
 - tsc --noEmit clean on all edited files.
 - No breaking changes to the API response shape — `free_quota` still returns the resolved MB value for the current user.
+
+---
+Task ID: v134l-storage-upgrade-request-flow
+Agent: main (Super Z)
+Task: Fix "هذا القسم غير مقفل" error when user tries to subscribe to a storage plan. Storage upgrade requests must reach admin + linked teacher for activation.
+
+Root cause:
+- /api/sections/activation-request rejected any request where the target section wasn't LOCKED.
+- The 'files' section is unlocked by default (free quota is always active), so every storage upgrade attempt failed with HTTP 400 "هذا القسم غير مقفل".
+- Even when the request succeeded, no notification was sent — admin/teacher had to discover it manually.
+
+Fix (5 coordinated changes):
+
+1. New migration `v134l_storage_upgrade_request.sql`:
+   - Adds `request_type` (TEXT, default 'section_unlock') to section_activation_requests.
+   - Adds `plan_id` (UUID FK → storage_plans) nullable column.
+   - CHECK constraint limits request_type to {section_unlock, storage_upgrade}.
+   - Backfills existing rows as 'section_unlock' (they were all unlock requests before).
+   - Index on request_type='storage_upgrade' for fast admin UI filtering.
+
+2. /api/sections/activation-request (route.ts):
+   - Zod schema accepts new optional fields: requestType, planId.
+   - When requestType='storage_upgrade':
+     · SKIPS the lock check (storage upgrades are independent of section locking).
+     · SKIPS the existing-unlock check (irrelevant for storage).
+     · Dedups by user+section+plan_id (one pending request per plan).
+     · Inserts with request_type + plan_id.
+     · Sends notifications to ALL admins + linked teachers (see #3).
+   - When requestType='section_unlock' (default): unchanged behavior.
+
+3. New helper `notifyAdminsAndLinkedTeachers` in activation-request route:
+   - Fetches all admin/superadmin user IDs.
+   - For student requesters: fetches linked teachers via subject_students → subjects!inner(teacher_id) WHERE status='approved'.
+   - Sends notifyUsers() with Arabic title/message + link to /admin?tab=requests.
+   - Non-blocking (best-effort) — failures are logged but don't fail the request.
+
+4. /api/admin/paid-services/requests (route.ts) — approve action:
+   - For storage_upgrade requests: looks up the plan from plan_id, deactivates any existing active user_storage_upgrade for the user, inserts a new user_storage_upgrades row, marks the request as approved. Returns { storageUpgrade: { size_mb, name } }.
+   - For section_unlock requests: unchanged path (user_section_unlocks insert).
+
+5. storage-plans-view.tsx — handleSubscribe:
+   - Sends requestType: 'storage_upgrade' + planId: plan.id in the POST body.
+   - Updated success toast to "سيتم إشعار الإدارة والمعلم لتفعيل الاشتراك".
+
+Files modified (5):
+- supabase/migrations/v134l_storage_upgrade_request.sql (NEW)
+- src/app/api/sections/activation-request/route.ts
+- src/app/api/admin/paid-services/requests/route.ts
+- src/components/shared/storage-plans-view.tsx
+
+Stage Summary:
+- After applying the migration and redeploying, users can subscribe to storage plans regardless of whether the files section is locked.
+- Each subscription request creates a section_activation_requests row with request_type='storage_upgrade' + plan_id.
+- Admins AND the student's linked teachers receive an in-app + push notification immediately.
+- Admin can approve from /admin?tab=requests → user's storage quota increases by the plan's size_mb (immediately reflected by /api/storage/check).
+- tsc --noEmit clean on all edited files.
