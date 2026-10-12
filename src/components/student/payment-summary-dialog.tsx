@@ -113,6 +113,11 @@ export function PaymentSummaryDialog({
   const [removingOrderId, setRemovingOrderId] = useState<string | null>(null);
   // Payment method picker: card | wallet | fawry
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'wallet' | 'fawry'>('card');
+  // v134: available payment methods (fetched from API, replaces hardcoded)
+  const [availableMethods, setAvailableMethods] = useState<Array<{
+    id: string; label: string; icon: string; available: boolean;
+  }>>([]);
+  const [methodsLoading, setMethodsLoading] = useState(true);
   // v88+ — Fawry Code display: the reference code returned by the adapter
   const [fawryReferenceCode, setFawryReferenceCode] = useState<string | null>(null);
   const [fawryPollCount, setFawryPollCount] = useState(0);
@@ -182,6 +187,30 @@ export function PaymentSummaryDialog({
       setMultiFeesData(null);
       return;
     }
+
+    // v134: Fetch available payment methods (only show configured ones).
+    (async () => {
+      setMethodsLoading(true);
+      try {
+        const headers = await getCachedAuthHeaders();
+        const res = await fetch('/api/payment/available-methods', { headers });
+        const json = await res.json();
+        if (json.success && json.methods?.length > 0) {
+          setAvailableMethods(json.methods);
+          // Set the first available method as default.
+          const firstMethod = json.methods[0];
+          if (firstMethod.id === 'card') setPaymentMethod('card');
+          else if (firstMethod.id === 'fawry') setPaymentMethod('fawry');
+        } else {
+          // No methods available — show card as fallback (will error on pay).
+          setAvailableMethods([{ id: 'card', label: 'بطاقة', icon: '💳', available: true }]);
+        }
+      } catch {
+        setAvailableMethods([{ id: 'card', label: 'بطاقة', icon: '💳', available: true }]);
+      } finally {
+        setMethodsLoading(false);
+      }
+    })();
 
     // Single-order mode: fetch the one order
     if (!isMultiMode && order?.orderId) {
@@ -623,41 +652,77 @@ export function PaymentSummaryDialog({
               {t('student.payment.paymentMethod')}
             </span>
             <div className="grid grid-cols-3 gap-2">
-              {/* Card option */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('card')}
-                disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
-                className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
-                  paymentMethod === 'card'
-                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
-                    : 'border-muted hover:border-teal-400 hover:bg-muted/30'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <CreditCard className={`h-4 w-4 ${paymentMethod === 'card' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
-                  <span className="text-sm font-medium">كارت</span>
+              {/* v134: Dynamic payment method buttons — only show available/configured methods */}
+              {methodsLoading ? (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
-                <span className="text-xs text-muted-foreground">Visa / Mastercard</span>
-              </button>
-              {/* v113: removed wallet option per user request */}
-              {/* Fawry option */}
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('fawry')}
-                disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
-                className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
-                  paymentMethod === 'fawry'
-                    ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/15 ring-1 ring-amber-500'
-                    : 'border-muted hover:border-amber-400 hover:bg-muted/30'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <Banknote className={`h-4 w-4 ${paymentMethod === 'fawry' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`} />
-                  <span className="text-sm font-medium">فوري</span>
+              ) : availableMethods.length === 0 ? (
+                <div className="text-center py-2 text-xs text-muted-foreground">
+                  لا توجد طرق دفع متاحة حالياً
                 </div>
-                <span className="text-xs text-muted-foreground">كود دفع — أي ماكينة</span>
-              </button>
+              ) : (
+                <>
+                  {/* Card option — only if available */}
+                  {availableMethods.some(m => m.id === 'card') && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('card')}
+                      disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
+                      className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
+                        paymentMethod === 'card'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/15 ring-1 ring-teal-500'
+                          : 'border-muted hover:border-teal-400 hover:bg-muted/30'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <CreditCard className={`h-4 w-4 ${paymentMethod === 'card' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
+                        <span className="text-sm font-medium">{t('payment.card') || 'بطاقة'}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">Visa / Mastercard</span>
+                    </button>
+                  )}
+                  {/* Fawry option — only if available */}
+                  {availableMethods.some(m => m.id === 'fawry') && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('fawry')}
+                      disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
+                      className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
+                        paymentMethod === 'fawry'
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/15 ring-1 ring-amber-500'
+                          : 'border-muted hover:border-amber-400 hover:bg-muted/30'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Banknote className={`h-4 w-4 ${paymentMethod === 'fawry' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`} />
+                        <span className="text-sm font-medium">{t('payment.fawry') || 'فوري'}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">كود دفع — أي ماكينة</span>
+                    </button>
+                  )}
+                  {/* Manual methods (teacher-configured) */}
+                  {availableMethods.filter(m => m.id.startsWith('manual-')).map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(m.id as 'card' | 'wallet' | 'fawry')}
+                      disabled={state === 'preparing' || state === 'redirecting' || state === 'fawry_pending'}
+                      className={`flex flex-col items-start gap-1 rounded-lg border p-2.5 text-start transition-colors ${
+                        paymentMethod === m.id
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15 ring-1 ring-sky-500'
+                          : 'border-muted hover:border-sky-400 hover:bg-muted/30'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{m.icon}</span>
+                        <span className="text-sm font-medium">{m.label}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">تحويل يدوي</span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 

@@ -186,11 +186,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   //    re-pay attempt uses the same gateway).
   const firstOrderGatewayId = orders[0].gateway_id;
 
-  // Parse the requested payment method from the query string
-  // (sent by the client-side payment method picker)
-  const requestedPaymentMethod = request.nextUrl.searchParams.get('method') === 'wallet'
-    ? 'wallet'
-    : 'card';
+  // v134: Parse the requested payment method from the query string.
+  // Fixed: was ignoring 'fawry' — only checked 'wallet' vs 'card'.
+  const rawMethod = request.nextUrl.searchParams.get('method');
+  const requestedPaymentMethod = rawMethod === 'fawry' ? 'fawry' : (rawMethod === 'wallet' ? 'wallet' : 'card');
 
   try {
     const result = await PaymentService.createPayment(
