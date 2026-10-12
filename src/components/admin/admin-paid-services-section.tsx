@@ -521,11 +521,20 @@ function StorageManager({
 
   const filesConfig = configs.find(c => c.section_key === 'files');
 
-  // v134k: init free quota fields from config.
+  // v134l: init free quota fields from the role-aware columns first,
+  // fall back to monthly_limit (pre-v134l databases).
   useEffect(() => {
     if (filesConfig) {
-      setFreeStudent(String(filesConfig.student_monthly_limit ?? 100));
-      setFreeTeacher(String(filesConfig.teacher_monthly_limit ?? 500));
+      const fc = filesConfig as Record<string, unknown>;
+      const studentQuota =
+        (fc.free_quota_mb_student as number | null) ??
+        (fc.free_quota_mb as number | null) ??
+        (fc.student_monthly_limit as number | null) ?? 100;
+      const teacherQuota =
+        (fc.free_quota_mb_teacher as number | null) ??
+        (fc.teacher_monthly_limit as number | null) ?? 500;
+      setFreeStudent(String(studentQuota));
+      setFreeTeacher(String(teacherQuota));
     }
   }, [filesConfig]);
 
@@ -548,7 +557,12 @@ function StorageManager({
         student_yearly_limit: freeStudent ? Number(freeStudent) : null,
         teacher_monthly_limit: freeTeacher ? Number(freeTeacher) : null,
         teacher_yearly_limit: freeTeacher ? Number(freeTeacher) : null,
+        // v134l: persist BOTH role-aware quotas. The previous code
+        // only wrote free_quota_mb = freeStudent, which made the
+        // teacher see the student's quota.
         free_quota_mb: freeStudent ? Number(freeStudent) : null,
+        free_quota_mb_student: freeStudent ? Number(freeStudent) : null,
+        free_quota_mb_teacher: freeTeacher ? Number(freeTeacher) : null,
       });
     } finally { setSavingFree(false); }
   };

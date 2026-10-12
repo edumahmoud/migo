@@ -674,3 +674,44 @@ Stage Summary:
 - tsc --noEmit clean on the edited file.
 - No DB migration needed.
 - No API changes needed.
+
+---
+Task ID: v134l-storage-role-aware-quota
+Agent: main (Super Z)
+Task: Fix teacher sees student's storage quota — admin sets 100MB for student + 500MB for teacher, but the teacher's storage panel shows 100MB.
+
+Root cause:
+- v134k introduced a SINGLE `free_quota_mb` column on locked_sections_config.
+- The admin UI lets the admin enter two values (student + teacher), but `handleSaveFree` only persisted `free_quota_mb = freeStudent` — the teacher value was silently dropped.
+- The /api/storage/check endpoint read that single `free_quota_mb` for BOTH roles, ignoring the role parameter entirely.
+- Result: teachers saw the student quota (e.g. 100 MB instead of 500 MB).
+
+Fix (4 coordinated changes):
+1. New migration `v134l_storage_role_aware_quota.sql`:
+   - Adds two new columns: `free_quota_mb_student` + `free_quota_mb_teacher`.
+   - Backfills student from old `free_quota_mb` (which the admin UI was writing with the student value), and teacher from `teacher_monthly_limit` (the pre-v134k source of truth for teachers).
+   - Old `free_quota_mb` column kept for backward compat (no DROP).
+
+2. /api/storage/check (route.ts):
+   - SELECT now includes the two new role-aware columns alongside the old one.
+   - Picks `free_quota_mb_student` for students, `free_quota_mb_teacher` for teachers, falls back to `free_quota_mb` then `monthly_limit` for pre-v134l databases.
+
+3. /api/admin/paid-services/config (route.ts):
+   - Whitelist now includes `free_quota_mb_student` + `free_quota_mb_teacher` so the admin can persist them.
+
+4. admin-paid-services-section.tsx (StorageManager component):
+   - `handleSaveFree` now writes BOTH role-aware columns (plus the old `free_quota_mb` for backward compat).
+   - The useEffect that initializes the input fields now reads `free_quota_mb_student`/`free_quota_mb_teacher` first, falls back to `free_quota_mb` and then `monthly_limit`.
+
+Files modified:
+- supabase/migrations/v134l_storage_role_aware_quota.sql (NEW)
+- src/app/api/storage/check/route.ts
+- src/app/api/admin/paid-services/config/route.ts
+- src/components/admin/admin-paid-services-section.tsx
+
+Stage Summary:
+- After applying the migration and redeploying, teachers will see their configured 500MB (or whatever the admin set) instead of the student's 100MB.
+- The admin UI now correctly persists BOTH values on save.
+- Existing pre-v134l databases are handled gracefully via column fallbacks.
+- tsc --noEmit clean on all edited files.
+- No breaking changes to the API response shape — `free_quota` still returns the resolved MB value for the current user.

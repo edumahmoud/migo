@@ -68,6 +68,9 @@ export async function POST(request: NextRequest) {
     'student_monthly_limit', 'student_yearly_limit',
     'teacher_monthly_limit', 'teacher_yearly_limit',
     'free_quota_mb',
+    // v134l: role-aware free storage quota (replaces the single
+    // free_quota_mb for the files section).
+    'free_quota_mb_student', 'free_quota_mb_teacher',
     'usage_period_days', 'usage_metric', 'is_active',
     'section_label', 'teacher_only',
   ];

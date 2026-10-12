@@ -25,18 +25,29 @@ export async function GET(request: NextRequest) {
   const userId = auth.user.id;
 
   // 1. Get default quota from locked_sections_config.
-  // v134k: free_quota_mb is the free tier (always active, admin-controlled).
-  // student/teacher_monthly_limit are kept for backward compat but
-  // free_quota_mb takes precedence for the files section.
+  // v134l: storage quota is ROLE-AWARE. The admin sets two separate values:
+  //   free_quota_mb_student — for students
+  //   free_quota_mb_teacher — for teachers
+  // The old single `free_quota_mb` column is no longer read (kept for
+  // backward compat only). Falls back to monthly_limit columns if the
+  // role-aware columns are missing (pre-v134l databases).
   const { data: config } = await supabaseServer
     .from('locked_sections_config')
-    .select('free_quota_mb, student_monthly_limit, teacher_monthly_limit')
+    .select(
+      'free_quota_mb_student, free_quota_mb_teacher, '
+      + 'free_quota_mb, student_monthly_limit, teacher_monthly_limit'
+    )
     .eq('section_key', 'files')
     .maybeSingle();
 
   const cfg = config as Record<string, unknown> | null;
-  // v134k: use free_quota_mb first, fall back to monthly_limit.
-  const freeQuota = (cfg?.free_quota_mb as number) ??
+  // v134l: pick the role-specific column first.
+  const roleQuota = role === 'student'
+    ? (cfg?.free_quota_mb_student as number | null)
+    : (cfg?.free_quota_mb_teacher as number | null);
+
+  const freeQuota = roleQuota ??
+    (cfg?.free_quota_mb as number | null) ??
     (role === 'student'
       ? (cfg?.student_monthly_limit as number) ?? 100
       : (cfg?.teacher_monthly_limit as number) ?? 500);
