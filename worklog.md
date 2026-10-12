@@ -771,3 +771,50 @@ Stage Summary:
 - Admins AND the student's linked teachers receive an in-app + push notification immediately.
 - Admin can approve from /admin?tab=requests → user's storage quota increases by the plan's size_mb (immediately reflected by /api/storage/check).
 - tsc --noEmit clean on all edited files.
+
+---
+Task ID: v134m-storage-plans-modal-ui
+Agent: main (Super Z)
+Task: Improve storage plans UI — move plans into an attractive modal triggered by a button in the status card header.
+
+Before:
+- The plans grid was always visible inline below the storage status card.
+- The header only had a collapse chevron.
+
+After:
+- The status card header now has a "تزويد المساحة" button (Zap icon).
+  · When storage is full: red filled button (urgent).
+  · When not full: sky outline button.
+  · Hidden if no plans exist.
+- Clicking the button opens a modal (Dialog) containing:
+  1. Compact current-usage summary (progress bar + used/total + active plan badge).
+  2. Plans grid (1 col mobile / 2 col tablet / 3 col desktop) with attractive cards:
+     · Each card uses a rotating accent color (sky/violet/emerald/amber).
+     · Big size display (3xl font) with unit below.
+     · Price prominently displayed.
+     · "دائمة — غير محدودة بوقت" badge with Infinity icon.
+     · The middle plan (sort_order index 1) gets a "الأكثر طلباً" ribbon (Crown icon, amber gradient).
+     · Current plan: ring-2 + gradient bg + "خطتك الحالية" badge.
+     · Submitted plan: "تم إرسال الطلب" badge (amber).
+     · Otherwise: "اشترك الآن" button with the accent color.
+  3. Empty state if no plans available.
+  4. Info note (sky-tinted) explaining the request → approval → activation flow.
+- The modal uses DialogScrollArea for vertical scrolling on small screens.
+- All existing logic (handleSubscribe, requestType='storage_upgrade', planId, toast) is preserved.
+
+UI details:
+- Modal header: gradient icon (sky→violet) + "ترقية مساحة التخزين" title + descriptive subtitle.
+- DialogContent max-w-3xl, max-h-[70vh] scroll area.
+- Each plan card: p-4, accent-colored icon box, centered size display, centered price, permanent badge, full-width action.
+- Plan accents rotate across 4 colors so adjacent plans look visually distinct.
+- "الأكثر طلباً" ribbon sits at the very top of the card with a gradient amber→orange background.
+
+Files modified (1):
+- src/components/shared/storage-plans-view.tsx (full rewrite)
+
+Stage Summary:
+- The status card is now cleaner — only the progress + breakdown, with a single call-to-action button.
+- Plans are revealed on demand via an attractive modal, reducing visual clutter on the main page.
+- The modal clearly explains the flow (request → admin/teacher approval → activation).
+- tsc --noEmit clean.
+- No API changes needed — uses the existing /api/storage/check and /api/sections/activation-request endpoints.
