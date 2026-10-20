@@ -3,44 +3,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  LayoutDashboard,
-  FileText,
-  Users,
-  TrendingUp,
-  BookOpen,
-  FolderOpen,
-  FileSpreadsheet,
-  Settings,
-  MessageCircle,
-  Bell,
-  Activity,
-  Database,
-  Video,
-  ShieldAlert,
-  ListTodo,
-  Calendar as CalendarIcon,
-  BarChart3,
-  Menu,
-  Ban,
-  Megaphone,
-  Building2,
-  StickyNote,
-  GraduationCap,
-  Package,
-  UserCog,
-  Wallet,
-  Clock,
-  History,
-  DollarSign,
-  Lock,
+  LayoutDashboard, FileText, Users, TrendingUp, BookOpen, FolderOpen,
+  FileSpreadsheet, Settings, MessageCircle, Bell, Activity, Database,
+  Video, ShieldAlert, ListTodo, Calendar as CalendarIcon, Menu, Ban,
+  Megaphone, Building2, StickyNote, GraduationCap, Package, UserCog,
+  Wallet, Clock, History, DollarSign, Lock,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+import { Drawer, ScrollArea, Text, Box, NavLink, Badge } from '@mantine/core';
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -49,9 +18,6 @@ import { useInstitutionStore } from '@/stores/institution-store';
 import { useLockedSectionsStore } from '@/stores/locked-sections-store';
 import StickyNoteModal from '@/components/shared/sticky-note-modal';
 
-// -------------------------------------------------------
-// Types
-// -------------------------------------------------------
 interface AppSidebarProps {
   role: 'student' | 'teacher' | 'admin' | 'superadmin';
   activeSection: string;
@@ -61,14 +27,11 @@ interface AppSidebarProps {
 
 interface NavItem {
   id: string;
-  label?: string;        // v113: direct label (used by agent portal)
-  labelKey?: string;      // translation key (used by student/teacher/admin)
+  label?: string;
+  labelKey?: string;
   icon: React.ReactNode;
 }
 
-// -------------------------------------------------------
-// Navigation items per role (using translation keys)
-// -------------------------------------------------------
 const studentNavItems: NavItem[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
@@ -109,16 +72,8 @@ const teacherNavItems: NavItem[] = [
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
-// -------------------------------------------------------
-// Navigation items content (shared between collapsed/expanded/mobile)
-// -------------------------------------------------------
 function NavItems({
-  navItems,
-  activeSection,
-  onSectionChange,
-  collapsed,
-  onNavClick,
-  role,
+  navItems, activeSection, onSectionChange, collapsed, onNavClick, role,
 }: {
   navItems: NavItem[];
   activeSection: string;
@@ -128,148 +83,119 @@ function NavItems({
   role?: string;
 }) {
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
-  const { t, isRTL } = useTranslations();
-  // v134: check if any nav items are locked for this user.
+  const { t } = useTranslations();
   const isLocked = useLockedSectionsStore((s) => s.isLocked);
 
   return (
-    <ul className="space-y-1">
+    <Box>
       {navItems.map((item) => {
         const isActive = activeSection === item.id;
         const locked = isLocked(item.id);
+        const label = item.label || t(item.labelKey || '');
+
         return (
-          <li key={item.id}>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                onSectionChange(item.id);
-                onNavClick?.();
-              }}
-              className={`flex w-full items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                collapsed
-                  ? 'justify-center px-2 py-3'
-                  : isRTL ? 'flex-row-reverse px-4 py-3' : 'px-4 py-3'
-              } ${
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground border border-sidebar-primary shadow-sm'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground border border-transparent'
-              } ${locked ? 'opacity-75' : ''}`}
-              title={collapsed ? (item.label || t(item.labelKey || '')) : undefined}
-            >
-              <span
-                className={`transition-colors duration-200 shrink-0 relative ${
-                  isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/60'
-                }`}
-              >
+          <NavLink
+            key={item.id}
+            active={isActive}
+            label={collapsed ? '' : label}
+            leftSection={(
+              <Box style={{ position: 'relative', display: 'inline-flex' }}>
                 {item.icon}
-                {/* v134: lock badge for locked sections */}
                 {locked && (
-                  <span className="absolute -top-1 -end-1 flex items-center justify-center rounded-full bg-amber-500 text-white">
-                    <Lock className="h-2.5 w-2.5" />
-                  </span>
+                  <Box
+                    style={{
+                      position: 'absolute', top: -4, insetInlineEnd: -4,
+                      backgroundColor: 'var(--mantine-color-yellow-5)',
+                      borderRadius: '50%', width: 12, height: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Lock size={8} color="white" />
+                  </Box>
                 )}
-                {/* Notification badge on chat icon */}
                 {item.id === 'chat' && chatUnreadCount > 0 && (
-                  <span
-                    className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold ${
-                      collapsed ? 'h-4 min-w-4 text-[8px] px-0.5' : 'h-5 min-w-5 text-[10px] px-1.5'
-                    }`}
+                  <Badge
+                    color="yellow"
+                    size="sm"
+                    circle
+                    style={{ position: 'absolute', top: -6, insetInlineStart: -6, minWidth: 16, height: 16, fontSize: '9px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
                     {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                  </span>
+                  </Badge>
                 )}
-                {/* Badge on reports/complaints icon — hidden for admin/superadmin */}
                 {(item.id === 'reports' || item.id === 'complaints') && reportsUnreadCount > 0 && role !== 'admin' && role !== 'superadmin' && (
-                  <span
-                    className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold ${
-                      collapsed ? 'h-4 min-w-4 text-[8px] px-0.5' : 'h-5 min-w-5 text-[10px] px-1.5'
-                    }`}
+                  <Badge
+                    color="red"
+                    size="sm"
+                    circle
+                    style={{ position: 'absolute', top: -6, insetInlineStart: -6, minWidth: 16, height: 16, fontSize: '9px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
                     {reportsUnreadCount > 99 ? '99+' : reportsUnreadCount}
-                  </span>
+                  </Badge>
                 )}
-              </span>
-              {!collapsed && (
-                <>
-                  <span className={isRTL ? 'text-end flex-1' : ''}>{item.label || t(item.labelKey || '')}</span>
-                  {isActive && item.id !== 'chat' && (
-                    <motion.div
-                      layoutId="activeIndicator"
-                      className={`${isRTL ? 'me-auto' : 'ms-auto'} h-2 w-2 rounded-full bg-sidebar-primary`}
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    />
-                  )}
-                </>
-              )}
-            </motion.button>
-          </li>
+              </Box>
+            )}
+            onClick={() => { onSectionChange(item.id); onNavClick?.(); }}
+            style={{
+              opacity: locked ? 0.75 : 1,
+              minHeight: 44,
+              touchTarget: 'manipulation',
+            }}
+            title={collapsed ? label : undefined}
+          />
         );
       })}
-    </ul>
+    </Box>
   );
 }
 
-// -------------------------------------------------------
-// Sidebar Logo — shows institution logo or default icon
-// -------------------------------------------------------
 function SidebarLogo() {
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
-
-  useEffect(() => {
-    if (!loaded) fetchInstitution();
-  }, [loaded, fetchInstitution]);
+  useEffect(() => { if (!loaded) fetchInstitution(); }, [loaded, fetchInstitution]);
 
   if (institution?.logo_url) {
     return (
       <img
         src={institution.logo_url}
         alt={institution.name}
-        className="h-8 w-8 shrink-0 rounded-xl object-cover border border-sidebar-primary/20 shadow-sm"
+        style={{ height: 32, width: 32, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }}
       />
     );
   }
-
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-sm">
-      <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
-    </div>
+    <Box
+      style={{
+        height: 32, width: 32, borderRadius: 12, flexShrink: 0,
+        backgroundColor: 'var(--mantine-primary-color-filled)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <GraduationCap size={16} color="white" />
+    </Box>
   );
 }
 
-// -------------------------------------------------------
-// Sidebar Title — shows institution name or default app name
-// -------------------------------------------------------
 function SidebarTitle() {
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
   const { t } = useTranslations();
-
-  useEffect(() => {
-    if (!loaded) fetchInstitution();
-  }, [loaded, fetchInstitution]);
+  useEffect(() => { if (!loaded) fetchInstitution(); }, [loaded, fetchInstitution]);
 
   return (
-    <div className="flex flex-col min-w-0">
-      <h1 className="text-sm font-bold text-sidebar-primary whitespace-nowrap truncate max-w-[140px]">
+    <Box style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <Text size="sm" fw={700} c="var(--mantine-primary-color-filled)" truncate style={{ maxWidth: 140 }}>
         {loaded ? (institution?.name || t('common.appName')) : '\u00A0'}
-      </h1>
+      </Text>
       {loaded && institution?.tagline && (
-        <span className="text-[9px] text-sidebar-foreground/50 whitespace-nowrap truncate max-w-[140px] -mt-0.5">
+        <Text size="xs" c="dimmed" truncate style={{ maxWidth: 140, fontSize: '9px' }}>
           {institution.tagline}
-        </span>
+        </Text>
       )}
-    </div>
+    </Box>
   );
 }
 
-// -------------------------------------------------------
-// Main exported component
-// -------------------------------------------------------
 export default function AppSidebar({
-  role,
-  activeSection,
-  onSectionChange,
-  customNavItems,
+  role, activeSection, onSectionChange, customNavItems,
 }: AppSidebarProps) {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -278,27 +204,34 @@ export default function AppSidebar({
   const { t, isRTL, direction } = useTranslations();
   const [stickyModalOpen, setStickyModalOpen] = useState(false);
   const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? [] : teacherNavItems);
-
-  // On tablet, treat sidebar as collapsed (compact icon-only mode) unless explicitly opened
   const collapsed = isTablet ? !sidebarOpen : !sidebarOpen;
 
-  // On mobile, use Sheet (drawer)
+  // Mobile: Drawer
   if (isMobile) {
     return (
       <>
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side={isRTL ? 'right' : 'left'} className="w-72 p-0 bg-sidebar border-sidebar-border">
-          <SheetHeader className="sr-only">
-            <SheetTitle>{t('nav.mainMenu')}</SheetTitle>
-          </SheetHeader>
-          <div className="flex h-full flex-col overflow-hidden" dir={direction}>
-            {/* Mobile: App branding inside mobile sidebar (desktop shows it in header) */}
-            <div className="shrink-0 flex items-center gap-2.5 border-b border-sidebar-border px-3 h-14 md:h-16 md:hidden">
+        <Drawer
+          opened={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          position={isRTL ? 'right' : 'left'}
+          size={280}
+          padding={0}
+          withCloseButton={false}
+          styles={{ body: { padding: 0 } }}
+        >
+          <Box style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }} dir={direction}>
+            <Box
+              p="sm"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                borderBottom: '1px solid var(--mantine-color-default-border)', height: 64,
+              }}
+            >
               <SidebarLogo />
               <SidebarTitle />
-            </div>
-            <ScrollArea className="flex-1 min-h-0">
-              <nav className="px-3 py-4 text-sidebar-foreground">
+            </Box>
+            <ScrollArea style={{ flex: 1, minHeight: 0 }}>
+              <Box p="sm">
                 <NavItems
                   navItems={navItems}
                   activeSection={activeSection}
@@ -307,42 +240,42 @@ export default function AppSidebar({
                   onNavClick={() => setSidebarOpen(false)}
                   role={role}
                 />
-              </nav>
+              </Box>
             </ScrollArea>
-
-            {/* Sticky Notes button - Mobile (centered) */}
             {user && (
-              <div className="shrink-0 border-sidebar-border border-t p-3 flex justify-center">
+              <Box p="sm" style={{ flexShrink: 0, borderTop: '1px solid var(--mantine-color-default-border)', display: 'flex', justifyContent: 'center' }}>
                 <button
                   onClick={() => { setStickyModalOpen(true); setSidebarOpen(false); }}
-                  className={`flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all ${isRTL ? 'flex-row-reverse' : ''}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, borderRadius: 8,
+                    padding: '10px 16px', fontSize: 12, fontWeight: 500,
+                    color: 'var(--mantine-color-yellow-7)', background: 'none', border: 'none',
+                    cursor: 'pointer', flexDirection: isRTL ? 'row-reverse' : 'row',
+                  }}
                 >
-                  <StickyNote className="h-4 w-4 shrink-0" />
+                  <StickyNote size={16} style={{ flexShrink: 0 }} />
                   <span>{t('nav.stickyNotes')}</span>
                 </button>
-              </div>
+              </Box>
             )}
-          </div>
-        </SheetContent>
-      </Sheet>
-      <StickyNoteModal open={stickyModalOpen} onClose={() => setStickyModalOpen(false)} />
-    </>
+          </Box>
+        </Drawer>
+        <StickyNoteModal open={stickyModalOpen} onClose={() => setStickyModalOpen(false)} />
+      </>
     );
   }
 
-  // Desktop: Fixed sidebar, full screen height, collapsible
+  // Desktop: Fixed sidebar
   return (
     <aside
-      className={`fixed start-0 top-0 z-50 h-screen border-e border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed start-0 top-0 z-50 h-screen border-e bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
+      style={{ borderColor: 'var(--mantine-color-default-border)', backgroundColor: 'var(--mantine-color-body)' }}
     >
-      <div className="flex h-full flex-col overflow-hidden" dir={direction}>
-        {/* Desktop: No branding in sidebar — logo/title shown in header */}
-
-        {/* Navigation */}
-        <ScrollArea className="flex-1 min-h-0">
-          <nav className="px-2 sm:px-3 py-3 sm:py-4">
+      <Box style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }} dir={direction}>
+        <ScrollArea style={{ flex: 1, minHeight: 0 }}>
+          <Box p="sm">
             <NavItems
               navItems={navItems}
               activeSection={activeSection}
@@ -350,28 +283,30 @@ export default function AppSidebar({
               collapsed={collapsed}
               role={role}
             />
-          </nav>
+          </Box>
         </ScrollArea>
 
-        {/* Sticky Notes button (centered) */}
         {user && (
-          <div className="shrink-0 border-sidebar-border border-t p-2 flex justify-center">
+          <Box p="xs" style={{ flexShrink: 0, borderTop: '1px solid var(--mantine-color-default-border)', display: 'flex', justifyContent: 'center' }}>
             <button
               onClick={() => setStickyModalOpen(true)}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all ${
-                collapsed ? 'justify-center' : isRTL ? 'flex-row-reverse' : ''
-              }`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, borderRadius: 8,
+                padding: '10px 12px', fontSize: 12, fontWeight: 500,
+                color: 'var(--mantine-color-yellow-7)', background: 'none', border: 'none',
+                cursor: 'pointer', flexDirection: collapsed ? 'column' : (isRTL ? 'row-reverse' : 'row'),
+                justifyContent: collapsed ? 'center' : 'flex-start',
+              }}
               title={collapsed ? t('nav.stickyNotes') : undefined}
             >
-              <StickyNote className="h-4 w-4 shrink-0" />
+              <StickyNote size={16} style={{ flexShrink: 0 }} />
               {!collapsed && <span>{t('nav.stickyNotes')}</span>}
             </button>
-          </div>
+          </Box>
         )}
 
-        {/* Sticky Note Modal */}
         <StickyNoteModal open={stickyModalOpen} onClose={() => setStickyModalOpen(false)} />
-      </div>
+      </Box>
     </aside>
   );
 }

@@ -2,22 +2,13 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard,
-  BookOpen,
-  MessageCircle,
-  Bell,
-  Menu,
-  Users,
-  FolderOpen,
-  TrendingUp,
+  LayoutDashboard, BookOpen, MessageCircle, Bell, Menu, Users, FolderOpen, TrendingUp,
 } from 'lucide-react';
+import { Box, Text, Badge as MBadge } from '@mantine/core';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 
-// -------------------------------------------------------
-// Types
-// -------------------------------------------------------
 interface MobileBottomNavProps {
   role: 'student' | 'teacher' | 'admin' | 'superadmin';
   activeSection: string;
@@ -32,9 +23,6 @@ interface BottomNavItem {
   isMore?: boolean;
 }
 
-// -------------------------------------------------------
-// Navigation items per role (5 items each, using translation keys)
-// -------------------------------------------------------
 const studentNavItems: BottomNavItem[] = [
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
@@ -59,20 +47,13 @@ const adminNavItems: BottomNavItem[] = [
   { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
-// -------------------------------------------------------
-// Main exported component
-// -------------------------------------------------------
 export default function MobileBottomNav({
-  role,
-  activeSection,
-  onSectionChange,
-  onToggleSidebar,
+  role, activeSection, onSectionChange, onToggleSidebar,
 }: MobileBottomNavProps) {
   const isMobile = useIsMobile();
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
   const { direction } = useTranslations();
 
-  // Don't render on desktop
   if (!isMobile) return null;
 
   const navItems =
@@ -84,14 +65,30 @@ export default function MobileBottomNav({
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border dark:bg-card/95 dark:border-border"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="fixed bottom-0 inset-x-0 z-40"
+      style={{
+        backgroundColor: 'color-mix(in srgb, var(--mantine-color-body) 95%, transparent)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderTop: '1px solid var(--mantine-color-default-border)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
       dir={direction}
     >
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
+      <Box
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          height: 64,
+          maxWidth: 512,
+          margin: '0 auto',
+          padding: '0 4px',
+        }}
+      >
         {navItems.map((item, index) => {
           const isActive = !item.isMore && activeSection === item.id;
-          const isCenter = index === 2; // Dashboard is always at index 2 (center)
+          const isCenter = index === 2;
 
           return (
             <BottomNavItemButton
@@ -107,23 +104,14 @@ export default function MobileBottomNav({
             />
           );
         })}
-      </div>
+      </Box>
     </nav>
   );
 }
 
-// -------------------------------------------------------
-// Individual nav item button
-// -------------------------------------------------------
 function BottomNavItemButton({
-  item,
-  isActive,
-  isCenter,
-  chatUnreadCount,
-  reportsUnreadCount,
-  onSectionChange,
-  onToggleSidebar,
-  role,
+  item, isActive, isCenter, chatUnreadCount, reportsUnreadCount,
+  onSectionChange, onToggleSidebar, role,
 }: {
   item: BottomNavItem;
   isActive: boolean;
@@ -147,18 +135,20 @@ function BottomNavItemButton({
   return (
     <motion.button
       onClick={handleClick}
-      className={`relative flex flex-col items-center flex-1 min-w-0 rounded-xl transition-colors duration-200 gap-0.5 py-1.5`}
+      className="relative flex flex-col items-center flex-1 min-w-0 rounded-xl transition-colors duration-200 gap-0.5 py-1.5"
       whileTap={{ scale: 0.9 }}
       aria-label={t(item.labelKey)}
       aria-current={isActive ? 'page' : undefined}
+      style={{ minHeight: 48 }}
     >
-      {/* Active background highlight — skip for center item (has its own circle) */}
+      {/* Active background highlight */}
       {!isCenter && (
         <AnimatePresence mode="wait">
           {isActive && (
             <motion.div
               layoutId="bottomNavActiveBg"
-              className="absolute inset-0 rounded-xl bg-primary/10"
+              className="absolute inset-0 rounded-xl"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--mantine-primary-color-filled) 10%, transparent)' }}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -168,14 +158,16 @@ function BottomNavItemButton({
         </AnimatePresence>
       )}
 
-      {/* Center: floating circle icon (absolute, raised above bar) */}
+      {/* Center: floating circle icon */}
       {isCenter && (
         <span
-          className={`absolute -top-6 z-10 flex items-center justify-center h-12 w-12 rounded-full shadow-lg transition-colors duration-200 ${
-            isActive
-              ? 'bg-primary text-primary-foreground shadow-primary/30'
-              : 'bg-muted text-muted-foreground shadow-black/10'
-          }`}
+          className="absolute -top-6 z-10 flex items-center justify-center h-12 w-12 rounded-full shadow-lg transition-colors duration-200"
+          style={{
+            backgroundColor: isActive
+              ? 'var(--mantine-primary-color-filled)'
+              : 'var(--mantine-color-gray-1)',
+            color: isActive ? 'white' : 'var(--mantine-color-dimmed)',
+          }}
         >
           {item.icon}
         </span>
@@ -184,56 +176,59 @@ function BottomNavItemButton({
       {/* Icon container for non-center items */}
       {!isCenter && (
         <span
-          className={`relative z-10 transition-colors duration-200 ${
-            isActive ? 'text-primary' : 'text-muted-foreground'
-          }`}
+          className="relative z-10 transition-colors duration-200"
+          style={{
+            color: isActive
+              ? 'var(--mantine-primary-color-filled)'
+              : 'var(--mantine-color-dimmed)',
+          }}
         >
           {item.icon}
 
           {/* Chat unread badge */}
           {item.id === 'chat' && chatUnreadCount > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+            <span
+              className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+              style={{ backgroundColor: 'var(--mantine-color-yellow-5)' }}
             >
               {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-            </motion.span>
+            </span>
           )}
-          {/* Reports unread badge — still available in sidebar */}
+          {/* Reports unread badge */}
           {item.id === 'reports' && reportsUnreadCount > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+            <span
+              className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+              style={{ backgroundColor: 'var(--mantine-color-red-5)' }}
             >
               {reportsUnreadCount > 99 ? '99+' : reportsUnreadCount}
-            </motion.span>
+            </span>
           )}
         </span>
       )}
 
-      {/* Center: invisible spacer to keep label aligned with other items' labels */}
+      {/* Center: invisible spacer */}
       {isCenter && <span className="h-5 w-5" aria-hidden="true" />}
 
       {/* Label */}
       <span
-        className={`relative z-10 text-[10px] font-medium leading-tight transition-colors duration-200 ${
-          isActive ? 'text-primary' : 'text-muted-foreground'
-        }`}
+        className="relative z-10 text-[10px] font-medium leading-tight transition-colors duration-200"
+        style={{
+          color: isActive
+            ? 'var(--mantine-primary-color-filled)'
+            : 'var(--mantine-color-dimmed)',
+        }}
       >
         {t(item.labelKey)}
       </span>
 
-      {/* Active indicator dot — skip for center item */}
+      {/* Active indicator dot */}
       {!isCenter && (
         <AnimatePresence mode="wait">
           {isActive && (
             <motion.div
               layoutId="bottomNavIndicator"
-              className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary"
+              className="absolute -bottom-0.5 h-1 w-1 rounded-full"
+              style={{ backgroundColor: 'var(--mantine-primary-color-filled)' }}
               initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0 }}
