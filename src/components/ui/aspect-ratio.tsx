@@ -1,11 +1,15 @@
-"use client"
+'use client';
 
-import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio"
+import * as React from 'react';
+import { AspectRatio as MantineAspectRatio } from '@mantine/core';
 
-function AspectRatio({
-  ...props
-}: React.ComponentProps<typeof AspectRatioPrimitive.Root>) {
-  return <AspectRatioPrimitive.Root data-slot="aspect-ratio" {...props} />
-}
+const AspectRatio = React.forwardRef<HTMLDivElement, { ratio?: number; children?: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>>(
+  ({ ratio = 16 / 9, children, ...props }, ref) => (
+    <MantineAspectRatio ref={ref} ratio={ratio} {...(props as any)}>
+      {children}
+    </MantineAspectRatio>
+  )
+);
+AspectRatio.displayName = 'AspectRatio';
 
-export { AspectRatio }
+export { AspectRatio };

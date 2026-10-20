@@ -1,73 +1,63 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group"
-import { type VariantProps } from "class-variance-authority"
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
-import { cn } from "@/lib/utils"
-import { toggleVariants } from "@/components/ui/toggle"
-
-const ToggleGroupContext = React.createContext<
-  VariantProps<typeof toggleVariants>
->({
-  size: "default",
-  variant: "default",
-})
-
-function ToggleGroup({
-  className,
-  variant,
-  size,
-  children,
-  ...props
-}: React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
-  VariantProps<typeof toggleVariants>) {
-  return (
-    <ToggleGroupPrimitive.Root
-      data-slot="toggle-group"
-      data-variant={variant}
-      data-size={size}
-      className={cn(
-        "group/toggle-group flex w-fit items-center rounded-md data-[variant=outline]:shadow-xs",
-        className
-      )}
-      {...props}
-    >
-      <ToggleGroupContext.Provider value={{ variant, size }}>
-        {children}
-      </ToggleGroupContext.Provider>
-    </ToggleGroupPrimitive.Root>
-  )
+interface ToggleGroupProps {
+  value?: string | string[];
+  defaultValue?: string | string[];
+  onValueChange?: (value: string | string[]) => void;
+  type?: 'single' | 'multiple';
+  children?: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
 }
 
-function ToggleGroupItem({
-  className,
-  children,
-  variant,
-  size,
-  ...props
-}: React.ComponentProps<typeof ToggleGroupPrimitive.Item> &
-  VariantProps<typeof toggleVariants>) {
-  const context = React.useContext(ToggleGroupContext)
-
+function ToggleGroup({ value, defaultValue, onValueChange, type = 'single', children, className, disabled }: ToggleGroupProps) {
   return (
-    <ToggleGroupPrimitive.Item
-      data-slot="toggle-group-item"
-      data-variant={context.variant || variant}
-      data-size={context.size || size}
+    <div className={cn('inline-flex items-center gap-1', className)} data-disabled={disabled || undefined}>
+      {React.Children.map(children, (child) => {
+        if (React.isValidElement(child)) {
+          return React.cloneElement(child as any, {
+            'data-state': Array.isArray(value) ? (value.includes((child.props as any).value) ? 'on' : 'off') : (value === (child.props as any).value ? 'on' : 'off'),
+            onClick: () => {
+              const childValue = (child.props as any).value;
+              if (type === 'single') {
+                onValueChange?.(childValue);
+              } else {
+                const currentArr = Array.isArray(value) ? value : [];
+                const newVal = currentArr.includes(childValue)
+                  ? currentArr.filter(v => v !== childValue)
+                  : [...currentArr, childValue];
+                onValueChange?.(newVal);
+              }
+            },
+          });
+        }
+        return child;
+      })}
+    </div>
+  );
+}
+
+function ToggleGroupItem({ value, children, className, disabled, 'aria-label': ariaLabel, ...props }: { value: string; children?: React.ReactNode; className?: string; disabled?: boolean; 'aria-label'?: string; 'data-state'?: string; onClick?: () => void } & Record<string, any>) {
+  const isOn = props['data-state'] === 'on';
+  return (
+    <button
+      type="button"
       className={cn(
-        toggleVariants({
-          variant: context.variant || variant,
-          size: context.size || size,
-        }),
-        "min-w-0 flex-1 shrink-0 rounded-none shadow-none first:rounded-l-md last:rounded-r-md focus:z-10 focus-visible:z-10 data-[variant=outline]:border-l-0 data-[variant=outline]:first:border-l",
+        'inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+        isOn ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
+        disabled && 'opacity-50 cursor-not-allowed',
         className
       )}
-      {...props}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      onClick={props.onClick}
     >
       {children}
-    </ToggleGroupPrimitive.Item>
-  )
+    </button>
+  );
 }
 
-export { ToggleGroup, ToggleGroupItem }
+export { ToggleGroup, ToggleGroupItem };
