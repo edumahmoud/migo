@@ -3,11 +3,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw, LogOut, CheckCircle2, Phone, Send, Pencil } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { RefreshCw, LogOut, CheckCircle2, Phone, Send, Pencil } from 'lucide-react';
+import {
+  Card, Text, TextInput, Button, Stack, Group, Box, Anchor, Alert, Center, Loader,
+} from '@mantine/core';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -16,13 +15,13 @@ import { useTranslations } from '@/i18n/use-translations';
 import { normalizePhoneToE164 } from '@/lib/phone-utils';
 
 type SessionStatus =
-  | 'loading'           // initial load
-  | 'pending_start'     // waiting for user to click Start in Telegram
-  | 'otp_sent'          // OTP sent to Telegram, user should enter it
-  | 'verified'          // success — phone verified
-  | 'expired'           // session timed out
-  | 'init_error'        // failed to create session
-  | 'bot_not_configured'; // env vars missing
+  | 'loading'
+  | 'pending_start'
+  | 'otp_sent'
+  | 'verified'
+  | 'expired'
+  | 'init_error'
+  | 'bot_not_configured';
 
 export default function OtpVerificationPage() {
   const { t } = useTranslations();
@@ -44,7 +43,6 @@ export default function OtpVerificationPage() {
 
   const phone = (user as { phone?: string } | null)?.phone ?? null;
 
-  // 1. Initiate verification session on mount
   const init = useCallback(async () => {
     setInitiating(true);
     setStatus('loading');
@@ -74,15 +72,12 @@ export default function OtpVerificationPage() {
 
   useEffect(() => { init(); }, [init]);
 
-  // 2. Cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => setCooldown(c => c - 1), 1000);
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // 3. Poll /api/auth/verification-status while status === 'pending_start'
-  //    (no page reload — just internal state update)
   useEffect(() => {
     if (status !== 'pending_start') return;
     const interval = setInterval(async () => {
@@ -97,34 +92,20 @@ export default function OtpVerificationPage() {
         } else if (json.status === 'verified') {
           setStatus('verified');
           toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
-          // CRITICAL: refresh the auth-store user before redirecting,
-          // so page.tsx routing sees the updated account_status='pending'
-          // (was 'pending_verification' before OTP verification).
-          // Without this refresh, the cached user still has the old
-          // status and routing may render the wrong page.
           try {
-            const meRes = await fetch('/api/auth/me', {
-              headers: await getCachedAuthHeaders(),
-            });
+            const meRes = await fetch('/api/auth/me', { headers: await getCachedAuthHeaders() });
             const meJson = await meRes.json();
-            if (meJson.profile) {
-              setUser(meJson.profile);
-            }
-          } catch {
-            // silent — the redirect will still trigger a page reload
-          }
+            if (meJson.profile) setUser(meJson.profile);
+          } catch {}
           setTimeout(() => router.push('/'), 1000);
         } else if (json.status === 'expired') {
           setStatus('expired');
         }
-      } catch {
-        // silent — keep polling
-      }
+      } catch {}
     }, 3000);
     return () => clearInterval(interval);
   }, [status, router, setUser]);
 
-  // 4. Verify OTP
   const handleVerify = async () => {
     if (otpCode.length !== 6) { toast.error('أدخل كود من 6 أرقام'); return; }
     setVerifying(true);
@@ -138,20 +119,11 @@ export default function OtpVerificationPage() {
       if (json.success) {
         setStatus('verified');
         toast.success('تم التحقق من رقم هاتفك بنجاح!');
-        // CRITICAL: refresh auth-store user before redirecting, so
-        // page.tsx routing sees account_status='pending' (was
-        // 'pending_verification' before OTP verification).
         try {
-          const meRes = await fetch('/api/auth/me', {
-            headers: await getCachedAuthHeaders(),
-          });
+          const meRes = await fetch('/api/auth/me', { headers: await getCachedAuthHeaders() });
           const meJson = await meRes.json();
-          if (meJson.profile) {
-            setUser(meJson.profile);
-          }
-        } catch {
-          // silent — redirect still triggers page reload
-        }
+          if (meJson.profile) setUser(meJson.profile);
+        } catch {}
         setTimeout(() => router.push('/'), 1000);
       } else {
         toast.error(json.error || 'الكود غير صحيح');
@@ -163,23 +135,16 @@ export default function OtpVerificationPage() {
     }
   };
 
-  // 5. Resend (restart the verification flow)
   const handleResend = async () => {
     setOtpCode('');
     await init();
   };
 
-  // 6. Update phone (when stored phone is wrong/missing)
   const handleSavePhone = async () => {
     const normalized = normalizePhoneToE164(newPhone.trim());
-    if (!normalized) {
-      toast.error('رقم الهاتف غير صالح. مثال: 01555614624 أو +201555614624');
-      return;
-    }
+    if (!normalized) { toast.error('رقم الهاتف غير صالح. مثال: 01555614624 أو +201555614624'); return; }
     setSavingPhone(true);
     try {
-      // Re-call initiate with the new phone — it will normalize + persist
-      // and create a new session in one step.
       const res = await fetch('/api/auth/initiate-telegram-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getCachedAuthHeaders()) },
@@ -209,222 +174,214 @@ export default function OtpVerificationPage() {
     router.push('/');
   };
 
-  // Loading screen
   if (initiating) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-sky-50">
-        <div className="flex items-center gap-2 text-sky-700">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>جارٍ تجهيز جلسة التحقق...</span>
-        </div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--mantine-primary-color-light)' }}>
+        <Group gap="sm">
+          <Loader size="sm" />
+          <Text size="sm" c="var(--mantine-primary-color-filled)">جارٍ تجهيز جلسة التحقق...</Text>
+        </Group>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-sky-50 p-3 sm:p-6 flex items-center justify-center">
+    <div className="min-h-screen p-3 sm:p-6 flex items-center justify-center" style={{ backgroundColor: 'var(--mantine-primary-color-light)' }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm">
-          <CardHeader className="text-center pb-1 pt-6">
+        <Card shadow="xl" radius="lg" padding="xl" withBorder={false} style={{ backgroundColor: 'var(--mantine-color-body)' }}>
+          <Stack gap="md" align="center" mb="md">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-600 shadow-lg"
             >
-              <Send className="h-7 w-7 text-white" />
+              <Box
+                style={{
+                  width: 56, height: 56, borderRadius: 16,
+                  backgroundColor: 'var(--mantine-primary-color-filled)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <Send size={28} color="white" />
+              </Box>
             </motion.div>
-            <CardTitle className="text-xl font-bold">تأكيد رقم الهاتف</CardTitle>
-            <CardDescription className="text-sm mt-1">
-              {status === 'otp_sent'
-                ? 'تم إرسال كود التحقق إلى Telegram.'
-                : 'افتح Telegram واضغط Start لإرسال كود التحقق إليك.'}
-            </CardDescription>
-          </CardHeader>
+            <Stack gap={4} align="center">
+              <Text size="xl" fw={700}>تأكيد رقم الهاتف</Text>
+              <Text size="sm" c="dimmed" ta="center">
+                {status === 'otp_sent' ? 'تم إرسال كود التحقق إلى Telegram.' : 'افتح Telegram واضغط Start لإرسال كود التحقق إليك.'}
+              </Text>
+            </Stack>
+          </Stack>
 
-          <CardContent className="pt-2 px-6 pb-6 space-y-4">
+          <Stack gap="md">
             {/* Phone info */}
             {phone && !editingPhone && (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Phone className="h-4 w-4" />
-                <span dir="ltr">{phone}</span>
-                <button
+              <Group justify="center" gap="sm">
+                <Phone size={16} />
+                <Text size="sm" dir="ltr">{phone}</Text>
+                <Anchor
+                  component="button"
                   type="button"
+                  size="xs"
                   onClick={() => { setEditingPhone(true); setNewPhone(phone || ''); }}
-                  className="text-xs text-sky-600 hover:underline inline-flex items-center gap-1"
                   title="تعديل الرقم"
                 >
-                  <Pencil className="h-3 w-3" />
-                </button>
-              </div>
+                  <Pencil size={12} />
+                </Anchor>
+              </Group>
             )}
 
             {/* Phone edit form */}
             {editingPhone && (
-              <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
-                <Label htmlFor="new-phone" className="text-xs font-medium">
-                  أدخل الرقم الصحيح
-                </Label>
-                <Input
-                  id="new-phone"
-                  type="tel"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="01000000000"
-                  dir="ltr"
-                  disabled={savingPhone}
-                  className="text-sm h-10"
-                  autoFocus
-                />
-                <div className="text-[10px] text-muted-foreground">
-                  سيتم تحويله إلى: <span dir="ltr" className="font-mono">{normalizePhoneToE164(newPhone) || '—'}</span>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleSavePhone}
-                    disabled={savingPhone || !newPhone.trim()}
-                    className="h-8 text-xs"
-                  >
-                    {savingPhone ? (
-                      <><Loader2 className="h-3 w-3 animate-spin me-1" />جارٍ الحفظ...</>
-                    ) : (
-                      'حفظ وإعادة الإرسال'
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => { setEditingPhone(false); setNewPhone(''); }}
+              <Alert color="blue" variant="light" radius="md">
+                <Stack gap="sm">
+                  <Text size="xs" fw={500}>أدخل الرقم الصحيح</Text>
+                  <TextInput
+                    type="tel"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="01000000000"
+                    dir="ltr"
                     disabled={savingPhone}
-                    className="h-8 text-xs"
-                  >
-                    إلغاء
-                  </Button>
-                </div>
-              </div>
+                    size="sm"
+                    autoFocus
+                  />
+                  <Text size="xs" c="dimmed">
+                    سيتم تحويله إلى: <Text component="span" dir="ltr" ff="mono">{normalizePhoneToE164(newPhone) || '—'}</Text>
+                  </Text>
+                  <Group gap="sm">
+                    <Button size="sm" onClick={handleSavePhone} loading={savingPhone} disabled={!newPhone.trim()}>
+                      حفظ وإعادة الإرسال
+                    </Button>
+                    <Button size="sm" variant="subtle" onClick={() => { setEditingPhone(false); setNewPhone(''); }} disabled={savingPhone}>
+                      إلغاء
+                    </Button>
+                  </Group>
+                </Stack>
+              </Alert>
             )}
 
             {/* STEP 1: Open Telegram */}
             {status === 'pending_start' && deepLink && !editingPhone && (
-              <div className="space-y-3">
-                <div className="rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 p-3 text-sm text-sky-700 dark:text-sky-300 space-y-1">
-                  <div className="font-semibold">الخطوة 1: افتح Telegram</div>
-                  <div className="text-xs opacity-80">
-                    اضغط الزر بالأسفل ليفتح محادثة البوت في Telegram. سيظهر زر Start في الأسفل — اضغطه لإرسال الكود إليك.
-                  </div>
-                </div>
-                <a href={deepLink} target="_blank" rel="noopener noreferrer">
-                  <Button
-                    type="button"
-                    className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700"
-                  >
-                    <Send className="h-5 w-5 me-2" /> فتح Telegram
+              <Stack gap="sm">
+                <Alert color="blue" variant="light" radius="md">
+                  <Stack gap={4}>
+                    <Text size="sm" fw={600}>الخطوة 1: افتح Telegram</Text>
+                    <Text size="xs" c="dimmed">
+                      اضغط الزر بالأسفل ليفتح محادثة البوت في Telegram. سيظهر زر Start في الأسفل — اضغطه لإرسال الكود إليك.
+                    </Text>
+                  </Stack>
+                </Alert>
+                <Anchor href={deepLink} target="_blank" rel="noopener noreferrer" underline="never" w="100%">
+                  <Button fullWidth size="md" radius="md" leftSection={<Send size={18} />}>
+                    فتح Telegram
                   </Button>
-                </a>
-                <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>في انتظار ضغطك لـ Start في Telegram...</span>
-                </div>
-              </div>
+                </Anchor>
+                <Center>
+                  <Group gap="sm">
+                    <Loader size="xs" />
+                    <Text size="xs" c="dimmed">في انتظار ضغطك لـ Start في Telegram...</Text>
+                  </Group>
+                </Center>
+              </Stack>
             )}
 
             {/* STEP 2: Enter OTP */}
             {status === 'otp_sent' && (
-              <div className="space-y-3">
-                <div className="rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 p-3 text-sm text-teal-700 dark:text-teal-300 space-y-1">
-                  <div className="font-semibold">✅ تم إرسال الكود إلى Telegram</div>
-                  <div className="text-xs opacity-80">أدخل الكود الذي وصلك في محادثة البوت.</div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="otp-input" className="text-sm font-medium text-center block">
-                    أدخل كود التحقق (6 أرقام)
-                  </Label>
-                  <Input
-                    id="otp-input"
+              <Stack gap="sm">
+                <Alert color="teal" variant="light" radius="md">
+                  <Stack gap={4}>
+                    <Text size="sm" fw={600}>✅ تم إرسال الكود إلى Telegram</Text>
+                    <Text size="xs" c="dimmed">أدخل الكود الذي وصلك في محادثة البوت.</Text>
+                  </Stack>
+                </Alert>
+                <Stack gap="xs">
+                  <Text size="sm" fw={500} ta="center">أدخل كود التحقق (6 أرقام)</Text>
+                  <TextInput
                     type="text"
                     inputMode="numeric"
                     placeholder="••••••"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="text-center text-2xl font-mono tracking-[0.5em] h-14"
                     disabled={verifying}
                     onKeyDown={(e) => { if (e.key === 'Enter' && otpCode.length === 6) handleVerify(); }}
                     autoFocus
+                    size="lg"
+                    radius="md"
+                    ta="center"
+                    styles={{ input: { fontFamily: 'monospace', letterSpacing: '0.5em', fontSize: 24, height: 56 } }}
                   />
-                </div>
-                <Button
-                  onClick={handleVerify}
-                  disabled={verifying || otpCode.length !== 6}
-                  className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700"
-                >
-                  {verifying ? (
-                    <><Loader2 className="h-5 w-5 animate-spin me-2" />جارٍ التحقق...</>
-                  ) : (
-                    <><CheckCircle2 className="h-5 w-5 me-2" />تأكيد الكود</>
-                  )}
+                </Stack>
+                <Button onClick={handleVerify} loading={verifying} disabled={otpCode.length !== 6} fullWidth size="md" radius="md" leftSection={<CheckCircle2 size={18} />}>
+                  تأكيد الكود
                 </Button>
-              </div>
+              </Stack>
             )}
 
             {/* Init error */}
             {status === 'init_error' && errorMessage && (
-              <div className="rounded-lg bg-rose-50 dark:bg-rose-900/15 border border-rose-200 dark:border-rose-900/60 p-3 text-sm text-rose-700 dark:text-rose-400">
-                {errorMessage}
-              </div>
+              <Alert color="red" variant="light" radius="md">{errorMessage}</Alert>
             )}
 
             {/* Expired */}
             {status === 'expired' && (
-              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-900/60 p-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
-                <div className="font-semibold">انتهت صلاحية جلسة التحقق</div>
-                <Button onClick={handleResend} size="sm" variant="outline">طلب كود جديد</Button>
-              </div>
+              <Alert color="yellow" variant="light" radius="md">
+                <Stack gap="sm">
+                  <Text size="sm" fw={600}>انتهت صلاحية جلسة التحقق</Text>
+                  <Button onClick={handleResend} size="sm" variant="outline">طلب كود جديد</Button>
+                </Stack>
+              </Alert>
             )}
 
             {/* Verified — redirecting */}
             {status === 'verified' && (
-              <div className="rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 p-3 text-sm text-teal-700 dark:text-teal-400 space-y-2 text-center">
-                <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                <div>تم التحقق بنجاح! جارٍ التحويل لصفحة التفعيل...</div>
-              </div>
+              <Alert color="teal" variant="light" radius="md">
+                <Stack gap="sm" align="center">
+                  <Loader size="sm" />
+                  <Text size="sm">تم التحقق بنجاح! جارٍ التحويل لصفحة التفعيل...</Text>
+                </Stack>
+              </Alert>
             )}
 
             {/* Footer: resend + logout */}
-            <div className="flex items-center justify-between">
-              <button
+            <Group justify="space-between">
+              <Anchor
+                component="button"
+                type="button"
+                size="xs"
                 onClick={handleResend}
                 disabled={cooldown > 0 || initiating}
-                className="text-xs text-sky-600 hover:text-sky-700 font-medium disabled:opacity-50 flex items-center gap-1"
               >
-                {cooldown > 0 ? (
-                  <><RefreshCw className="h-3 w-3" />إعادة ({cooldown}s)</>
-                ) : (
-                  <><RefreshCw className="h-3 w-3" />طلب كود جديد</>
-                )}
-              </button>
-              <button
+                <Group gap={4}>
+                  <RefreshCw size={12} />
+                  {cooldown > 0 ? `إعادة (${cooldown}s)` : 'طلب كود جديد'}
+                </Group>
+              </Anchor>
+              <Anchor
+                component="button"
+                type="button"
+                size="xs"
+                c="dimmed"
                 onClick={handleSignOut}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
-                <LogOut className="h-3 w-3" />تسجيل الخروج
-              </button>
-            </div>
+                <Group gap={4}>
+                  <LogOut size={12} />
+                  تسجيل الخروج
+                </Group>
+              </Anchor>
+            </Group>
 
-            {/* Bot username footer */}
             {botUsername && (
-              <p className="text-center text-xs text-muted-foreground">
-                البوت: <span dir="ltr">@{botUsername}</span>
-              </p>
+              <Text size="xs" c="dimmed" ta="center">
+                البوت: <Text component="span" dir="ltr">@{botUsername}</Text>
+              </Text>
             )}
-          </CardContent>
+          </Stack>
         </Card>
       </motion.div>
     </div>

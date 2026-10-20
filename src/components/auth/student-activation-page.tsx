@@ -8,6 +8,12 @@ import {
   CheckCircle2, AlertCircle, RefreshCw, LogOut, Check, X,
   Clock, Gift,
 } from 'lucide-react';
+// v134n: Mantine imports (will progressively replace shadcn in this file)
+import {
+  Card as MCard, Text, TextInput, Button as MButton, Stack, Group, Box, Anchor as MAnchor,
+  Alert as MAlert, Center, Badge as MBadge, CopyButton, ActionIcon,
+} from '@mantine/core';
+// shadcn fallback (still used in this large file — will be migrated incrementally)
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
