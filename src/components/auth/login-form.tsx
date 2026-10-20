@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Mail, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
+import {
+  Card, Text, TextInput, PasswordInput, Button, SegmentedControl,
+  Stack, Group, Box, Anchor, Image, Center,
+} from '@mantine/core';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
@@ -24,7 +24,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const [email, setEmail] = useState('');
   const [studentCode, setStudentCode] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<LoginMode>('email');
 
@@ -33,7 +32,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
   const { t, isRTL } = useTranslations();
 
-  // Fetch institution data on mount
   useEffect(() => {
     if (!loaded) fetchInstitution();
   }, [loaded, fetchInstitution]);
@@ -94,7 +92,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     }
     setIsLoading(true);
     try {
-      // 1. Resolve the student code → email (server-side).
       const resolveRes = await fetch('/api/auth/resolve-student-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,8 +102,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         toast.error(resolveJson.error || 'الكود غير صحيح');
         return;
       }
-
-      // 2. Sign in with the resolved email + password.
       const { error } = await signInWithEmail(resolveJson.email, password);
       if (error) {
         toast.error(error);
@@ -120,13 +115,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     }
   };
 
-  const handleSwitchToRegister = () => {
-    if (onSwitchToRegister) {
-      onSwitchToRegister();
-    }
-  };
-
-  // The submit handler depends on the active mode.
   const handleSubmit = mode === 'email' ? handleEmailSubmit : handleCodeSubmit;
 
   return (
@@ -136,171 +124,138 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
       >
-        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
-          <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
+        <Card
+          shadow="xl"
+          radius="lg"
+          padding="xl"
+          withBorder={false}
+          style={{
+            backgroundColor: 'var(--mantine-color-body)',
+            flex: 1,
+          }}
+        >
+          <Stack gap="md" align="center" mb="md">
             {displayLogo && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-sky-600 shadow-lg overflow-hidden"
               >
-                <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
+                <Box
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 16,
+                    backgroundColor: 'var(--mantine-primary-color-filled)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Image src={displayLogo} alt={displayName} h="100%" w="100%" fit="cover" />
+                </Box>
               </motion.div>
             )}
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-              {displayName ? t('auth.welcomeTo', { name: displayName }) : t('auth.welcome')}
-            </CardTitle>
-            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-              {t('auth.loginToContinue')}
-            </CardDescription>
-          </CardHeader>
+            <Stack gap={4} align="center">
+              <Text size="xl" fw={700}>
+                {displayName ? t('auth.welcomeTo', { name: displayName }) : t('auth.welcome')}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {t('auth.loginToContinue')}
+              </Text>
+            </Stack>
+          </Stack>
 
-          <CardContent className="pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
-            {/* Mode switcher — by email / by student code */}
-            <div className="grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
-              <button
-                type="button"
-                onClick={() => setMode('email')}
-                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
-                  mode === 'email'
-                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Mail className="h-4 w-4" />
-                بالبريد الإلكتروني
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('code')}
-                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
-                  mode === 'code'
-                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <KeyRound className="h-4 w-4" />
-                بالكود
-              </button>
-            </div>
+          {/* Mode switcher */}
+          <SegmentedControl
+            value={mode}
+            onChange={(v) => setMode(v as LoginMode)}
+            data={[
+              { label: '📧 بالبريد الإلكتروني', value: 'email' },
+              { label: '🔑 بالكود', value: 'code' },
+            ]}
+            fullWidth
+            radius="md"
+            size="sm"
+            mb="md"
+          />
 
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
+          <form onSubmit={handleSubmit}>
+            <Stack gap="md">
               {mode === 'email' ? (
-                /* Email Field */
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="space-y-2"
                 >
-                  <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
-                    {t('auth.email')}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder={t('auth.enterEmail')}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
-                      disabled={isLoading}
-                      dir="ltr"
-                      maxLength={254}
-                    />
-                    <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
-                  </div>
+                  <TextInput
+                    label={t('auth.email')}
+                    placeholder={t('auth.enterEmail')}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    leftSection={<Mail size={16} />}
+                    disabled={isLoading}
+                    dir="ltr"
+                    maxLength={254}
+                    size="md"
+                    radius="md"
+                  />
                 </motion.div>
               ) : (
-                /* Student Code Field */
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="space-y-2"
                 >
-                  <Label htmlFor="student-code" className="text-gray-700 font-medium text-xs sm:text-sm">
-                    الكود
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="student-code"
-                      type="text"
-                      placeholder="مثال: A1B2C3D4"
-                      value={studentCode}
-                      onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
-                      className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20 font-mono tracking-widest"
-                      disabled={isLoading}
-                      dir="ltr"
-                      maxLength={40}
-                      autoCapitalize="characters"
-                      autoCorrect="off"
-                      spellCheck={false}
-                    />
-                    <KeyRound className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
-                  </div>
-
+                  <TextInput
+                    label="الكود"
+                    placeholder="مثال: A1B2C3D4"
+                    value={studentCode}
+                    onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
+                    leftSection={<KeyRound size={16} />}
+                    disabled={isLoading}
+                    dir="ltr"
+                    maxLength={40}
+                    size="md"
+                    radius="md"
+                    styles={{ input: { fontFamily: 'monospace', letterSpacing: '0.1em' } }}
+                  />
                 </motion.div>
               )}
 
-              {/* Password Field */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
-                className="space-y-2"
               >
-                <Label htmlFor="password" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  {t('auth.password')}
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder={t('auth.enterPassword')}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="ps-10 pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
-                    disabled={isLoading}
-                    dir="ltr"
-                  />
-                  <Lock className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
-                    tabIndex={-1}
-                    aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
+                <PasswordInput
+                  label={t('auth.password')}
+                  placeholder={t('auth.enterPassword')}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  leftSection={<Lock size={16} />}
+                  visibilityToggleIcon={({ reveal }) => (reveal ? <EyeOff size={16} /> : <Eye size={16} />)}
+                  disabled={isLoading}
+                  dir="ltr"
+                  size="md"
+                  radius="md"
+                />
               </motion.div>
 
-              {/* Forgot Password Link */}
               {onForgotPassword && mode === 'email' && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.45 }}
-                  className="flex ms-auto w-fit"
-                >
-                  <button
+                <Group justify="flex-end">
+                  <Anchor
+                    component="button"
                     type="button"
+                    size="sm"
                     onClick={onForgotPassword}
-                    className="text-sm text-sky-600 hover:text-sky-700 font-medium transition-colors"
                   >
                     {t('auth.forgotPassword')}
-                  </button>
-                </motion.div>
+                  </Anchor>
+                </Group>
               )}
 
-              {/* Submit Button */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -308,42 +263,33 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               >
                 <Button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
+                  loading={isLoading}
+                  fullWidth
+                  size="md"
+                  radius="md"
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>{t('auth.loggingIn')}</span>
-                    </>
-                  ) : (
-                    t('auth.login')
-                  )}
+                  {isLoading ? t('auth.loggingIn') : t('auth.login')}
                 </Button>
               </motion.div>
-            </form>
+            </Stack>
+          </form>
 
-            {/* Register Link - uses onSwitchToRegister prop */}
-            {onSwitchToRegister && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}
-                className="mt-3 sm:mt-6 text-center"
-              >
-                <p className="text-sm text-gray-500">
+          {onSwitchToRegister && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+            >
+              <Center mt="lg">
+                <Text size="sm" c="dimmed">
                   {t('auth.noAccount')}{' '}
-                  <button
-                    type="button"
-                    onClick={handleSwitchToRegister}
-                    className="font-semibold text-sky-600 hover:text-sky-700 transition-colors hover:underline"
-                  >
+                  <Anchor component="button" type="button" size="sm" fw={600} onClick={() => onSwitchToRegister()}>
                     {t('auth.createAccount')}
-                  </button>
-                </p>
-              </motion.div>
-            )}
-          </CardContent>
+                  </Anchor>
+                </Text>
+              </Center>
+            </motion.div>
+          )}
         </Card>
       </motion.div>
     </div>
