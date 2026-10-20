@@ -1,31 +1,35 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import * as SwitchPrimitive from "@radix-ui/react-switch"
+/**
+ * Switch adapter — shadcn Switch → Mantine Switch
+ */
 
-import { cn } from "@/lib/utils"
+import * as React from 'react';
+import { Switch as MantineSwitch } from '@mantine/core';
+import { cn } from '@/lib/utils';
 
-function Switch({
-  className,
-  ...props
-}: React.ComponentProps<typeof SwitchPrimitive.Root>) {
-  return (
-    <SwitchPrimitive.Root
-      data-slot="switch"
-      className={cn(
-        "peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-input/80 inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
-        className
-      )}
-      {...props}
-    >
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
-        className={cn(
-          "bg-background dark:data-[state=unchecked]:bg-foreground dark:data-[state=checked]:bg-primary-foreground pointer-events-none block size-4 rounded-full ring-0 transition-all data-[state=checked]:ms-auto data-[state=unchecked]:me-auto data-[state=checked]:me-0.5 data-[state=unchecked]:ms-0.5"
-        )}
-      />
-    </SwitchPrimitive.Root>
-  )
+interface SwitchProps {
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  disabled?: boolean;
+  className?: string;
+  id?: string;
+  'aria-label'?: string;
 }
 
-export { Switch }
+const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
+  ({ checked, onCheckedChange, disabled, className, id, ...props }, ref) => (
+    <MantineSwitch
+      ref={ref}
+      checked={checked}
+      onChange={(e) => onCheckedChange?.(e.currentTarget.checked)}
+      disabled={disabled}
+      id={id}
+      className={cn(className)}
+      {...props}
+    />
+  )
+);
+Switch.displayName = 'Switch';
+
+export { Switch };

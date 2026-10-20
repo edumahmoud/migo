@@ -1,53 +1,39 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import * as AvatarPrimitive from "@radix-ui/react-avatar"
+/**
+ * Avatar adapter — shadcn Avatar → Mantine Avatar
+ */
 
-import { cn } from "@/lib/utils"
+import * as React from 'react';
+import { Avatar as MantineAvatar } from '@mantine/core';
+import { cn } from '@/lib/utils';
 
-function Avatar({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Root>) {
-  return (
-    <AvatarPrimitive.Root
-      data-slot="avatar"
-      className={cn(
-        "relative flex size-8 shrink-0 overflow-hidden rounded-full",
-        className
-      )}
-      {...props}
-    />
-  )
+interface AvatarProps extends React.ComponentProps<'div'> {
+  src?: string;
+  alt?: string;
 }
 
-function AvatarImage({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
-  return (
-    <AvatarPrimitive.Image
-      data-slot="avatar-image"
-      className={cn("aspect-square size-full", className)}
+const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
+  ({ className, src, alt, children, ...props }, ref) => (
+    <MantineAvatar
+      ref={ref}
+      src={src}
+      alt={alt}
+      size="md"
+      radius="full"
+      className={cn(className)}
       {...props}
-    />
+    >
+      {children}
+    </MantineAvatar>
   )
-}
+);
+Avatar.displayName = 'Avatar';
 
-function AvatarFallback({
-  className,
-  ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
-  return (
-    <AvatarPrimitive.Fallback
-      data-slot="avatar-fallback"
-      className={cn(
-        "bg-muted flex size-full items-center justify-center rounded-full",
-        className
-      )}
-      {...props}
-    />
-  )
-}
+const AvatarImage = ({ src, alt, className }: { src?: string; alt?: string; className?: string }) => null;
 
-export { Avatar, AvatarImage, AvatarFallback }
+const AvatarFallback = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+  <span className={cn(className)}>{children}</span>
+);
+
+export { Avatar, AvatarImage, AvatarFallback };
