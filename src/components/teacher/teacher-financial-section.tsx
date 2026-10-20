@@ -434,49 +434,49 @@ export default function TeacherFinancialSection() {
             icon={<TrendingUp className="h-5 w-5" />}
             label={t('financial.summary.totalGross')}
             value={formatAmount(summary.total_gross)}
-            color="bg-gradient-to-br from-sky-500 to-sky-700 text-white"
+            color="bg-sky-500 text-white"
             iconBg="bg-white/25"
           />
           <SummaryCard
             icon={<DollarSign className="h-5 w-5" />}
             label={t('financial.summary.teacherShare')}
             value={formatAmount(summary.total_teacher_share)}
-            color="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"
+            color="bg-emerald-500 text-white"
             iconBg="bg-white/25"
           />
           <SummaryCard
             icon={<Receipt className="h-5 w-5" />}
             label={t('financial.summary.transactions')}
             value={String(summary.transaction_count)}
-            color="bg-gradient-to-br from-rose-400 to-rose-500 text-white"
+            color="bg-rose-400 text-white"
             iconBg="bg-white/25"
           />
           <SummaryCard
             icon={<Users className="h-5 w-5" />}
             label={t('financial.summary.activeSubscriptions')}
             value={String(summary.active_subscriptions)}
-            color="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white"
+            color="bg-indigo-500 text-white"
             iconBg="bg-white/25"
           />
           <SummaryCard
             icon={<Users className="h-5 w-5" />}
             label={t('financial.summary.uniqueStudents')}
             value={String(summary.unique_students)}
-            color="bg-gradient-to-br from-purple-500 to-purple-600 text-white"
+            color="bg-purple-500 text-white"
             iconBg="bg-white/25"
           />
           <SummaryCard
             icon={<Calculator className="h-5 w-5" />}
             label={t('financial.summary.avgStudentRevenue')}
             value={formatAmount(summary.avg_net_income)}
-            color="bg-gradient-to-br from-teal-500 to-teal-600 text-white"
+            color="bg-teal-500 text-white"
             iconBg="bg-white/25"
           />
           <SummaryCard
             icon={<Calculator className="h-5 w-5" />}
             label={t('financial.summary.avgTransactionValue')}
             value={formatAmount(summary.avg_transaction_value)}
-            color="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"
+            color="bg-cyan-500 text-white"
             iconBg="bg-white/25"
           />
         </div>
@@ -487,7 +487,7 @@ export default function TeacherFinancialSection() {
           No "عام" label — shows the resolved rate directly.
           Positioned right after the summary cards grid. */}
       {summary && (
-        <div className="rounded-xl border-2 border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50/80 to-fuchsia-50/60 dark:from-violet-900/15 dark:to-fuchsia-900/10 p-4 shadow-sm">
+        <div className="rounded-xl border-2 border-violet-200 dark:border-violet-900/50 bg-violet-50/80 dark:from-violet-900/15 dark:to-fuchsia-900/10 p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 shrink-0">
               <Receipt className="h-5 w-5" />

@@ -455,7 +455,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </Button>
 
         {/* Banner gradient */}
-        <div className="h-40 sm:h-52 rounded-b-2xl bg-gradient-to-bl from-sky-700 via-teal-500 to-sky-800 relative overflow-hidden">
+        <div className="h-40 sm:h-52 rounded-b-2xl bg-sky-700 relative overflow-hidden">
           {/* Decorative patterns */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 start-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />

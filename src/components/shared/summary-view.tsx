@@ -283,7 +283,7 @@ function StepProgress({
   const colorSchemes = {
     sky: {
       text: '#0369a1',
-      barGradient: 'linear-gradient(to left, #0369a1, #38bdf8)',
+      barGradient: 'currentColor',
       barBg: '#e0f2fe',
       dotActive: '#0ea5e9',
       dotCompleted: '#38bdf8',
@@ -295,7 +295,7 @@ function StepProgress({
     },
     teal: {
       text: '#0f766e',
-      barGradient: 'linear-gradient(to left, #0f766e, #5eead4)',
+      barGradient: 'currentColor',
       barBg: '#ccfbf1',
       dotActive: '#14b8a6',
       dotCompleted: '#5eead4',
@@ -307,7 +307,7 @@ function StepProgress({
     },
     rose: {
       text: '#be123c',
-      barGradient: 'linear-gradient(to left, #be123c, #fb7185)',
+      barGradient: 'currentColor',
       barBg: '#ffe4e6',
       dotActive: '#f43f5e',
       dotCompleted: '#fb7185',

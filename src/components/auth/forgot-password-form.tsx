@@ -336,7 +336,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   <Button
                     type="submit"
                     disabled={!canResend}
-                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 disabled:opacity-50 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
+                    className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 disabled:opacity-50 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                   >
                     {isLoading ? (
                       <>

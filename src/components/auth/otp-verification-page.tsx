@@ -212,7 +212,7 @@ export default function OtpVerificationPage() {
   // Loading screen
   if (initiating) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50">
+      <div className="min-h-screen flex items-center justify-center bg-sky-50">
         <div className="flex items-center gap-2 text-sky-700">
           <Loader2 className="h-5 w-5 animate-spin" />
           <span>جارٍ تجهيز جلسة التحقق...</span>
@@ -222,7 +222,7 @@ export default function OtpVerificationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50 p-3 sm:p-6 flex items-center justify-center">
+    <div className="min-h-screen bg-sky-50 p-3 sm:p-6 flex items-center justify-center">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -235,7 +235,7 @@ export default function OtpVerificationPage() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg"
+              className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-600 shadow-lg"
             >
               <Send className="h-7 w-7 text-white" />
             </motion.div>
@@ -324,7 +324,7 @@ export default function OtpVerificationPage() {
                 <a href={deepLink} target="_blank" rel="noopener noreferrer">
                   <Button
                     type="button"
-                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
+                    className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700"
                   >
                     <Send className="h-5 w-5 me-2" /> فتح Telegram
                   </Button>
@@ -363,7 +363,7 @@ export default function OtpVerificationPage() {
                 <Button
                   onClick={handleVerify}
                   disabled={verifying || otpCode.length !== 6}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
+                  className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700"
                 >
                   {verifying ? (
                     <><Loader2 className="h-5 w-5 animate-spin me-2" />جارٍ التحقق...</>

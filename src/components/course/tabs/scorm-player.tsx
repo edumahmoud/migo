@@ -459,7 +459,7 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
   return (
     <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'relative'} transition-all duration-300`}>
       {/* ── Header Bar ── */}
-      <div className={`flex items-center justify-between px-4 py-2 bg-gradient-to-r from-sky-700 to-sky-800 text-white ${isFullscreen ? 'sticky top-0' : ''}`}>
+      <div className={`flex items-center justify-between px-4 py-2 bg-sky-700 text-white ${isFullscreen ? 'sticky top-0' : ''}`}>
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm truncate max-w-[300px]">
             {packageTitle} — {resourceTitle}

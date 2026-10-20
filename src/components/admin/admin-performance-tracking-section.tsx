@@ -527,7 +527,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
       {/* ═══ Header ═══ */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/25">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 shadow-lg shadow-sky-600/25">
             <Activity className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -539,7 +539,7 @@ export default function AdminPerformanceTrackingSection({ profile }: AdminPerfor
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
           onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-l from-sky-600 to-teal-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg transition-shadow"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg transition-shadow"
         >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">{t('teacher.trackingExportData')}</span>

@@ -119,7 +119,7 @@ export function BrandLogo({
   // exists at all — e.g., fresh install before setup wizard).
   return (
     <div
-      className={`${dims.box} ${shadowClass} bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shrink-0 ${className}`}
+      className={`${dims.box} ${shadowClass} bg-sky-600 flex items-center justify-center shrink-0 ${className}`}
     >
       <GraduationCap className={`${dims.icon} text-white`} />
     </div>

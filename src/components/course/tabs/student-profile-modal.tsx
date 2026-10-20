@@ -380,7 +380,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               )}
 
               {/* Weighted breakdown */}
-              <div className="rounded-lg border p-3 bg-gradient-to-l from-sky-50/80 to-teal-50/80 dark:from-sky-900/10 dark:to-teal-900/10">
+              <div className="rounded-lg border p-3 bg-sky-50/80 dark:from-sky-900/10 dark:to-teal-900/10">
                 <h5 className="text-xs font-medium text-muted-foreground mb-2">{t('teacher.trackingOverallPerformanceCalc')}</h5>
                 <div className="grid grid-cols-4 gap-2 text-center">
                   <div>

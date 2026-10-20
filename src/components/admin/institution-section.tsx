@@ -359,7 +359,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                     className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 dark:border-sky-900/60 shadow-sm"
                   />
                 ) : (
-                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 dark:from-sky-900/20 dark:to-teal-900/20 border-2 border-dashed border-sky-300 dark:border-sky-900/60 flex flex-col items-center justify-center gap-2">
+                  <div className="h-28 w-28 rounded-2xl bg-sky-50 dark:from-sky-900/20 dark:to-teal-900/20 border-2 border-dashed border-sky-300 dark:border-sky-900/60 flex flex-col items-center justify-center gap-2">
                     <Building2 className="h-10 w-10 text-sky-400" />
                     <span className="text-[10px] text-sky-600 dark:text-sky-400">{t('common.noData')}</span>
                   </div>

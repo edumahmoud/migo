@@ -3244,7 +3244,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Active Lectures */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-500 to-sky-700" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-sky-500" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/40">
                 <Radio className="h-4 w-4 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-400" />
@@ -3268,7 +3268,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Active Users */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-teal-400 to-teal-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-teal-400" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-800/40">
                 <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-teal-600 dark:text-teal-500" />
@@ -3294,7 +3294,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* New Registrations */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-amber-400 to-amber-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-amber-400" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-800/40">
                 <Users className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-500" />
@@ -3320,7 +3320,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Attendance Sessions */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-700" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-sky-400" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/40">
                 <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-400" />
@@ -3346,7 +3346,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Quizzes Taken */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-rose-400 to-rose-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-rose-400" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-800/40">
                 <Award className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 dark:text-rose-500" />
@@ -3372,7 +3372,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Lectures Created */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-sky-400" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/40">
                 <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-sky-600 dark:text-sky-400" />
@@ -3398,7 +3398,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Assignments Created */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-orange-400 to-orange-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-orange-400" />
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100">
                 <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />

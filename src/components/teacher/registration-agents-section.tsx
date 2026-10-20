@@ -1196,7 +1196,7 @@ export default function RegistrationAgentsSection() {
                         title={`${m.month}: ${m.count}`}
                       >
                         <div
-                          className="w-full bg-gradient-to-t from-sky-600 to-teal-400 rounded-t-sm transition-all"
+                          className="w-full bg-sky-600 rounded-t-sm transition-all"
                           style={{ height: `${height}%` }}
                         />
                         <span className="text-[8px] text-muted-foreground rotate-0 truncate w-full text-center">

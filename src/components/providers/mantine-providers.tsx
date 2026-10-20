@@ -21,12 +21,17 @@ import { useThemeStore, resolveColorScheme } from '@/stores/theme-store';
 import { createTheme } from '@/lib/mantine-theme';
 import { useAuthStore } from '@/stores/auth-store';
 import { useLocaleStore } from '@/i18n/locale-store';
+import { useThemeBridge, useDarkModeListener } from '@/lib/theme-bridge';
 
 export default function MantineProviders({ children }: { children: React.ReactNode }) {
   const { identity, mode, syncFromDb, syncToDb } = useThemeStore();
   const user = useAuthStore((s) => s.user);
   const { direction } = useLocaleStore();
   const [, setSystemChangeCounter] = useState(0);
+
+  // v134n: bridge Mantine theme → shadcn CSS variables.
+  useThemeBridge();
+  useDarkModeListener();
 
   // Sync theme from DB when user logs in.
   useEffect(() => {

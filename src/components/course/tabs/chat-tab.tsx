@@ -1113,7 +1113,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border bg-card/50 p-4 space-y-3 scrollbar-thin">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-10">
-            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-200/50 mb-5 shadow-sm">
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 border border-sky-200/50 mb-5 shadow-sm">
               <MessageCircle className="h-10 w-10 text-sky-600 dark:text-sky-400" />
             </div>
             <h4 className="text-base font-bold text-foreground mb-1.5">{t('chat.startConversation')}</h4>

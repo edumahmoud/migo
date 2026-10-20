@@ -561,7 +561,7 @@ $$;`;
         className="space-y-5"
       >
         <div className="text-center mb-6">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-400 to-red-500 shadow-lg">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-400 shadow-lg">
             <GraduationCap className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white">{t('dbSetup')}</h2>
@@ -593,7 +593,7 @@ $$;`;
         <Button
           onClick={handleCheckTable}
           disabled={checkingMigration}
-          className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
+          className="w-full h-12 text-base font-bold bg-amber-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
         >
           {checkingMigration ? (
             <>
@@ -622,7 +622,7 @@ $$;`;
       className="space-y-5"
     >
       <div className="text-center mb-6">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-400 shadow-lg">
           <User className="h-8 w-8 text-white" />
         </div>
         <h2 className="text-2xl font-bold text-white">{t('createPlatformAdminAccount')}</h2>
@@ -735,7 +735,7 @@ $$;`;
       <Button
         onClick={handleCreateAdmin}
         disabled={creatingAccount}
-        className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
+        className="w-full h-12 text-base font-bold bg-amber-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
       >
         {creatingAccount ? (
           <>
@@ -762,7 +762,7 @@ $$;`;
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-        className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-500 to-teal-500 shadow-2xl shadow-sky-500/30"
+        className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-sky-500 shadow-2xl shadow-sky-500/30"
       >
         <CheckCircle2 className="h-12 w-12 text-white" />
       </motion.div>
@@ -791,7 +791,7 @@ $$;`;
 
       <Button
         onClick={onComplete}
-        className="w-full h-12 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
+        className="w-full h-12 text-base font-bold bg-sky-600 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
       >
         <span>{t('startUsingSystem')}</span>
       </Button>
@@ -799,7 +799,7 @@ $$;`;
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir={direction}>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-sky-800" dir={direction}>
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
@@ -814,7 +814,7 @@ $$;`;
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-6"
         >
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg shadow-sky-500/30">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-600 shadow-lg shadow-sky-500/30">
             <GraduationCap className="h-7 w-7 text-white" />
           </div>
           <h1 className="text-xl font-bold text-white">{t('setupTitle')}</h1>

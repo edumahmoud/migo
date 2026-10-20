@@ -176,7 +176,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
+                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-sky-600 shadow-lg overflow-hidden"
               >
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
@@ -398,7 +398,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
+                  className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                 >
                   {isLoading ? (
                     <>

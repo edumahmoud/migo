@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         message_en: message_en || null,
         type: type || 'celebration',
         image_url: image_url || null,
-        bg_color: bg_color || 'from-sky-700 via-sky-800 to-teal-700',
+        bg_color: bg_color || 'from-sky-700',
         icon: icon || '🎉',
         display_location: display_location || 'everywhere',
         display_size: display_size || 'fullscreen',

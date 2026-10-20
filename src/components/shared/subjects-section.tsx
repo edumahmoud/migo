@@ -1722,7 +1722,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           {categories.length === 0 ? (
             <motion.div
               variants={cardVariants}
-              className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-b from-emerald-50/50 dark:from-emerald-900/20 to-transparent py-20"
+              className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:from-emerald-900/20 py-20"
             >
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-800/40 mb-5">
                 <FolderTree className="h-10 w-10 text-emerald-700 dark:text-emerald-400" />
@@ -1746,7 +1746,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     setFilterCategory('');
                     setCategoriesView(false);
                   }}
-                  className="group cursor-pointer rounded-xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/30 dark:to-sky-800/20 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden hover:-translate-y-0.5 h-[136px] flex flex-col"
+                  className="group cursor-pointer rounded-xl border-2 border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:from-sky-900/30 dark:to-sky-800/20 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden hover:-translate-y-0.5 h-[136px] flex flex-col"
                 >
                   <div className="h-1 bg-sky-500 shrink-0" />
                   <div className="p-3 flex flex-col justify-between flex-1 min-h-0">
@@ -1918,7 +1918,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {!loadingSubjects && subjects.length === 0 && (
         <motion.div
           variants={cardVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-gradient-to-b from-sky-50/50 dark:from-sky-900/20 to-transparent py-20"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:from-sky-900/20 py-20"
         >
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5">
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-400" />
@@ -2059,7 +2059,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             <div
                               className="absolute inset-0"
                               style={{
-                                background: `linear-gradient(to top, ${hexToRgba(color, 0.85)} 0%, ${hexToRgba(color, 0.4)} 40%, transparent 100%)`,
+                                background: 'currentColor'
                               }}
                             />
                             {/* Subject name on top of cover */}
@@ -2108,7 +2108,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           <div
                             className="relative h-28 sm:h-32 overflow-hidden flex items-center justify-center"
                             style={{
-                              background: `linear-gradient(135deg, ${hexToRgba(color, 0.25)} 0%, ${hexToRgba(color, 0.08)} 100%)`,
+                              background: 'currentColor'
                             }}
                           >
                             <span
@@ -2120,7 +2120,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             {/* Subject name at bottom */}
                             <div className="absolute bottom-0 start-0 end-0 p-4"
                               style={{
-                                background: `linear-gradient(to top, ${hexToRgba(color, 0.6)} 0%, transparent 100%)`,
+                                background: 'currentColor'
                               }}
                             >
                               <h3 className="font-bold text-foreground text-base leading-tight line-clamp-2">
@@ -2341,7 +2341,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             {!loadingSubjects && role === 'teacher' && approvedSubjects.length === 0 && filterCategory && subjects.length > 0 && !categoriesView && (
               <motion.div
                 variants={cardVariants}
-                className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-b from-emerald-50/50 dark:from-emerald-900/20 to-transparent py-16"
+                className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:from-emerald-900/20 py-16"
               >
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-800/40 mb-4">
                   <FolderTree className="h-8 w-8 text-emerald-700 dark:text-emerald-400" />
@@ -2381,7 +2381,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           <div
                             className="absolute inset-0 pointer-events-none"
                             style={{
-                              background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)} 0%, transparent 100%)`,
+                              background: 'currentColor'
                             }}
                           />
 
@@ -2451,7 +2451,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           <div
                             className="absolute inset-0 pointer-events-none"
                             style={{
-                              background: `linear-gradient(135deg, ${hexToRgba(color, 0.05)} 0%, transparent 100%)`,
+                              background: 'currentColor'
                             }}
                           />
 
@@ -2545,7 +2545,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <div
                 className="px-6 pt-6 pb-4 shrink-0"
                 style={{
-                  background: `linear-gradient(135deg, ${hexToRgba(newSubjectColor, 0.12)} 0%, transparent 100%)`,
+                  background: 'currentColor'
                 }}
               >
                 <div className="flex items-center justify-between">
@@ -3574,7 +3574,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <div
                 className="px-6 pt-6 pb-4"
                 style={{
-                  background: `linear-gradient(135deg, ${hexToRgba('#14b8a6', 0.12)} 0%, transparent 100%)`,
+                  background: 'currentColor'
                 }}
               >
                 <div className="flex items-center justify-between">

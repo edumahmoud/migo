@@ -213,7 +213,7 @@ export default function ResetPasswordPage() {
   return (
     <div
       dir={direction}
-      className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-sky-50/30 px-4 py-8"
+      className="min-h-screen flex items-center justify-center bg-slate-50/30 px-4 py-8"
     >
       <div className="w-full max-w-md">
         {/* ── Loading ── */}
@@ -248,7 +248,7 @@ export default function ResetPasswordPage() {
                 </p>
                 <a
                   href="/"
-                  className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 text-white font-semibold text-base shadow-lg shadow-sky-500/25 hover:from-sky-800 hover:to-teal-700 transition-all"
+                  className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-sky-700 text-white font-semibold text-base shadow-lg shadow-sky-500/25 hover:from-sky-800 hover:to-teal-700 transition-all"
                 >
                   <ArrowRight className="h-4 w-4" />
                   {t('common.returnToLogin')}
@@ -399,7 +399,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className="w-full h-11 rounded-xl text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 text-white shadow-lg shadow-sky-500/25 hover:from-sky-800 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2"
+                  className="w-full h-11 rounded-xl text-base font-semibold bg-sky-700 text-white shadow-lg shadow-sky-500/25 hover:from-sky-800 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2"
                 >
                   {isSubmitting ? (
                     <>

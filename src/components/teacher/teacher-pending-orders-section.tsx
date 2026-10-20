@@ -169,7 +169,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
     <div className="space-y-4 p-3 sm:p-6 max-w-6xl mx-auto">
       {/* Header */}
       <header className="flex items-start gap-3 flex-wrap">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shrink-0">
+        <div className="h-10 w-10 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shrink-0">
           <Clock className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0 flex-1">

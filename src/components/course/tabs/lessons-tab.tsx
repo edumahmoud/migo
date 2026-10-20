@@ -1518,7 +1518,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
           {role === 'student' && visibleLessons.length > 0 && (
             <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden max-w-md">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
+                className="h-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${Math.round((completedCount / Math.max(visibleLessons.length, 1)) * 100)}%` }}
               />
             </div>
@@ -1553,7 +1553,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         /* v99: improved empty state — when no units AND no lessons, ONLY offer to create a unit */
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-gradient-to-b from-sky-50/40 dark:from-sky-900/10 to-transparent py-16 px-4"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/40 dark:from-sky-900/10 py-16 px-4"
         >
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5 ring-4 ring-sky-50 dark:ring-sky-900/30">
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-400" />

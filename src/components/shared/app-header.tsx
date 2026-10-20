@@ -19,6 +19,7 @@ import { useLocaleStore } from '@/i18n/locale-store';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 import ThemeToggle from '@/components/shared/theme-toggle';
+import ThemeSettingsButton from '@/components/shared/theme-settings-button';
 import { supabase } from '@/lib/supabase';
 
 
@@ -281,6 +282,7 @@ export default function AppHeader({
                       {t('nav.settings')}
                     </button>
                     <ThemeToggle />
+                    <ThemeSettingsButton />
 
                     {/* Language Switcher */}
                     <div className="flex items-center justify-between px-4 py-2.5">

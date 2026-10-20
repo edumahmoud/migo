@@ -54,7 +54,7 @@ export default function SupabaseConfigError() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-900 dark:via-card dark:to-teal-900 p-4"
+      className="min-h-screen flex items-center justify-center bg-sky-50 dark:from-slate-900 dark:via-card dark:to-teal-900 p-4"
       dir={direction}
     >
       {/* Background decoration */}
@@ -163,7 +163,7 @@ export default function SupabaseConfigError() {
           >
             <button
               onClick={handleRetry}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
               {t('retry')}

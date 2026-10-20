@@ -604,7 +604,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
               >
                 <CardContent className="p-0">
                   {/* Thumbnail area */}
-                  <div className="relative aspect-video bg-gradient-to-br from-sky-100 to-sky-200 dark:from-sky-900/40 dark:to-sky-800/40 overflow-hidden">
+                  <div className="relative aspect-video bg-sky-100 dark:from-sky-900/40 dark:to-sky-800/40 overflow-hidden">
                     {video.thumbnail_url ? (
                       <img
                         src={video.thumbnail_url}

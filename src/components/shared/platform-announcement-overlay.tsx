@@ -364,7 +364,7 @@ function LoginBannerAnnouncement({
   direction: string;
   onDismiss: () => void;
 }) {
-  const bgColor = announcement.bg_color || 'from-sky-600 via-sky-700 to-teal-600';
+  const bgColor = announcement.bg_color || 'from-sky-600';
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -378,7 +378,7 @@ function LoginBannerAnnouncement({
         className="sticky top-0 z-50"
         dir={direction}
       >
-        <div className={`relative bg-gradient-to-r ${bgColor} text-white shadow-lg`}>
+        <div className={`relative ${bgColor} text-white shadow-lg`}>
           {/* Decorative elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
             <div className="absolute -top-4 -start-4 h-16 w-16 rounded-full bg-white/5 blur-xl" />
@@ -473,7 +473,7 @@ function LoginPopupAnnouncement({
   direction: string;
   onDismiss: () => void;
 }) {
-  const bgColor = announcement.bg_color || 'from-sky-600 via-sky-700 to-teal-600';
+  const bgColor = announcement.bg_color || 'from-sky-600';
 
   return (
     <AnimatePresence mode="wait">
@@ -507,7 +507,7 @@ function LoginPopupAnnouncement({
           aria-describedby="login-popup-message"
         >
           {/* Gradient header */}
-          <div className={`relative bg-gradient-to-r ${bgColor} px-6 py-5`}>
+          <div className={`relative ${bgColor} px-6 py-5`}>
             <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
               <div className="absolute -top-8 -start-8 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
               <div className="absolute -bottom-6 -end-6 h-20 w-20 rounded-full bg-white/10 blur-2xl" />
@@ -610,7 +610,7 @@ function LoginFullscreenAnnouncement({
   direction: string;
   onDismiss: () => void;
 }) {
-  const bgColor = announcement.bg_color || 'from-sky-700 via-sky-800 to-teal-700';
+  const bgColor = announcement.bg_color || 'from-sky-700';
 
   return (
     <AnimatePresence mode="wait">
@@ -624,7 +624,7 @@ function LoginFullscreenAnnouncement({
         dir={direction}
       >
         {/* Full-screen gradient background */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${bgColor}`}>
+        <div className={`absolute inset-0 ${bgColor}`}>
           {/* Decorative background elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
             <div className="absolute -top-32 -start-32 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
@@ -715,11 +715,11 @@ export function AnnouncementBrandingPanel() {
 
   const title = locale === 'en' && announcement.title_en ? announcement.title_en : announcement.title;
   const message = locale === 'en' && announcement.message_en ? announcement.message_en : announcement.message;
-  const bgColor = announcement.bg_color || 'from-sky-700 via-sky-800 to-teal-700';
+  const bgColor = announcement.bg_color || 'from-sky-700';
 
   return (
     <div
-      className={`relative flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 bg-gradient-to-br ${bgColor} text-white overflow-hidden h-full w-full`}
+      className={`relative flex flex-col items-center justify-center p-6 sm:p-8 lg:p-12 ${bgColor} text-white overflow-hidden h-full w-full`}
       dir={direction}
     >
       {/* Decorative background elements */}

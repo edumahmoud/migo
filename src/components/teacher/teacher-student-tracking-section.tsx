@@ -1054,7 +1054,7 @@ export default function TeacherStudentTrackingSection({
       {/* Header */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/25">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 shadow-lg shadow-sky-600/25">
             <Activity className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -1076,7 +1076,7 @@ export default function TeacherStudentTrackingSection({
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-l from-sky-600 to-teal-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
           >
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">{t('teacher.trackingExportData')}</span>
@@ -1768,10 +1768,10 @@ export default function TeacherStudentTrackingSection({
       <motion.div variants={itemVariants}>
         <div className={`rounded-xl border shadow-sm overflow-hidden ${
           overviewStats.atRiskStudents === 0 && overviewStats.avgPerformance >= 70
-            ? 'border-emerald-200/60 dark:border-emerald-900/40 bg-gradient-to-l from-emerald-50/40 via-card to-card dark:from-emerald-900/10'
+            ? 'border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:from-emerald-900/10'
             : overviewStats.avgPerformance >= 50
-            ? 'border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-l from-amber-50/40 via-card to-card dark:from-amber-900/10'
-            : 'border-rose-200/60 dark:border-rose-900/40 bg-gradient-to-l from-rose-50/40 via-card to-card dark:from-rose-900/10'
+            ? 'border-amber-200/60 dark:border-amber-900/40 bg-amber-50/40 dark:from-amber-900/10'
+            : 'border-rose-200/60 dark:border-rose-900/40 bg-rose-50/40 dark:from-rose-900/10'
         }`}>
           {/* Health status header */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
@@ -1991,7 +1991,7 @@ export default function TeacherStudentTrackingSection({
                   </div>
 
                   {/* Performance Distribution Horizontal Bar Chart */}
-                  <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-800/60">
+                  <div className="mt-2 p-4 rounded-xl bg-gray-50/80 dark:from-gray-800/50 dark:to-card border border-gray-100/80 dark:border-gray-800/60">
                     <div className="flex items-center gap-2 mb-3">
                       <BarChart3 className="h-4 w-4 text-sky-600" />
                       <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingPerformanceDistribution')}</span>
@@ -2070,7 +2070,7 @@ export default function TeacherStudentTrackingSection({
                   </div>
 
                   {/* Risk Distribution Bar Chart */}
-                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-800/60">
+                  <div className="mt-4 p-4 rounded-xl bg-gray-50/80 dark:from-gray-800/50 dark:to-card border border-gray-100/80 dark:border-gray-800/60">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertTriangle className="h-4 w-4 text-rose-600" />
                       <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingRiskLevel')}</span>
@@ -2276,7 +2276,7 @@ export default function TeacherStudentTrackingSection({
                         <button
                           type="button"
                           onClick={() => toggleExpand(student.id)}
-                          className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-amber-50/80 to-transparent dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30 hover:shadow-sm transition-shadow text-start"
+                          className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-amber-50/80 dark:from-amber-900/10 border border-amber-100/60 dark:border-amber-900/30 hover:shadow-sm transition-shadow text-start"
                         >
                           <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold shrink-0 ${
                             idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-gray-200' : idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-muted text-muted-foreground'
@@ -2387,7 +2387,7 @@ export default function TeacherStudentTrackingSection({
                         <button
                           type="button"
                           onClick={() => toggleExpand(student.id)}
-                          className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-gradient-to-l from-rose-50/80 to-transparent dark:from-rose-900/10 border border-rose-100/60 dark:border-rose-900/30 hover:shadow-sm transition-shadow text-start"
+                          className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-rose-50/80 dark:from-rose-900/10 border border-rose-100/60 dark:border-rose-900/30 hover:shadow-sm transition-shadow text-start"
                         >
                           <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-[10px] font-bold shrink-0">
                             {idx + 1}
@@ -3630,7 +3630,7 @@ function StudentCard({
               </div>
 
               {/* ── Efficiency Section ── */}
-              <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/80 to-white border border-violet-100/50">
+              <div className="p-3 rounded-xl bg-violet-50/80 border border-violet-100/50">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap className="h-4 w-4 text-violet-600" />
                   <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingStudentEfficiency')}</span>
@@ -3686,7 +3686,7 @@ function StudentCard({
               </div>
 
               {/* ── Discipline Score Card ── */}
-              <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/60 to-teal-50/60 border border-violet-100/50">
+              <div className="p-3 rounded-xl bg-violet-50/60 border border-violet-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck className="h-4 w-4 text-violet-600" />
                   <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingDisciplineScore')}</span>
@@ -3729,7 +3729,7 @@ function StudentCard({
               </div>
 
               {/* ── Growth Index Card ── */}
-              <div className="p-3 rounded-xl bg-gradient-to-l from-emerald-50/60 to-white border border-emerald-100/50">
+              <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <Flame className="h-4 w-4 text-emerald-600" />
                   <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingGrowthIndex')}</span>
@@ -3788,7 +3788,7 @@ function StudentCard({
                 if (diffLast30 === null && diffOverall === null) return null;
 
                 return (
-                  <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/60 to-white border border-sky-100/50">
+                  <div className="p-3 rounded-xl bg-sky-50/60 border border-sky-100/50">
                     <div className="flex items-center gap-2 mb-2.5">
                       <Activity className="h-4 w-4 text-sky-600" />
                       <span className="text-sm font-medium text-gray-900 dark:text-foreground">{locale === 'ar' ? 'تغيرات الأداء عبر الفترات' : 'Performance Changes Over Time'}</span>
@@ -3947,7 +3947,7 @@ function StudentCard({
 
               {/* ── Per-Subject Performance ── */}
               {data.subjectPerformances.length > 0 && (
-                <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-white border border-sky-100/50">
+                <div className="p-3 rounded-xl bg-sky-50/80 border border-sky-100/50">
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen className="h-4 w-4 text-sky-600" />
                     <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingPerformanceBySubject')}</span>
@@ -3964,7 +3964,7 @@ function StudentCard({
               )}
 
               {/* ── Weighted performance breakdown (35/20/15/30) ── */}
-              <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-teal-50/80 border border-sky-100/50">
+              <div className="p-3 rounded-xl bg-sky-50/80 border border-sky-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="h-4 w-4 text-sky-600" />
                   <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingOverallPerformanceCalc')}</span>
@@ -3994,7 +3994,7 @@ function StudentCard({
 
               {/* ── Enhanced Activity Timeline with Filters ── */}
               {data.recentActivities.length > 0 && (
-                <div className="p-3 rounded-xl bg-gradient-to-l from-teal-50/60 to-white border border-teal-100/50">
+                <div className="p-3 rounded-xl bg-teal-50/60 border border-teal-100/50">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Route className="h-4 w-4 text-teal-600" />
@@ -4036,7 +4036,7 @@ function StudentCard({
                   ) : (
                     <div className="relative space-y-0 max-h-52 overflow-y-auto custom-scrollbar">
                       {/* Timeline line */}
-                      <div className="absolute end-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-teal-200 via-sky-200 to-amber-200" />
+                      <div className="absolute end-[15px] top-2 bottom-2 w-0.5 bg-teal-200" />
 
                       {filteredActivities.map((item, idx) => {
                         const iconMap: Record<ActivityType, React.ReactNode> = {
@@ -4180,9 +4180,9 @@ function CourseRankingCard({
   // Background gradients for top 3
   const rankBgClass = (idx: number): string => {
     if (courseSortBy !== 'performance') return '';
-    if (idx === 0) return 'bg-gradient-to-l from-amber-50/80 via-yellow-50/40 to-transparent dark:from-amber-900/10 dark:via-yellow-900/5 border-amber-200/50 dark:border-amber-900/30';
-    if (idx === 1) return 'bg-gradient-to-l from-gray-50/80 via-slate-50/40 to-transparent dark:from-gray-800/10 dark:via-slate-800/5 border-gray-200/50 dark:border-gray-700/30';
-    if (idx === 2) return 'bg-gradient-to-l from-orange-50/80 via-amber-50/40 to-transparent dark:from-orange-900/10 dark:via-amber-900/5 border-orange-200/50 dark:border-orange-900/30';
+    if (idx === 0) return 'bg-amber-50/80 dark:from-amber-900/10 dark:via-yellow-900/5 border-amber-200/50 dark:border-amber-900/30';
+    if (idx === 1) return 'bg-gray-50/80 dark:from-gray-800/10 dark:via-slate-800/5 border-gray-200/50 dark:border-gray-700/30';
+    if (idx === 2) return 'bg-orange-50/80 dark:from-orange-900/10 dark:via-amber-900/5 border-orange-200/50 dark:border-orange-900/30';
     return '';
   };
 

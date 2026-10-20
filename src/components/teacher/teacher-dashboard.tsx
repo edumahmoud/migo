@@ -1372,7 +1372,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden flex-1">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-teal-600 shadow-sm">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-600 shadow-sm">
                   <TrendingUp className="h-3.5 w-3.5 text-white" />
                 </div>
                 {t('teacher.performanceOverview')}
@@ -1381,7 +1381,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => handleSectionChange('tracking')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-l from-sky-600 to-teal-600 text-white text-xs font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
               >
                 <Activity className="h-3.5 w-3.5" />
                 {t('teacher.detailedAnalysis')}
@@ -1735,7 +1735,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           {/* Pending Link Requests Button */}
           <button
             onClick={() => setPendingPanelOpen(true)}
-            className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-900/60 bg-gradient-to-b from-amber-50 dark:from-amber-900/20 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-500 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
+            className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-900/60 bg-amber-50 dark:from-amber-900/20 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-500 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
           >
             <UserPlus className="h-4 w-4" />
             <span>{t('teacher.linkRequests')}</span>
@@ -1833,10 +1833,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               dir={direction}
             >
               {/* Modal Header - warm gradient */}
-              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
+              <div className="shrink-0 px-6 pt-6 pb-5 bg-amber-50/60">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 shadow-sm shadow-sky-200/50">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 shadow-sm shadow-sky-200/50">
                       <UserPlus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                     </div>
                     <div>

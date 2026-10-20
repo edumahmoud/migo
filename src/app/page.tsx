@@ -111,7 +111,7 @@ class AppErrorBoundary extends React.Component<
       // Auto-recovery spinner
       if (this.state.autoRetrying) {
         return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
+          <div className="min-h-screen flex items-center justify-center bg-sky-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <BrandLogo size="lg" />
@@ -126,7 +126,7 @@ class AppErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
+        <div className="min-h-screen flex items-center justify-center bg-sky-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center max-w-md mx-auto">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
               <AlertTriangle className="h-8 w-8 text-amber-500" />
@@ -134,7 +134,7 @@ class AppErrorBoundary extends React.Component<
             <h1 className="text-lg font-bold text-gray-900 mb-2">{labels.appError}</h1>
             <p className="text-sm text-gray-500 mb-4">{labels.unexpectedErrorDesc}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button onClick={this.handleRetry} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 w-full sm:w-auto">
+              <button onClick={this.handleRetry} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 w-full sm:w-auto">
                 <RefreshCw className="h-4 w-4" />
                 {labels.retry}
               </button>
@@ -795,7 +795,7 @@ function HomeContent() {
   const showFullLoading = (loading || !initialized) && !hasPersistedSession;
   if (showFullLoading || !setupCheckDone) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50/30" dir={direction}>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -832,7 +832,7 @@ function HomeContent() {
   // to prevent the jarring flash of login → dashboard.
   if ((!user && hasPersistedSession) || (loading && hasPersistedSession && !initialized)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <BrandLogo size="lg" />
@@ -867,7 +867,7 @@ function HomeContent() {
   // would crash the entire app with no recovery.
   if (currentPage === 'quiz' && viewingQuizId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="min-h-screen bg-sky-50/30" dir={direction}>
         <AppErrorBoundary onFallbackToLogin={() => {
           setViewingQuizId(null);
           setCurrentPage('auth');
@@ -898,7 +898,7 @@ function HomeContent() {
   // ─── Loading spinners for orphaned pages (while useEffect hasn't run yet) ───
   if (currentPage === 'quiz' && !viewingQuizId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <BrandLogo size="lg" />
@@ -914,7 +914,7 @@ function HomeContent() {
 
   if (currentPage === 'summary') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <BrandLogo size="lg" />
@@ -1025,7 +1025,7 @@ onSignOut={async () => {
   // If user becomes null (e.g., auth timeout with persisted session), redirect to auth.
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="min-h-screen flex items-center justify-center bg-sky-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <BrandLogo size="lg" />
@@ -1083,7 +1083,7 @@ onSignOut={async () => {
       if (agentSection === 'profile' || agentSection === 'settings') {
         return (
           <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
-            <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30">
+            <div className="min-h-screen bg-sky-50/30">
               <AppHeader
                 userName={user.name}
                 userId={user.id}
@@ -1136,7 +1136,7 @@ onSignOut={async () => {
       }
       return (
         <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
-          <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30">
+          <div className="min-h-screen bg-sky-50/30">
             <AppHeader
               userName={user.name}
               userId={user.id}
@@ -1214,7 +1214,7 @@ onSignOut={async () => {
   })();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir={direction}>
+    <div className="min-h-screen bg-slate-50/30" dir={direction}>
       <AppErrorBoundary onFallbackToLogin={handleSignOut} labels={{
         retrying: t('common.retrying'),
         appError: t('common.appError'),
@@ -1258,7 +1258,7 @@ function AuthPageContent({
   return (
     <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
       {/* ── Left Panel: Announcement OR Branding ── */}
-      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden ${hasFullscreenAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
+      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden ${hasFullscreenAnnouncement ? '' : 'bg-sky-700'}`}>
         {hasFullscreenAnnouncement ? (
           /* Show announcement in the branding panel area (fullscreen mode) */
           <AnnouncementBrandingPanel />
@@ -1318,7 +1318,7 @@ function AuthPageContent({
       </div>
 
       {/* ── Auth Form Panel ── */}
-      <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-slate-50/30">
         {/* Mobile-only top branding/announcement */}
         <div className="lg:hidden flex flex-col items-center mb-6">
           {hasFullscreenAnnouncement ? (
@@ -1409,7 +1409,7 @@ function AuthPageContent({
 function LoadingFallback() {
   const { t, direction } = useTranslations();
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+    <div className="min-h-screen flex items-center justify-center bg-sky-50/30" dir={direction}>
       <div className="flex flex-col items-center gap-4">
         <div className="relative">
           <BrandLogo size="lg" />

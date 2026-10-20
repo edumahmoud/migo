@@ -391,7 +391,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 <Button
                   type="submit"
                   disabled={!canSubmit}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
+                  className="w-full h-11 text-base font-semibold bg-sky-700 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                 >
                   {isLoading ? (
                     <>
