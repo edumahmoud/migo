@@ -1,154 +1,152 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { XIcon } from "lucide-react"
+/**
+ * Dialog adapter — shadcn Dialog API → Mantine Modal
+ *
+ * Maps shadcn's Dialog/DialogContent/DialogHeader/DialogTitle/etc.
+ * to Mantine's Modal component.
+ *
+ * Usage in existing code:
+ *   <Dialog open={open} onOpenChange={setOpen}>
+ *     <DialogContent>
+ *       <DialogHeader>
+ *         <DialogTitle>Title</DialogTitle>
+ *         <DialogDescription>Description</DialogDescription>
+ *       </DialogHeader>
+ *       {children}
+ *       <DialogFooter>
+ *         <Button>Action</Button>
+ *       </DialogFooter>
+ *     </DialogContent>
+ *   </Dialog>
+ *
+ * This adapter wraps everything in a single Mantine Modal.
+ */
 
-import { cn } from "@/lib/utils"
+import * as React from 'react';
+import { Modal, Text, Stack, Group } from '@mantine/core';
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-function Dialog({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+interface DialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children?: React.ReactNode;
+  defaultOpen?: boolean;
+  modal?: boolean;
 }
 
-function DialogTrigger({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
-}
+function Dialog({ open, onOpenChange, children }: DialogProps) {
+  // Find DialogContent among children to extract props
+  const contentChild = React.Children.toArray(children).find(
+    (child): child is React.ReactElement =>
+      React.isValidElement(child) && (child.type as any)?.displayName === 'DialogContent'
+  );
 
-function DialogPortal({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
-}
+  const contentProps = (contentChild?.props || {}) as { className?: string };
+  const className = contentProps.className || '';
+  const maxW = className.includes('max-w-sm') ? 'sm' :
+               className.includes('max-w-lg') ? 'lg' :
+               className.includes('max-w-2xl') ? '2xl' :
+               className.includes('max-w-3xl') ? '3xl' :
+               className.includes('max-w-4xl') ? '4xl' : 'md';
 
-function DialogClose({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
-}
+  const sizeMap: Record<string, string> = {
+    sm: '400px', md: '500px', lg: '640px',
+    '2xl': '768px', '3xl': '900px', '4xl': '1100px',
+  };
 
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
-    <DialogPrimitive.Overlay
-      data-slot="dialog-overlay"
-      className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
-        className
-      )}
-      {...props}
-    />
-  )
+    <Modal
+      opened={open || false}
+      onClose={() => onOpenChange?.(false)}
+      size={sizeMap[maxW] || 'md'}
+      centered
+      withCloseButton={false}
+      styles={{ body: { padding: 0 } }}
+    >
+      {contentChild}
+    </Modal>
+  );
 }
 
 function DialogContent({
-  className,
   children,
-  showCloseButton = true,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
-}) {
-  return (
-    <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        data-slot="dialog-content"
-        className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 flex flex-col w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] rounded-lg border shadow-lg duration-200 sm:max-w-lg max-h-[85dvh] overflow-hidden",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  )
-}
-
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left shrink-0 sticky top-0 z-10 bg-background px-6 pt-6 pb-3 border-b border-border/50", className)}
-      {...props}
-    />
-  )
-}
-
-function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end shrink-0 sticky bottom-0 z-10 bg-background px-6 py-4 border-t border-border/50",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function DialogScrollArea({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-scroll-area"
-      className={cn("flex-1 overflow-y-auto px-6 py-4 min-h-0", className)}
-      {...props}
-    />
-  )
-}
-
-function DialogTitle({
   className,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+  onEscapeKeyDown,
+  onPointerDownOutside,
+  onInteractOutside,
+  showCloseButton,
+  dir,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  onOpenAutoFocus?: (e: any) => void;
+  onCloseAutoFocus?: (e: any) => void;
+  onEscapeKeyDown?: (e: any) => void;
+  onPointerDownOutside?: (e: any) => void;
+  onInteractOutside?: (e: any) => void;
+  showCloseButton?: boolean;
+  dir?: 'rtl' | 'ltr';
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn("text-lg leading-none font-semibold", className)}
-      {...props}
-    />
-  )
+    <div className={cn('p-lg', className)} {...props}>
+      {children}
+    </div>
+  );
+}
+DialogContent.displayName = 'DialogContent';
+
+function DialogHeader({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Stack gap="xs" className={cn('mb-md', className)}>{children}</Stack>;
 }
 
-function DialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+function DialogBody({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Stack gap="md" className={className}>{children}</Stack>;
+}
+
+function DialogFooter({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <DialogPrimitive.Description
-      data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
-      {...props}
-    />
-  )
+    <Group justify="flex-end" gap="sm" className={cn('mt-lg', className)}>
+      {children}
+    </Group>
+  );
+}
+
+function DialogTitle({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Text size="lg" fw={700} className={className}>{children}</Text>;
+}
+
+function DialogDescription({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Text size="sm" c="dimmed" className={className}>{children}</Text>;
+}
+
+function DialogClose({ children, asChild, className }: { children?: React.ReactNode; asChild?: boolean; className?: string }) {
+  return <span className={className}>{children}</span>;
+}
+
+function DialogTrigger({ children, asChild, className }: { children?: React.ReactNode; asChild?: boolean; className?: string }) {
+  return <span className={className}>{children}</span>;
+}
+
+function DialogPortal({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>;
+}
+
+function DialogOverlay({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>;
+}
+
+// DialogScrollArea — just pass children through (Mantine Modal has built-in scroll)
+function DialogScrollArea({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <div className={className} style={{ maxHeight: '70vh', overflowY: 'auto' }}>{children}</div>;
 }
 
 export {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogOverlay,
-  DialogPortal,
-  DialogScrollArea,
-  DialogTitle,
-  DialogTrigger,
-}
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogBody, DialogOverlay, DialogPortal, DialogTitle,
+  DialogTrigger, DialogScrollArea,
+};

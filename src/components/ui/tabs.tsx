@@ -1,66 +1,76 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
+/**
+ * Tabs adapter — shadcn Tabs → Mantine Tabs
+ *
+ * Maps shadcn's Tabs/TabsList/TabsTrigger/TabsContent to Mantine's Tabs.
+ */
 
-import { cn } from "@/lib/utils"
+import * as React from 'react';
+import { Tabs as MantineTabs } from '@mantine/core';
+import { cn } from '@/lib/utils';
 
-function Tabs({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>) {
-  return (
-    <TabsPrimitive.Root
-      data-slot="tabs"
-      className={cn("flex flex-col gap-2", className)}
-      {...props}
-    />
-  )
+interface TabsProps {
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  children?: React.ReactNode;
+  className?: string;
+  orientation?: 'horizontal' | 'vertical';
+  dir?: 'rtl' | 'ltr';
 }
 
-function TabsList({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.List>) {
+function Tabs({ value, defaultValue, onValueChange, children, className, orientation, dir }: TabsProps) {
   return (
-    <TabsPrimitive.List
-      data-slot="tabs-list"
-      className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
-        className
-      )}
-      {...props}
-    />
-  )
+    <MantineTabs
+      value={value}
+      defaultValue={defaultValue}
+      onChange={(v) => onValueChange?.(v || '')}
+      orientation={orientation}
+      variant="default"
+      className={cn(className)}
+    >
+      {children}
+    </MantineTabs>
+  );
+}
+
+function TabsList({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <MantineTabs.List className={cn(className)}>{children}</MantineTabs.List>;
 }
 
 function TabsTrigger({
+  value,
+  children,
   className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+  disabled,
+}: {
+  value: string;
+  children?: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+}) {
   return (
-    <TabsPrimitive.Trigger
-      data-slot="tabs-trigger"
-      className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    />
-  )
+    <MantineTabs.Tab value={value} disabled={disabled} className={cn(className)}>
+      {children}
+    </MantineTabs.Tab>
+  );
 }
 
 function TabsContent({
+  value,
+  children,
   className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+}: {
+  value: string;
+  children?: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <TabsPrimitive.Content
-      data-slot="tabs-content"
-      className={cn("flex-1 outline-none", className)}
-      {...props}
-    />
-  )
+    <MantineTabs.Panel value={value} className={cn(className)}>
+      {children}
+    </MantineTabs.Panel>
+  );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+export { Tabs, TabsList, TabsTrigger, TabsContent };

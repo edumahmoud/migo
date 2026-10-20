@@ -1,157 +1,123 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
+/**
+ * AlertDialog adapter — shadcn AlertDialog → Mantine Modal
+ *
+ * Maps shadcn's AlertDialog API to Mantine's Modal component.
+ */
 
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+import * as React from 'react';
+import { Modal, Text, Stack, Group, Button as MantineButton } from '@mantine/core';
+import { cn } from '@/lib/utils';
 
-function AlertDialog({
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+interface AlertDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children?: React.ReactNode;
 }
 
-function AlertDialogTrigger({
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Trigger>) {
-  return (
-    <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />
-  )
-}
+function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
+  const contentChild = React.Children.toArray(children).find(
+    (child): child is React.ReactElement =>
+      React.isValidElement(child) && (child.type as any)?.displayName === 'AlertDialogContent'
+  );
 
-function AlertDialogPortal({
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
   return (
-    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
-  )
-}
-
-function AlertDialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
-  return (
-    <AlertDialogPrimitive.Overlay
-      data-slot="alert-dialog-overlay"
-      className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
-        className
-      )}
-      {...props}
-    />
-  )
+    <Modal
+      opened={open || false}
+      onClose={() => onOpenChange?.(false)}
+      size="md"
+      centered
+      withCloseButton={false}
+      styles={{ body: { padding: 0 } }}
+    >
+      {contentChild}
+    </Modal>
+  );
 }
 
 function AlertDialogContent({
+  children,
   className,
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+}: {
+  children?: React.ReactNode;
+  className?: string;
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <AlertDialogPortal>
-      <AlertDialogOverlay />
-      <AlertDialogPrimitive.Content
-        data-slot="alert-dialog-content"
-        className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 flex flex-col w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] rounded-lg border shadow-lg duration-200 sm:max-w-lg max-h-[85dvh] overflow-hidden",
-          className
-        )}
-        {...props}
-      />
-    </AlertDialogPortal>
-  )
+    <div className={cn('p-lg', className)} {...props}>
+      {children}
+    </div>
+  );
+}
+AlertDialogContent.displayName = 'AlertDialogContent';
+
+function AlertDialogHeader({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Stack gap="xs" className={cn('mb-md', className)}>{children}</Stack>;
 }
 
-function AlertDialogHeader({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function AlertDialogFooter({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <div
-      data-slot="alert-dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left shrink-0 sticky top-0 z-10 bg-background px-6 pt-6 pb-3 border-b border-border/50", className)}
-      {...props}
-    />
-  )
+    <Group justify="flex-end" gap="sm" className={cn('mt-lg', className)}>
+      {children}
+    </Group>
+  );
 }
 
-function AlertDialogFooter({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-dialog-footer"
-      className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end shrink-0 sticky bottom-0 z-10 bg-background px-6 py-4 border-t border-border/50",
-        className
-      )}
-      {...props}
-    />
-  )
+function AlertDialogTitle({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Text size="lg" fw={700} className={className}>{children}</Text>;
 }
 
-function AlertDialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
-  return (
-    <AlertDialogPrimitive.Title
-      data-slot="alert-dialog-title"
-      className={cn("text-lg font-semibold", className)}
-      {...props}
-    />
-  )
-}
-
-function AlertDialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
-  return (
-    <AlertDialogPrimitive.Description
-      data-slot="alert-dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
-      {...props}
-    />
-  )
+function AlertDialogDescription({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <Text size="sm" c="dimmed" className={className}>{children}</Text>;
 }
 
 function AlertDialogAction({
+  children,
+  onClick,
   className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
+  disabled,
+}: {
+  children?: React.ReactNode;
+  onClick?: (e: React.MouseEvent) => void;
+  className?: string;
+  disabled?: boolean;
+}) {
   return (
-    <AlertDialogPrimitive.Action
-      className={cn(buttonVariants(), className)}
-      {...props}
-    />
-  )
+    <MantineButton color="red" onClick={onClick} disabled={disabled} className={className}>
+      {children}
+    </MantineButton>
+  );
 }
 
 function AlertDialogCancel({
+  children,
+  onClick,
   className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
+  disabled,
+}: {
+  children?: React.ReactNode;
+  onClick?: (e: React.MouseEvent) => void;
+  className?: string;
+  disabled?: boolean;
+}) {
   return (
-    <AlertDialogPrimitive.Cancel
-      className={cn(buttonVariants({ variant: "outline" }), className)}
-      {...props}
-    />
-  )
+    <MantineButton variant="subtle" onClick={onClick} disabled={disabled} className={className}>
+      {children}
+    </MantineButton>
+  );
+}
+
+function AlertDialogTrigger({ children, asChild, className }: { children?: React.ReactNode; asChild?: boolean; className?: string }) {
+  return <span className={className}>{children}</span>;
 }
 
 export {
-  AlertDialog,
-  AlertDialogPortal,
-  AlertDialogOverlay,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-}
+  AlertDialog, AlertDialogPortal, AlertDialogOverlay, AlertDialogTrigger,
+  AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+};
+
+// Stubs for unused components
+function AlertDialogPortal({ children }: { children?: React.ReactNode }) { return <>{children}</>; }
+function AlertDialogOverlay({ children }: { children?: React.ReactNode }) { return <>{children}</>; }
