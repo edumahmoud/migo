@@ -811,7 +811,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       <div
         className="relative overflow-hidden rounded-2xl"
         style={{
-          background: `linear-gradient(135deg, ${gradientFrom} 0%, ${gradientTo} 100%)`,
+          background: "currentColor",
           minHeight: '150px',
         }}
       >
@@ -905,8 +905,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     {/* Shimmer effect on hover */}
                     <span className={`absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ${
                       subject?.is_paused
-                        ? 'bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent'
-                        : 'bg-gradient-to-r from-transparent via-amber-400/10 to-transparent'
+                        ? 'bg-primary/10'
+                        : 'bg-primary/10'
                     }`} />
                     {togglingPause ? (
                       <Loader2 className="h-5 w-5 animate-spin shrink-0" />
@@ -1187,7 +1187,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               <div
                 className="shrink-0 px-6 pt-6 pb-4 border-b"
                 style={{
-                  background: `linear-gradient(135deg, ${hexToRgba(editColor, 0.12)} 0%, transparent 100%)`,
+                  background: 'currentColor'
                 }}
               >
                 <div className="flex items-center justify-between">

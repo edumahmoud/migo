@@ -656,7 +656,7 @@ export default function AgentPortal({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-card shadow-2xl overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-l from-rose-500 to-rose-600 p-6 text-center">
+            <div className="bg-rose-500 p-6 text-center">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 mb-4">
                 <Ban className="h-10 w-10 text-white" />
               </div>
@@ -742,7 +742,7 @@ export default function AgentPortal({
       {activeSection === 'search' && (
         <>
           <header className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shrink-0">
+            <div className="h-10 w-10 rounded-xl bg-sky-600 flex items-center justify-center shadow-lg shrink-0">
               <Search className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -1204,7 +1204,7 @@ function TopLevelSection({
     return (
       <>
         <header className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
+          <div className="h-10 w-10 rounded-xl bg-slate-500 flex items-center justify-center shadow-lg shrink-0">
             {sectionDef?.icon ?? <LayoutDashboard className="h-5 w-5 text-white" />}
           </div>
           <div>
@@ -1249,7 +1249,7 @@ function TopLevelSection({
   return (
     <>
       <header className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg shrink-0">
+        <div className="h-10 w-10 rounded-xl bg-slate-500 flex items-center justify-center shadow-lg shrink-0">
           {sectionDef?.icon ?? <LayoutDashboard className="h-5 w-5 text-white" />}
         </div>
         <div className="min-w-0 flex-1">
@@ -2885,7 +2885,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
         >
           <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
         </button>
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center shadow-lg shrink-0">
+        <div className="h-10 w-10 rounded-xl bg-sky-500 flex items-center justify-center shadow-lg shrink-0">
           <Activity className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0 flex-1">

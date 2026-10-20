@@ -53,40 +53,40 @@ interface PlatformAnnouncementsSectionProps {
 // -------------------------------------------------------
 const GRADIENT_OPTIONS: { value: string; labelAr: string; labelEn: string; preview: string }[] = [
   {
-    value: 'from-sky-700 via-sky-800 to-teal-700',
+    value: 'from-sky-700',
     labelAr: 'سماوي',
     labelEn: 'Sky / Teal',
-    preview: 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700',
+    preview: 'bg-sky-700',
   },
   {
-    value: 'from-emerald-700 via-emerald-800 to-teal-700',
+    value: 'from-emerald-700',
     labelAr: 'أخضر',
     labelEn: 'Green (Celebrations)',
-    preview: 'bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-700',
+    preview: 'bg-emerald-700',
   },
   {
-    value: 'from-violet-700 via-purple-800 to-fuchsia-700',
+    value: 'from-violet-700',
     labelAr: 'بنفسجي',
     labelEn: 'Purple (Events)',
-    preview: 'bg-gradient-to-br from-violet-700 via-purple-800 to-fuchsia-700',
+    preview: 'bg-violet-700',
   },
   {
-    value: 'from-amber-600 via-orange-700 to-red-600',
+    value: 'from-amber-600',
     labelAr: 'دافئ',
     labelEn: 'Warm (Alerts)',
-    preview: 'bg-gradient-to-br from-amber-600 via-orange-700 to-red-600',
+    preview: 'bg-amber-600',
   },
   {
-    value: 'from-rose-700 via-pink-800 to-red-700',
+    value: 'from-rose-700',
     labelAr: 'أحمر',
     labelEn: 'Red (Urgent)',
-    preview: 'bg-gradient-to-br from-rose-700 via-pink-800 to-red-700',
+    preview: 'bg-rose-700',
   },
   {
-    value: 'from-gray-700 via-gray-800 to-slate-700',
+    value: 'from-gray-700',
     labelAr: 'محايد',
     labelEn: 'Neutral (Maintenance)',
-    preview: 'bg-gradient-to-br from-gray-700 via-gray-800 to-slate-700',
+    preview: 'bg-gray-700',
   },
 ];
 
@@ -158,7 +158,7 @@ const INITIAL_FORM: FormState = {
   title_en: '',
   message_en: '',
   type: 'celebration',
-  bg_color: 'from-sky-700 via-sky-800 to-teal-700',
+  bg_color: 'from-sky-700',
   icon: '🎉',
   display_location: 'everywhere',
   display_size: 'fullscreen',
@@ -382,7 +382,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
       title_en: announcement.title_en || '',
       message_en: announcement.message_en || '',
       type: announcement.type,
-      bg_color: announcement.bg_color || 'from-sky-700 via-sky-800 to-teal-700',
+      bg_color: announcement.bg_color || 'from-sky-700',
       icon: announcement.icon || '🎉',
       display_location: announcement.display_location,
       display_size: announcement.display_size,
@@ -543,7 +543,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-teal-100 dark:from-sky-900/50 dark:to-teal-900/50">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:from-sky-900/50 dark:to-teal-900/50">
             <Megaphone className="h-5 w-5 text-sky-700 dark:text-sky-400" />
           </div>
           <div>
@@ -639,7 +639,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                 }`}
               >
                 {/* Card gradient accent bar */}
-                <div className={`h-1.5 bg-gradient-to-r ${announcement.bg_color || 'from-sky-700 via-sky-800 to-teal-700'}`} />
+                <div className={`h-1.5 bg-clip-text ${announcement.bg_color || 'from-sky-700'}`} />
 
                 <div className="p-4">
                   <div className="flex items-start gap-3">

@@ -83,7 +83,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
         >
           <div className="rounded-2xl border border-rose-200 bg-card shadow-2xl overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-l from-rose-500 to-rose-600 p-6 text-center">
+            <div className="bg-rose-500 p-6 text-center">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 mb-4">
                 <ShieldAlert className="h-10 w-10 text-white" />
               </div>

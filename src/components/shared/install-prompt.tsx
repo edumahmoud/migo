@@ -93,7 +93,7 @@ export default function InstallPrompt() {
           className="fixed bottom-20 start-4 end-4 z-50 mx-auto max-w-md sm:bottom-6 sm:start-auto sm:end-6"
           dir={direction}
         >
-          <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-xl sm:p-5">
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-xl sm:p-5">
             <button
               onClick={handleDismiss}
               className="absolute top-3 start-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50 transition-colors"

@@ -645,43 +645,43 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             icon={<TrendingUp className="h-5 w-5" />}
             label={t('adminFinancial.summary.totalGross')}
             value={formatAmount(summary.total_gross)}
-            color="bg-gradient-to-br from-sky-500 to-sky-700 text-white"
+            color="bg-sky-500 text-white"
           />
           <SummaryCard
             icon={<Banknote className="h-5 w-5" />}
             label={t('adminFinancial.summary.platformShare')}
             value={formatAmount(summary.total_platform_share)}
-            color="bg-gradient-to-br from-violet-500 to-violet-600 text-white"
+            color="bg-violet-500 text-white"
           />
           <SummaryCard
             icon={<Receipt className="h-5 w-5" />}
             label={t('adminFinancial.summary.transactionCount')}
             value={String(summary.transaction_count)}
-            color="bg-gradient-to-br from-rose-400 to-rose-500 text-white"
+            color="bg-rose-400 text-white"
           />
           <SummaryCard
             icon={<Users className="h-5 w-5" />}
             label={t('adminFinancial.summary.activeSubscriptions')}
             value={String(summary.active_subscriptions)}
-            color="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white"
+            color="bg-indigo-500 text-white"
           />
           <SummaryCard
             icon={<Users className="h-5 w-5" />}
             label={t('adminFinancial.summary.uniqueStudents')}
             value={String(summary.unique_students)}
-            color="bg-gradient-to-br from-purple-500 to-purple-600 text-white"
+            color="bg-purple-500 text-white"
           />
           <SummaryCard
             icon={<Calculator className="h-5 w-5" />}
             label={t('adminFinancial.summary.avgStudentRevenue')}
             value={formatAmount(summary.avg_student_revenue)}
-            color="bg-gradient-to-br from-teal-500 to-teal-600 text-white"
+            color="bg-teal-500 text-white"
           />
           <SummaryCard
             icon={<Calculator className="h-5 w-5" />}
             label={t('adminFinancial.summary.avgTransactionValue')}
             value={formatAmount(summary.avg_transaction_value)}
-            color="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white"
+            color="bg-cyan-500 text-white"
           />
         </div>
       )}

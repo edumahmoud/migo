@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import React from "react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Cairo, Inter } from "next/font/google";
+import "@mantine/core/styles.css";
+import "@mantine/dates/styles.css";
+import "@mantine/notifications/styles.css";
+import "@mantine/nprogress/styles.css";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import InstitutionHead from "@/components/shared/institution-head";
@@ -17,6 +21,8 @@ import { DirectionProvider } from "@/i18n/direction-provider";
 
 import { SocketProvider } from "@/lib/socket";
 import ClientProviders from "@/components/providers/client-providers";
+// v134n: Mantine providers (coexist with shadcn during migration)
+import MantineProviders from "@/components/providers/mantine-providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,6 +32,19 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// v134n: Cairo (Arabic) + Inter (English) — primary fonts for Mantine theme.
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic", "latin"],
+  display: "swap",
+});
+
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -172,10 +191,12 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} ${cairo.variable} ${inter.variable} antialiased bg-background text-foreground`}
       >
         <I18nProvider>
           <DirectionProvider>
+            {/* v134n: Mantine providers wrap everything (coexist with shadcn) */}
+            <MantineProviders>
             <ClientProviders>
             <SocketErrorBoundary
               // Slot 1 (normal): Full app WITH SocketProvider
@@ -202,6 +223,7 @@ export default function RootLayout({
             <StickyNotesOverlay />
             <ConnectivityMonitor />
             </ClientProviders>
+            </MantineProviders>
           </DirectionProvider>
         </I18nProvider>
       </body>

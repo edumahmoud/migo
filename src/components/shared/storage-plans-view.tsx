@@ -160,10 +160,10 @@ export default function StoragePlansView() {
 
   // ─── Plan card accent colors (rotating palette) ───
   const planAccents = [
-    { bg: 'from-sky-50 to-sky-100/50 dark:from-sky-900/20 dark:to-sky-900/5', icon: 'bg-sky-500', ring: 'ring-sky-200 dark:ring-sky-800', text: 'text-sky-700 dark:text-sky-300', btn: 'bg-sky-600 hover:bg-sky-700' },
-    { bg: 'from-violet-50 to-violet-100/50 dark:from-violet-900/20 dark:to-violet-900/5', icon: 'bg-violet-500', ring: 'ring-violet-200 dark:ring-violet-800', text: 'text-violet-700 dark:text-violet-300', btn: 'bg-violet-600 hover:bg-violet-700' },
-    { bg: 'from-emerald-50 to-emerald-100/50 dark:from-emerald-900/20 dark:to-emerald-900/5', icon: 'bg-emerald-500', ring: 'ring-emerald-200 dark:ring-emerald-800', text: 'text-emerald-700 dark:text-emerald-300', btn: 'bg-emerald-600 hover:bg-emerald-700' },
-    { bg: 'from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-900/5', icon: 'bg-amber-500', ring: 'ring-amber-200 dark:ring-amber-800', text: 'text-amber-700 dark:text-amber-300', btn: 'bg-amber-600 hover:bg-amber-700' },
+    { bg: 'from-sky-50 dark:from-sky-900/20 dark:to-sky-900/5', icon: 'bg-sky-500', ring: 'ring-sky-200 dark:ring-sky-800', text: 'text-sky-700 dark:text-sky-300', btn: 'bg-sky-600 hover:bg-sky-700' },
+    { bg: 'from-violet-50 dark:from-violet-900/20 dark:to-violet-900/5', icon: 'bg-violet-500', ring: 'ring-violet-200 dark:ring-violet-800', text: 'text-violet-700 dark:text-violet-300', btn: 'bg-violet-600 hover:bg-violet-700' },
+    { bg: 'from-emerald-50 dark:from-emerald-900/20 dark:to-emerald-900/5', icon: 'bg-emerald-500', ring: 'ring-emerald-200 dark:ring-emerald-800', text: 'text-emerald-700 dark:text-emerald-300', btn: 'bg-emerald-600 hover:bg-emerald-700' },
+    { bg: 'from-amber-50 dark:from-amber-900/20 dark:to-amber-900/5', icon: 'bg-amber-500', ring: 'ring-amber-200 dark:ring-amber-800', text: 'text-amber-700 dark:text-amber-300', btn: 'bg-amber-600 hover:bg-amber-700' },
   ];
   // The "popular" plan is the one with sort_order=2 (middle of 4) — or index 1 by default.
   const popularIdx = Math.min(1, Math.max(0, status.plans.length - 1));
@@ -272,7 +272,7 @@ export default function StoragePlansView() {
         <DialogContent className="max-w-3xl">
           <DialogHeader className="pb-2">
             <DialogTitle className="flex items-center gap-2 text-base">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-violet-500 text-white">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500 text-white">
                 <Sparkles className="h-4 w-4" />
               </div>
               ترقية مساحة التخزين
@@ -330,7 +330,7 @@ export default function StoragePlansView() {
                       key={plan.id}
                       className={`relative overflow-hidden transition-all ${
                         isCurrent
-                          ? `ring-2 ${accent.ring} bg-gradient-to-br ${accent.bg}`
+                          ? `ring-2 ${accent.ring} ${accent.bg}`
                           : isPopular
                             ? `ring-2 ring-amber-300 dark:ring-amber-700 hover:shadow-lg`
                             : 'hover:shadow-md hover:border-sky-200'
@@ -338,7 +338,7 @@ export default function StoragePlansView() {
                     >
                       {/* "شائع" ribbon for the popular plan */}
                       {isPopular && (
-                        <div className="absolute top-0 inset-x-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-medium text-center py-0.5 flex items-center justify-center gap-1">
+                        <div className="absolute top-0 inset-x-0 bg-amber-500 text-white text-[9px] font-medium text-center py-0.5 flex items-center justify-center gap-1">
                           <Crown className="h-2.5 w-2.5" />
                           الأكثر طلباً
                         </div>

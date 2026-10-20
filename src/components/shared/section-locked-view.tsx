@@ -192,7 +192,7 @@ export default function SectionLockedView({
         {/* Header */}
         <Card className="border-amber-200 dark:border-amber-900/60">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/30">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500 shadow-lg shadow-amber-500/30">
               {isStorage ? <HardDrive className="h-8 w-8 text-white" /> : <Lock className="h-8 w-8 text-white" />}
             </div>
             <CardTitle className="text-xl">{sectionLabel}</CardTitle>

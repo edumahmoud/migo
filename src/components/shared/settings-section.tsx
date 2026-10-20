@@ -60,6 +60,7 @@ import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
 import ThemeToggle from '@/components/shared/theme-toggle';
+import ThemeSettingsButton from '@/components/shared/theme-settings-button';
 import { useTranslations } from '@/i18n/use-translations';
 import { useLocaleStore } from '@/i18n/locale-store';
 
@@ -1392,6 +1393,9 @@ export default function SettingsSection({
 
               {/* Theme Toggle (Appearance) */}
               <ThemeToggle />
+
+              {/* v134n: Theme Settings (color identity + mode) */}
+              <ThemeSettingsButton />
 
               {/* Divider */}
               <div className="border-t" />

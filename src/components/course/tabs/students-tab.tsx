@@ -700,7 +700,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
           {statusColumnExists && (
             <button
               onClick={() => setPendingPanelOpen(true)}
-              className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-500 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
+              className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 bg-amber-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-500 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
             >
               <UserPlus className="h-4 w-4" />
               <span>{t('studentsTab.joinRequests')}</span>
@@ -1227,10 +1227,10 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
               dir={direction}
             >
               {/* Modal Header - warm gradient */}
-              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
+              <div className="shrink-0 px-6 pt-6 pb-5 bg-amber-50/60">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 shadow-sm shadow-sky-200/50">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 shadow-sm shadow-sky-200/50">
                       <UserPlus className="h-5.5 w-5.5 text-sky-700 dark:text-sky-400" />
                     </div>
                     <div>
@@ -1278,7 +1278,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
               </div>
 
               {/* Soft divider */}
-              <div className="shrink-0 mx-6 h-px bg-gradient-to-l from-transparent via-border to-transparent" />
+              <div className="shrink-0 mx-6 h-px bg-border" />
 
               {/* Pending Requests List */}
               <div className="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin">
@@ -1296,7 +1296,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
                     transition={{ duration: 0.35, delay: 0.1 }}
                     className="flex flex-col items-center justify-center py-14"
                   >
-                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-100/50 mb-5 shadow-sm">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 border border-sky-100/50 mb-5 shadow-sm">
                       <CheckCircle2 className="h-10 w-10 text-sky-400" />
                     </div>
                     <p className="text-base font-semibold text-foreground mb-1.5">{t('studentsTab.allSet')}</p>

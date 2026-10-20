@@ -8,6 +8,12 @@ import {
   CheckCircle2, AlertCircle, RefreshCw, LogOut, Check, X,
   Clock, Gift,
 } from 'lucide-react';
+// v134n: Mantine imports (will progressively replace shadcn in this file)
+import {
+  Card as MCard, Text, TextInput, Button as MButton, Stack, Group, Box, Anchor as MAnchor,
+  Alert as MAlert, Center, Badge as MBadge, CopyButton, ActionIcon,
+} from '@mantine/core';
+// shadcn fallback (still used in this large file — will be migrated incrementally)
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -405,7 +411,7 @@ export default function StudentActivationPage() {
 
   if (loading || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50">
+      <div className="min-h-screen flex items-center justify-center bg-sky-50">
         <div className="flex items-center gap-2 text-sky-700">
           <Loader2 className="h-5 w-5 animate-spin" /><span>جارٍ تحميل صفحة التفعيل...</span>
         </div>
@@ -431,7 +437,7 @@ export default function StudentActivationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50 p-3 sm:p-6">
+    <div className="min-h-screen bg-sky-50 p-3 sm:p-6">
       {/* Subtle refresh indicator — shows a thin bar when silently refreshing */}
       {silentRefreshing && (
         <div className="fixed top-0 left-0 right-0 h-0.5 bg-sky-500 z-50 animate-pulse" />
@@ -440,7 +446,7 @@ export default function StudentActivationPage() {
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg">
+            <div className="h-10 w-10 rounded-xl bg-sky-600 flex items-center justify-center shadow-lg">
               <KeyRound className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -593,7 +599,7 @@ export default function StudentActivationPage() {
                     </div>
                   );
                 })}
-                <Button onClick={handleSubmitOrders} disabled={submitting || selectedCourses.size === 0} className="w-full h-11 bg-gradient-to-l from-sky-700 to-teal-600">
+                <Button onClick={handleSubmitOrders} disabled={submitting || selectedCourses.size === 0} className="w-full h-11 bg-sky-700">
                   {submitting ? <Loader2 className="h-5 w-5 animate-spin me-2" /> : <CreditCard className="h-5 w-5 me-2" />}
                   متابعة الدفع ({selectedCourses.size} مقرر)
                 </Button>

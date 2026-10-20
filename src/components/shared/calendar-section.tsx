@@ -1099,7 +1099,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       {/* ============================================ */}
       {/* GRADIENT HEADER BANNER                       */}
       {/* ============================================ */}
-      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-2xl mb-4 sm:mb-6" style={{ background: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 40%, #0891b2 100%)' }}>
+      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-2xl mb-4 sm:mb-6" style={{ background: 'currentColor' }}>
         {/* Decorative circles */}
         <div className="absolute -top-16 -start-16 h-48 w-48 rounded-full opacity-[0.07] bg-white" />
         <div className="absolute -bottom-12 -end-12 h-36 w-36 rounded-full opacity-[0.05] bg-white" />

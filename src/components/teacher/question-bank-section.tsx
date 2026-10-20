@@ -2066,9 +2066,9 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             transition={{ duration: 0.3, ease: 'easeOut' }}
             className="sticky top-0 z-30 overflow-hidden"
           >
-            <div className="relative overflow-hidden border border-violet-200 dark:border-violet-800/40 bg-gradient-to-bl from-violet-50 via-white to-violet-50 dark:from-violet-950/30 dark:via-background dark:to-violet-950/30 px-4 py-3 shadow-md backdrop-blur-sm" dir={direction}>
+            <div className="relative overflow-hidden border border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:from-violet-950/30 dark:via-background dark:to-violet-950/30 px-4 py-3 shadow-md backdrop-blur-sm" dir={direction}>
               {/* Animated shimmer background */}
-              <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-violet-200/20 dark:via-violet-500/10 to-transparent" />
+              <div className="absolute inset-0 -translate-x-full animate-shimmer bg-violet-500/10" />
 
               <div className="relative space-y-2.5">
                 {/* Row 1: Title + Subject + Cancel */}
@@ -2149,7 +2149,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   {aiBackgroundTask.status && (
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-violet-200 dark:bg-violet-900/50">
                       <motion.div
-                        className="h-full rounded-full bg-gradient-to-l from-violet-500 to-violet-400"
+                        className="h-full rounded-full bg-violet-500"
                         initial={{ width: aiBackgroundTask.status === 'extracting' ? '5%' : aiBackgroundTask.status === 'generating' ? '40%' : '80%' }}
                         animate={{
                           width: aiBackgroundTask.status === 'extracting'

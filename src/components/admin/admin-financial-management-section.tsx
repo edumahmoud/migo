@@ -1,26 +1,9 @@
 'use client';
 
-/**
- * Admin Financial Management Section — Consolidated Umbrella
- *
- * Replaces the 4 separate financial nav items (paymentGateways,
- * financial, payouts, teachers) with a single "الإيرادات المالية"
- * section containing internal tabs.
- *
- * Each tab renders the EXISTING component (no rewriting):
- *   - Tab 1: اللوحة المالية (AdminFinancialSection)
- *   - Tab 2: المدفوعات (AdminPayoutsSection)
- *   - Tab 3: المعلمين (AdminTeachersSection)
- *   - Tab 4: الرسوم (AdminFeeCatalogSection) — supersedes the old commission-rates tab
- *   - Tab 5: بوابات الدفع (PaymentGatewaysSection) — superadmin only
- */
-
 import { useState, useEffect } from 'react';
 import { DollarSign, Wallet, Users, CreditCard, Calendar, Receipt } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import AdminFinancialSection from '@/components/admin/admin-financial-section';
 import AdminPayoutsSection from '@/components/admin/admin-payouts-section';
 import AdminTeachersSection from '@/components/admin/admin-teachers-section';
@@ -40,7 +23,6 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
   const [activeTab, setActiveTab] = useState<FinancialTab>('dashboard');
   const isSuperadmin = profile.role === 'superadmin';
 
-  // Restore tab from URL hash on mount
   useEffect(() => {
     const hash = window.location.hash.replace('#financial-', '');
     if (['dashboard', 'breakdown', 'payouts', 'teachers', 'fees', 'gateways'].includes(hash)) {
@@ -61,30 +43,31 @@ export default function AdminFinancialManagementSection({ profile }: Props) {
 
   return (
     <div className="space-y-4" dir={direction}>
-      {/* Tab bar */}
       <div className="flex items-center gap-1 border-b pb-2 overflow-x-auto">
         {visibleTabs.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
-            <Button
+            <button
               key={tab.id}
-              variant={isActive ? 'default' : 'ghost'}
-              size="sm"
-              className={`h-9 text-xs whitespace-nowrap ${isActive ? 'bg-sky-600 text-white' : ''}`}
+              type="button"
               onClick={() => {
                 setActiveTab(tab.id);
                 window.location.hash = `financial-${tab.id}`;
               }}
+              className={`inline-flex items-center justify-center gap-1.5 h-9 px-3 text-xs font-medium whitespace-nowrap rounded-md transition-colors ${
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+              }`}
             >
-              <Icon className="h-3.5 w-3.5 me-1.5" />
+              <Icon className="h-3.5 w-3.5" />
               {t(tab.labelKey)}
-            </Button>
+            </button>
           );
         })}
       </div>
 
-      {/* Active tab content */}
       <div>
         {activeTab === 'dashboard' && <AdminFinancialSection profile={profile} />}
         {activeTab === 'breakdown' && <AdminFinancialBreakdownSection />}

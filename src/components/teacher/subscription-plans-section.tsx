@@ -1,25 +1,10 @@
 'use client';
 
-/**
- * Subscription Plans Section — Teacher UI for managing
- * subscription period types (monthly/term/yearly/custom).
- *
- * Lets the teacher:
- *   - Create plans with period_type, label, duration, price
- *   - Edit existing plans
- *   - Activate/deactivate plans
- *   - Delete plans
- *
- * Active plans appear during student checkout.
- */
-
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Power, PowerOff, Loader2, RefreshCw, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Trash2, Power, PowerOff, RefreshCw, Calendar } from 'lucide-react';
+import {
+  Card, Text, TextInput, Button, Badge, Stack, Group, Box, Select, Grid,
+} from '@mantine/core';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
@@ -159,151 +144,150 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-sky-600" />
-            خطط الاشتراك — {subjectName}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" className="h-8" onClick={fetchPlans} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </Button>
-            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setShowAddForm(!showAddForm)}>
-              <Plus className="h-4 w-4" />
-              إضافة خطة
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <Card shadow="xs" radius="md" p="lg">
+      <Group justify="space-between" gap="sm" mb="md">
+        <Group gap="sm">
+          <Calendar size={18} style={{ color: 'var(--mantine-primary-color-filled)' }} />
+          <Text fw={600} size="md">خطط الاشتراك — {subjectName}</Text>
+        </Group>
+        <Group gap="xs">
+          <Button variant="subtle" size="sm" onClick={fetchPlans} loading={loading} aria-label="تحديث">
+            {!loading && <RefreshCw size={14} />}
+          </Button>
+          <Button variant="outline" size="sm" leftSection={<Plus size={14} />} onClick={() => setShowAddForm(!showAddForm)}>
+            إضافة خطة
+          </Button>
+        </Group>
+      </Group>
+
+      <Stack gap="md">
         {showAddForm && (
-          <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground">نوع الفترة</label>
-                <Select
-                  value={newPlan.period_type}
-                  onValueChange={(v) => {
-                    const pt = v as typeof newPlan.period_type;
-                    setNewPlan({
-                      ...newPlan,
-                      period_type: pt,
-                      duration_days: PERIOD_DURATIONS[pt] || 30,
-                    });
-                  }}
-                >
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">شهري</SelectItem>
-                    <SelectItem value="term">ترم</SelectItem>
-                    <SelectItem value="yearly">سنوي</SelectItem>
-                    <SelectItem value="custom">مخصص</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">المدة (أيام)</label>
-                <Input
-                  type="number"
-                  value={newPlan.duration_days}
-                  onChange={(e) => setNewPlan({ ...newPlan, duration_days: Number(e.target.value) })}
-                  className="h-9"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">السعر</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={newPlan.price}
-                  onChange={(e) => setNewPlan({ ...newPlan, price: Number(e.target.value) })}
-                  className="h-9"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">العملة</label>
-                <Input
-                  value={newPlan.currency}
-                  onChange={(e) => setNewPlan({ ...newPlan, currency: e.target.value })}
-                  className="h-9"
-                />
-              </div>
-            </div>
-            {newPlan.period_type === 'custom' && (
-              <div>
-                <label className="text-xs text-muted-foreground">تسمية مخصصة</label>
-                <Input
-                  value={newPlan.period_label}
-                  onChange={(e) => setNewPlan({ ...newPlan, period_label: e.target.value })}
-                  placeholder="مثال: ترم أول 2025"
-                  className="h-9"
-                />
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Button size="sm" onClick={addPlan}>حفظ الخطة</Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>إلغاء</Button>
-            </div>
-          </div>
+          <Box p="md" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 8, backgroundColor: 'var(--mantine-color-gray-0)' }}>
+            <Stack gap="sm">
+              <Grid>
+                <Grid.Col span={{ base: 12, xs: 6, sm: 3 }}>
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed">نوع الفترة</Text>
+                    <Select
+                      value={newPlan.period_type}
+                      onChange={(v) => {
+                        const pt = (v || 'monthly') as typeof newPlan.period_type;
+                        setNewPlan({ ...newPlan, period_type: pt, duration_days: PERIOD_DURATIONS[pt] || 30 });
+                      }}
+                      data={[
+                        { value: 'monthly', label: 'شهري' },
+                        { value: 'term', label: 'ترم' },
+                        { value: 'yearly', label: 'سنوي' },
+                        { value: 'custom', label: 'مخصص' },
+                      ]}
+                      size="sm"
+                    />
+                  </Stack>
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, xs: 6, sm: 3 }}>
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed">المدة (أيام)</Text>
+                    <TextInput
+                      type="number"
+                      value={String(newPlan.duration_days)}
+                      onChange={(e) => setNewPlan({ ...newPlan, duration_days: Number(e.target.value) })}
+                      size="sm"
+                    />
+                  </Stack>
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, xs: 6, sm: 3 }}>
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed">السعر</Text>
+                    <TextInput
+                      type="number"
+                      step="0.01"
+                      value={String(newPlan.price)}
+                      onChange={(e) => setNewPlan({ ...newPlan, price: Number(e.target.value) })}
+                      size="sm"
+                    />
+                  </Stack>
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, xs: 6, sm: 3 }}>
+                  <Stack gap={4}>
+                    <Text size="xs" c="dimmed">العملة</Text>
+                    <TextInput
+                      value={newPlan.currency}
+                      onChange={(e) => setNewPlan({ ...newPlan, currency: e.target.value })}
+                      size="sm"
+                    />
+                  </Stack>
+                </Grid.Col>
+              </Grid>
+              {newPlan.period_type === 'custom' && (
+                <Stack gap={4}>
+                  <Text size="xs" c="dimmed">تسمية مخصصة</Text>
+                  <TextInput
+                    value={newPlan.period_label}
+                    onChange={(e) => setNewPlan({ ...newPlan, period_label: e.target.value })}
+                    placeholder="مثال: ترم أول 2025"
+                    size="sm"
+                  />
+                </Stack>
+              )}
+              <Group gap="sm">
+                <Button size="sm" onClick={addPlan}>حفظ الخطة</Button>
+                <Button size="sm" variant="subtle" onClick={() => setShowAddForm(false)}>إلغاء</Button>
+              </Group>
+            </Stack>
+          </Box>
         )}
 
         {plans.length === 0 && !showAddForm ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            لا توجد خطط اشتراك بعد. اضغط "إضافة خطة" لإنشاء خطة جديدة.
-          </div>
+          <Text size="sm" c="dimmed" ta="center" py={32}>
+            لا توجد خطط اشتراك بعد. اضغط «إضافة خطة» لإنشاء خطة جديدة.
+          </Text>
         ) : (
-          <div className="space-y-2">
+          <Stack gap="xs">
             {plans.map((plan) => (
-              <div
+              <Group
                 key={plan.id}
-                className="flex items-center justify-between gap-2 rounded-lg border p-3"
+                justify="space-between"
+                gap="sm"
+                p="sm"
+                style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }}
               >
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">
-                        {PERIOD_LABELS[plan.period_type] || plan.period_type}
-                      </span>
-                      {plan.period_label && (
-                        <span className="text-xs text-muted-foreground">— {plan.period_label}</span>
-                      )}
-                      <Badge variant={plan.is_active ? 'default' : 'secondary'} className="text-xs">
-                        {plan.is_active ? 'مفعّل' : 'معطّل'}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {plan.duration_days} يوم — {Number(plan.price).toFixed(2)} {plan.currency}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
+                <Stack gap={2}>
+                  <Group gap="sm">
+                    <Text fw={500} size="sm">{PERIOD_LABELS[plan.period_type] || plan.period_type}</Text>
+                    {plan.period_label && <Text size="xs" c="dimmed">— {plan.period_label}</Text>}
+                    <Badge variant={plan.is_active ? 'filled' : 'light'} color={plan.is_active ? 'green' : 'gray'} size="sm">
+                      {plan.is_active ? 'مفعّل' : 'معطّل'}
+                    </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    {plan.duration_days} يوم — {Number(plan.price).toFixed(2)} {plan.currency}
+                  </Text>
+                </Stack>
+                <Group gap="xs">
                   <Button
+                    variant="subtle"
                     size="sm"
-                    variant="ghost"
-                    className="h-7"
                     onClick={() => togglePlan(plan.id, plan.is_active)}
                     title={plan.is_active ? 'تعطيل' : 'تفعيل'}
                   >
                     {plan.is_active
-                      ? <Power className="h-3.5 w-3.5 text-emerald-600" />
-                      : <PowerOff className="h-3.5 w-3.5 text-muted-foreground" />}
+                      ? <Power size={14} style={{ color: 'var(--mantine-color-green-6)' }} />
+                      : <PowerOff size={14} />}
                   </Button>
                   <Button
+                    variant="subtle"
                     size="sm"
-                    variant="ghost"
-                    className="h-7 text-rose-600"
+                    color="red"
                     onClick={() => deletePlan(plan.id)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 size={14} />
                   </Button>
-                </div>
-              </div>
+                </Group>
+              </Group>
             ))}
-          </div>
+          </Stack>
         )}
-      </CardContent>
+      </Stack>
       {confirmDialog}
     </Card>
   );
