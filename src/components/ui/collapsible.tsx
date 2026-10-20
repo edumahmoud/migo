@@ -1,33 +1,29 @@
-"use client"
+'use client';
 
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
+/**
+ * Collapsible adapter — shadcn Collapsible → Mantine Accordion (simplified)
+ */
 
-function Collapsible({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.Root>) {
-  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />
+import * as React from 'react';
+import { cn } from '@/lib/utils';
+
+interface CollapsibleProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  children?: React.ReactNode;
+  className?: string;
 }
 
-function CollapsibleTrigger({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
-  return (
-    <CollapsiblePrimitive.CollapsibleTrigger
-      data-slot="collapsible-trigger"
-      {...props}
-    />
-  )
+function Collapsible({ open, onOpenChange, children, className }: CollapsibleProps) {
+  return <div className={cn(className)}>{children}</div>;
 }
 
-function CollapsibleContent({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
-  return (
-    <CollapsiblePrimitive.CollapsibleContent
-      data-slot="collapsible-content"
-      {...props}
-    />
-  )
+function CollapsibleTrigger({ children, asChild, className, onClick, variant }: { children?: React.ReactNode; asChild?: boolean; className?: string; onClick?: (e: any) => void; variant?: string }) {
+  return <div className={className} onClick={onClick}>{children}</div>;
 }
 
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }
+function CollapsibleContent({ children, className, dir }: { children?: React.ReactNode; className?: string; dir?: 'rtl' | 'ltr' }) {
+  return <div className={className} dir={dir}>{children}</div>;
+}
+
+export { Collapsible, CollapsibleTrigger, CollapsibleContent };
