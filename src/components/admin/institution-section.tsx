@@ -254,10 +254,17 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
         // Non-critical — the 30s TTL will expire naturally.
       }
 
-      // Refresh from DB so originalData / hasChanges reset cleanly and
-      // the institution store (used by sidebar/header) picks up the new
-      // logo URL.
-      await fetchInstitution();
+      // v134p-fix2: SILENT refresh — do NOT call fetchInstitution() here.
+      // It starts with setLoading(true), which unmounts the entire form
+      // and shows a loading spinner — the user perceives that as a page
+      // reload. Instead, update the local state, the change tracker, and
+      // the global institution store in place with the exact values we
+      // just persisted. The sidebar / header / brand-logo re-render
+      // instantly with the new logo — zero flicker, zero spinner.
+      const savedInst: InstitutionData = { ...institution, logo_url: newLogoUrl };
+      setInstitution(savedInst);
+      setOriginalData(JSON.stringify(savedInst));
+      useInstitutionStore.getState().setInstitution(savedInst);
 
       toast.success(t('common.success'));
     } catch {
@@ -331,7 +338,14 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
         // Non-critical.
       }
 
-      await fetchInstitution();
+      // v134p-fix2: SILENT refresh (same as the upload path) — update
+      // state + store in place instead of refetching, so no spinner and
+      // no form remount. The user sees the logo disappear instantly.
+      const savedInst: InstitutionData = { ...institution, logo_url: null };
+      setInstitution(savedInst);
+      setOriginalData(JSON.stringify(savedInst));
+      useInstitutionStore.getState().setInstitution(savedInst);
+
       toast.success(t('common.success'));
     } catch {
       toast.error(t('common.unexpectedError'));
