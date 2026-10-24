@@ -122,6 +122,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // v134q: subscriptions are time-limited. The duration comes from
+      // the request's plan_type ('monthly' → 30 days, 'yearly' → 365
+      // days), chosen by the user in the plans modal. Legacy requests
+      // with plan_type='monthly' also get 30 days (that's what the user
+      // saw in the old UI). duration_type + expires_at are stored on
+      // the upgrade row; /api/storage/check auto-deactivates it when
+      // it expires — that is the end-of-month restriction.
+      const durationType = req.plan_type === 'yearly' ? 'yearly' : 'monthly';
+      const durationDays = durationType === 'yearly' ? 365 : 30;
+      const upgradeExpiresAt = new Date(
+        Date.now() + durationDays * 24 * 60 * 60 * 1000,
+      ).toISOString();
+
       // Deactivate any existing active upgrade for this user (only one active at a time).
       await supabaseServer
         .from('user_storage_upgrades')
@@ -140,6 +153,8 @@ export async function POST(request: NextRequest) {
           currency: plan.currency,
           request_id: req.id,
           is_active: true,
+          duration_type: durationType,
+          expires_at: upgradeExpiresAt,
         });
       if (upgradeErr) {
         console.error('[paid-services/requests] storage upgrade insert error:', upgradeErr);
@@ -164,6 +179,8 @@ export async function POST(request: NextRequest) {
         storageUpgrade: {
           size_mb: plan.size_mb,
           name: plan.name,
+          expires_at: upgradeExpiresAt,
+          duration_type: durationType,
         },
       });
     }

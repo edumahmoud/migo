@@ -8,11 +8,14 @@ import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
  *
  * POST /api/admin/storage-plans
  *   Create a new plan. Superadmin only.
- *   Body: { name, name_en?, size_mb, price, currency?, is_active?, sort_order? }
+ *   Body: { name, name_en?, size_mb, price_monthly?, price_yearly?, price?, currency?, is_active?, sort_order? }
+ *   v134q: plans are subscriptions — price_monthly is required (or the
+ *   legacy `price` alias). price_yearly is optional (NULL = yearly not
+ *   offered for this plan).
  *
  * PUT /api/admin/storage-plans
  *   Update a plan. Superadmin only.
- *   Body: { id, updates: { name?, name_en?, size_mb?, price?, currency?, is_active?, sort_order? } }
+ *   Body: { id, updates: { name?, name_en?, size_mb?, price_monthly?, price_yearly?, price?, currency?, is_active?, sort_order? } }
  *
  * DELETE /api/admin/storage-plans
  *   Deactivate a plan (soft delete). Superadmin only.
@@ -44,19 +47,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'صيغة JSON غير صالحة' }, { status: 400 });
   }
 
-  const { name, name_en, size_mb, price, currency, is_active, sort_order } = body as {
+  const { name, name_en, size_mb, price, price_monthly, price_yearly, currency, is_active, sort_order } = body as {
     name?: string; name_en?: string; size_mb?: number; price?: number;
+    price_monthly?: number; price_yearly?: number | null;
     currency?: string; is_active?: boolean; sort_order?: number;
   };
 
-  if (!name || !size_mb || price === undefined) {
-    return NextResponse.json({ error: 'name + size_mb + price مطلوبة' }, { status: 400 });
+  // v134q: price_monthly is the canonical field; accept the legacy
+  // `price` as a fallback for older callers.
+  const monthly = price_monthly ?? price;
+  if (!name || !size_mb || (monthly === undefined && price === undefined)) {
+    return NextResponse.json({ error: 'name + size_mb + price_monthly مطلوبة' }, { status: 400 });
   }
 
   const { data, error } = await supabaseServer
     .from('storage_plans')
     .insert({
-      name, name_en: name_en ?? null, size_mb, price,
+      name, name_en: name_en ?? null, size_mb,
+      price: monthly ?? 0,
+      price_monthly: monthly ?? 0,
+      price_yearly: price_yearly ?? null,
       currency: currency ?? 'EGP',
       is_active: is_active ?? true,
       sort_order: sort_order ?? 0,
@@ -89,9 +99,16 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'id + updates مطلوبة' }, { status: 400 });
   }
 
-  const allowed = ['name', 'name_en', 'size_mb', 'price', 'currency', 'is_active', 'sort_order'];
+  // v134q: allow the new subscription price fields; keep the legacy
+  // `price` column in sync with price_monthly when either is set.
+  const allowed = ['name', 'name_en', 'size_mb', 'price', 'price_monthly', 'price_yearly', 'currency', 'is_active', 'sort_order'];
   const clean: Record<string, unknown> = {};
   for (const k of allowed) { if (k in updates) clean[k] = updates[k]; }
+  if ('price_monthly' in clean && clean.price_monthly != null) {
+    clean.price = clean.price_monthly;
+  } else if ('price' in clean && clean.price != null && !('price_monthly' in clean)) {
+    clean.price_monthly = clean.price;
+  }
 
   const { data, error } = await supabaseServer
     .from('storage_plans')

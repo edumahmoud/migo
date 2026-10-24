@@ -78,6 +78,60 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 1b. v134q storage_upgrade validation:
+  //     - planId is REQUIRED (the old UI sent it, enforce it now).
+  //     - The chosen plan must exist and be active.
+  //     - The plan must offer the selected duration (price_yearly must
+  //       be set when planType = 'yearly').
+  //     - The plan must not be SMALLER than the user's current active
+  //       (non-expired) upgrade — same-size is allowed for renewal.
+  if (isStorageUpgrade) {
+    if (!planId) {
+      return NextResponse.json(
+        { error: 'معرّف خطة التخزين مطلوب' },
+        { status: 400 },
+      );
+    }
+
+    const { data: planRow, error: planErr } = await supabaseServer
+      .from('storage_plans')
+      .select('id, name, size_mb, price, price_monthly, price_yearly, currency, is_active')
+      .eq('id', planId)
+      .maybeSingle();
+
+    if (planErr || !planRow) {
+      return NextResponse.json({ error: 'خطة التخزين غير موجودة' }, { status: 404 });
+    }
+    const plan = planRow as Record<string, unknown>;
+    if (!plan.is_active) {
+      return NextResponse.json({ error: 'هذه الخطة غير متاحة حالياً' }, { status: 400 });
+    }
+    if (planType === 'yearly' && plan.price_yearly == null) {
+      return NextResponse.json(
+        { error: 'هذه الخطة غير متاحة بالاشتراك السنوي — اختر الاشتراك الشهري' },
+        { status: 400 },
+      );
+    }
+
+    // Restrict subscribing to a plan smaller than the current one.
+    const { data: currentUpgrade } = await supabaseServer
+      .from('user_storage_upgrades')
+      .select('id, size_mb, expires_at')
+      .eq('user_id', auth.user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    const cur = currentUpgrade as Record<string, unknown> | null;
+    const curStillValid = cur &&
+      (!cur.expires_at || new Date(cur.expires_at as string).getTime() > Date.now());
+    if (curStillValid && (plan.size_mb as number) < (cur!.size_mb as number)) {
+      return NextResponse.json(
+        { error: 'لا يمكنك الاشتراك في مساحة أصغر من خطتك الحالية — اختر خطة مساوية أو أكبر' },
+        { status: 400 },
+      );
+    }
+  }
+
   // 2. Check if the user already has an active unlock (shouldn't happen
   //    from the UI, but defense in depth).
   //    For storage upgrades, this check is irrelevant — skip it.

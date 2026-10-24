@@ -53,14 +53,33 @@ export async function GET(request: NextRequest) {
       : (cfg?.teacher_monthly_limit as number) ?? 500);
 
   // 2. Get active upgrade.
+  //    v134q: subscriptions are time-limited (monthly/yearly). If the
+  //    active upgrade has an expires_at in the past, auto-deactivate it
+  //    right here — the quota add-on stops applying immediately (this
+  //    IS the "restriction when the month ends"). Legacy 'permanent'
+  //    upgrades have expires_at = NULL and never expire.
   const { data: upgrade } = await supabaseServer
     .from('user_storage_upgrades')
-    .select('id, plan_id, size_mb, price, currency')
+    .select('id, plan_id, size_mb, price, currency, duration_type, expires_at')
     .eq('user_id', userId)
     .eq('is_active', true)
     .maybeSingle();
 
-  const upgradeSize = (upgrade as Record<string, unknown> | null)?.size_mb as number ?? 0;
+  let activeUpgrade = upgrade as Record<string, unknown> | null ?? null;
+  if (activeUpgrade && activeUpgrade.expires_at) {
+    const expiry = new Date(activeUpgrade.expires_at as string);
+    if (expiry.getTime() <= Date.now()) {
+      // Subscription expired → deactivate + treat as no upgrade.
+      await supabaseServer
+        .from('user_storage_upgrades')
+        .update({ is_active: false })
+        .eq('id', activeUpgrade.id as string);
+      console.log(`[storage/check] upgrade ${activeUpgrade.id} expired for user ${userId} — deactivated`);
+      activeUpgrade = null;
+    }
+  }
+
+  const upgradeSize = activeUpgrade?.size_mb as number ?? 0;
 
   // 3. Count total file size (user_files + subject_videos).
   const { data: files } = await supabaseServer
@@ -106,7 +125,7 @@ export async function GET(request: NextRequest) {
     remaining_mb: remainingMb,
     pct: Math.round(pct),
     is_full: isFull,
-    active_upgrade: upgrade ?? null,
+    active_upgrade: activeUpgrade ?? null,
     plans: plans ?? [],
   });
 }

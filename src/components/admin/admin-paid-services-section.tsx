@@ -505,14 +505,15 @@ function StorageManager({
 }) {
   const [plans, setPlans] = useState<Array<{
     id: string; name: string; name_en: string | null; size_mb: number;
-    price: number; currency: string; is_active: boolean; sort_order: number;
+    price: number; price_monthly: number | null; price_yearly: number | null;
+    currency: string; is_active: boolean; sort_order: number;
   }>>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingPlan, setEditingPlan] = useState<typeof plans[number] | null>(null);
-  const [newPlan, setNewPlan] = useState({ name: '', name_en: '', size_mb: '', price: '', currency: 'EGP' });
-  const [editForm, setEditForm] = useState({ name: '', name_en: '', size_mb: '', price: '' });
+  const [newPlan, setNewPlan] = useState({ name: '', name_en: '', size_mb: '', price_monthly: '', price_yearly: '', currency: 'EGP' });
+  const [editForm, setEditForm] = useState({ name: '', name_en: '', size_mb: '', price_monthly: '', price_yearly: '' });
   const [adding, setAdding] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [freeStudent, setFreeStudent] = useState('');
@@ -568,8 +569,8 @@ function StorageManager({
   };
 
   const handleAddPlan = async () => {
-    if (!newPlan.name || !newPlan.size_mb || !newPlan.price) {
-      toast.error('الاسم والحجم والسعر مطلوبة');
+    if (!newPlan.name || !newPlan.size_mb || !newPlan.price_monthly) {
+      toast.error('الاسم والحجم والسعر الشهري مطلوبة');
       return;
     }
     setAdding(true);
@@ -579,14 +580,16 @@ function StorageManager({
         headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
         body: JSON.stringify({
           name: newPlan.name, name_en: newPlan.name_en || null,
-          size_mb: Number(newPlan.size_mb), price: Number(newPlan.price),
+          size_mb: Number(newPlan.size_mb),
+          price_monthly: Number(newPlan.price_monthly),
+          price_yearly: newPlan.price_yearly ? Number(newPlan.price_yearly) : null,
           currency: newPlan.currency, sort_order: plans.length + 1,
         }),
       });
       const json = await res.json();
       if (json.success) {
         toast.success('تم إضافة الخطة');
-        setNewPlan({ name: '', name_en: '', size_mb: '', price: '', currency: 'EGP' });
+        setNewPlan({ name: '', name_en: '', size_mb: '', price_monthly: '', price_yearly: '', currency: 'EGP' });
         setShowAddDialog(false);
         fetchPlans();
       } else { toast.error(json.error || 'فشل'); }
@@ -615,15 +618,16 @@ function StorageManager({
       name: plan.name,
       name_en: plan.name_en ?? '',
       size_mb: String(plan.size_mb),
-      price: String(plan.price),
+      price_monthly: String(plan.price_monthly ?? plan.price ?? 0),
+      price_yearly: plan.price_yearly != null ? String(plan.price_yearly) : '',
     });
     setShowEditDialog(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editingPlan) return;
-    if (!editForm.name || !editForm.size_mb || !editForm.price) {
-      toast.error('الاسم والحجم والسعر مطلوبة');
+    if (!editForm.name || !editForm.size_mb || !editForm.price_monthly) {
+      toast.error('الاسم والحجم والسعر الشهري مطلوبة');
       return;
     }
     setSavingEdit(true);
@@ -637,7 +641,8 @@ function StorageManager({
             name: editForm.name,
             name_en: editForm.name_en || null,
             size_mb: Number(editForm.size_mb),
-            price: Number(editForm.price),
+            price_monthly: Number(editForm.price_monthly),
+            price_yearly: editForm.price_yearly ? Number(editForm.price_yearly) : null,
           },
         }),
       });
@@ -737,7 +742,8 @@ function StorageManager({
                         {p.name_en && <span className="text-[10px] text-muted-foreground">({p.name_en})</span>}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
-                        {formatSize(p.size_mb)} · {Number(p.price).toFixed(0)} {p.currency}
+                        {formatSize(p.size_mb)} · شهري {Number(p.price_monthly ?? p.price).toFixed(0)} {p.currency}
+                        {p.price_yearly != null && ` · سنوي ${Number(p.price_yearly).toFixed(0)} ${p.currency}`}
                       </div>
                     </div>
                   </div>
@@ -783,10 +789,16 @@ function StorageManager({
                 placeholder="51200" className="h-8 text-xs" dir="ltr" />
             </div>
             <div>
-              <Label className="text-xs">السعر</Label>
-              <Input type="number" value={newPlan.price}
-                onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
+              <Label className="text-xs">السعر الشهري</Label>
+              <Input type="number" value={newPlan.price_monthly}
+                onChange={(e) => setNewPlan({ ...newPlan, price_monthly: e.target.value })}
                 placeholder="20" className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">السعر السنوي (اختياري — اتركه فارغاً إن لم ترد توفير الاشتراك السنوي)</Label>
+              <Input type="number" value={newPlan.price_yearly}
+                onChange={(e) => setNewPlan({ ...newPlan, price_yearly: e.target.value })}
+                placeholder="200" className="h-8 text-xs" dir="ltr" />
             </div>
           </div>
           <DialogFooter>
@@ -826,9 +838,16 @@ function StorageManager({
                 className="h-8 text-xs" dir="ltr" />
             </div>
             <div>
-              <Label className="text-xs">السعر</Label>
-              <Input type="number" value={editForm.price}
-                onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+              <Label className="text-xs">السعر الشهري</Label>
+              <Input type="number" value={editForm.price_monthly}
+                onChange={(e) => setEditForm({ ...editForm, price_monthly: e.target.value })}
+                className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">السعر السنوي (اختياري)</Label>
+              <Input type="number" value={editForm.price_yearly}
+                onChange={(e) => setEditForm({ ...editForm, price_yearly: e.target.value })}
+                placeholder="اتركه فارغاً لتعطيل السنوي"
                 className="h-8 text-xs" dir="ltr" />
             </div>
           </div>

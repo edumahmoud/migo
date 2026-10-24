@@ -1,37 +1,22 @@
 'use client';
 
 /**
- * StoragePlansView — v134m
+ * StoragePlansView — v134q
  *
- * Redesigned: the storage plans are now displayed inside a modal
- * that opens from a button in the status card header.
+ * The storage plans modal (opens from the status card header button).
  *
- * Layout:
- *   ┌──────────────────────────────────────────────────────┐
- *   │  💾 مساحة التخزين          [تزويد المساحة ⬆]  [▾]    │
- *   │  ████████████░░░░░░  68%                            │
- *   │  45 / 100 ميجابايت · 55 ميجابايت متبقية            │
- *   │  [مجاني: 100MB] [مشتري: +200GB]                    │
- *   └──────────────────────────────────────────────────────┘
- *
- *   Clicking "تزويد المساحة" opens:
- *   ┌──────────────────────────────────────────────────────┐
- *   │  ✨ ترقية مساحة التخزين                          [✕] │
- *   │  اختر الخطة المناسبة لاحتياجك — مساحة دائمة         │
- *   │                                                      │
- *   │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐│
- *   │  │  50 GB   │ │  200 GB  │ │  500 GB  │ │   2 TB   ││
- *   │  │   ...    │ │   ...    │ │   ...    │ │   ...    ││
- *   │  │  20 ج.م  │ │  50 ج.م  │ │ 100 ج.م  │ │ 200 ج.م  ││
- *   │  │ [اشتراك] │ │ [اشتراك] │ │ [اشتراك] │ │ [اشتراك] ││
- *   │  └──────────┘ └──────────┘ └──────────┘ └──────────┘│
- *   └──────────────────────────────────────────────────────┘
+ * v134q changes:
+ *   - Plans are SUBSCRIPTIONS: monthly or yearly (duration toggle).
+ *   - Compact cards (no oversized size display, no fake "most popular"
+ *     ribbon, no bottom info note).
+ *   - Plans smaller than the current active upgrade are restricted.
+ *   - The status card shows the subscription expiry countdown.
  */
 
 import { useState, useEffect } from 'react';
 import {
   HardDrive, Loader2, CheckCircle2, Clock, AlertCircle,
-  Sparkles, ChevronDown, ChevronUp, Plus, X, Zap, Crown, Infinity as InfinityIcon,
+  Sparkles, ChevronDown, ChevronUp, Plus, Zap, CalendarClock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +40,8 @@ interface StoragePlan {
   name_en: string | null;
   size_mb: number;
   price: number;
+  price_monthly: number | null; // v134q: subscription prices
+  price_yearly: number | null;  // v134q: NULL = yearly not offered
   currency: string;
   sort_order: number;
 }
@@ -67,7 +54,14 @@ interface StorageStatus {
   remaining_mb: number;
   pct: number;
   is_full: boolean;
-  active_upgrade: { id: string; plan_id: string; size_mb: number; price: number } | null;
+  active_upgrade: {
+    id: string;
+    plan_id: string;
+    size_mb: number;
+    price: number;
+    duration_type?: 'permanent' | 'monthly' | 'yearly' | null; // v134q
+    expires_at?: string | null;                                  // v134q
+  } | null;
   plans: StoragePlan[];
 }
 
@@ -84,6 +78,13 @@ function splitSize(mb: number): { value: string; unit: string } {
   return { value: String(mb), unit: 'ميجابايت' };
 }
 
+/** Days left until an ISO expiry date (null when permanent/no expiry). */
+function daysLeft(iso?: string | null): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
 export default function StoragePlansView() {
   const { direction } = useTranslations();
   const [status, setStatus] = useState<StorageStatus | null>(null);
@@ -92,6 +93,8 @@ export default function StoragePlansView() {
   const [submittedPlan, setSubmittedPlan] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  // v134q: subscription duration selected in the modal (monthly/yearly).
+  const [duration, setDuration] = useState<'monthly' | 'yearly'>('monthly');
 
   useEffect(() => {
     (async () => {
@@ -117,10 +120,10 @@ export default function StoragePlansView() {
         headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
         body: JSON.stringify({
           sectionKey: 'files',
-          planType: 'monthly', // backend requires this field but it's irrelevant for storage
+          planType: duration, // v134q: the selected subscription duration (monthly/yearly)
           requestType: 'storage_upgrade',
           planId: plan.id,
-          notes: `طلب شراء مساحة تخزين: ${plan.name} (${formatSize(plan.size_mb)}) — ${plan.price} ${plan.currency}`,
+          notes: `طلب اشتراك مساحة تخزين: ${plan.name} (${formatSize(plan.size_mb)}) — ${duration === 'monthly' ? 'شهري' : 'سنوي'}`,
         }),
       });
       const json = await res.json();
@@ -158,6 +161,16 @@ export default function StoragePlansView() {
   const effectiveCollapsed = collapsed && !is_full;
   const hasPlans = status.plans.length > 0;
 
+  // v134q derived values:
+  //   - expiryDaysLeft: days remaining on the current subscription (null = permanent/none).
+  //   - currentSizeMb: the active (non-expired) upgrade's size — used to
+  //     restrict subscribing to SMALLER plans (same size is allowed for renewal).
+  //   - hasYearly: whether ANY plan offers a yearly price → controls the
+  //     duration toggle visibility.
+  const expiryDaysLeft = daysLeft(status.active_upgrade?.expires_at);
+  const currentSizeMb = status.active_upgrade?.size_mb ?? 0;
+  const hasYearly = status.plans.some(p => p.price_yearly != null);
+
   // ─── Plan card accent colors (rotating palette) ───
   const planAccents = [
     { bg: 'from-sky-50 to-sky-100/50 dark:from-sky-900/20 dark:to-sky-900/5', icon: 'bg-sky-500', ring: 'ring-sky-200 dark:ring-sky-800', text: 'text-sky-700 dark:text-sky-300', btn: 'bg-sky-600 hover:bg-sky-700' },
@@ -165,8 +178,6 @@ export default function StoragePlansView() {
     { bg: 'from-emerald-50 to-emerald-100/50 dark:from-emerald-900/20 dark:to-emerald-900/5', icon: 'bg-emerald-500', ring: 'ring-emerald-200 dark:ring-emerald-800', text: 'text-emerald-700 dark:text-emerald-300', btn: 'bg-emerald-600 hover:bg-emerald-700' },
     { bg: 'from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-900/5', icon: 'bg-amber-500', ring: 'ring-amber-200 dark:ring-amber-800', text: 'text-amber-700 dark:text-amber-300', btn: 'bg-amber-600 hover:bg-amber-700' },
   ];
-  // The "popular" plan is the one with sort_order=2 (middle of 4) — or index 1 by default.
-  const popularIdx = Math.min(1, Math.max(0, status.plans.length - 1));
 
   return (
     <div className="space-y-3" dir={direction}>
@@ -240,7 +251,7 @@ export default function StoragePlansView() {
                 </div>
               </div>
 
-              {/* Breakdown: free + purchased */}
+              {/* Breakdown: free + purchased (+ subscription expiry) */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
                   مجاني: {formatSize(free_quota)}
@@ -249,6 +260,19 @@ export default function StoragePlansView() {
                   <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
                     <Sparkles className="h-2.5 w-2.5 me-0.5" />
                     مشتري: +{formatSize(upgrade_size)}
+                  </Badge>
+                )}
+                {/* v134q: subscription expiry countdown */}
+                {upgrade_size > 0 && expiryDaysLeft != null && (
+                  <Badge variant="outline" className={`text-[9px] ${
+                    expiryDaysLeft <= 7
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    <CalendarClock className="h-2.5 w-2.5 me-0.5" />
+                    {expiryDaysLeft <= 0
+                      ? 'انتهى الاشتراك'
+                      : `ينتهي بعد ${expiryDaysLeft} يوم`}
                   </Badge>
                 )}
               </div>
@@ -278,12 +302,12 @@ export default function StoragePlansView() {
               ترقية مساحة التخزين
             </DialogTitle>
             <DialogDescription className="text-xs">
-              اختر الخطة المناسبة لاحتياجك — المساحة المشتراة دائمة (ليست اشتراكاً شهرياً)، وتشمل الملفات والفيديوهات.
+              اختر الخطة والمدة المناسبة لاحتياجك — اشتراك شهري أو سنوي يشمل الملفات والفيديوهات.
             </DialogDescription>
           </DialogHeader>
 
           <DialogScrollArea className="max-h-[70vh]">
-            <div className="space-y-4 px-1">
+            <div className="space-y-3 px-1">
               {/* ─── Current usage summary (compact, inside modal) ─── */}
               <div className="rounded-xl border bg-muted/30 p-3">
                 <div className="flex items-center justify-between gap-3 mb-2">
@@ -295,9 +319,17 @@ export default function StoragePlansView() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {status.active_upgrade && (
-                      <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
+                      <Badge variant="outline" className={`text-[9px] ${
+                        expiryDaysLeft != null && expiryDaysLeft <= 7
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-sky-50 text-sky-700 border-sky-200'
+                      }`}>
                         <CheckCircle2 className="h-3 w-3 me-0.5" />
-                        خطة نشطة
+                        {status.active_upgrade.duration_type === 'permanent'
+                          ? 'خطة دائمة'
+                          : expiryDaysLeft != null
+                            ? `خطة نشطة · ${expiryDaysLeft} يوم متبقٍ`
+                            : 'خطة نشطة'}
                       </Badge>
                     )}
                   </div>
@@ -316,14 +348,51 @@ export default function StoragePlansView() {
                 </div>
               </div>
 
-              {/* ─── Plans grid ─── */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* ─── v134q: Duration toggle (monthly / yearly) ─── */}
+              {hasPlans && hasYearly && (
+                <div className="flex items-center p-1 rounded-xl bg-muted/60 border gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setDuration('monthly')}
+                    className={`flex-1 h-8 rounded-lg text-xs font-medium transition-all ${
+                      duration === 'monthly'
+                        ? 'bg-background shadow-sm text-foreground border'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    شهري
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDuration('yearly')}
+                    className={`flex-1 h-8 rounded-lg text-xs font-medium transition-all ${
+                      duration === 'yearly'
+                        ? 'bg-background shadow-sm text-foreground border'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    سنوي
+                  </button>
+                </div>
+              )}
+
+              {/* ─── Plans grid (v134q: compact cards) ─── */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {status.plans.map((plan, idx) => {
                   const isCurrent = status.active_upgrade?.plan_id === plan.id;
                   const isSubmitted = submittedPlan === plan.id;
                   const accent = planAccents[idx % planAccents.length];
-                  const isPopular = idx === popularIdx && !isCurrent;
                   const { value, unit } = splitSize(plan.size_mb);
+
+                  // v134q: restrict plans SMALLER than the current active
+                  // upgrade. Same size is allowed (renewal/extension).
+                  const isSmaller = currentSizeMb > 0 && plan.size_mb < currentSizeMb;
+                  // Yearly selected but this plan has no yearly price.
+                  const yearlyUnavailable = duration === 'yearly' && plan.price_yearly == null;
+                  const planPrice = duration === 'yearly'
+                    ? plan.price_yearly
+                    : (plan.price_monthly ?? plan.price);
+                  const isRenewal = !isCurrent && currentSizeMb > 0 && plan.size_mb === currentSizeMb;
 
                   return (
                     <Card
@@ -331,76 +400,77 @@ export default function StoragePlansView() {
                       className={`relative overflow-hidden transition-all ${
                         isCurrent
                           ? `ring-2 ${accent.ring} bg-gradient-to-br ${accent.bg}`
-                          : isPopular
-                            ? `ring-2 ring-amber-300 dark:ring-amber-700 hover:shadow-lg`
+                          : isSmaller
+                            ? 'opacity-55'
                             : 'hover:shadow-md hover:border-sky-200'
                       }`}
                     >
-                      {/* "شائع" ribbon for the popular plan */}
-                      {isPopular && (
-                        <div className="absolute top-0 inset-x-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-medium text-center py-0.5 flex items-center justify-center gap-1">
-                          <Crown className="h-2.5 w-2.5" />
-                          الأكثر طلباً
-                        </div>
-                      )}
-
-                      <CardContent className={`p-4 space-y-3 ${isPopular ? 'pt-7' : ''}`}>
-                        {/* Plan name + icon */}
+                      <CardContent className="p-2.5 space-y-2">
+                        {/* Size row */}
                         <div className="flex items-center gap-2">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${accent.icon} text-white shadow-sm`}>
-                            <HardDrive className="h-4 w-4" />
+                          <div className={`flex h-7 w-7 items-center justify-center rounded-md ${accent.icon} text-white shrink-0`}>
+                            <HardDrive className="h-3.5 w-3.5" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-medium truncate">{plan.name}</p>
+                            <p className={`text-sm font-bold leading-tight ${accent.text}`} dir="ltr">
+                              {value} <span className="text-[9px] font-medium">{unit}</span>
+                            </p>
                             {plan.name_en && (
                               <p className="text-[9px] text-muted-foreground truncate" dir="ltr">{plan.name_en}</p>
                             )}
                           </div>
                         </div>
 
-                        {/* Big size display */}
-                        <div className="text-center py-1">
-                          <div className={`text-3xl font-bold ${accent.text}`} dir="ltr">
-                            {value}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">{unit}</div>
+                        {/* Price + duration */}
+                        <div className="text-center leading-tight">
+                          {yearlyUnavailable ? (
+                            <span className="text-[10px] text-muted-foreground">غير متاح سنوياً</span>
+                          ) : (
+                            <>
+                              <span className={`text-base font-bold ${accent.text}`}>
+                                {Number(planPrice ?? 0).toFixed(0)}
+                              </span>
+                              <span className="text-[9px] text-muted-foreground ms-0.5">{plan.currency}</span>
+                              <span className="text-[9px] text-muted-foreground block">
+                                / {duration === 'monthly' ? 'شهرياً' : 'سنوياً'}
+                              </span>
+                            </>
+                          )}
                         </div>
 
-                        {/* Price */}
-                        <div className="flex items-baseline justify-center gap-1 pb-1">
-                          <span className={`text-xl font-bold ${accent.text}`}>
-                            {Number(plan.price).toFixed(0)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">{plan.currency}</span>
-                        </div>
-
-                        {/* Permanent badge */}
-                        <div className="flex items-center justify-center gap-1 text-[9px] text-muted-foreground">
-                          <InfinityIcon className="h-3 w-3" />
-                          دائمة — غير محدودة بوقت
-                        </div>
-
-                        {/* Action button */}
+                        {/* Action area */}
                         {isCurrent ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 w-full justify-center py-1.5 text-[10px]">
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 w-full justify-center py-1 text-[9px]">
                             <CheckCircle2 className="h-3 w-3 me-0.5" />
-                            خطتك الحالية
+                            {status.active_upgrade?.duration_type === 'permanent'
+                              ? 'خطتك الحالية · دائمة'
+                              : expiryDaysLeft != null
+                                ? `خطتك الحالية · ${expiryDaysLeft} يوم`
+                                : 'خطتك الحالية'}
                           </Badge>
                         ) : isSubmitted ? (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 w-full justify-center py-1.5 text-[10px]">
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 w-full justify-center py-1 text-[9px]">
                             <Clock className="h-3 w-3 me-0.5" />
                             تم إرسال الطلب
                           </Badge>
+                        ) : isSmaller ? (
+                          <Badge variant="outline" className="bg-muted text-muted-foreground border-border w-full justify-center py-1 text-[9px]">
+                            أقل من خطتك الحالية
+                          </Badge>
+                        ) : yearlyUnavailable ? (
+                          <Badge variant="outline" className="bg-muted text-muted-foreground border-border w-full justify-center py-1 text-[9px]">
+                            شهري فقط
+                          </Badge>
                         ) : (
                           <Button
-                            className={`w-full h-9 text-[11px] gap-1 ${accent.btn}`}
+                            className={`w-full h-7 text-[10px] gap-1 ${accent.btn}`}
                             size="sm"
                             disabled={submitting === plan.id}
                             onClick={() => handleSubscribe(plan)}
                           >
                             {submitting === plan.id
-                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              : <><Plus className="h-3.5 w-3.5" />اشترك الآن</>}
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <><Plus className="h-3 w-3" />{isRenewal ? 'تجديد' : 'اشترك'}</>}
                           </Button>
                         )}
                       </CardContent>
@@ -417,14 +487,6 @@ export default function StoragePlansView() {
                   <p className="text-[10px] text-muted-foreground/70 mt-1">يرجى التواصل مع الإدارة.</p>
                 </div>
               )}
-
-              {/* Info note */}
-              <div className="rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-100 dark:border-sky-800 p-2.5 flex items-start gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-sky-500 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-sky-700 dark:text-sky-300 leading-relaxed">
-                  عند الإشتراك يتم إرسال طلب للإدارة والمعلم لتفعيل الاشتراك. تُضاف المساحة فور الموافقة وتشمل الملفات والفيديوهات. الملفات المحذوفة محسوبة من الإجمالي.
-                </p>
-              </div>
             </div>
           </DialogScrollArea>
         </DialogContent>
