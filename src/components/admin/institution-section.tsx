@@ -142,6 +142,15 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
   };
 
   // ─── Logo upload ───
+  // v134p-fix: Previously, after uploading a logo the new URL was only
+  // stored in local React state — it was NOT persisted to the database
+  // until the user clicked "Save". If they left the page or refreshed,
+  // the upload was lost (the file existed in Supabase Storage but the
+  // institution_settings.logo_url column still held the old value or
+  // NULL). Now we upload AND immediately persist the URL via /api/setup
+  // so the logo is fully saved in one step — no extra "Save" click
+  // required. The rest of the form fields are sent with their current
+  // values (so a logo change never silently drops pending edits).
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -156,6 +165,13 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       return;
     }
 
+    // Require the institution to have a name+type before we can persist
+    // a logo URL (the save endpoint rejects rows without them).
+    if (!institution.name.trim() || !institution.type) {
+      toast.error(t('admin.institutionName') + ': ' + t('common.required'));
+      return;
+    }
+
     setUploadingLogo(true);
     try {
       const formData = new FormData();
@@ -165,8 +181,9 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
 
-      // Use the dedicated institution-logo endpoint instead of /api/avatar
-      // This avoids overwriting the user's avatar_url in the database
+      // Step 1: upload the file to Supabase Storage via the dedicated
+      // institution-logo endpoint (avoids overwriting the user's
+      // avatar_url in the users table).
       const res = await fetch('/api/institution-logo', {
         method: 'POST',
         headers: {
@@ -176,16 +193,150 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       });
 
       const data = await res.json();
-      if (data.success && data.url) {
-        updateField('logo_url', data.url);
-        toast.success(t('common.success'));
-      } else {
+      if (!data.success || !data.url) {
         toast.error(data.error || t('common.unexpectedError'));
+        return;
       }
+
+      const newLogoUrl = data.url as string;
+
+      // Update local state immediately so the preview refreshes.
+      updateField('logo_url', newLogoUrl);
+
+      // Step 2: persist the new logo_url to institution_settings right
+      // away, so the upload survives page refresh / navigation.
+      const saveRes = await fetch('/api/setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          action: 'save_institution',
+          name: institution.name.trim(),
+          nameEn: institution.name_en?.trim() || null,
+          type: institution.type,
+          logo_url: newLogoUrl,
+          tagline: institution.tagline?.trim() || null,
+          country: institution.country?.trim() || null,
+          city: institution.city?.trim() || null,
+          address: institution.address?.trim() || null,
+          phone: institution.phone?.trim() || null,
+          email: institution.email?.trim() || null,
+          website: institution.website?.trim() || null,
+          timezone: institution.timezone?.trim() || null,
+          academic_year: institution.academic_year?.trim() || null,
+          description: institution.description?.trim() || null,
+        }),
+      });
+
+      const saveResult = await saveRes.json();
+      if (!saveRes.ok || saveResult.error) {
+        // The file was uploaded but the DB write failed — surface the
+        // actual error so the admin knows the logo is NOT saved.
+        const errMsg = saveResult.details
+          ? `${saveResult.error} (${saveResult.details})`
+          : (saveResult.error || t('common.unexpectedError'));
+        toast.error(errMsg);
+        return;
+      }
+
+      // Invalidate the PWA manifest/icon cache so the new logo appears
+      // in the sidebar / header / PWA icon immediately.
+      try {
+        await fetch('/api/manifest', {
+          method: 'POST',
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        });
+      } catch {
+        // Non-critical — the 30s TTL will expire naturally.
+      }
+
+      // Refresh from DB so originalData / hasChanges reset cleanly and
+      // the institution store (used by sidebar/header) picks up the new
+      // logo URL.
+      await fetchInstitution();
+
+      toast.success(t('common.success'));
     } catch {
       toast.error(t('common.unexpectedError'));
     } finally {
       setUploadingLogo(false);
+      // Clear the input value so the same file can be re-selected if
+      // needed (otherwise onChange won't fire for the same filename).
+      e.target.value = '';
+    }
+  };
+
+  // ─── Logo delete (auto-persist) ───
+  // v134p-fix: Same UX fix as the upload path — clear logo_url AND
+  // immediately persist the NULL to the database so the delete survives
+  // a page refresh. The previous behavior only cleared local state.
+  const handleLogoDelete = async () => {
+    if (!institution.name.trim() || !institution.type) {
+      // Cannot persist a NULL logo without an existing row to update.
+      updateField('logo_url', null);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const saveRes = await fetch('/api/setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          action: 'save_institution',
+          name: institution.name.trim(),
+          nameEn: institution.name_en?.trim() || null,
+          type: institution.type,
+          logo_url: null,
+          tagline: institution.tagline?.trim() || null,
+          country: institution.country?.trim() || null,
+          city: institution.city?.trim() || null,
+          address: institution.address?.trim() || null,
+          phone: institution.phone?.trim() || null,
+          email: institution.email?.trim() || null,
+          website: institution.website?.trim() || null,
+          timezone: institution.timezone?.trim() || null,
+          academic_year: institution.academic_year?.trim() || null,
+          description: institution.description?.trim() || null,
+        }),
+      });
+
+      const saveResult = await saveRes.json();
+      if (!saveRes.ok || saveResult.error) {
+        const errMsg = saveResult.details
+          ? `${saveResult.error} (${saveResult.details})`
+          : (saveResult.error || t('common.unexpectedError'));
+        toast.error(errMsg);
+        return;
+      }
+
+      try {
+        await fetch('/api/manifest', {
+          method: 'POST',
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+        });
+      } catch {
+        // Non-critical.
+      }
+
+      await fetchInstitution();
+      toast.success(t('common.success'));
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -386,8 +537,8 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                     variant="outline"
                     size="sm"
                     className="h-8 text-xs text-rose-600 dark:text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                    onClick={() => updateField('logo_url', null)}
-                    disabled={uploadingLogo}
+                    onClick={() => handleLogoDelete()}
+                    disabled={uploadingLogo || saving}
                   >
                     {t('common.delete')}
                   </Button>
