@@ -539,6 +539,133 @@ export class GeminiProvider implements AiProvider {
     return config;
   }
 
+  // -------------------------------------------------------
+  // PDF OCR (Native Document Understanding)
+  // -------------------------------------------------------
+
+  /**
+   * Extract text from a PDF — including scanned/image-only PDFs — by sending
+   * the file inline to Gemini, which reads it natively (true OCR-grade
+   * document vision). This is the PRIMARY OCR engine for files where
+   * pdfjs-dist finds no text layer.
+   *
+   * Uses the same key pool as chat(): round-robin rotation, health marking,
+   * cooldown on failures. The budget is deadline-aware — each attempt uses
+   * only the remaining time so the caller's overall route deadline is honored.
+   *
+   * @param pdfBase64  Base64-encoded PDF bytes
+   * @param prompt     OCR instruction prompt (see PDF_OCR_PROMPT)
+   * @param budgetMs   Total time budget for ALL key attempts combined
+   * @returns Extracted text (verbatim transcription of the document)
+   */
+  async ocrPdf(pdfBase64: string, prompt: string, budgetMs: number = 45000): Promise<string> {
+    const deadline = Date.now() + budgetMs;
+    const maxAttempts = keyPool.length || 1;
+    let lastError: AiProviderError | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts + 1; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining < 5000) {
+        // Not enough time left for a meaningful OCR attempt
+        console.warn('[Gemini OCR] Skipping attempt — only', remaining, 'ms of budget remaining');
+        break;
+      }
+
+      let keyState: KeyState;
+      try {
+        keyState = getNextHealthyKey();
+      } catch (err) {
+        if (isAiError(err)) throw err;
+        throw new AiProviderError(
+          'RATE_LIMIT',
+          'جميع مفاتيح الذكاء الاصطناعي غير متاحة حالياً. يرجى المحاولة بعد دقيقة',
+          'gemini',
+        );
+      }
+
+      try {
+        const attemptStart = Date.now();
+        const model = keyState.client.getGenerativeModel({
+          model: PRIMARY_MODEL,
+          generationConfig: {
+            // Low temperature: OCR must be verbatim, not creative
+            temperature: 0.1,
+            // High ceiling: Gemini 2.5 Flash supports up to 65,535 output tokens.
+            // Thinking tokens count against this limit, so keep headroom for
+            // long documents to avoid truncated extractions.
+            maxOutputTokens: 65535,
+          },
+        });
+
+        console.log(`[Gemini OCR] Starting inline-PDF OCR (key #${keyState.index + 1}, pdf ~${Math.round(pdfBase64.length * 3 / 4 / 1024)}KB, budget ${remaining}ms)`);
+
+        const request = {
+          contents: [{
+            role: 'user' as const,
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: pdfBase64,
+                },
+              },
+            ],
+          }],
+        };
+
+        const resultPromise = model.generateContent(request);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new AiProviderError('TIMEOUT', 'انتهت مهلة التعرف الضوئي على الملف', 'gemini')),
+            remaining,
+          ),
+        );
+
+        const result = await Promise.race([resultPromise, timeoutPromise]);
+        const text = result.response.text();
+
+        if (!text || text.trim().length === 0) {
+          throw new AiProviderError(
+            'EMPTY_RESPONSE',
+            'لم يتمكن الذكاء الاصطناعي من قراءة أي نص من الملف',
+            'gemini',
+          );
+        }
+
+        markKeySuccess(keyState);
+        console.log('[Gemini OCR] Success, extracted', text.length, 'chars in', Date.now() - attemptStart, 'ms');
+        return text;
+      } catch (error: unknown) {
+        const classified = isAiError(error)
+          ? error as AiProviderError
+          : classifyGeminiError(error);
+
+        markKeyFailed(keyState, classified.code);
+        lastError = classified;
+
+        console.warn(
+          `[Gemini OCR] Key #${keyState.index + 1} failed (attempt ${attempt + 1}):`,
+          classified.code,
+          '- Rotating to next key',
+        );
+
+        // Non-retryable — stop immediately
+        if (classified.code === 'NOT_CONFIGURED') {
+          throw classified;
+        }
+
+        continue;
+      }
+    }
+
+    throw lastError || new AiProviderError(
+      'UNKNOWN',
+      'فشل التعرف الضوئي على الملف بعد عدة محاولات',
+      'gemini',
+    );
+  }
+
   async checkHealth(): Promise<ProviderHealth> {
     initKeyPool();
 

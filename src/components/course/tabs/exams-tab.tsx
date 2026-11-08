@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { looksGarbled } from '@/lib/pdf-client';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -801,13 +802,53 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       });
 
       const extractData = await extractRes.json();
-      if (!extractRes.ok || !extractData.success) {
+
+      let content: string | null = extractData.data?.text || null;
+      const extractOk = extractRes.ok && extractData.success;
+
+      // ─── OCR fallback for scanned/image-heavy/garbled PDFs ───
+      // pdfjs-dist cannot read scanned PDFs (no text layer). If extraction
+      // failed, returned very little text, or the text looks garbled, retry
+      // with the OCR engine (/api/files/extract-pdf-vlm: Gemini → VLM).
+      const isPdfFile = /\.pdf$/i.test(selectedCourseFile.file_name) || !/\.(docx?|pptx|txt|md|csv)$/i.test(selectedCourseFile.file_name);
+      if ((!extractOk || !content || content.trim().length < 50 || looksGarbled(content)) && isPdfFile) {
+        try {
+          console.log('[Exams AI] Trying OCR fallback for scanned PDF...');
+          const ocrController = new AbortController();
+          const ocrTimeoutId = setTimeout(() => ocrController.abort(), 55000);
+
+          const ocrRes = await fetch('/api/files/extract-pdf-vlm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              url: selectedCourseFile.file_url,
+              fileName: selectedCourseFile.file_name,
+            }),
+            signal: ocrController.signal,
+          });
+
+          clearTimeout(ocrTimeoutId);
+          const ocrData = await ocrRes.json();
+
+          if (ocrRes.ok && ocrData.success && ocrData.data?.text) {
+            const ocrText: string = ocrData.data.text;
+            content = ocrText;
+            console.log('[Exams AI] OCR extraction succeeded (engine:', ocrData.data.engine || 'vlm', '), text length:', ocrText.length);
+          }
+        } catch (ocrErr) {
+          console.warn('[Exams AI] OCR fallback failed:', ocrErr instanceof Error ? ocrErr.message : ocrErr);
+        }
+      }
+
+      if (!extractOk && !content) {
         toast.error(extractData.error || t('exams.toastExtractFailed'));
         setGeneratingFromAi(false);
         return;
       }
 
-      const content = extractData.data.text;
       if (!content || content.trim().length < 50) {
         toast.error(t('exams.toastContentTooShort'));
         setGeneratingFromAi(false);

@@ -63,6 +63,33 @@ export const REFINE_USER = (content: string, studentName: string) =>
   `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي:\n\n${content}`;
 
 // -------------------------------------------------------
+// PDF OCR (Vision Document Understanding) Prompt
+// -------------------------------------------------------
+
+/**
+ * Prompt used for OCR extraction of PDF files via Gemini's native
+ * document understanding (inline PDF). Used by /api/files/extract-pdf-vlm
+ * as the PRIMARY OCR engine for scanned/image-only PDFs where pdfjs-dist
+ * cannot extract a text layer.
+ *
+ * Not part of the chatWithFallback cache (no PROMPT_VERSION coupling) —
+ * OCR results are keyed by file content, not by prompt version.
+ */
+export const PDF_OCR_PROMPT = `أنت نظام تعرف ضوئي متقدم (OCR) لاستخراج النصوص من المستندات. الملف المرفق هو مستند PDF وقد يكون ممسوحاً ضوئياً (صور) أو يحتوي على خليط من نصوص وصور.
+
+مهمتك: استخراج كل النص المكتوب في المستند استخراجاً حرفياً كاملاً.
+
+القواعد:
+1. اكتب النص بنفس لغته الأصلية تماماً (عربي أو إنجليزي أو غيرها) دون أي ترجمة أو تعديل
+2. حافظ على ترتيب القراءة الطبيعي ومنظومة الفقرات والعناوين والقوائم كما تظهر في المستند
+3. إذا وجدت جداول، اكتبها بصيغة Markdown باستخدام | عمود | عمود |
+4. إذا وجدت معادلات رياضية أو رموز كيميائية، اكتبها بشكل مقروء وواضح
+5. افصل بين الصفحات بسطر واحد: --- صفحة N ---
+6. استخرج أيضاً النصوص المكتوبة داخل الصور والمخططات إن وجدت
+7. لا تكتب أي مقدمات أو تعليقات أو شروحات — النص المستخرج فقط
+8. الصفحات الفارغة تماماً تجاهلها`;
+
+// -------------------------------------------------------
 // Quiz Generation Prompts
 // -------------------------------------------------------
 

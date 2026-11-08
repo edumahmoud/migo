@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
-import { extractTextFromFile } from '@/lib/pdf-client';
+import { extractTextFromFile, arrayBufferToBase64, looksGarbled, MAX_OCR_INLINE_BYTES } from '@/lib/pdf-client';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -741,38 +741,58 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
             } catch { /* Server fallback failed */ }
           }
 
-          // Fallback: VLM-based extraction for scanned/image-heavy PDFs
-          // If extraction failed OR returned very little text (< 50 chars) for a PDF, try VLM
-          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && sourceFileUrl) {
-            try {
-              console.log('[SummaryUpload] Trying VLM fallback for image-heavy PDF, current text length:', originalContent.trim().length);
-              const vlmController = new AbortController();
-              const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+          // Fallback: OCR-based extraction for scanned/image-heavy/garbled PDFs
+          // If extraction failed OR returned very little/garbled text for a PDF, try OCR.
+          // Works with a storage URL (server downloads it) OR inline base64 bytes
+          // (when the storage upload failed) — as long as ONE of them is available.
+          {
+            const needsOcr = !extractionSucceeded
+              || originalContent.trim().length < 50
+              || looksGarbled(originalContent);
 
-              const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  url: sourceFileUrl,
-                  fileName: capturedFileName,
-                }),
-                signal: vlmController.signal,
-              });
+            const ocrSourceBuffer = (preReadFileData || (capturedFile ? await capturedFile.arrayBuffer().catch(() => null) : null));
+            const canOcr = sourceFileType === 'pdf' && !!(
+              sourceFileUrl
+              || (ocrSourceBuffer && ocrSourceBuffer.byteLength <= MAX_OCR_INLINE_BYTES)
+            );
 
-              clearTimeout(vlmTimeoutId);
-              const vlmData = await vlmRes.json();
+            if (needsOcr && canOcr) {
+              try {
+                console.log('[SummaryUpload] Trying OCR fallback for image-heavy PDF, current text length:', originalContent.trim().length);
+                const vlmController = new AbortController();
+                const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
 
-              if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
-                originalContent = vlmData.data.text;
-                sourceFileType = vlmData.data.sourceFileType || sourceFileType;
-                extractionSucceeded = true;
-                console.log('[SummaryUpload] VLM extraction succeeded, text length:', originalContent.length);
+                // Prefer the storage URL (no body-size limit); fall back to
+                // inline base64 bytes when the upload failed (≤ 3MB only).
+                const ocrBody: Record<string, string> = { fileName: capturedFileName };
+                if (sourceFileUrl) {
+                  ocrBody.url = sourceFileUrl;
+                } else if (ocrSourceBuffer) {
+                  ocrBody.data = arrayBufferToBase64(ocrSourceBuffer);
+                }
+
+                const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(ocrBody),
+                  signal: vlmController.signal,
+                });
+
+                clearTimeout(vlmTimeoutId);
+                const vlmData = await vlmRes.json();
+
+                if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
+                  originalContent = vlmData.data.text;
+                  sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                  extractionSucceeded = true;
+                  console.log('[SummaryUpload] OCR extraction succeeded (engine:', vlmData.data.engine || 'vlm', '), text length:', originalContent.length);
+                }
+              } catch (vlmErr) {
+                console.warn('[SummaryUpload] OCR extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
               }
-            } catch (vlmErr) {
-              console.warn('[SummaryUpload] VLM extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
             }
           }
 
@@ -895,10 +915,10 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
             } catch { /* Client extraction also failed */ }
           }
 
-          // Fallback: VLM-based extraction for scanned/image-heavy PDFs
-          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && capturedExistingFile.file_url) {
+          // Fallback: OCR-based extraction for scanned/image-heavy/garbled PDFs (existing file)
+          if ((!extractionSucceeded || originalContent.trim().length < 50 || looksGarbled(originalContent)) && sourceFileType === 'pdf' && capturedExistingFile.file_url) {
             try {
-              console.log('[SummaryUpload] Trying VLM fallback for existing file, current text length:', originalContent.trim().length);
+              console.log('[SummaryUpload] Trying OCR fallback for existing file, current text length:', originalContent.trim().length);
               const vlmController = new AbortController();
               const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
 
@@ -923,10 +943,10 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 originalContent = vlmData.data.text;
                 sourceFileType = vlmData.data.sourceFileType || sourceFileType;
                 extractionSucceeded = true;
-                console.log('[SummaryUpload] VLM extraction succeeded for existing file, text length:', originalContent.length);
+                console.log('[SummaryUpload] OCR extraction succeeded for existing file (engine:', vlmData.data.engine || 'vlm', '), text length:', originalContent.length);
               }
             } catch (vlmErr) {
-              console.warn('[SummaryUpload] VLM extraction failed for existing file:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
+              console.warn('[SummaryUpload] OCR extraction failed for existing file:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
             }
           }
 

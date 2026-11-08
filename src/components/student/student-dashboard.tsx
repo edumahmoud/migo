@@ -95,7 +95,7 @@ import StoragePlansView from '@/components/shared/storage-plans-view';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
-import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
+import { extractPdfTextClient, extractTextFromFile, arrayBufferToBase64, looksGarbled, MAX_OCR_INLINE_BYTES } from '@/lib/pdf-client';
 import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -1882,37 +1882,57 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             }
           }
 
-          // Fallback: VLM-based extraction for scanned/image-heavy PDFs
-          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && sourceFileUrl) {
-            try {
-              console.log('[Summary] Trying VLM fallback for image-heavy PDF, current text length:', originalContent.trim().length);
-              const vlmController = new AbortController();
-              const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+          // Fallback: OCR-based extraction for scanned/image-heavy/garbled PDFs
+          // Works with a storage URL OR inline base64 bytes (when the storage
+          // upload failed) — as long as ONE of them is available.
+          {
+            const needsOcr = !extractionSucceeded
+              || originalContent.trim().length < 50
+              || looksGarbled(originalContent);
 
-              const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  url: sourceFileUrl,
-                  fileName: capturedFileName,
-                }),
-                signal: vlmController.signal,
-              });
+            const ocrSourceBuffer = (preReadFileData || (capturedFile ? await capturedFile.arrayBuffer().catch(() => null) : null));
+            const canOcr = sourceFileType === 'pdf' && !!(
+              sourceFileUrl
+              || (ocrSourceBuffer && ocrSourceBuffer.byteLength <= MAX_OCR_INLINE_BYTES)
+            );
 
-              clearTimeout(vlmTimeoutId);
-              const vlmData = await vlmRes.json();
+            if (needsOcr && canOcr) {
+              try {
+                console.log('[Summary] Trying OCR fallback for image-heavy PDF, current text length:', originalContent.trim().length);
+                const vlmController = new AbortController();
+                const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
 
-              if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
-                originalContent = vlmData.data.text;
-                sourceFileType = vlmData.data.sourceFileType || sourceFileType;
-                extractionSucceeded = true;
-                console.log('[Summary] VLM extraction succeeded, text length:', originalContent.length);
+                // Prefer the storage URL (no body-size limit); fall back to
+                // inline base64 bytes when the upload failed (≤ 3MB only).
+                const ocrBody: Record<string, string> = { fileName: capturedFileName };
+                if (sourceFileUrl) {
+                  ocrBody.url = sourceFileUrl;
+                } else if (ocrSourceBuffer) {
+                  ocrBody.data = arrayBufferToBase64(ocrSourceBuffer);
+                }
+
+                const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(ocrBody),
+                  signal: vlmController.signal,
+                });
+
+                clearTimeout(vlmTimeoutId);
+                const vlmData = await vlmRes.json();
+
+                if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
+                  originalContent = vlmData.data.text;
+                  sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                  extractionSucceeded = true;
+                  console.log('[Summary] OCR extraction succeeded (engine:', vlmData.data.engine || 'vlm', '), text length:', originalContent.length);
+                }
+              } catch (vlmErr) {
+                console.warn('[Summary] OCR extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
               }
-            } catch (vlmErr) {
-              console.warn('[Summary] VLM extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
             }
           }
 
@@ -2082,10 +2102,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             }
           }
 
-          // Fallback: VLM-based extraction for scanned/image-heavy PDFs (existing file)
-          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && capturedExistingFile.file_url) {
+          // Fallback: OCR-based extraction for scanned/image-heavy/garbled PDFs (existing file)
+          if ((!extractionSucceeded || originalContent.trim().length < 50 || looksGarbled(originalContent)) && sourceFileType === 'pdf' && capturedExistingFile.file_url) {
             try {
-              console.log('[Summary] Trying VLM fallback for existing file, current text length:', originalContent.trim().length);
+              console.log('[Summary] Trying OCR fallback for existing file, current text length:', originalContent.trim().length);
               const vlmController = new AbortController();
               const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
 
@@ -2110,10 +2130,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 originalContent = vlmData.data.text;
                 sourceFileType = vlmData.data.sourceFileType || sourceFileType;
                 extractionSucceeded = true;
-                console.log('[Summary] VLM extraction succeeded for existing file, text length:', originalContent.length);
+                console.log('[Summary] OCR extraction succeeded for existing file (engine:', vlmData.data.engine || 'vlm', '), text length:', originalContent.length);
               }
             } catch (vlmErr) {
-              console.warn('[Summary] VLM extraction failed for existing file:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
+              console.warn('[Summary] OCR extraction failed for existing file:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
             }
           }
 

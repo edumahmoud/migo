@@ -24,6 +24,63 @@ export interface PdfExtractionResult {
 /** Max chars to send to the AI (matches server-side sanitizeString limit) */
 const MAX_TEXT_LENGTH = 50000;
 
+// -------------------------------------------------------
+// OCR helpers (used by the extract-pdf-vlm fallback flow)
+// -------------------------------------------------------
+
+/**
+ * Max binary size the client will inline as base64 in the OCR request body.
+ * Vercel serverless functions cap request bodies at 4.5MB; 3MB of binary
+ * becomes ~4MB of base64 which leaves headroom for the JSON wrapper.
+ * Larger files must go through their storage URL instead (server downloads
+ * the bytes itself with no body limit).
+ */
+export const MAX_OCR_INLINE_BYTES = 3 * 1024 * 1024;
+
+/**
+ * Convert an ArrayBuffer to a base64 string (browser-safe, chunked to avoid
+ * call-stack overflow on large buffers).
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000; // 32KB chunks — safe for String.fromCharCode spread
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Heuristic: does this extracted text look garbled/corrupted?
+ *
+ * Catches two common pdfjs failure modes on Arabic/encoded PDFs:
+ * 1. Unicode replacement characters (U+FFFD '�') from broken CID font maps
+ * 2. Suspiciously low "real letter" ratio (mojibake punctuation soup)
+ *
+ * When true, the caller should retry extraction with OCR
+ * (/api/files/extract-pdf-vlm) even though "some" text was extracted.
+ */
+export function looksGarbled(text: string): boolean {
+  if (!text) return true;
+  const trimmed = text.trim();
+  if (trimmed.length < 10) return true;
+
+  // More than 2% replacement characters → broken encoding
+  const replacements = (trimmed.match(/\uFFFD/g) || []).length;
+  if (replacements > 0 && replacements / trimmed.length > 0.02) {
+    return true;
+  }
+
+  // Fewer than 30% letters/digits/spaces (Arabic or Latin) → likely mojibake
+  const meaningful = (trimmed.match(/[\u0600-\u06FF\u0750-\u077FA-Za-z0-9\s]/g) || []).length;
+  if (meaningful / trimmed.length < 0.3) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Detect if we're on a mobile device where the web worker is unreliable.
  */

@@ -32,7 +32,7 @@ import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app-store';
 import { useAiGenerationStore } from '@/stores/ai-generation-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
-import { extractTextFromFile } from '@/lib/pdf-client';
+import { extractTextFromFile, looksGarbled } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
 import { stripFileExtension } from '@/lib/utils';
 import { useTranslations } from '@/i18n/use-translations';
@@ -752,7 +752,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
         // Strategy B: Client-side extraction fallback
         if (isAborted()) return;
-        if (!content || content.trim().length < 50) {
+        if (!content || content.trim().length < 50 || looksGarbled(content)) {
           try {
             console.log('[QB AI] Attempting client-side extraction fallback...');
             const downloadRes = await fetchWithRetry(capturedFile.file_url, {
@@ -778,9 +778,9 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           }
         }
 
-        // Fallback: VLM-based extraction for scanned/image-heavy PDFs
+        // Fallback: OCR-based extraction for scanned/image-heavy/garbled PDFs
         if (isAborted()) return;
-        if (!content || content.trim().length < 50) {
+        if (!content || content.trim().length < 50 || looksGarbled(content)) {
           try {
             console.log('[QB AI] Trying VLM fallback for image-heavy PDF...');
             const vlmController = new AbortController();
