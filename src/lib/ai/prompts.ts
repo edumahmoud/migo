@@ -12,13 +12,24 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '7';
+export const PROMPT_VERSION = '8';
+
+/**
+ * Output-language rule injected into SUMMARY/REFINE prompts.
+ *
+ * v134t: translation is now OPT-IN. Default behavior keeps the output in the
+ * SAME language as the source content (an English file stays English). Users
+ * can explicitly request an Arabic translation via the UI toggle.
+ */
+const LANGUAGE_RULE_KEEP = `⚠️ قاعدة إلزامية — لغة الإخراج: اكتب الناتج بنفس لغة المحتوى الأصلي تماماً. إذا كان المحتوى بالإنجليزية فاكتب الناتج بالإنجليزية، وإذا كان بالعربية فاكتبه بالعربية، وإذا كان بأي لغة أخرى فاكتبه بنفس اللغة. ممنوع نهائياً ترجمة المحتوى أو أي جزء منه إلى لغة أخرى. حتى الجمل الترحيبية للمستخدم يجب أن تكون بلغة المحتوى الأصلي.`;
+
+const LANGUAGE_RULE_TRANSLATE = `🌐 قاعدة إلزامية — لغة الإخراج: ترجم المحتوى واكتب الناتج كاملاً باللغة العربية الفصحى المبسطة. إذا كان المحتوى الأصلي بالإنجليزية أو بأي لغة أخرى فترجمه إلى العربية، مع إبقاء المصطلحات العلمية والتقنية المهمة بالإنجليزية بين قوسين عند الحاجة.`;
 
 // -------------------------------------------------------
 // Summary Prompts
 // -------------------------------------------------------
 
-export const SUMMARY_SYSTEM = (studentName: string) => `أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة المستخدم باسمه بلطف.
+export const SUMMARY_SYSTEM = (studentName: string, translateToArabic = false) => `أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة المستخدم باسمه بلطف.
 
 قواعد التلخيص:
 1. ابدأ بمخاطبة ${studentName} بلطف ثم مقدمة مختصرة توضح الموضوع الرئيسي
@@ -32,17 +43,21 @@ export const SUMMARY_SYSTEM = (studentName: string) => `أنت مساعد تعل
 9. إذا كان النص يحتوي على معادلات أو رموز رياضية، اكتبها بشكل صحيح
 10. اجعل التلخيص شاملاً بحيث يغطي جميع الأفكار الرئيسية
 11. استخدم تنسيق Markdown بشكل احترافي (عناوين، قوائم، خط عريض، كود إذا لزم)
-12. أضف قسماً في النهاية بعنوان "الخلاصة" يلخص أهم النقاط في 3-5 أسطر
-13. خاطب ${studentName} باسمه في البداية والنهاية بأسلوب ودود ومشجع`;
+12. أضف قسماً في النهاية بعنوان "الخلاصة" يلخص أهم النقاط في 3-5 أسطر (إذا كان المحتوى إنجليزياً فاسم القسم "Key Takeaways")
+13. خاطب ${studentName} باسمه في البداية والنهاية بأسلوب ودود ومشجع
 
-export const SUMMARY_USER = (content: string, studentName: string) =>
-  `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`;
+${translateToArabic ? LANGUAGE_RULE_TRANSLATE : LANGUAGE_RULE_KEEP}`;
+
+export const SUMMARY_USER = (content: string, studentName: string, translateToArabic = false) =>
+  translateToArabic
+    ? `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم وترجمته إلى اللغة العربية. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`
+    : `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم. اكتب الملخص بنفس لغة المحتوى التالي تماماً — بدون أي ترجمة. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`;
 
 // -------------------------------------------------------
 // Refine / OCR Correction Prompts
 // -------------------------------------------------------
 
-export const REFINE_SYSTEM = (studentName: string) => `أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب المستخدم باسمه بأسلوب ودود.
+export const REFINE_SYSTEM = (studentName: string, translateToArabic = false) => `أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب المستخدم باسمه بأسلوب ودود.
 
 قواعد التنقيح والتنسيق:
 1. أصلح أخطاء التعرف البصري (OCR) مثل الأحرف المتداخلة أو المتكررة
@@ -57,10 +72,14 @@ export const REFINE_SYSTEM = (studentName: string) => `أنت مساعد تعل�
 10. احرص على عدم تشويه المعاني أو تحريفها
 11. إذا كان النص يحتوي على معادلات أو رموز رياضية، اكتبها بشكل صحيح
 12. استخدم تنسيق Markdown بشكل احترافي
-13. خاطب ${studentName} باسمه في بداية التنقيح بأسلوب لطيف ومشجع`;
+13. خاطب ${studentName} باسمه في بداية التنقيح بأسلوب لطيف ومشجع
 
-export const REFINE_USER = (content: string, studentName: string) =>
-  `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي:\n\n${content}`;
+${translateToArabic ? LANGUAGE_RULE_TRANSLATE : LANGUAGE_RULE_KEEP}`;
+
+export const REFINE_USER = (content: string, studentName: string, translateToArabic = false) =>
+  translateToArabic
+    ? `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي وترجمته إلى اللغة العربية. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي:\n\n${content}`
+    : `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي وبنفس لغته الأصلية تماماً — بدون أي ترجمة:\n\n${content}`;
 
 // -------------------------------------------------------
 // PDF OCR (Vision Document Understanding) Prompt

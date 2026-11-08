@@ -2,10 +2,20 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const isVercel = process.env.VERCEL === '1';
+// Optional low-memory build mode (e.g. CI sandboxes with ~4GB RAM):
+// MIGO_LOW_MEM_BUILD=1 restricts webpack to a single worker and skips the
+// in-build TypeScript check (types are validated separately via `tsc --noEmit`,
+// because the TS checker + webpack in one worker exceeds sandbox RAM).
+// Vercel builds are unaffected: they keep the full strict check.
+const isLowMemBuild = process.env.MIGO_LOW_MEM_BUILD === '1';
 
 const nextConfig: NextConfig = {
+  ...(isLowMemBuild ? { experimental: { cpus: 1 } } : {}),
   typescript: {
-    ignoreBuildErrors: false, // Build should fail on TypeScript errors — fix them instead of hiding them
+    // Build should fail on TypeScript errors — fix them instead of hiding them.
+    // EXCEPTION: low-mem sandbox builds validate types via a separate `tsc --noEmit`
+    // run (see MIGO_LOW_MEM_BUILD above) to stay within RAM limits.
+    ignoreBuildErrors: isLowMemBuild,
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),

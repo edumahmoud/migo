@@ -1471,7 +1471,9 @@
     "renameSummaryTitle": "Rename Summary",
     "newTitle": "New Title",
     "renameSuccess": "Title renamed successfully",
-    "renameFailed": "Failed to rename title"
+    "renameFailed": "Failed to rename title",
+    "translateToArabic": "Translate to Arabic",
+    "translateToArabicHint": "Output matches the file language — enable to translate into Arabic"
   },
   "settings": {
     "settings": "Settings",
@@ -4040,7 +4042,9 @@
       "removeItem": "Remove this course from the session",
       "itemRemoved": "Course removed from the session",
       "sessionEmptied": "All courses removed. The session is now empty."
-    }
+    },
+    "translateToArabic": "Translate content to Arabic",
+    "translateToArabicHint": "Output matches the file language by default. Enable this to translate English files into Arabic"
   },
   "supabaseConfig": {
     "configError": "Configuration Error",

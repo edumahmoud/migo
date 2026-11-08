@@ -1472,7 +1472,9 @@
     "renameSummaryTitle": "تعديل اسم الملخص",
     "newTitle": "الاسم الجديد",
     "renameSuccess": "تم تعديل الاسم بنجاح",
-    "renameFailed": "فشل تعديل الاسم"
+    "renameFailed": "فشل تعديل الاسم",
+    "translateToArabic": "ترجمة إلى العربية",
+    "translateToArabicHint": "الإخراج بنفس لغة الملف — فعّله لترجمة المحتوى للعربية"
   },
   "settings": {
     "settings": "الإعدادات",
@@ -4041,7 +4043,9 @@
       "removeItem": "إزالة هذا المقرر من الجلسة",
       "itemRemoved": "تمت إزالة المقرر من الجلسة",
       "sessionEmptied": "تمت إزالة جميع المقررات. الجلسة فارغة الآن."
-    }
+    },
+    "translateToArabic": "ترجمة المحتوى إلى العربية",
+    "translateToArabicHint": "الإخراج يكون بنفس لغة الملف تلقائياً. فعّل هذا الخيار إذا أردت ترجمة الملف الإنجليزي إلى العربية"
   },
   "supabaseConfig": {
     "configError": "خطأ في الإعدادات",

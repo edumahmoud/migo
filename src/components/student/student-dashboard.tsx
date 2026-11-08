@@ -37,6 +37,7 @@ import {
   MoreVertical,
   Pencil,
   Clock,
+  Languages,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { computeAllMetrics } from '@/lib/performance-calculator';
@@ -398,6 +399,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [summaryFileName, setSummaryFileName] = useState<string>('');
   const [creatingSummary, setCreatingSummary] = useState(false);
   const [summaryStep, setSummaryStep] = useState<'input' | 'processing'>('input');
+  // v134t: opt-in Arabic translation for summaries (default OFF — keep source language)
+  const [translateToArabic, setTranslateToArabic] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Mobile detection ───
@@ -1664,6 +1667,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     const capturedText = summaryText.trim();
     const capturedFileBuffer = summaryFileBuffer;
     const capturedFileName = summaryFileName || capturedFile?.name || '';
+    const capturedTranslateToArabic = translateToArabic; // v134t: opt-in translation flag
 
     // ───────────────────────────────────────────────────────
     // MOBILE FIX: Use pre-read ArrayBuffer from onChange handler.
@@ -1731,6 +1735,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setCreatingSummary(false);
     setSelectedExistingFile(null);
     setExistingFileTranscribe(false);
+    setTranslateToArabic(false);
 
     toast.info(inputMode === 'transcribe'
       ? t('student.extractingInBackground')
@@ -1983,7 +1988,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
               },
-              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType, translate_to_arabic: capturedTranslateToArabic }),
               signal: abortController.signal,
             });
 
@@ -2184,7 +2189,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
               },
-              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType, translate_to_arabic: capturedTranslateToArabic }),
               signal: abortController.signal,
             });
 
@@ -2214,7 +2219,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
+            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, translate_to_arabic: capturedTranslateToArabic }),
             signal: abortController.signal,
           });
 
@@ -3742,6 +3747,27 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </div>
                   )}
                 </div>
+
+                {/* v134t: Opt-in Arabic translation toggle — hidden in transcribe-only mode (no AI step) */}
+                {summaryInputMode !== 'transcribe' && !(summaryInputMode === 'existing' && existingFileTranscribe) && (
+                  <div className="flex items-start gap-3 rounded-lg border border-sky-200 dark:border-sky-900/50 bg-sky-50/40 dark:bg-sky-900/10 px-3.5 py-3">
+                    <Switch
+                      id="translate-to-arabic"
+                      checked={translateToArabic}
+                      onCheckedChange={(checked) => setTranslateToArabic(checked === true)}
+                      className="mt-0.5 data-[state=checked]:bg-sky-600"
+                    />
+                    <label htmlFor="translate-to-arabic" className="cursor-pointer select-none">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        <Languages className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                        {t('student.translateToArabic')}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {t('student.translateToArabicHint')}
+                      </span>
+                    </label>
+                  </div>
+                )}
 
                 {/* Text input */}
                 {summaryInputMode === 'text' && (

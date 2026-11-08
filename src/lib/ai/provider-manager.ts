@@ -346,13 +346,14 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
  * Generate a summary of the given content.
  * Uses Gemini with fallback chain and caching.
  */
-export async function generateSummary(content: string, studentName?: string): Promise<string> {
+export async function generateSummary(content: string, studentName?: string, translateToArabic?: boolean): Promise<string> {
   const truncatedContent = truncateContent(content);
   const name = extractFirstName(studentName);
+  const translate = translateToArabic === true;
 
   return chatWithFallback(
-    SUMMARY_SYSTEM(name),
-    SUMMARY_USER(truncatedContent, name),
+    SUMMARY_SYSTEM(name, translate),
+    SUMMARY_USER(truncatedContent, name, translate),
     // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
     // (3s auth + 53s AI + 4s buffer for DB save = 60s)
     { temperature: 0.3, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'summary' },
@@ -362,13 +363,14 @@ export async function generateSummary(content: string, studentName?: string): Pr
 /**
  * Refine/format transcribed (OCR-extracted) text.
  */
-export async function refineTranscribedText(content: string, studentName?: string): Promise<string> {
+export async function refineTranscribedText(content: string, studentName?: string, translateToArabic?: boolean): Promise<string> {
   const truncatedContent = truncateContent(content);
   const name = extractFirstName(studentName);
+  const translate = translateToArabic === true;
 
   return chatWithFallback(
-    REFINE_SYSTEM(name),
-    REFINE_USER(truncatedContent, name),
+    REFINE_SYSTEM(name, translate),
+    REFINE_USER(truncatedContent, name, translate),
     // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
     { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'refine' },
   );

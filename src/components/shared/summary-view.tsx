@@ -24,6 +24,7 @@ import {
   Wand2,
   ArrowUp,
   Eye,
+  Languages,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -496,6 +497,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refining, setRefining] = useState(false);
+  // v134t: opt-in Arabic translation for regenerate/refine (default OFF — keep source language)
+  const [translateToArabic, setTranslateToArabic] = useState(false);
 
   // ─── AI Progress trackers (pass raw constant arrays for stable references) ───
   const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 60000);
@@ -969,7 +972,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const res = await fetchWithRetry('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ summaryId }),
+        body: JSON.stringify({ summaryId, translate_to_arabic: translateToArabic }),
         timeoutMs: 300000,
       }, 3);
       const data = await res.json();
@@ -1188,7 +1191,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const res = await fetchWithRetry('/api/gemini/summary', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ summaryId }),
+        body: JSON.stringify({ summaryId, translate_to_arabic: translateToArabic }),
         timeoutMs: 300000,
       }, 3);
       const data = await res.json();
@@ -1457,6 +1460,22 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   </p>
                 </div>
               </div>
+              {/* v134t: Opt-in Arabic translation toggle (default OFF — keep source language) */}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <label
+                  htmlFor="translate-to-arabic"
+                  className="flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-900/15 px-2.5 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 transition-colors hover:bg-sky-50 dark:hover:bg-sky-900/25"
+                  title={t('summary.translateToArabicHint')}
+                >
+                  <Switch
+                    id="translate-to-arabic"
+                    checked={translateToArabic}
+                    onCheckedChange={(checked) => setTranslateToArabic(checked === true)}
+                    className="scale-90 data-[state=checked]:bg-sky-600"
+                  />
+                  <Languages className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{t('summary.translateToArabic')}</span>
+                </label>
               {/* Source file download link */}
               {summary?.source_file_url && (
                 <a
@@ -1505,6 +1524,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   <span className="hidden sm:inline">{refining ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
                 </Button>
               )}
+              </div>
             </div>
 
             {/* Markdown content with RTL typography */}

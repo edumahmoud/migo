@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse JSON body with specific error handling
-    let body: { content?: string; title?: string; subject_id?: string; source_file_type?: 'pdf' | 'docx'; source_file_url?: string };
+    let body: { content?: string; title?: string; subject_id?: string; source_file_type?: 'pdf' | 'docx'; source_file_url?: string; translate_to_arabic?: boolean };
     try {
       body = await request.json();
     } catch {
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     const authTime = Date.now() - requestStartTime;
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length, 'auth took:', authTime + 'ms');
 
-    const summary = await generateSummary(sanitizedContent, studentName);
+    const summary = await generateSummary(sanitizedContent, studentName, body.translate_to_arabic === true);
 
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Summary generated successfully, length:', summary.length, 'total time so far:', aiTime + 'ms');
@@ -265,7 +265,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { summaryId } = body;
+    const { summaryId, translate_to_arabic } = body;
 
     if (!summaryId) {
       return NextResponse.json(
@@ -305,7 +305,7 @@ export async function PUT(request: NextRequest) {
 
     // Refine the transcribed text using AI
     console.log('[Summary API] Refining transcribed text for:', summaryId, 'content length:', originalContent.length);
-    const refinedText = await refineTranscribedText(originalContent, refineStudentName);
+    const refinedText = await refineTranscribedText(originalContent, refineStudentName, translate_to_arabic === true);
 
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Refinement completed, length:', refinedText.length, 'total time:', aiTime + 'ms');

@@ -140,7 +140,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { summaryId } = body;
+    const { summaryId, translate_to_arabic } = body;
 
     if (!summaryId) {
       return NextResponse.json(
@@ -194,7 +194,7 @@ export async function PUT(request: NextRequest) {
     } catch {
       // Name lookup failed — will use default
     }
-    const newSummary = await generateSummary(originalContent, regenStudentName);
+    const newSummary = await generateSummary(originalContent, regenStudentName, translate_to_arabic === true);
 
     // Update the summary in the database
     const { data: updated, error: updateError } = await supabaseServer
