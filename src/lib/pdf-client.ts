@@ -38,6 +38,219 @@ const MAX_TEXT_LENGTH = 50000;
 export const MAX_OCR_INLINE_BYTES = 3 * 1024 * 1024;
 
 /**
+ * Target size for client-side PDF chunks when a scanned PDF is TOO BIG to
+ * inline in one request (> MAX_OCR_INLINE_BYTES) and has no storage URL
+ * (student flow / failed upload). The PDF is split into page-range chunks of
+ * about this size and each chunk is sent as its own OCR request.
+ */
+export const OCR_CHUNK_TARGET_BYTES = 2.6 * 1024 * 1024;
+
+/**
+ * Hard page ceiling per client-side chunk (matches the server's chunking
+ * sweet spot — Gemini reliably reads ~10-12 scanned pages per call).
+ */
+export const OCR_CHUNK_MAX_PAGES = 12;
+
+/**
+ * Per-request timeout for OCR calls. The server route has maxDuration = 60s
+ * with its own 52s internal budget; 70s leaves margin for network + JSON.
+ */
+export const OCR_REQUEST_TIMEOUT_MS = 70000;
+
+export interface OcrPageChunk {
+  buffer: ArrayBuffer;
+  startPage: number;
+  endPage: number;
+}
+
+/**
+ * Pure chunk-boundary computation (unit-testable, no pdf-lib needed):
+ * Given a page count and total byte size, decide how many pages each inline
+ * OCR chunk should carry. Chunks are bounded BOTH by bytes (Vercel body
+ * limit) and by pages (per-call OCR reliability).
+ *
+ * Returns the list of [startPage, endPage] boundaries (1-inclusive).
+ */
+export function computeInlineOcrChunkBoundaries(
+  pageCount: number,
+  totalBytes: number,
+): Array<[number, number]> {
+  if (pageCount <= 0) return [];
+
+  const fitsInline = totalBytes <= MAX_OCR_INLINE_BYTES;
+  const fitsPages = pageCount <= OCR_CHUNK_MAX_PAGES;
+  if (fitsInline && fitsPages) {
+    return [[1, pageCount]];
+  }
+
+  // How many chunks the byte budget demands…
+  const chunksByBytes = Math.max(1, Math.ceil(totalBytes / OCR_CHUNK_TARGET_BYTES));
+  // …and how many the page ceiling demands.
+  const chunksByPages = Math.max(1, Math.ceil(pageCount / OCR_CHUNK_MAX_PAGES));
+  const chunkCount = Math.max(chunksByBytes, chunksByPages);
+  const pagesPerChunk = Math.max(1, Math.ceil(pageCount / chunkCount));
+
+  const boundaries: Array<[number, number]> = [];
+  for (let start = 1; start <= pageCount; start += pagesPerChunk) {
+    boundaries.push([start, Math.min(start + pagesPerChunk - 1, pageCount)]);
+  }
+  return boundaries;
+}
+
+/**
+ * Split a scanned PDF into page-range chunks small enough to inline in OCR
+ * requests. Used ONLY when the file has no storage URL and exceeds the single
+ * request body limit (students never upload the source file; teacher uploads
+ * can fail).
+ *
+ * ≤3MB and ≤12 pages → the original buffer untouched (single request).
+ * Otherwise → independent PDFs built with pdf-lib copyPages (dynamic import —
+ * pdf-lib is ~350KB and only loads when a big scanned PDF actually needs it).
+ *
+ * @throws Error if pdf-lib fails to load or the PDF cannot be parsed —
+ *   callers should treat this as "OCR unavailable", not a hard failure.
+ */
+export async function splitPdfForInlineOcr(buffer: ArrayBuffer): Promise<OcrPageChunk[]> {
+  const { PDFDocument } = await import('pdf-lib');
+  const doc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+  const pageCount = doc.getPageCount();
+  const boundaries = computeInlineOcrChunkBoundaries(pageCount, buffer.byteLength);
+
+  if (boundaries.length === 1) {
+    // Single chunk: keep the ORIGINAL bytes (no re-serialization).
+    return [{ buffer, startPage: 1, endPage: pageCount }];
+  }
+
+  const chunks: OcrPageChunk[] = [];
+  for (const [start, end] of boundaries) {
+    const out = await PDFDocument.create();
+    const pageIndices = Array.from({ length: end - start + 1 }, (_, k) => start - 1 + k);
+    const copied = await out.copyPages(doc, pageIndices);
+    copied.forEach(p => out.addPage(p));
+
+    // Copy the saved bytes into a standalone ArrayBuffer (pdf-lib's save()
+    // returns a Uint8Array that may be a view over a larger internal buffer).
+    const saved = await out.save();
+    const chunkBuffer = new ArrayBuffer(saved.byteLength);
+    new Uint8Array(chunkBuffer).set(saved);
+
+    chunks.push({ buffer: chunkBuffer, startPage: start, endPage: end });
+  }
+  return chunks;
+}
+
+/**
+ * Unified client-side OCR fallback runner for scanned PDFs.
+ *
+ * Strategy (first that applies wins):
+ *   1. storage URL available (teacher upload succeeded) → ONE request with
+ *      the URL; the server downloads the bytes and parallel-chunks itself.
+ *   2. buffer ≤ 3MB → ONE request with inline base64 (the server chunks
+ *      long documents in parallel).
+ *   3. bigger buffer → split into page chunks client-side and send them as
+ *      SEQUENTIAL inline requests, joining the text in page order.
+ *
+ * @returns the extracted text, or null when every attempt failed.
+ */
+export async function runOcrExtraction(params: {
+  url?: string | null;
+  buffer?: ArrayBuffer | null;
+  fileName?: string;
+  token: string;
+  /** Outer abort signal (e.g. the background-task safety net). */
+  signal?: AbortSignal;
+  onProgress?: (done: number, total: number) => void;
+}): Promise<string | null> {
+  const { url, buffer, fileName, token, signal, onProgress } = params;
+
+  const postOcr = async (body: Record<string, string>): Promise<string | null> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), OCR_REQUEST_TIMEOUT_MS);
+    const onOuterAbort = () => controller.abort();
+    signal?.addEventListener('abort', onOuterAbort, { once: true });
+
+    try {
+      const res = await fetch('/api/files/extract-pdf-vlm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data?.text) {
+        return data.data.text as string;
+      }
+      console.warn('[OCR Runner] request failed:', res.status, data.error || 'unknown');
+      return null;
+    } catch (err) {
+      if (signal?.aborted) throw err; // outer cancellation must propagate
+      console.warn('[OCR Runner] request error:', err instanceof Error ? err.message : err);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onOuterAbort);
+    }
+  };
+
+  // Strategy 1: storage URL — the server handles everything (incl. chunking).
+  if (url) {
+    const text = await postOcr({ url, fileName: fileName || '' });
+    onProgress?.(1, 1);
+    return text;
+  }
+
+  if (!buffer) return null;
+
+  // Strategy 2: small enough to inline in one request.
+  if (buffer.byteLength <= MAX_OCR_INLINE_BYTES) {
+    const text = await postOcr({ data: arrayBufferToBase64(buffer), fileName: fileName || '' });
+    onProgress?.(1, 1);
+    return text;
+  }
+
+  // Strategy 3: client-side split + sequential inline requests.
+  let chunks: OcrPageChunk[];
+  try {
+    chunks = await splitPdfForInlineOcr(buffer);
+  } catch (splitErr) {
+    console.warn('[OCR Runner] client-side PDF split failed:', splitErr instanceof Error ? splitErr.message : splitErr);
+    return null;
+  }
+
+  if (chunks.length <= 1) {
+    // Split decided one chunk fits after all (or page count is tiny).
+    const text = await postOcr({ data: arrayBufferToBase64(buffer), fileName: fileName || '' });
+    onProgress?.(1, 1);
+    return text;
+  }
+
+  console.log('[OCR Runner] Large scanned PDF without URL — split into', chunks.length, 'chunks');
+  const texts: string[] = [];
+  let okCount = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    if (signal?.aborted) throw new Error('Aborted');
+    const text = await postOcr({
+      data: arrayBufferToBase64(chunks[i].buffer),
+      fileName: `${fileName || 'document'} (جزء ${i + 1}/${chunks.length})`,
+    });
+    if (text && text.trim()) {
+      okCount++;
+      texts.push(text);
+    }
+    onProgress?.(i + 1, chunks.length);
+  }
+
+  if (okCount === 0) return null;
+  if (okCount < chunks.length) {
+    console.warn('[OCR Runner] Partial OCR:', okCount + '/' + chunks.length, 'chunks succeeded');
+  }
+  return texts.join('\n\n');
+}
+
+/**
  * Convert an ArrayBuffer to a base64 string (browser-safe, chunked to avoid
  * call-stack overflow on large buffers).
  */

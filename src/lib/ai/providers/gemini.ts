@@ -585,16 +585,25 @@ export class GeminiProvider implements AiProvider {
 
       try {
         const attemptStart = Date.now();
+        // Built as a standalone variable (not an inline literal) so the extra
+        // `thinkingConfig` field passes structural typing: the SDK 0.24.1
+        // GenerationConfig type predates it, but the SDK spreads
+        // generationConfig verbatim into the REST body, which DOES support it
+        // for Gemini 2.5 models.
+        const ocrGenerationConfig = {
+          // Low temperature: OCR must be verbatim, not creative
+          temperature: 0.1,
+          // High ceiling: Gemini 2.5 Flash supports up to 65,535 output tokens.
+          maxOutputTokens: 65535,
+          // Disable "thinking" for OCR: extraction is a perception task, not
+          // reasoning. Default dynamic thinking burns seconds of latency and
+          // thousands of output tokens per call — wasted for verbatim OCR and
+          // fatal when several page-chunks race against a shared deadline.
+          thinkingConfig: { thinkingBudget: 0 },
+        };
         const model = keyState.client.getGenerativeModel({
           model: PRIMARY_MODEL,
-          generationConfig: {
-            // Low temperature: OCR must be verbatim, not creative
-            temperature: 0.1,
-            // High ceiling: Gemini 2.5 Flash supports up to 65,535 output tokens.
-            // Thinking tokens count against this limit, so keep headroom for
-            // long documents to avoid truncated extractions.
-            maxOutputTokens: 65535,
-          },
+          generationConfig: ocrGenerationConfig,
         });
 
         console.log(`[Gemini OCR] Starting inline-PDF OCR (key #${keyState.index + 1}, pdf ~${Math.round(pdfBase64.length * 3 / 4 / 1024)}KB, budget ${remaining}ms)`);

@@ -815,7 +815,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         try {
           console.log('[Exams AI] Trying OCR fallback for scanned PDF...');
           const ocrController = new AbortController();
-          const ocrTimeoutId = setTimeout(() => ocrController.abort(), 55000);
+          // 70s: the server parallel-chunks long scans and may use its full
+          // 52s internal budget — 55s here would cut it off prematurely.
+          const ocrTimeoutId = setTimeout(() => ocrController.abort(), 70000);
 
           const ocrRes = await fetch('/api/files/extract-pdf-vlm', {
             method: 'POST',

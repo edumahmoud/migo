@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { geminiProvider } from '@/lib/ai/providers/gemini';
 import { isAiError } from '@/lib/ai/types';
 import { PDF_OCR_PROMPT } from '@/lib/ai/prompts';
+import { PDFDocument } from 'pdf-lib';
 
 // OCR-based PDF text extraction for image-heavy / scanned PDFs.
 //
@@ -14,6 +15,10 @@ import { PDF_OCR_PROMPT } from '@/lib/ai/prompts';
 //   Engine A (PRIMARY): Gemini inline-PDF OCR — the raw PDF bytes are sent
 //   directly to Gemini (native document understanding, works on scans,
 //   no public URL needed, uses the existing key pool with rotation).
+//   For LONG documents (>10 pages) the PDF is split into page-range chunks
+//   with pdf-lib and the chunks are OCRed IN PARALLEL — a 45-page scan cannot
+//   finish inside a single call's latency budget, but five 9-page chunks
+//   racing side by side do (thinking is disabled per-call for speed).
 //
 //   Engine B (FALLBACK): z-ai-web-dev-sdk VLM — the PDF's URL is passed to
 //   the VLM which fetches and reads it itself. Requires a reachable URL.
@@ -38,7 +43,63 @@ const MAX_PDF_BYTES = 10 * 1024 * 1024; // 10MB — matches the extract endpoint
 const OCR_TOTAL_BUDGET_MS = 52000;
 // Gemini OCR gets the lion's share; if it fails we still want ~15s for the VLM.
 const GEMINI_OCR_BUDGET_MS = 38000;
+// When a PDF is split into parallel page-chunks, each chunk races against
+// its own deadline — this is the wall-clock ceiling for the whole parallel
+// phase (slowest chunk), not the sum.
+const GEMINI_CHUNK_PHASE_BUDGET_MS = 40000;
 const MIN_VLM_BUDGET_MS = 15000;
+
+// Documents above this page count are split into page-range chunks that are
+// OCRed in parallel (a single Gemini call on a long scan blows the deadline).
+const CHUNK_ABOVE_PAGES = 10;
+// Upper bound on parallel chunk requests (bounds cost & key-pool pressure).
+const MAX_PARALLEL_CHUNKS = 6;
+
+interface PdfPageChunk {
+  bytes: Buffer;
+  startPage: number;
+  endPage: number;
+}
+
+/**
+ * Split a PDF into page-range chunks for parallel OCR.
+ * ≤ CHUNK_ABOVE_PAGES pages → the ORIGINAL bytes, unsplit (no re-serialization).
+ * More → ceil(pages / CHUNK_ABOVE_PAGES) chunks (capped at MAX_PARALLEL_CHUNKS
+ * by growing pages-per-chunk), each an independent PDF via pdf-lib copyPages.
+ * Returns null when the document cannot be parsed (caller falls back to a
+ * single-call attempt on the original bytes).
+ */
+async function splitPdfIntoChunks(pdfBytes: Buffer): Promise<PdfPageChunk[] | null> {
+  try {
+    const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const pageCount = doc.getPageCount();
+    if (pageCount <= CHUNK_ABOVE_PAGES) {
+      return [{ bytes: pdfBytes, startPage: 1, endPage: pageCount }];
+    }
+
+    const chunkCount = Math.min(MAX_PARALLEL_CHUNKS, Math.ceil(pageCount / CHUNK_ABOVE_PAGES));
+    const pagesPerChunk = Math.ceil(pageCount / chunkCount);
+
+    const chunks: PdfPageChunk[] = [];
+    for (let start = 0; start < pageCount; start += pagesPerChunk) {
+      const end = Math.min(start + pagesPerChunk, pageCount);
+      const out = await PDFDocument.create();
+      const pageIndices = Array.from({ length: end - start }, (_, k) => start + k);
+      const copied = await out.copyPages(doc, pageIndices);
+      copied.forEach(p => out.addPage(p));
+      chunks.push({
+        bytes: Buffer.from(await out.save()),
+        startPage: start + 1,
+        endPage: end,
+      });
+    }
+    return chunks;
+  } catch (splitErr) {
+    console.warn('[PDF OCR] pdf-lib split failed — falling back to single-call OCR:',
+      splitErr instanceof Error ? splitErr.message : splitErr);
+    return null;
+  }
+}
 
 /**
  * POST /api/files/extract-pdf-vlm
@@ -176,35 +237,95 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ─── Engine A: Gemini inline-PDF OCR (PRIMARY) ───
+    // ─── Engine A: Gemini inline-PDF OCR (PRIMARY, chunked-parallel for long docs) ───
     // Requires the raw bytes and a %PDF magic header (be strict — sending a
     // non-PDF to Gemini inline would waste the whole OCR budget).
     const isPdfBytes = !!pdfBytes && pdfBytes.length > 5 && pdfBytes.subarray(0, 5).toString('latin1') === '%PDF-';
 
     if (isPdfBytes && pdfBytes) {
-      const remaining = OCR_TOTAL_BUDGET_MS - (Date.now() - requestStartTime);
-      if (remaining > 8000) {
-        const budget = Math.min(GEMINI_OCR_BUDGET_MS, remaining - 3000);
-        try {
-          const pdfBase64 = pdfBytes.toString('base64');
-          const extractedText = await geminiProvider.ocrPdf(pdfBase64, PDF_OCR_PROMPT, budget);
+      const chunks = (await splitPdfIntoChunks(pdfBytes)) ?? [{ bytes: pdfBytes, startPage: 1, endPage: 0 }];
 
-          if (extractedText.trim()) {
-            const text = truncate(extractedText);
-            console.log('[PDF OCR] Gemini engine succeeded, text length:', text.length,
+      if (chunks.length === 1) {
+        // ─── Short document: single Gemini call ───
+        const remaining = OCR_TOTAL_BUDGET_MS - (Date.now() - requestStartTime);
+        if (remaining > 8000) {
+          const budget = Math.min(GEMINI_OCR_BUDGET_MS, remaining - 3000);
+          try {
+            const pdfBase64 = chunks[0].bytes.toString('base64');
+            const extractedText = await geminiProvider.ocrPdf(pdfBase64, PDF_OCR_PROMPT, budget);
+
+            if (extractedText.trim()) {
+              const text = truncate(extractedText);
+              console.log('[PDF OCR] Gemini engine succeeded (single call), text length:', text.length,
+                'total time:', Date.now() - requestStartTime, 'ms');
+              return NextResponse.json({
+                success: true,
+                data: { text, sourceFileType: 'pdf', engine: 'gemini-ocr' },
+              });
+            }
+          } catch (geminiErr) {
+            const code = isAiError(geminiErr) ? geminiErr.code : 'UNKNOWN';
+            const msg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+            console.warn('[PDF OCR] Gemini engine failed:', code, '—', msg);
+          }
+        } else {
+          console.warn('[PDF OCR] Skipping Gemini engine — only', remaining, 'ms of budget left');
+        }
+      } else {
+        // ─── Long document: parallel page-range chunks ───
+        // Each chunk races against its own deadline; wall-clock ≈ slowest chunk.
+        const phaseStart = Date.now();
+        const chunkBudget = Math.min(
+          GEMINI_CHUNK_PHASE_BUDGET_MS,
+          OCR_TOTAL_BUDGET_MS - (phaseStart - requestStartTime) - 3000,
+        );
+
+        if (chunkBudget > 8000) {
+          console.log('[PDF OCR] Parallel chunked OCR:', chunks.length, 'chunks',
+            '(', chunks.map(c => `${c.startPage}-${c.endPage}`).join(', '), ')',
+            'budget per chunk:', chunkBudget, 'ms');
+
+          const results = await Promise.allSettled(chunks.map(chunk =>
+            geminiProvider.ocrPdf(chunk.bytes.toString('base64'), PDF_OCR_PROMPT, chunkBudget),
+          ));
+
+          const texts: string[] = [];
+          let chunksOk = 0;
+          results.forEach((r, i) => {
+            if (r.status === 'fulfilled' && r.value.trim()) {
+              chunksOk++;
+              texts.push(r.value);
+            } else {
+              const reason = r.status === 'rejected'
+                ? (isAiError(r.reason) ? `${r.reason.code}: ${r.reason.message}` : String(r.reason))
+                : 'empty output';
+              console.warn('[PDF OCR] Chunk pages', `${chunks[i].startPage}-${chunks[i].endPage}`, 'failed:', reason);
+            }
+          });
+
+          if (chunksOk > 0) {
+            // Partial results are still worth returning — a summary/transcript
+            // built from most pages beats a total extraction failure.
+            const text = truncate(texts.join('\n\n'));
+            console.log('[PDF OCR] Gemini chunked OCR done:', chunksOk + '/' + chunks.length,
+              'chunks ok, text length:', text.length,
               'total time:', Date.now() - requestStartTime, 'ms');
             return NextResponse.json({
               success: true,
-              data: { text, sourceFileType: 'pdf', engine: 'gemini-ocr' },
+              data: {
+                text,
+                sourceFileType: 'pdf',
+                engine: 'gemini-ocr',
+                chunked: true,
+                chunksOk,
+                chunksTotal: chunks.length,
+              },
             });
           }
-        } catch (geminiErr) {
-          const code = isAiError(geminiErr) ? geminiErr.code : 'UNKNOWN';
-          const msg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
-          console.warn('[PDF OCR] Gemini engine failed:', code, '—', msg);
+          console.warn('[PDF OCR] All', chunks.length, 'chunks failed — falling through to VLM');
+        } else {
+          console.warn('[PDF OCR] Skipping chunked Gemini phase — only', chunkBudget, 'ms of budget left');
         }
-      } else {
-        console.warn('[PDF OCR] Skipping Gemini engine — only', remaining, 'ms of budget left');
       }
     } else if (!isPdfBytes) {
       console.warn('[PDF OCR] No PDF bytes available for Gemini engine',

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
-import { extractTextFromFile, arrayBufferToBase64, looksGarbled, MAX_OCR_INLINE_BYTES } from '@/lib/pdf-client';
+import { extractTextFromFile, looksGarbled, runOcrExtraction } from '@/lib/pdf-client';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -699,9 +699,14 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           }
 
           // Fallback: Server-side extraction
-          if (!extractionSucceeded) {
+          // NOTE: Vercel caps request bodies at 4.5MB — a larger FormData POST
+          // is rejected with HTTP 413 before our code even runs, so skip the
+          // doomed round-trip and go straight to the OCR fallback instead.
+          const VERCEL_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
+          const serverFallbackBuffer = preReadFileData || (capturedFile ? await capturedFile.arrayBuffer().catch(() => null) : null);
+          if (!extractionSucceeded && serverFallbackBuffer && serverFallbackBuffer.byteLength <= VERCEL_BODY_LIMIT_BYTES) {
             try {
-              const sourceBuffer = preReadFileData || (capturedFile ? await capturedFile.arrayBuffer() : null);
+              const sourceBuffer = serverFallbackBuffer;
               // Note: capturedFile.arrayBuffer() may fail on mobile if File ref is invalid,
               // but preReadFileData should always be available from the onChange pre-read.
               if (!sourceBuffer) throw new Error(t('fileDataNotFound'));
@@ -743,52 +748,42 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
           // Fallback: OCR-based extraction for scanned/image-heavy/garbled PDFs
           // If extraction failed OR returned very little/garbled text for a PDF, try OCR.
-          // Works with a storage URL (server downloads it) OR inline base64 bytes
-          // (when the storage upload failed) — as long as ONE of them is available.
+          // Uses the storage URL when available (server downloads + parallel-chunks);
+          // otherwise inlines the bytes (≤ 3MB) or splits into page chunks
+          // client-side (pdf-lib) for bigger files — so even a 5MB+ scanned PDF
+          // with a failed upload still gets OCRed.
           {
+            // Detect the type from the filename when every earlier extraction
+            // path threw before assigning it (e.g. a >4MB scanned PDF skips the
+            // server fallback entirely — the type must not stay null or the
+            // OCR gate below would reject the file).
+            if (!sourceFileType && capturedFileName) {
+              sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : /\.pptx$/i.test(capturedFileName) ? 'pptx' : /\.(txt|md|csv)$/i.test(capturedFileName) ? 'txt' : 'pdf';
+            }
+
             const needsOcr = !extractionSucceeded
               || originalContent.trim().length < 50
               || looksGarbled(originalContent);
 
             const ocrSourceBuffer = (preReadFileData || (capturedFile ? await capturedFile.arrayBuffer().catch(() => null) : null));
-            const canOcr = sourceFileType === 'pdf' && !!(
-              sourceFileUrl
-              || (ocrSourceBuffer && ocrSourceBuffer.byteLength <= MAX_OCR_INLINE_BYTES)
-            );
+            const canOcr = sourceFileType === 'pdf' && !!(sourceFileUrl || ocrSourceBuffer);
 
             if (needsOcr && canOcr) {
               try {
                 console.log('[SummaryUpload] Trying OCR fallback for image-heavy PDF, current text length:', originalContent.trim().length);
-                const vlmController = new AbortController();
-                const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
-
-                // Prefer the storage URL (no body-size limit); fall back to
-                // inline base64 bytes when the upload failed (≤ 3MB only).
-                const ocrBody: Record<string, string> = { fileName: capturedFileName };
-                if (sourceFileUrl) {
-                  ocrBody.url = sourceFileUrl;
-                } else if (ocrSourceBuffer) {
-                  ocrBody.data = arrayBufferToBase64(ocrSourceBuffer);
-                }
-
-                const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                  },
-                  body: JSON.stringify(ocrBody),
-                  signal: vlmController.signal,
+                const ocrText = await runOcrExtraction({
+                  url: sourceFileUrl,
+                  buffer: ocrSourceBuffer,
+                  fileName: capturedFileName,
+                  token,
+                  signal: abortController.signal,
                 });
 
-                clearTimeout(vlmTimeoutId);
-                const vlmData = await vlmRes.json();
-
-                if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
-                  originalContent = vlmData.data.text;
-                  sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                if (ocrText && ocrText.trim()) {
+                  originalContent = ocrText;
+                  sourceFileType = 'pdf';
                   extractionSucceeded = true;
-                  console.log('[SummaryUpload] OCR extraction succeeded (engine:', vlmData.data.engine || 'vlm', '), text length:', originalContent.length);
+                  console.log('[SummaryUpload] OCR extraction succeeded, text length:', originalContent.length);
                 }
               } catch (vlmErr) {
                 console.warn('[SummaryUpload] OCR extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);

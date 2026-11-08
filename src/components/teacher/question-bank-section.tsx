@@ -784,13 +784,15 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           try {
             console.log('[QB AI] Trying VLM fallback for image-heavy PDF...');
             const vlmController = new AbortController();
-            const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+            // 70s: the server parallel-chunks long scans and may use its full
+            // 52s internal budget — 55s here would cut it off prematurely.
+            const vlmTimeoutId = setTimeout(() => vlmController.abort(), 70000);
 
             const vlmRes = await fetchWithRetry('/api/files/extract-pdf-vlm', {
               method: 'POST',
               headers,
               signal: AbortSignal.any ? AbortSignal.any([vlmController.signal, signal]) : vlmController.signal,
-              timeoutMs: 55000,
+              timeoutMs: 70000,
               body: JSON.stringify({
                 url: capturedFile.file_url,
                 fileName: capturedFile.file_name,

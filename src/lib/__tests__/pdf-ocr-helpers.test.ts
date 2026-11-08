@@ -1,5 +1,12 @@
 import { describe, test, expect } from 'bun:test';
-import { looksGarbled, arrayBufferToBase64, MAX_OCR_INLINE_BYTES } from '../pdf-client';
+import {
+  looksGarbled,
+  arrayBufferToBase64,
+  MAX_OCR_INLINE_BYTES,
+  computeInlineOcrChunkBoundaries,
+  OCR_CHUNK_MAX_PAGES,
+  OCR_CHUNK_TARGET_BYTES,
+} from '../pdf-client';
 
 describe('looksGarbled', () => {
   test('normal Arabic text is NOT garbled', () => {
@@ -73,6 +80,79 @@ describe('MAX_OCR_INLINE_BYTES', () => {
     expect(MAX_OCR_INLINE_BYTES).toBe(3 * 1024 * 1024);
     // base64 of 3MB is ~4MB, leaving headroom in the JSON body
     const base64Size = Math.ceil(MAX_OCR_INLINE_BYTES / 3) * 4;
+    expect(base64Size).toBeLessThan(4.5 * 1024 * 1024);
+  });
+});
+
+describe('computeInlineOcrChunkBoundaries', () => {
+  test('small PDF (few pages, few bytes) stays a single chunk', () => {
+    expect(computeInlineOcrChunkBoundaries(8, 500 * 1024)).toEqual([[1, 8]]);
+  });
+
+  test('exactly at both limits stays a single chunk', () => {
+    expect(computeInlineOcrChunkBoundaries(OCR_CHUNK_MAX_PAGES, MAX_OCR_INLINE_BYTES)).toEqual([
+      [1, OCR_CHUNK_MAX_PAGES],
+    ]);
+  });
+
+  test('the real-world case: 45 pages / 5.29MB scan splits into byte+page bounded chunks', () => {
+    const boundaries = computeInlineOcrChunkBoundaries(45, 5_549_236);
+    // Every page covered exactly once, in order
+    expect(boundaries[0][0]).toBe(1);
+    expect(boundaries[boundaries.length - 1][1]).toBe(45);
+    for (let i = 1; i < boundaries.length; i++) {
+      expect(boundaries[i][0]).toBe(boundaries[i - 1][1] + 1);
+    }
+    // Multiple chunks required, page ceiling respected per chunk
+    expect(boundaries.length).toBeGreaterThan(1);
+    for (const [start, end] of boundaries) {
+      expect(end - start + 1).toBeLessThanOrEqual(OCR_CHUNK_MAX_PAGES);
+    }
+    // 5.29MB / 2.6MB target ⇒ at least 3 chunks; 45 pages / 12 ⇒ at least 4
+    expect(boundaries.length).toBeGreaterThanOrEqual(4);
+  });
+
+  test('many pages but small file splits by page ceiling only', () => {
+    // 30 pages, 1MB: fits inline byte-wise but exceeds the page ceiling
+    const boundaries = computeInlineOcrChunkBoundaries(30, 1024 * 1024);
+    expect(boundaries.length).toBeGreaterThanOrEqual(Math.ceil(30 / OCR_CHUNK_MAX_PAGES));
+    for (const [start, end] of boundaries) {
+      expect(end - start + 1).toBeLessThanOrEqual(OCR_CHUNK_MAX_PAGES);
+    }
+  });
+
+  test('huge page count keeps chunks page-bounded', () => {
+    const boundaries = computeInlineOcrChunkBoundaries(200, 10 * 1024 * 1024);
+    expect(boundaries[boundaries.length - 1][1]).toBe(200);
+    for (const [start, end] of boundaries) {
+      expect(end - start + 1).toBeLessThanOrEqual(OCR_CHUNK_MAX_PAGES);
+    }
+    // 200 pages / 12 ⇒ at least 17 chunks
+    expect(boundaries.length).toBeGreaterThanOrEqual(17);
+  });
+
+  test('zero pages yields no chunks', () => {
+    expect(computeInlineOcrChunkBoundaries(0, 1000)).toEqual([]);
+  });
+
+  test('estimated per-chunk bytes stay under the inline limit for the real file', () => {
+    // For the 45-page / 5.29MB scan: pages are roughly uniform, so each chunk's
+    // byte share must remain safely below MAX_OCR_INLINE_BYTES after base64 (+33%).
+    const totalPages = 45;
+    const totalBytes = 5_549_236;
+    const boundaries = computeInlineOcrChunkBoundaries(totalPages, totalBytes);
+    for (const [start, end] of boundaries) {
+      const pages = end - start + 1;
+      const estimatedBytes = (totalBytes * pages) / totalPages;
+      // +10% re-serialization slack, then +4/3 base64 expansion
+      const worstCase = estimatedBytes * 1.1 * (4 / 3);
+      expect(worstCase).toBeLessThan(4.5 * 1024 * 1024);
+    }
+  });
+
+  test('chunk target bytes keep base64 payload within the Vercel body limit', () => {
+    // A chunk at the target size, base64-encoded, must stay under 4.5MB.
+    const base64Size = Math.ceil(OCR_CHUNK_TARGET_BYTES / 3) * 4;
     expect(base64Size).toBeLessThan(4.5 * 1024 * 1024);
   });
 });
