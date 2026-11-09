@@ -1,87 +1,169 @@
 -- =============================================================
 -- v134q_storage_subscription.sql
--- AttenDo LMS — Storage plans become SUBSCRIPTIONS (v134q)
+-- AttenDo LMS — Storage subscriptions (time-based)
 --
--- User requests:
---   1. Monthly subscription payment with restriction when the
---      month ends (quota reverts when the subscription expires).
---   2. Both monthly and yearly durations available.
---   3. Restrict subscribing to plans SMALLER than the current one.
+-- يضيف دعم الاشتراكات الزمنية للتخزين (شهري/سنوي) بجانب
+-- الترقيات الدائمة الموجودة في user_storage_upgrades.
 --
--- Model change (was v134i):
---   storage_plans were PERMANENT ("buy X MB forever"). They are now
---   time-based subscriptions. Each plan carries TWO prices:
---     - price_monthly: what the user pays per month
---     - price_yearly : what the user pays per year (optional — NULL
---                      means the plan is not offered yearly)
---   The old `price` column is kept in sync (= price_monthly) for
---   backward compatibility with older readers.
+-- النموذج:
+--   - storage_plans يصف الخطة (50GB / 200GB / ...).
+--   - storage_subscriptions يسجّل اشتراك المستخدم في خطة مع
+--     فترة زمنية (شهر/سنة) وحالة (active/expired/pending).
+--   - الدالة effective_storage_quota() تحسب الحصة الفعلية:
+--     (الحصة المجانية) + (مجموع الترقيات الدائمة النشطة)
+--     + (مجموع الاشتراكات الزمنية النشطة).
 --
---   user_storage_upgrades gains:
---     - duration_type: 'permanent' (legacy rows) | 'monthly' | 'yearly'
---     - expires_at   : NULL for legacy permanent upgrades, otherwise
---                      the moment the quota add-on stops applying.
---                      The storage check API auto-deactivates expired
---                      upgrades — that is the "restriction when the
---                      month ends".
---
--- Grandfathering: existing active upgrades (purchased under the
--- permanent model) keep duration_type='permanent' and expires_at=NULL
--- → they never expire. Only NEW approvals create time-limited rows.
+-- هذا الترحيل متوافق مع v134i و v134l ولا يحذف أو يعدّل أي شيء
+-- موجود — فقط يضيف جدولاً جديداً ودالة مساعدة.
 -- =============================================================
 
--- 1. storage_plans: monthly + yearly prices.
-ALTER TABLE public.storage_plans
-  ADD COLUMN IF NOT EXISTS price_monthly NUMERIC(10,2);
+-- 1. جدول اشتراكات التخزين الزمنية
+CREATE TABLE IF NOT EXISTS public.storage_subscriptions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  plan_id           UUID NOT NULL REFERENCES public.storage_plans(id) ON DELETE CASCADE,
+  size_mb           INTEGER NOT NULL,                      -- لقطة من حجم الخطة وقت الاشتراك
+  price             NUMERIC(10,2) NOT NULL,                -- لقطة من السعر وقت الاشتراك
+  currency          TEXT NOT NULL DEFAULT 'EGP',
+  period            TEXT NOT NULL DEFAULT 'monthly',       -- 'monthly' | 'yearly'
+  status            TEXT NOT NULL DEFAULT 'pending',       -- 'pending' | 'active' | 'expired' | 'cancelled'
+  started_at        TIMESTAMPTZ,                           -- بداية الفعالية (عند التفعيل)
+  expires_at        TIMESTAMPTZ,                           -- نهاية الفترة
+  request_id        UUID,                                  -- رابط بطلب التفعيل في section_activation_requests
+  payment_order_id  UUID,                                  -- رابط بجدول الطلبات (orders) إن وُجد
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-ALTER TABLE public.storage_plans
-  ADD COLUMN IF NOT EXISTS price_yearly NUMERIC(10,2);
+-- فهرسة سريعة لاستعلام اشتراكات مستخدم
+CREATE INDEX IF NOT EXISTS idx_storage_subscriptions_user
+  ON public.storage_subscriptions(user_id, status);
 
--- Backfill: monthly price = old permanent price; yearly = 10x monthly
--- (≈ 2 months free — the admin can edit anytime).
-UPDATE public.storage_plans
-SET price_monthly = price
-WHERE price_monthly IS NULL;
+CREATE INDEX IF NOT EXISTS idx_storage_subscriptions_expires
+  ON public.storage_subscriptions(expires_at)
+  WHERE status = 'active';
 
-UPDATE public.storage_plans
-SET price_yearly = ROUND(price * 10, 2)
-WHERE price_yearly IS NULL;
-
--- Keep the legacy `price` column aligned with the monthly price.
-UPDATE public.storage_plans
-SET price = price_monthly
-WHERE price IS DISTINCT FROM price_monthly;
-
--- 2. user_storage_upgrades: duration + expiry.
-ALTER TABLE public.user_storage_upgrades
-  ADD COLUMN IF NOT EXISTS duration_type TEXT NOT NULL DEFAULT 'permanent';
-
-ALTER TABLE public.user_storage_upgrades
-  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
-
--- CHECK constraint for valid duration values.
+-- قيد على قيم status
 DO $$
 BEGIN
-  ALTER TABLE public.user_storage_upgrades
-    DROP CONSTRAINT IF EXISTS chk_upgrade_duration_type;
-  ALTER TABLE public.user_storage_upgrades
-    ADD CONSTRAINT chk_upgrade_duration_type CHECK (
-      duration_type IN ('permanent', 'monthly', 'yearly')
+  ALTER TABLE public.storage_subscriptions
+    DROP CONSTRAINT IF EXISTS chk_storage_sub_status;
+  ALTER TABLE public.storage_subscriptions
+    ADD CONSTRAINT chk_storage_sub_status CHECK (
+      status IN ('pending', 'active', 'expired', 'cancelled')
     );
 EXCEPTION WHEN OTHERS THEN
   NULL;
 END $$;
 
--- Index for the expiry sweep performed by /api/storage/check.
-CREATE INDEX IF NOT EXISTS idx_user_storage_upgrades_expiry
-  ON public.user_storage_upgrades(expires_at)
-  WHERE is_active = true AND expires_at IS NOT NULL;
+-- قيد على قيم period
+DO $$
+BEGIN
+  ALTER TABLE public.storage_subscriptions
+    DROP CONSTRAINT IF EXISTS chk_storage_sub_period;
+  ALTER TABLE public.storage_subscriptions
+    ADD CONSTRAINT chk_storage_sub_period CHECK (
+      period IN ('monthly', 'yearly')
+    );
+EXCEPTION WHEN OTHERS THEN
+  NULL;
+END $$;
 
--- 3. Verify.
-SELECT column_name, data_type
+-- 2. RLS
+ALTER TABLE public.storage_subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- المستخدم يرى اشتراكاته فقط، والمدير يرى الكل
+DROP POLICY IF EXISTS "Users read own storage subscriptions" ON public.storage_subscriptions;
+CREATE POLICY "Users read own storage subscriptions"
+  ON public.storage_subscriptions FOR SELECT
+  USING (user_id = auth.uid() OR public.is_admin());
+
+-- المستخدم يمكنه إنشاء اشتراك لنفسه فقط
+DROP POLICY IF EXISTS "Users insert own storage subscriptions" ON public.storage_subscriptions;
+CREATE POLICY "Users insert own storage subscriptions"
+  ON public.storage_subscriptions FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+-- المستخدم يمكنه تعديل اشتراكاته (مثلاً إلغاء)
+DROP POLICY IF EXISTS "Users update own storage subscriptions" ON public.storage_subscriptions;
+CREATE POLICY "Users update own storage subscriptions"
+  ON public.storage_subscriptions FOR UPDATE
+  USING (user_id = auth.uid() OR public.is_admin());
+
+-- 3. Trigger لتحديث updated_at تلقائياً
+CREATE OR REPLACE FUNCTION public.touch_storage_subscriptions_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_storage_subscriptions_updated_at ON public.storage_subscriptions;
+CREATE TRIGGER trg_storage_subscriptions_updated_at
+  BEFORE UPDATE ON public.storage_subscriptions
+  FOR EACH ROW EXECUTE FUNCTION public.touch_storage_subscriptions_updated_at();
+
+-- 4. دالة لتحديث الاشتراكات المنتهية تلقائياً (تُستدعى يدوياً أو بـ cron)
+-- تمرّر الاشتراكات active التي انتهت صلاحيتها إلى status='expired'
+CREATE OR REPLACE FUNCTION public.expire_storage_subscriptions()
+RETURNS INTEGER AS $$
+DECLARE
+  affected INTEGER;
+BEGIN
+  UPDATE public.storage_subscriptions
+  SET status = 'expired'
+  WHERE status = 'active'
+    AND expires_at IS NOT NULL
+    AND expires_at < now();
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  RETURN affected;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 5. دالة لحساب الحصة الفعلية لمستخدم (مجاني + دائم + اشتراكات نشطة)
+CREATE OR REPLACE FUNCTION public.effective_storage_quota(p_user_id UUID)
+RETURNS BIGINT AS $$
+DECLARE
+  free_quota   BIGINT := 0;
+  permanent_mb BIGINT := 0;
+  sub_mb       BIGINT := 0;
+  cfg          RECORD;
+BEGIN
+  -- الحصة المجانية من إعدادات القسم
+  SELECT student_monthly_limit INTO cfg
+  FROM public.locked_sections_config
+  WHERE section_key = 'files'
+  LIMIT 1;
+  free_quota := COALESCE(cfg.student_monthly_limit, 100)::BIGINT * 1024; -- MB → ... نتركها بالميجابايت
+
+  -- الترقيات الدائمة النشطة
+  SELECT COALESCE(SUM(size_mb), 0) INTO permanent_mb
+  FROM public.user_storage_upgrades
+  WHERE user_id = p_user_id AND is_active = true;
+
+  -- الاشتراكات الزمنية النشطة
+  SELECT COALESCE(SUM(size_mb), 0) INTO sub_mb
+  FROM public.storage_subscriptions
+  WHERE user_id = p_user_id AND status = 'active';
+
+  RETURN (free_quota + permanent_mb + sub_mb);
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- 6. تعليقات توثيقية
+COMMENT ON TABLE public.storage_subscriptions IS
+  'اشتراكات تخزين زمنية (شهرية/سنوية) بجانب الترقيات الدائمة في user_storage_upgrades';
+COMMENT ON COLUMN public.storage_subscriptions.period IS 'monthly أو yearly';
+COMMENT ON COLUMN public.storage_subscriptions.status IS 'pending أو active أو expired أو cancelled';
+COMMENT ON FUNCTION public.expire_storage_subscriptions() IS
+  'تنتهي تلقائياً صلاحية الاشتراكات النشطة التي انتهى وقتها — تُستدعى بـ cron يومياً';
+COMMENT ON FUNCTION public.effective_storage_quota(UUID) IS
+  'تحسب الحصة الكلية للمستخدم = مجاني + دائم + اشتراكات نشطة (بالميجابايت)';
+
+-- 7. تحقق
+SELECT column_name, data_type, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = 'public'
-  AND table_name IN ('storage_plans', 'user_storage_upgrades')
-  AND column_name IN ('price', 'price_monthly', 'price_yearly',
-                      'duration_type', 'expires_at')
-ORDER BY table_name, column_name;
+  AND table_name = 'storage_subscriptions'
+ORDER BY ordinal_position;

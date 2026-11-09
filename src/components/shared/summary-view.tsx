@@ -25,6 +25,8 @@ import {
   ArrowUp,
   Eye,
   Languages,
+  History,
+  ChevronDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -41,6 +43,14 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
@@ -519,6 +529,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [showQuizConfig, setShowQuizConfig] = useState(false);
 
+  // ─── Summary versions state (النسخ المؤرشفة) ───
+  type SummaryVersion = {
+    id: string;
+    content: string;
+    version_label: 'original' | 'previous';
+    source_op: string;
+    created_at: string;
+  };
+  const [versions, setVersions] = useState<SummaryVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [restoringVersion, setRestoringVersion] = useState(false);
+  const [restoreVersionId, setRestoreVersionId] = useState<string | null>(null);
+
   // ─── Related quiz ───
   const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
 
@@ -959,6 +982,53 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     } catch { /* sessionStorage unavailable */ }
      
   }, [summaryId]); // Only run once on mount
+
+  // -------------------------------------------------------
+  // Summary versions — fetch & restore
+  // -------------------------------------------------------
+  const fetchVersions = useCallback(async () => {
+    setVersionsLoading(true);
+    try {
+      const res = await fetch(`/api/summaries/versions?summaryId=${encodeURIComponent(summaryId)}`, {
+        headers: await getCachedAuthHeaders(),
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        setVersions((data as SummaryVersion[]) || []);
+      } else {
+        console.warn('[fetchVersions] Failed:', res.status);
+      }
+    } catch (err) {
+      console.warn('[fetchVersions] Error:', err);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, [summaryId]);
+
+  const handleRestoreVersion = async (versionId: string) => {
+    setRestoringVersion(true);
+    try {
+      const res = await fetch('/api/summaries/versions', {
+        method: 'PUT',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ summaryId, versionId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSummary(data.data as Summary);
+        hasValidDataRef.current = true;
+        toast.success(t('summary.restoredSuccess'));
+        setRestoreVersionId(null);
+        fetchVersions();
+      } else {
+        toast.error(data.error || t('summary.restoreError'));
+      }
+    } catch {
+      toast.error(t('summary.restoreError'));
+    } finally {
+      setRestoringVersion(false);
+    }
+  };
 
   // -------------------------------------------------------
   // Re-generate summary
@@ -1488,41 +1558,177 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   {t('common.download')}
                 </a>
               )}
-              {/* Re-summarize button - only show for AI-generated summaries */}
+              {/* Re-summarize + Versions dropdown - only show for AI-generated summaries */}
               {!isTranscribed && (
-                <Button
-                  onClick={handleRegenerateSummary}
-                  disabled={regenerating}
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
-                title={t('summary.generateSummary')}
-              >
-                {regenerating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline">{regenerating ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
-              </Button>
+                <DropdownMenu onOpenChange={(open) => { if (open) fetchVersions(); }}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      disabled={regenerating || restoringVersion}
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
+                      title={t('summary.generateSummary')}
+                    >
+                      {regenerating || restoringVersion ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      <span className="hidden sm:inline">{regenerating ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-sky-800">
+                      <History className="h-3.5 w-3.5" />
+                      {t('summary.versions')}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleRegenerateSummary}
+                      disabled={regenerating}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <RefreshCw className="h-4 w-4 text-sky-700" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t('summary.reSummarize')}</span>
+                        <span className="text-xs text-muted-foreground">{t('summary.generateSummary')}</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground py-1">
+                      {t('summary.currentVersion')}
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={handleCopyContent}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="text-xs">{t('common.copy')}</span>
+                    </DropdownMenuItem>
+                    {versionsLoading ? (
+                      <DropdownMenuItem disabled className="gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span className="text-xs">{t('common.loading')}...</span>
+                      </DropdownMenuItem>
+                    ) : versions.length === 0 ? (
+                      <DropdownMenuItem disabled className="gap-2">
+                        <span className="text-xs text-muted-foreground">{t('summary.noVersions')}</span>
+                      </DropdownMenuItem>
+                    ) : (
+                      versions.slice(0, 10).map((v) => (
+                        <DropdownMenuItem
+                          key={v.id}
+                          onClick={() => setRestoreVersionId(v.id)}
+                          className="gap-2 cursor-pointer"
+                        >
+                          <History className="h-3.5 w-3.5 text-sky-700" />
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="text-xs font-medium">
+                              {v.version_label === 'original'
+                                ? t('summary.versionLabelOriginal')
+                                : t('summary.versionLabelPrevious')}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {v.source_op === 'initial' && t('summary.versionSourceInitial')}
+                              {v.source_op === 'regenerate' && t('summary.versionSourceRegenerate')}
+                              {v.source_op === 'refine' && t('summary.versionSourceRefine')}
+                              {v.source_op === 'restore' && t('summary.versionSourceRestore')}
+                              {' • '}
+                              {new Date(v.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
-              {/* Refine/format button - only show for transcribed content */}
+              {/* Refine/format button + Versions dropdown - only show for transcribed content */}
               {isTranscribed && (
-                <Button
-                  onClick={handleRefineText}
-                  disabled={refining}
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                  title={t('summary.generateSummary')}
-                >
-                  {refining ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline">{refining ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
-                </Button>
+                <DropdownMenu onOpenChange={(open) => { if (open) fetchVersions(); }}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      disabled={refining || restoringVersion}
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                      title={t('summary.generateSummary')}
+                    >
+                      {refining || restoringVersion ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Wand2 className="h-4 w-4" />
+                      )}
+                      <span className="hidden sm:inline">{refining ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-teal-700">
+                      <History className="h-3.5 w-3.5" />
+                      {t('summary.versions')}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleRefineText}
+                      disabled={refining}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Wand2 className="h-4 w-4 text-teal-600" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t('summary.refineFormat')}</span>
+                        <span className="text-xs text-muted-foreground">{t('summary.generateSummary')}</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground py-1">
+                      {t('summary.currentVersion')}
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onClick={handleCopyContent}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="text-xs">{t('common.copy')}</span>
+                    </DropdownMenuItem>
+                    {versionsLoading ? (
+                      <DropdownMenuItem disabled className="gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span className="text-xs">{t('common.loading')}...</span>
+                      </DropdownMenuItem>
+                    ) : versions.length === 0 ? (
+                      <DropdownMenuItem disabled className="gap-2">
+                        <span className="text-xs text-muted-foreground">{t('summary.noVersions')}</span>
+                      </DropdownMenuItem>
+                    ) : (
+                      versions.slice(0, 10).map((v) => (
+                        <DropdownMenuItem
+                          key={v.id}
+                          onClick={() => setRestoreVersionId(v.id)}
+                          className="gap-2 cursor-pointer"
+                        >
+                          <History className="h-3.5 w-3.5 text-teal-600" />
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="text-xs font-medium">
+                              {v.version_label === 'original'
+                                ? t('summary.versionLabelOriginal')
+                                : t('summary.versionLabelPrevious')}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {v.source_op === 'initial' && t('summary.versionSourceInitial')}
+                              {v.source_op === 'regenerate' && t('summary.versionSourceRegenerate')}
+                              {v.source_op === 'refine' && t('summary.versionSourceRefine')}
+                              {v.source_op === 'restore' && t('summary.versionSourceRestore')}
+                              {' • '}
+                              {new Date(v.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               </div>
             </div>
@@ -1860,6 +2066,32 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         </Card>
       </motion.div>
       )}
+
+      {/* Restore Version Confirmation Dialog */}
+      <AlertDialog open={!!restoreVersionId} onOpenChange={(open) => { if (!open) setRestoreVersionId(null); }}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5 text-sky-700" />
+              {t('summary.restoreVersion')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('summary.restoreConfirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); if (restoreVersionId) handleRestoreVersion(restoreVersionId); }}
+              disabled={restoringVersion}
+              className="bg-sky-700 hover:bg-sky-800 text-white"
+            >
+              {restoringVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+              {t('summary.restoreVersion')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>

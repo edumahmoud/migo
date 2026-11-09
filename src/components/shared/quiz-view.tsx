@@ -1741,6 +1741,75 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   }
 
   // -------------------------------------------------------
+  // Review-only mode (no saved score)
+  // When reviewMode is true but there's no saved score (e.g., AI-generated
+  // quiz from a summary that hasn't been attempted yet), show the questions
+  // with their correct answers instead of starting a new quiz attempt.
+  // This is the fix for the "review button opens a new quiz" bug.
+  // -------------------------------------------------------
+  if (reviewMode && !showResults && quiz) {
+    return (
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={staggerContainer}
+        className="mx-auto max-w-2xl space-y-4 sm:space-y-6 p-3 sm:p-8"
+        dir={direction}
+      >
+        {/* Header */}
+        <motion.div variants={fadeInUp} className="flex flex-col items-center gap-4">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
+            className="flex h-24 w-24 sm:h-32 sm:w-32 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 ring-8 ring-sky-200 dark:ring-sky-800 shadow-lg"
+          >
+            <Eye className="h-12 w-12 text-sky-700 dark:text-sky-400" />
+          </motion.div>
+
+          <motion.div variants={fadeInUp} className="text-center">
+            <h2 className="text-2xl font-bold text-foreground">{t('quiz.reviewMode')}</h2>
+            <p className="text-muted-foreground mt-1">{quiz.title}</p>
+          </motion.div>
+
+          <motion.div variants={fadeInUp} className="text-center mt-2">
+            <p className="text-sm text-muted-foreground max-w-sm">
+              {totalQuestions} {t('quiz.question')}
+            </p>
+          </motion.div>
+        </motion.div>
+
+        {/* Questions with correct answers */}
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Eye className="h-5 w-5 text-sky-700" />
+            {t('quiz.reviewMode')}
+          </h3>
+          {quiz.questions?.map((q, idx) => (
+            <ReviewQuestionCard
+              key={idx}
+              question={q}
+              index={idx}
+              userAnswer={null}
+            />
+          ))}
+        </div>
+
+        {/* Back button */}
+        <motion.div variants={fadeInUp} className="flex justify-center">
+          <Button
+            onClick={onBack}
+            className="gap-2 bg-sky-700 dark:bg-sky-600 text-white hover:bg-sky-800 dark:hover:bg-sky-500"
+          >
+            <ChevronRight className="h-4 w-4" />
+            {t('common.back')}
+          </Button>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // -------------------------------------------------------
   // Quiz taking screen
   // -------------------------------------------------------
   return (

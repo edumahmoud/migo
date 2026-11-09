@@ -152,7 +152,7 @@ export async function PUT(request: NextRequest) {
     // Verify ownership
     const { data: existing, error: fetchError } = await supabaseServer
       .from('summaries')
-      .select('id, user_id, original_content, title')
+      .select('id, user_id, original_content, title, summary_content')
       .eq('id', summaryId)
       .single();
 
@@ -176,6 +176,24 @@ export async function PUT(request: NextRequest) {
         { success: false, error: 'المحتوى الأصلي فارغ، لا يمكن إعادة التلخيص' },
         { status: 400 }
       );
+    }
+
+    // ─── أرشفة النسخة الحالية قبل الاستبدال (لإتاحة العودة للنسخة السابقة) ───
+    try {
+      if (existing.summary_content) {
+        await supabaseServer
+          .from('summary_versions')
+          .insert({
+            summary_id: summaryId,
+            user_id: authResult.user.id,
+            content: existing.summary_content,
+            version_label: 'previous',
+            source_op: 'regenerate',
+          });
+        console.log('[Summaries API] Archived previous version before regeneration');
+      }
+    } catch (archiveErr) {
+      console.warn('[Summaries API] Failed to archive previous version:', archiveErr instanceof Error ? archiveErr.message : String(archiveErr));
     }
 
     // Generate new summary — NO duplicate timeout race.

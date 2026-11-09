@@ -303,6 +303,24 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // ─── أرشفة النسخة الحالية قبل التنقيح (لإتاحة العودة للنسخة السابقة) ───
+    try {
+      if (existing.summary_content) {
+        await supabaseServer
+          .from('summary_versions')
+          .insert({
+            summary_id: summaryId,
+            user_id: authResult.user.id,
+            content: existing.summary_content,
+            version_label: 'previous',
+            source_op: 'refine',
+          });
+        console.log('[Summary API] Archived previous version before refinement');
+      }
+    } catch (archiveErr) {
+      console.warn('[Summary API] Failed to archive previous version:', archiveErr instanceof Error ? archiveErr.message : String(archiveErr));
+    }
+
     // Refine the transcribed text using AI
     console.log('[Summary API] Refining transcribed text for:', summaryId, 'content length:', originalContent.length);
     const refinedText = await refineTranscribedText(originalContent, refineStudentName, translate_to_arabic === true);
