@@ -543,6 +543,12 @@ export const ar: TranslationDict = {
     versionSourceRegenerate: 'إعادة تلخيص',
     versionSourceRefine: 'تنقيح',
     versionSourceRestore: 'استعادة',
+    refineFormatDesc: 'تنظيف وتنسيق النص فقط — بنفس لغة الملف',
+    summarizeOption: 'توليد ملخص',
+    summarizeOptionDesc: 'إنشاء ملخص دراسي من محتوى الملف',
+    versionsDesc: 'تصفح النسخ المحفوظة والتنقل بينها',
+    noVersionsHint: 'ستظهر النسخ هنا تلقائياً بعد أول إعادة تلخيص أو تنقيح',
+    restoreConfirmShort: 'متأكد؟ اضغط للتأكيد',
   },
 
   // ─── Banned ───

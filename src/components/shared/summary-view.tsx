@@ -27,6 +27,7 @@ import {
   Languages,
   History,
   ChevronDown,
+  RotateCcw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -51,6 +52,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
@@ -483,6 +491,35 @@ function ScrollToTopButton() {
 }
 
 // -------------------------------------------------------
+// Version helpers — preview text & relative timestamp
+// -------------------------------------------------------
+
+/** Strip markdown noise and return a short one-line preview of version content */
+function previewVersionText(content: string, maxLen = 150): string {
+  const clean = content
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#*_>`~|]/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return '…';
+  return clean.length > maxLen ? clean.slice(0, maxLen).trimEnd() + '…' : clean;
+}
+
+/** Format a version timestamp as "date • time" in a compact human form */
+function formatVersionWhen(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const date = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${date} • ${time}`;
+  } catch {
+    return '';
+  }
+}
+
+// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode }: SummaryViewProps) {
@@ -541,6 +578,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [restoringVersion, setRestoringVersion] = useState(false);
   const [restoreVersionId, setRestoreVersionId] = useState<string | null>(null);
+  const [versionsDialogOpen, setVersionsDialogOpen] = useState(false);
+  // Timer for the two-click restore confirmation (auto-disarm)
+  const confirmArmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Related quiz ───
   const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
@@ -1004,6 +1044,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       setVersionsLoading(false);
     }
   }, [summaryId]);
+
+  const openVersionsDialog = useCallback(() => {
+    fetchVersions();
+    setVersionsDialogOpen(true);
+  }, [fetchVersions]);
 
   const handleRestoreVersion = async (versionId: string) => {
     setRestoringVersion(true);
@@ -1531,7 +1576,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </div>
               </div>
               {/* v134t: Opt-in Arabic translation toggle (default OFF — keep source language) */}
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 <label
                   htmlFor="translate-to-arabic"
                   className="flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-900/15 px-2.5 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 transition-colors hover:bg-sky-50 dark:hover:bg-sky-900/25"
@@ -1558,178 +1603,130 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   {t('common.download')}
                 </a>
               )}
-              {/* Re-summarize + Versions dropdown - only show for AI-generated summaries */}
-              {!isTranscribed && (
-                <DropdownMenu onOpenChange={(open) => { if (open) fetchVersions(); }}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      disabled={regenerating || restoringVersion}
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
-                      title={t('summary.generateSummary')}
-                    >
-                      {regenerating || restoringVersion ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      <span className="hidden sm:inline">{regenerating ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuLabel className="flex items-center gap-1.5 text-sky-800">
-                      <History className="h-3.5 w-3.5" />
-                      {t('summary.versions')}
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleRegenerateSummary}
-                      disabled={regenerating}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <RefreshCw className="h-4 w-4 text-sky-700" />
-                      <div className="flex flex-col">
-                        <span className="font-medium">{t('summary.reSummarize')}</span>
-                        <span className="text-xs text-muted-foreground">{t('summary.generateSummary')}</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground py-1">
-                      {t('summary.currentVersion')}
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={handleCopyContent}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      <span className="text-xs">{t('common.copy')}</span>
-                    </DropdownMenuItem>
-                    {versionsLoading ? (
-                      <DropdownMenuItem disabled className="gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span className="text-xs">{t('common.loading')}...</span>
-                      </DropdownMenuItem>
-                    ) : versions.length === 0 ? (
-                      <DropdownMenuItem disabled className="gap-2">
-                        <span className="text-xs text-muted-foreground">{t('summary.noVersions')}</span>
-                      </DropdownMenuItem>
+              {/* Versions quick-access button */}
+              <button
+                onClick={openVersionsDialog}
+                disabled={restoringVersion}
+                className="flex items-center gap-1.5 rounded-lg border border-violet-200 dark:border-violet-900/50 bg-violet-50/50 dark:bg-violet-900/15 px-2.5 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-400 transition-colors hover:bg-violet-50 dark:hover:bg-violet-900/25 disabled:opacity-50"
+                title={t('summary.versions')}
+              >
+                {restoringVersion ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <History className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline">{t('summary.versions')}</span>
+                {versions.length > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-bold text-white">
+                    {versions.length}
+                  </span>
+                )}
+              </button>
+              {/* Generate dropdown — main action + alternate action + versions */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    disabled={regenerating || refining || restoringVersion}
+                    className={`gap-1.5 text-white shadow-sm h-8 ${isTranscribed ? 'bg-teal-600 hover:bg-teal-700' : 'bg-sky-700 hover:bg-sky-800'}`}
+                    size="sm"
+                    title={isTranscribed ? t('summary.refineFormat') : t('summary.generateSummary')}
+                  >
+                    {regenerating || refining || restoringVersion ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isTranscribed ? (
+                      <Wand2 className="h-4 w-4" />
                     ) : (
-                      versions.slice(0, 10).map((v) => (
-                        <DropdownMenuItem
-                          key={v.id}
-                          onClick={() => setRestoreVersionId(v.id)}
-                          className="gap-2 cursor-pointer"
-                        >
-                          <History className="h-3.5 w-3.5 text-sky-700" />
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <span className="text-xs font-medium">
-                              {v.version_label === 'original'
-                                ? t('summary.versionLabelOriginal')
-                                : t('summary.versionLabelPrevious')}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {v.source_op === 'initial' && t('summary.versionSourceInitial')}
-                              {v.source_op === 'regenerate' && t('summary.versionSourceRegenerate')}
-                              {v.source_op === 'refine' && t('summary.versionSourceRefine')}
-                              {v.source_op === 'restore' && t('summary.versionSourceRestore')}
-                              {' • '}
-                              {new Date(v.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </DropdownMenuItem>
-                      ))
+                      <Sparkles className="h-4 w-4" />
                     )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {/* Refine/format button + Versions dropdown - only show for transcribed content */}
-              {isTranscribed && (
-                <DropdownMenu onOpenChange={(open) => { if (open) fetchVersions(); }}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      disabled={refining || restoringVersion}
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                      title={t('summary.generateSummary')}
-                    >
-                      {refining || restoringVersion ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Wand2 className="h-4 w-4" />
-                      )}
-                      <span className="hidden sm:inline">{refining ? `${t('common.loading')}...` : t('summary.generateSummary')}</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuLabel className="flex items-center gap-1.5 text-teal-700">
-                      <History className="h-3.5 w-3.5" />
-                      {t('summary.versions')}
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleRefineText}
-                      disabled={refining}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <Wand2 className="h-4 w-4 text-teal-600" />
-                      <div className="flex flex-col">
-                        <span className="font-medium">{t('summary.refineFormat')}</span>
-                        <span className="text-xs text-muted-foreground">{t('summary.generateSummary')}</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground py-1">
-                      {t('summary.currentVersion')}
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={handleCopyContent}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      <span className="text-xs">{t('common.copy')}</span>
-                    </DropdownMenuItem>
-                    {versionsLoading ? (
-                      <DropdownMenuItem disabled className="gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span className="text-xs">{t('common.loading')}...</span>
+                    <span className="hidden sm:inline">
+                      {regenerating || refining
+                        ? `${t('common.loading')}...`
+                        : isTranscribed
+                          ? t('summary.refineFormat')
+                          : t('summary.generateSummary')}
+                    </span>
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {isTranscribed ? (
+                    <>
+                      {/* Primary: format-only (no translation unless toggled) */}
+                      <DropdownMenuItem
+                        onClick={handleRefineText}
+                        disabled={refining}
+                        className="gap-2.5 cursor-pointer py-2.5"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/40">
+                          <Wand2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{t('summary.refineFormat')}</span>
+                          <span className="text-xs text-muted-foreground">{t('summary.refineFormatDesc')}</span>
+                        </div>
                       </DropdownMenuItem>
-                    ) : versions.length === 0 ? (
-                      <DropdownMenuItem disabled className="gap-2">
-                        <span className="text-xs text-muted-foreground">{t('summary.noVersions')}</span>
+                      {/* Alternate: summarize */}
+                      <DropdownMenuItem
+                        onClick={handleRegenerateSummary}
+                        disabled={regenerating}
+                        className="gap-2.5 cursor-pointer py-2.5"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
+                          <Sparkles className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{t('summary.summarizeOption')}</span>
+                          <span className="text-xs text-muted-foreground">{t('summary.summarizeOptionDesc')}</span>
+                        </div>
                       </DropdownMenuItem>
-                    ) : (
-                      versions.slice(0, 10).map((v) => (
-                        <DropdownMenuItem
-                          key={v.id}
-                          onClick={() => setRestoreVersionId(v.id)}
-                          className="gap-2 cursor-pointer"
-                        >
-                          <History className="h-3.5 w-3.5 text-teal-600" />
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <span className="text-xs font-medium">
-                              {v.version_label === 'original'
-                                ? t('summary.versionLabelOriginal')
-                                : t('summary.versionLabelPrevious')}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {v.source_op === 'initial' && t('summary.versionSourceInitial')}
-                              {v.source_op === 'regenerate' && t('summary.versionSourceRegenerate')}
-                              {v.source_op === 'refine' && t('summary.versionSourceRefine')}
-                              {v.source_op === 'restore' && t('summary.versionSourceRestore')}
-                              {' • '}
-                              {new Date(v.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </DropdownMenuItem>
-                      ))
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                    </>
+                  ) : (
+                    <>
+                      {/* Primary: re-summarize */}
+                      <DropdownMenuItem
+                        onClick={handleRegenerateSummary}
+                        disabled={regenerating}
+                        className="gap-2.5 cursor-pointer py-2.5"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
+                          <RefreshCw className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{t('summary.reSummarize')}</span>
+                          <span className="text-xs text-muted-foreground">{t('summary.generateSummary')}</span>
+                        </div>
+                      </DropdownMenuItem>
+                      {/* Alternate: format-only */}
+                      <DropdownMenuItem
+                        onClick={handleRefineText}
+                        disabled={refining}
+                        className="gap-2.5 cursor-pointer py-2.5"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/40">
+                          <Wand2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{t('summary.refineFormat')}</span>
+                          <span className="text-xs text-muted-foreground">{t('summary.refineFormatDesc')}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={openVersionsDialog}
+                    className="gap-2.5 cursor-pointer py-2.5"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/40">
+                      <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{t('summary.versions')}</span>
+                      <span className="text-xs text-muted-foreground">{t('summary.versionsDesc')}</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               </div>
             </div>
 
@@ -2067,31 +2064,133 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       </motion.div>
       )}
 
-      {/* Restore Version Confirmation Dialog */}
-      <AlertDialog open={!!restoreVersionId} onOpenChange={(open) => { if (!open) setRestoreVersionId(null); }}>
-        <AlertDialogContent dir={direction}>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5 text-sky-700" />
-              {t('summary.restoreVersion')}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('summary.restoreConfirm')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); if (restoreVersionId) handleRestoreVersion(restoreVersionId); }}
-              disabled={restoringVersion}
-              className="bg-sky-700 hover:bg-sky-800 text-white"
-            >
-              {restoringVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
-              {t('summary.restoreVersion')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ─── Versions History Dialog — beautiful version browser ─── */}
+      <Dialog open={versionsDialogOpen} onOpenChange={setVersionsDialogOpen}>
+        <DialogContent dir={direction} className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-violet-800 dark:text-violet-300">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/40">
+                <History className="h-4.5 w-4.5 text-violet-600 dark:text-violet-400" />
+              </span>
+              <span>{t('summary.versions')}</span>
+              {versions.length > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-600 px-1.5 text-[11px] font-bold text-white">
+                  {versions.length}
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription>{t('summary.versionsDesc')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2.5">
+            {/* Current version card */}
+            <div className="rounded-xl border-2 border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-900/15 p-3.5">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {t('summary.currentVersion')}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {(summary?.updated_at || summary?.created_at) ? formatVersionWhen(summary.updated_at || summary.created_at || '') : ''}
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground mb-2.5 line-clamp-2">
+                {previewVersionText(summary?.summary_content || '')}
+              </p>
+              <button
+                onClick={handleCopyContent}
+                className="flex items-center gap-1.5 rounded-lg border border-violet-200 dark:border-violet-800/60 px-2.5 py-1.5 text-[11px] font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
+              >
+                {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? t('common.copied') : t('common.copy')}
+              </button>
+            </div>
+
+            {/* Archived versions list */}
+            {versionsLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                <span className="text-sm text-muted-foreground">{t('common.loading')}...</span>
+              </div>
+            ) : versions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <History className="h-6 w-6 text-muted-foreground/50" />
+                </div>
+                <p className="text-sm text-muted-foreground">{t('summary.noVersions')}</p>
+                <p className="text-xs text-muted-foreground/70">{t('summary.noVersionsHint')}</p>
+              </div>
+            ) : (
+              versions.map((v) => {
+                const isConfirming = restoreVersionId === v.id;
+                const sourceLabel =
+                  v.source_op === 'initial' ? t('summary.versionSourceInitial') :
+                  v.source_op === 'regenerate' ? t('summary.versionSourceRegenerate') :
+                  v.source_op === 'refine' ? t('summary.versionSourceRefine') :
+                  v.source_op === 'restore' ? t('summary.versionSourceRestore') : '';
+                return (
+                  <div
+                    key={v.id}
+                    className={`rounded-xl border p-3.5 transition-colors ${
+                      isConfirming
+                        ? 'border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/15'
+                        : 'border-border bg-card hover:border-violet-200 dark:hover:border-violet-800/60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                          v.version_label === 'original'
+                            ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'
+                            : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300'
+                        }`}>
+                          {v.version_label === 'original' ? <Sparkles className="h-3 w-3" /> : <History className="h-3 w-3" />}
+                          {v.version_label === 'original' ? t('summary.versionLabelOriginal') : t('summary.versionLabelPrevious')}
+                        </span>
+                        {sourceLabel && (
+                          <span className="text-[11px] text-muted-foreground">• {sourceLabel}</span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {formatVersionWhen(v.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-muted-foreground mb-2.5 line-clamp-2">
+                      {previewVersionText(v.content)}
+                    </p>
+                    {/* Restore — single click arms confirm, second click restores */}
+                    <button
+                      onClick={() => {
+                        if (isConfirming) {
+                          handleRestoreVersion(v.id);
+                        } else {
+                          setRestoreVersionId(v.id);
+                          // Auto-disarm after 3.5s
+                          if (confirmArmTimer.current) clearTimeout(confirmArmTimer.current);
+                          confirmArmTimer.current = setTimeout(() => setRestoreVersionId(null), 3500);
+                        }
+                      }}
+                      disabled={restoringVersion}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50 ${
+                        isConfirming
+                          ? 'border-sky-600 bg-sky-600 text-white hover:bg-sky-700'
+                          : 'border-border text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {restoringVersion && isConfirming ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      )}
+                      {isConfirming ? t('summary.restoreConfirmShort') : t('summary.restoreVersion')}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>

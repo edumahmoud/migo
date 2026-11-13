@@ -128,22 +128,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // أرشفة المحتوى الحالي قبل الاستعادة
-    try {
-      if (summary.summary_content) {
-        await supabaseServer
-          .from('summary_versions')
-          .insert({
-            summary_id: summaryId,
-            user_id: authResult.user.id,
-            content: summary.summary_content,
-            version_label: 'previous',
-            source_op: 'restore',
-          });
-      }
-    } catch (archiveErr) {
-      console.warn('[Versions API] Failed to archive current before restore:', archiveErr instanceof Error ? archiveErr.message : String(archiveErr));
-    }
+    // ─── استعادة النسخة مباشرة بدون أرشفة ───
+    // الانتقال بين النسخ لا ينشئ نسخة جديدة — النسخ تُنشأ فقط عند
+    // إجراء المستخدم (إعادة تلخيص / تنقيح) عبر الـ endpoints المخصصة.
+    // النسخة الحالية محفوظة مسبقاً كنسخة 'previous' إذا أُنشئت عبر تلك المسارات.
 
     // استعادة النسخة
     const { data: updated, error: upErr } = await supabaseServer

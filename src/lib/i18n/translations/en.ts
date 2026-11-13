@@ -531,6 +531,12 @@ export const en: TranslationDict = {
     versionSourceRegenerate: 'Re-summarize',
     versionSourceRefine: 'Refine',
     versionSourceRestore: 'Restore',
+    refineFormatDesc: 'Clean & format text only — same language as file',
+    summarizeOption: 'Generate summary',
+    summarizeOptionDesc: 'Create a study summary from the file content',
+    versionsDesc: 'Browse saved versions and switch between them',
+    noVersionsHint: 'Versions will appear here after the first re-summarize or refine',
+    restoreConfirmShort: 'Sure? Click to confirm',
   },
 
   // ─── Banned ───
