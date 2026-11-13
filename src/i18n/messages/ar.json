@@ -1530,7 +1530,14 @@
       "generating": "جارٍ الترجمة...",
       "formatting": "مراجعة التنسيق...",
       "saving": "جارٍ حفظ الترجمة..."
-    }
+    },
+    "assignAsLesson": "تعيين كدرس",
+    "assignAsLessonDesc": "إسناد محتوى الملخص كدرس مستقل داخل أحد مقرراتك",
+    "assignPickCourse": "اختر المقرر",
+    "assignNoCourses": "لا توجد مقررات متاحة — أنشئ مقرراً أولاً",
+    "assignConfirm": "تعيين الدرس",
+    "assignLessonSuccess": "تم تعيين الملخص كدرس بنجاح",
+    "assignLessonError": "فشل تعيين الملخص كدرس"
   },
   "settings": {
     "settings": "الإعدادات",

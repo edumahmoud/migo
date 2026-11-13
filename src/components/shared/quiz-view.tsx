@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactElement } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -910,7 +910,10 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const handleBooleanAnswer = (answer: string) => {
     if (answered) return;
     setSelectedOption(answer);
-    const correct = answer === currentQuestion?.correctAnswer;
+    // v135e: case-insensitive comparison for language-agnostic boolean values
+    const correct =
+      answer === currentQuestion?.correctAnswer ||
+      String(answer).trim().toLowerCase() === String(currentQuestion?.correctAnswer || '').trim().toLowerCase();
     setIsCorrect(correct);
     setAnswered(true);
   };
@@ -2222,16 +2225,34 @@ function BooleanQuestion({
   showCorrectness,
 }: BooleanQuestionProps) {
   const { t } = useTranslations();
-  const options = [
-    { label: t('quiz.trueValue'), value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
-    { label: t('quiz.falseValue'), value: 'خطأ', icon: <XCircle className="h-5 w-5" /> },
-  ];
+  // v135e: use the question's own options (language-aware — English quizzes get
+  // True/False, Arabic quizzes get صح/خطأ) instead of hardcoded Arabic values.
+  const TRUE_VALUES = ['صح', 'true', 't', 'yes', 'نعم', '1'];
+  const isTrueVal = (v: string) => TRUE_VALUES.includes(String(v).trim().toLowerCase());
+
+  let options: Array<{ label: string; value: string; icon: ReactElement }>;
+  if (question.options && question.options.length === 2) {
+    const [a, b] = question.options.map(String);
+    const aIsTrue = isTrueVal(a);
+    options = [
+      { label: a, value: a, icon: aIsTrue ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" /> },
+      { label: b, value: b, icon: aIsTrue ? <XCircle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" /> },
+    ];
+  } else {
+    options = [
+      { label: t('quiz.trueValue'), value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
+      { label: t('quiz.falseValue'), value: 'خطأ', icon: <XCircle className="h-5 w-5" /> },
+    ];
+  }
 
   return (
     <div className="grid grid-cols-2 gap-4">
       {options.map((opt) => {
         const isSelected = selectedOption === opt.value;
-        const isCorrectOption = opt.value === question.correctAnswer;
+        // v135e: case-insensitive match so "True"/"true" both work
+        const isCorrectOption =
+          opt.value === question.correctAnswer ||
+          String(opt.value).trim().toLowerCase() === String(question.correctAnswer || '').trim().toLowerCase();
 
         let btnClass =
           'flex flex-col items-center gap-2 rounded-xl border-2 p-4 sm:p-6 text-sm sm:text-base font-bold transition-all';

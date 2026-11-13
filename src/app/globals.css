@@ -215,6 +215,22 @@
   line-height: 1.9;
 }
 
+/* v135e: embedded document images — responsive, rounded, centered */
+.prose-summary img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem auto;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.08);
+}
+
+.dark .prose-summary img {
+  border-color: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
 /* Direction-aware list styles */
 .prose-summary ul {
   list-style-type: none;

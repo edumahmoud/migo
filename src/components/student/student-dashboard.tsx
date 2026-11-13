@@ -37,7 +37,6 @@ import {
   MoreVertical,
   Pencil,
   Clock,
-  Languages,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { computeAllMetrics } from '@/lib/performance-calculator';
@@ -96,7 +95,7 @@ import StoragePlansView from '@/components/shared/storage-plans-view';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
-import { extractPdfTextClient, extractTextFromFile, looksGarbled, runOcrExtraction } from '@/lib/pdf-client';
+import { extractPdfTextClient, extractTextFromFile, looksGarbled, runOcrExtraction, createSummaryImageUploader } from '@/lib/pdf-client';
 import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -400,7 +399,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [creatingSummary, setCreatingSummary] = useState(false);
   const [summaryStep, setSummaryStep] = useState<'input' | 'processing'>('input');
   // v134t: opt-in Arabic translation for summaries (default OFF — keep source language)
-  const [translateToArabic, setTranslateToArabic] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Mobile detection ───
@@ -516,7 +514,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [quizConfigSummaryId, setQuizConfigSummaryId] = useState<string | null>(null);
   const [quizConfigSummaryTitle, setQuizConfigSummaryTitle] = useState('');
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
-  const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
+  // v135e: single toggle replaces the two-button 'after/during' selector
+  const [quizShowResults, setQuizShowResults] = useState(true);
   const [quizAllowRetake, setQuizAllowRetake] = useState(true);
   const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [creatingQuizFromSummary, setCreatingQuizFromSummary] = useState(false);
@@ -1667,7 +1666,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     const capturedText = summaryText.trim();
     const capturedFileBuffer = summaryFileBuffer;
     const capturedFileName = summaryFileName || capturedFile?.name || '';
-    const capturedTranslateToArabic = translateToArabic; // v134t: opt-in translation flag
 
     // ───────────────────────────────────────────────────────
     // MOBILE FIX: Use pre-read ArrayBuffer from onChange handler.
@@ -1735,7 +1733,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setCreatingSummary(false);
     setSelectedExistingFile(null);
     setExistingFileTranscribe(false);
-    setTranslateToArabic(false);
 
     toast.info(inputMode === 'transcribe'
       ? t('student.extractingInBackground')
@@ -1806,7 +1803,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
             // Race the extraction against a 30-second timeout to prevent indefinite hangs
             const extractionTimeoutMs = 30000;
-            const extractionPromise = extractTextFromFile(pdfSource, capturedFileName);
+            const extractionPromise = extractTextFromFile(pdfSource, capturedFileName, createSummaryImageUploader());
             const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
             );
@@ -1815,7 +1812,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               const pdfResult = await Promise.race([extractionPromise, timeoutPromise]);
               originalContent = pdfResult.text;
               sourceFileType = pdfResult.sourceFileType || null;
-              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages, 'type:', sourceFileType);
+              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages, 'type:', sourceFileType, 'images:', pdfResult.images || 0);
               extractionSucceeded = true;
             } catch (pdfErr) {
               const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
@@ -1988,7 +1985,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
               },
-              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType, translate_to_arabic: capturedTranslateToArabic }),
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
               signal: abortController.signal,
             });
 
@@ -2086,7 +2083,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               console.log('[Summary] Fetched existing file (client-side), size:', arrayBuffer.byteLength, 'bytes, name:', capturedExistingFile.file_name);
 
               const extractionTimeoutMs = 30000;
-              const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name);
+              const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name, createSummaryImageUploader());
               const timeoutPromise = new Promise<never>((_, reject) =>
                 setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
               );
@@ -2094,7 +2091,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               const result = await Promise.race([extractionPromise, timeoutPromise]);
               originalContent = result.text;
               sourceFileType = result.sourceFileType || sourceFileType;
-              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'type:', sourceFileType);
+              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'type:', sourceFileType, 'images:', result.images || 0);
               extractionSucceeded = true;
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
@@ -2189,7 +2186,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
               },
-              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType, translate_to_arabic: capturedTranslateToArabic }),
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
               signal: abortController.signal,
             });
 
@@ -2219,7 +2216,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, translate_to_arabic: capturedTranslateToArabic }),
+            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
             signal: abortController.signal,
           });
 
@@ -2626,7 +2623,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           title: t('summary.quizTitle', { title: quizConfigSummaryTitle }),
           questions: quizData.data.questions,
           summaryId: quizConfigSummaryId,
-          show_results: quizAnswerMode === 'after' ? false : true,
+          show_results: quizShowResults,
           allow_retake: quizAllowRetake,
           // NOTE: shuffle_questions is client-side only, not stored in DB
         }),
@@ -2644,7 +2641,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           title: t('summary.quizTitle', { title: quizConfigSummaryTitle }),
           questions: quizData.data.questions,
           summary_id: quizConfigSummaryId,
-          show_results: quizAnswerMode === 'after' ? false : true,
+          show_results: quizShowResults,
           allow_retake: quizAllowRetake,
           // NOTE: shuffle_questions is client-side only, not stored in DB
         });
@@ -3368,7 +3365,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         setQuizConfigSummaryId(summary.id);
                         setQuizConfigSummaryTitle(summary.title);
                         setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
-                        setQuizAnswerMode('after');
+                        setQuizShowResults(true);
                         setQuizConfigOpen(true);
                       }}
                     >
@@ -3505,36 +3502,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   ))}
                 </div>
 
-                {/* Answer display mode */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t('summary.showAnswers')}</label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setQuizAnswerMode('after')}
-                      className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
-                        quizAnswerMode === 'after'
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
-                          : 'border-border text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {t('summary.afterQuiz')}
-                    </button>
-                    <button
-                      onClick={() => setQuizAnswerMode('during')}
-                      className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
-                        quizAnswerMode === 'during'
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
-                          : 'border-border text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {t('summary.duringQuiz')}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Retake & Shuffle toggles */}
+                {/* v135e: Quiz settings — single toggle menu (show results / retake / shuffle) */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t('summary.additionalSettings')}</label>
+                  <div className="flex items-center justify-between rounded-lg border bg-card p-3">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-foreground">{t('quiz.showResultsAfter')}</span>
+                      <span className="text-xs text-muted-foreground">{t('quiz.showReviewDesc')}</span>
+                    </div>
+                    <Switch
+                      checked={quizShowResults}
+                      onCheckedChange={setQuizShowResults}
+                      className="data-[state=checked]:bg-teal-600"
+                    />
+                  </div>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-3">
                     <span className="text-sm font-medium text-foreground">{t('summary.allowRetake')}</span>
                     <Switch
@@ -3747,27 +3728,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </div>
                   )}
                 </div>
-
-                {/* v134t: Opt-in Arabic translation toggle — hidden in transcribe-only mode (no AI step) */}
-                {summaryInputMode !== 'transcribe' && !(summaryInputMode === 'existing' && existingFileTranscribe) && (
-                  <div className="flex items-start gap-3 rounded-lg border border-sky-200 dark:border-sky-900/50 bg-sky-50/40 dark:bg-sky-900/10 px-3.5 py-3">
-                    <Switch
-                      id="translate-to-arabic"
-                      checked={translateToArabic}
-                      onCheckedChange={(checked) => setTranslateToArabic(checked === true)}
-                      className="mt-0.5 data-[state=checked]:bg-sky-600"
-                    />
-                    <label htmlFor="translate-to-arabic" className="cursor-pointer select-none">
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                        <Languages className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                        {t('student.translateToArabic')}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {t('student.translateToArabicHint')}
-                      </span>
-                    </label>
-                  </div>
-                )}
 
                 {/* Text input */}
                 {summaryInputMode === 'text' && (

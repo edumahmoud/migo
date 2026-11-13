@@ -24,11 +24,10 @@ import {
   Eye,
   MoreVertical,
   Pencil,
-  Languages,
 } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
-import { extractTextFromFile, looksGarbled, runOcrExtraction } from '@/lib/pdf-client';
+import { extractTextFromFile, looksGarbled, runOcrExtraction, createSummaryImageUploader } from '@/lib/pdf-client';
 import { checkSectionUsage } from '@/lib/section-usage-check';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -57,7 +56,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import { useIsMobile } from '@/hooks/use-mobile';
 import SummaryView from '@/components/shared/summary-view';
 import { useAppStore } from '@/stores/app-store';
@@ -131,7 +129,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [creatingSummary, setCreatingSummary] = useState(false);
   // v134t: opt-in Arabic translation for summaries (default OFF — keep source language)
-  const [translateToArabic, setTranslateToArabic] = useState(false);
 
   // ─── Existing files state ───
   const [existingFiles, setExistingFiles] = useState<UserFile[]>([]);
@@ -593,7 +590,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     const capturedExistingFile = inputMode === 'existing' ? selectedExistingFile : null;
     const capturedExistingFileTranscribe = existingFileTranscribe;
     const selectedSubject = selectedSubjectId || null;
-    const capturedTranslateToArabic = translateToArabic; // v134t: opt-in translation flag
 
     // Create pending tracker
     const pendingId = `pending-${Date.now()}`;
@@ -617,7 +613,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     setCreatingSummary(false);
     setSelectedExistingFile(null);
     setExistingFileTranscribe(false);
-    setTranslateToArabic(false);
 
     const isTranscribe = inputMode === 'transcribe' || (inputMode === 'existing' && capturedExistingFileTranscribe);
     toast.info(isTranscribe
@@ -689,7 +684,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           {
             const pdfSource = preReadFileData || capturedFile!;
             const extractionTimeoutMs = 30000;
-            const extractionPromise = extractTextFromFile(pdfSource, capturedFileName);
+            const extractionPromise = extractTextFromFile(pdfSource, capturedFileName, createSummaryImageUploader());
             const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
             );
@@ -846,7 +841,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 subject_id: selectedSubject,
                 source_file_type: sourceFileType,
                 source_file_url: sourceFileUrl,
-                translate_to_arabic: capturedTranslateToArabic,
               }),
               signal: abortController.signal,
             });
@@ -905,7 +899,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               const arrayBuffer = await fileRes.arrayBuffer();
 
               const extractionTimeoutMs = 30000;
-              const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name);
+              const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name, createSummaryImageUploader());
               const timeoutPromise = new Promise<never>((_, reject) =>
                 setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
               );
@@ -1001,7 +995,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 subject_id: selectedSubject,
                 source_file_type: sourceFileType,
                 source_file_url: sourceFileUrl,
-                translate_to_arabic: capturedTranslateToArabic,
               }),
               signal: abortController.signal,
             });
@@ -1029,7 +1022,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               content: originalContent,
               title,
               subject_id: selectedSubject,
-              translate_to_arabic: capturedTranslateToArabic,
             }),
             signal: abortController.signal,
           });
@@ -1519,27 +1511,6 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                     </div>
                   )}
                 </div>
-
-                {/* v134t: Opt-in Arabic translation toggle — hidden in transcribe-only mode (no AI step) */}
-                {summaryInputMode !== 'transcribe' && !(summaryInputMode === 'existing' && existingFileTranscribe) && (
-                  <div className="flex items-start gap-3 rounded-lg border border-sky-200 dark:border-sky-900/50 bg-sky-50/40 dark:bg-sky-900/10 px-3.5 py-3">
-                    <Switch
-                      id="translate-to-arabic"
-                      checked={translateToArabic}
-                      onCheckedChange={(checked) => setTranslateToArabic(checked === true)}
-                      className="mt-0.5 data-[state=checked]:bg-sky-600"
-                    />
-                    <label htmlFor="translate-to-arabic" className="cursor-pointer select-none">
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                        <Languages className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                        {t('translateToArabic')}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">
-                        {t('translateToArabicHint')}
-                      </span>
-                    </label>
-                  </div>
-                )}
 
                 {/* Text input */}
                 {summaryInputMode === 'text' && (

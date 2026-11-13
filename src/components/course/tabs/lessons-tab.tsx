@@ -850,7 +850,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   // -------------------------------------------------------
   const handleEditLesson = useCallback((lesson: Lesson) => {
     setEditingLesson(lesson);
-    setEditorContent(lesson.content_json || null);
+    // v135e: content_html fallback — a lesson assigned from a summary stores HTML only
+    setEditorContent(lesson.content_json || lesson.content_html || null);
     setEditorHtml(lesson.content_html || '');
     setHasUnsavedChanges(false);
     setLastSaved(lesson.updated_at ? new Date(lesson.updated_at) : null);
@@ -878,7 +879,9 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
   // -------------------------------------------------------
   const handleViewLesson = useCallback((lesson: Lesson) => {
     setViewingLesson(lesson);
-    setEditorContent(lesson.published_json || lesson.content_json || null);
+    // v135e: fall back to content_html (lessons assigned from summaries store HTML only) —
+    // TipTap accepts an HTML string in `content`, so the read-only viewer renders it fine.
+    setEditorContent(lesson.published_json || lesson.content_json || lesson.content_html || null);
     setEditorHtml(lesson.content_html || '');
     // v100: record this view in lesson_progress (student only, fire-and-forget)
     if (role === 'student') {
@@ -1103,7 +1106,8 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
         <motion.div variants={itemVariants}>
           <RichTextEditor
             content={
-              viewingLesson.published_json || viewingLesson.content_json
+              // v135e: content_html fallback for lessons assigned from summaries
+              viewingLesson.published_json || viewingLesson.content_json || viewingLesson.content_html
             }
             editable={false}
             dir={direction === 'rtl' ? 'rtl' : 'ltr'}

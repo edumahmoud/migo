@@ -19,10 +19,54 @@ export interface PdfExtractionResult {
   pages: number;
   /** Source file type: 'pdf' or 'docx' or 'pptx' or 'txt' */
   sourceFileType?: 'pdf' | 'docx' | 'pptx' | 'txt';
+  /** v135e: number of document images embedded into the text as Markdown */
+  images?: number;
 }
 
 /** Max chars to send to the AI (matches server-side sanitizeString limit) */
 const MAX_TEXT_LENGTH = 50000;
+
+/**
+ * v135e: callback used to persist extracted document images.
+ * Receives the image blob, returns its public URL (or null to skip it).
+ */
+export type UploadImageCallback = (blob: Blob) => Promise<string | null>;
+
+/**
+ * v135e: convenience uploader matching /api/summaries/upload-image.
+ * Returns null on any failure so extraction can silently skip the image.
+ */
+export function createSummaryImageUploader(): UploadImageCallback {
+  return async (blob: Blob): Promise<string | null> => {
+    try {
+      const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+      const headers = await getCachedAuthHeaders();
+      // FormData sets its own multipart Content-Type — drop the JSON one
+      delete headers['Content-Type'];
+      const fd = new FormData();
+      fd.append('file', blob, 'image.jpg');
+      const res = await fetch('/api/summaries/upload-image', {
+        method: 'POST',
+        headers,
+        body: fd,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { url?: string };
+        return data.url || null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+}
+
+/** v135e: cap on embedded images per document (keeps uploads + AI input sane) */
+const MAX_EXTRACTED_IMAGES = 24;
+/** Skip tiny images (icons, bullets, separators) */
+const MIN_IMAGE_DIMENSION = 64;
+/** Downscale larger images so uploads stay small */
+const MAX_IMAGE_DIMENSION = 1400;
 
 // -------------------------------------------------------
 // OCR helpers (used by the extract-pdf-vlm fallback flow)
@@ -302,6 +346,149 @@ function isMobileBrowser(): boolean {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+// -------------------------------------------------------
+// v135e: Document image extraction helpers
+// -------------------------------------------------------
+
+/**
+ * Convert a pdfjs image object ({width, height, data: RGB(A) Uint8ClampedArray}
+ * or {width, height, bitmap: ImageBitmap}) to a scaled JPEG/PNG Blob.
+ * Returns null for tiny images or unsupported formats.
+ */
+async function pdfImageObjectToBlob(
+  img: { width?: number; height?: number; data?: unknown; bitmap?: ImageBitmap | null } | null | undefined,
+): Promise<Blob | null> {
+  if (!img || !img.width || !img.height) return null;
+  if (img.width < MIN_IMAGE_DIMENSION || img.height < MIN_IMAGE_DIMENSION) return null;
+
+  try {
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    if (img.bitmap) {
+      // pdfjs v5 decoded the image to an ImageBitmap in the worker
+      ctx.drawImage(img.bitmap, 0, 0, w, h);
+    } else if (img.data && (img.data as Uint8ClampedArray).length) {
+      const raw = img.data as Uint8ClampedArray;
+      const channels = raw.length / (img.width * img.height);
+      if (channels !== 3 && channels !== 4) return null;
+      // Upscale raw RGB/RGBA into a full-size ImageData, then draw scaled
+      const full = ctx.createImageData(img.width, img.height);
+      const target = full.data;
+      for (let p = 0; p < img.width * img.height; p++) {
+        const srcIdx = p * channels;
+        const dstIdx = p * 4;
+        target[dstIdx] = raw[srcIdx];
+        target[dstIdx + 1] = raw[srcIdx + 1];
+        target[dstIdx + 2] = raw[srcIdx + 2];
+        target[dstIdx + 3] = channels === 4 ? raw[srcIdx + 3] : 255;
+      }
+      // Draw on a temp canvas at full size, then scale down
+      const tmp = document.createElement('canvas');
+      tmp.width = img.width;
+      tmp.height = img.height;
+      const tmpCtx = tmp.getContext('2d');
+      if (!tmpCtx) return null;
+      tmpCtx.putImageData(full, 0, 0);
+      ctx.drawImage(tmp, 0, 0, w, h);
+    } else {
+      return null;
+    }
+
+    return await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.82);
+    });
+  } catch (err) {
+    console.warn('[PDF Client] Image object conversion failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Extract embedded images from a pdfjs page via its operator list.
+ * Best-effort: any failure skips the image without breaking text extraction.
+ * Returns Markdown image lines (empty array when nothing extracted/uploaded).
+ */
+async function extractPageImages(
+  pdfjsLib: typeof import('pdfjs-dist'),
+  page: { objs: { get(objId: string, callback?: (data: unknown) => void): unknown; has(objId: string): boolean }; commonObjs: { get(objId: string, callback?: (data: unknown) => void): unknown; has(objId: string): boolean }; getOperatorList(): Promise<{ fnArray: number[]; argsArray: unknown[][] }> },
+  onImage: UploadImageCallback,
+  imageCount: { count: number },
+): Promise<string[]> {
+  const markdownLines: string[] = [];
+  // pdfjs-dist v5 image ops (paintJpegXObject was removed in v5; masks are 1-bit stencils — skipped)
+  const imageOps = new Set<number>([
+    pdfjsLib.OPS.paintImageXObject,
+    pdfjsLib.OPS.paintImageXObjectRepeat,
+    pdfjsLib.OPS.paintInlineImageXObject,
+  ]);
+
+  try {
+    const opList = await page.getOperatorList();
+    const seenObjIds = new Set<string>();
+
+    for (let k = 0; k < opList.fnArray.length; k++) {
+      if (imageCount.count >= MAX_EXTRACTED_IMAGES) break;
+      if (!imageOps.has(opList.fnArray[k])) continue;
+
+      const arg0 = opList.argsArray[k]?.[0];
+      // Inline images carry the object directly; named XObjects need objs lookup
+      const candidates: unknown[] = [];
+      if (typeof arg0 === 'string') {
+        if (seenObjIds.has(arg0)) continue;
+        seenObjIds.add(arg0);
+        for (const store of [page.objs, page.commonObjs]) {
+          try {
+            const obj = await new Promise<unknown>((resolve) => {
+              try {
+                if (store.has(arg0)) {
+                  resolve(store.get(arg0));
+                } else {
+                  store.get(arg0, (data: unknown) => resolve(data));
+                  // Resolve null after a short wait in case the callback never fires
+                  setTimeout(() => resolve(null), 4000);
+                }
+              } catch {
+                resolve(null);
+              }
+            });
+            if (obj) candidates.push(obj);
+          } catch {
+            // skip store
+          }
+        }
+      } else if (arg0 && typeof arg0 === 'object') {
+        candidates.push(arg0);
+      }
+
+      for (const candidate of candidates) {
+        const blob = await pdfImageObjectToBlob(candidate as { width?: number; height?: number });
+        if (!blob) continue;
+        try {
+          const url = await onImage(blob);
+          if (url) {
+            imageCount.count++;
+            markdownLines.push(`\n\n![صورة من المستند](${url})\n\n`);
+          }
+        } catch {
+          // Upload failed — skip image, keep text flow
+        }
+        if (imageCount.count >= MAX_EXTRACTED_IMAGES) break;
+      }
+    }
+  } catch (err) {
+    console.warn('[PDF Client] Operator-list image scan failed (non-fatal):', err instanceof Error ? err.message : err);
+  }
+
+  return markdownLines;
+}
+
 /**
  * Extract text from a PDF File or pre-read ArrayBuffer in the browser.
  *
@@ -315,7 +502,7 @@ function isMobileBrowser(): boolean {
  * @returns Extracted text and page count
  * @throws Error if not in browser or extraction fails
  */
-export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<PdfExtractionResult> {
+export async function extractPdfTextClient(source: File | ArrayBuffer, onImage?: UploadImageCallback): Promise<PdfExtractionResult> {
   if (typeof window === 'undefined') {
     throw new Error('PDF extraction is only available in the browser');
   }
@@ -356,6 +543,8 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
 
     const numPages = pdf.numPages;
     const textParts: string[] = [];
+    // v135e: extract embedded images (best-effort) alongside the text
+    const imageCount = { count: 0 };
 
     for (let i = 1; i <= numPages; i++) {
       const page = await pdf.getPage(i);
@@ -378,6 +567,14 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
         lastY = y;
       }
 
+      // v135e: append embedded page images right after the page text
+      if (onImage && imageCount.count < MAX_EXTRACTED_IMAGES) {
+        const imageLines = await extractPageImages(pdfjsLib, page as unknown as Parameters<typeof extractPageImages>[1], onImage, imageCount);
+        if (imageLines.length > 0) {
+          pageText += imageLines.join('');
+        }
+      }
+
       textParts.push(pageText);
     }
 
@@ -394,7 +591,7 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
       fullText = fullText.substring(0, MAX_TEXT_LENGTH);
     }
 
-    return { text: fullText, pages: numPages, sourceFileType: 'pdf' };
+    return { text: fullText, pages: numPages, sourceFileType: 'pdf', images: imageCount.count };
   } catch (err) {
     if (err instanceof Error && (err.message === 'NO_TEXT_EXTRACTED' || err.message === 'SCANNED_PDF_NO_TEXT')) {
       throw new Error('الملف يبدو أنه ملف PDF ممسوح ضوئياً (صور فقط). لا يمكن استخراج نص من الصور. يرجى رفع ملف يحتوي على نص قابل للتحديد أو نسخ المحتوى يدوياً');
@@ -474,6 +671,50 @@ function cleanHtmlTags(html: string): string {
 }
 
 /**
+ * v135e: Extract <img src="data:..."> blobs from mammoth HTML, upload each
+ * via the callback, and replace them with Markdown image refs.
+ * Images whose upload fails are dropped (text flow is unaffected).
+ */
+async function embedDocxImages(html: string, onImage: UploadImageCallback): Promise<{ html: string; count: number }> {
+  const dataUriPattern = /<img[^>]*src="(data:image\/(?:png|jpeg|jpg|gif|webp);base64,([A-Za-z0-9+/=\s]+))"[^>]*\/>?/gi;
+  const matches = [...html.matchAll(dataUriPattern)];
+  if (matches.length === 0) return { html, count: 0 };
+
+  let count = 0;
+  let out = html;
+  for (const match of matches) {
+    if (count >= MAX_EXTRACTED_IMAGES) break;
+    const [fullTag, dataUri, base64] = match;
+    try {
+      // Decode base64 → Blob
+      const cleanB64 = base64.replace(/\s+/g, '');
+      const byteString = atob(cleanB64);
+      const bytes = new Uint8Array(byteString.length);
+      for (let b = 0; b < byteString.length; b++) {
+        bytes[b] = byteString.charCodeAt(b);
+      }
+      const mime = (dataUri.match(/^data:([^;]+);/)?.[1] || 'image/png') as string;
+      // Skip tiny icons/bullets (< 3KB) and huge images (> 8MB)
+      if (bytes.length < 3 * 1024 || bytes.length > 8 * 1024 * 1024) {
+        out = out.replace(fullTag, '');
+        continue;
+      }
+      const blob = new Blob([bytes], { type: mime });
+      const url = await onImage(blob);
+      if (url) {
+        count++;
+        out = out.replace(fullTag, `\n\n<!--IMG-->![](${url})\n\n`);
+      } else {
+        out = out.replace(fullTag, '');
+      }
+    } catch {
+      out = out.replace(fullTag, '');
+    }
+  }
+  return { html: out, count };
+}
+
+/**
  * Convert HTML tables to Markdown table format.
  * Handles <table>, <thead>, <tbody>, <tr>, <th>, <td>.
  */
@@ -528,6 +769,8 @@ export interface DocxExtractionResult {
   text: string;
   /** Source file type is always 'docx' for Word documents */
   sourceFileType: 'docx';
+  /** v135e: number of embedded images uploaded and referenced in the text */
+  images?: number;
 }
 
 /**
@@ -540,7 +783,7 @@ export interface DocxExtractionResult {
  * @returns Extracted text
  * @throws Error if not in browser or extraction fails
  */
-export async function extractDocxTextClient(source: File | ArrayBuffer): Promise<DocxExtractionResult> {
+export async function extractDocxTextClient(source: File | ArrayBuffer, onImage?: UploadImageCallback): Promise<DocxExtractionResult> {
   if (typeof window === 'undefined') {
     throw new Error('DOCX extraction is only available in the browser');
   }
@@ -557,7 +800,15 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
     // convertToHtml preserves document structure (tables, headings, bold, lists)
     // which we then convert to Markdown for both AI processing and ReactMarkdown display.
     const result = await mammoth.convertToHtml({ arrayBuffer });
-    const htmlContent = result.value;
+    let htmlContent = result.value;
+
+    // v135e: persist embedded images and reference them from the Markdown
+    let imageCount = 0;
+    if (onImage) {
+      const embedded = await embedDocxImages(htmlContent, onImage);
+      htmlContent = embedded.html;
+      imageCount = embedded.count;
+    }
 
     // Convert HTML to Markdown to preserve structure while being compatible
     // with ReactMarkdown and AI summarization
@@ -581,7 +832,7 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
       fullText += '\n\n[... تم اقتطاع جزء من المحتوى لتجاوز الحد الأقصى ...]';
     }
 
-    return { text: fullText, sourceFileType: 'docx' };
+    return { text: fullText, sourceFileType: 'docx', images: imageCount };
   } catch (err) {
     if (err instanceof Error && err.message === 'DOCX_NO_TEXT_EXTRACTED') {
       throw new Error('ملف Word فارغ أو لا يحتوي على نص قابل للاستخراج');
@@ -609,13 +860,13 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
  * @param fileName - The file name (used to detect type when source is ArrayBuffer)
  * @returns Extracted text and page count (pages is 0 for non-PDF files)
  */
-export async function extractTextFromFile(source: File | ArrayBuffer, fileName?: string): Promise<PdfExtractionResult> {
+export async function extractTextFromFile(source: File | ArrayBuffer, fileName?: string, onImage?: UploadImageCallback): Promise<PdfExtractionResult> {
   const name = source instanceof File ? source.name : (fileName || '');
 
   // Word documents (.docx, .doc)
   if (/\.(docx|doc)$/i.test(name)) {
-    const result = await extractDocxTextClient(source);
-    return { text: result.text, pages: 0, sourceFileType: 'docx' };
+    const result = await extractDocxTextClient(source, onImage);
+    return { text: result.text, pages: 0, sourceFileType: 'docx', images: result.images };
   }
 
   // Plain text files (.txt, .csv, .md)
@@ -642,7 +893,7 @@ export async function extractTextFromFile(source: File | ArrayBuffer, fileName?:
   }
 
   // Default: treat as PDF
-  return extractPdfTextClient(source);
+  return extractPdfTextClient(source, onImage);
 }
 
 // -------------------------------------------------------

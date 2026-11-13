@@ -1529,7 +1529,14 @@
       "generating": "Translating...",
       "formatting": "Reviewing format...",
       "saving": "Saving translation..."
-    }
+    },
+    "assignAsLesson": "Assign as Lesson",
+    "assignAsLessonDesc": "Turn this summary into a standalone lesson inside one of your courses",
+    "assignPickCourse": "Choose a course",
+    "assignNoCourses": "No courses available — create a course first",
+    "assignConfirm": "Assign Lesson",
+    "assignLessonSuccess": "Summary assigned as a lesson successfully",
+    "assignLessonError": "Failed to assign the summary as a lesson"
   },
   "settings": {
     "settings": "Settings",

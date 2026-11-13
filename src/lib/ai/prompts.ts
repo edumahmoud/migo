@@ -12,7 +12,16 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '9';
+export const PROMPT_VERSION = '10';
+
+/**
+ * Content-cleanup rule injected into SUMMARY/REFINE prompts.
+ * v135e: extracted text (OCR / DOCX / PDF) sometimes carries raw HTML tags
+ * or entities that would otherwise appear literally in the rendered Markdown.
+ */
+const HTML_CLEANUP_RULE = `🧹 قاعدة تنظيف عناصر HTML: إذا وردت في النص عناصر HTML (مثل <p> أو <div> أو <br> أو <span> أو &nbsp; أو &amp;) فحوّلها إلى تنسيق Markdown الصحيح المكافئ (فقرات، عناوين، قوائم، فواصل أسطر). لا تترك أي وسم HTML ظاهراً في الناتج النهائي إلا داخل كتل الكود إن كان أصلاً مثال برمجي.
+
+🖼️ قاعدة الصور: أي سطر صورة بصيغة Markdown مثل ![وصف](رابط) موجود في النص الأصلي يجب أن يبقى في الناتج كما هو تماماً دون حذف أو تعديل للرابط — انسخه حرفياً في الموضع المناسب.`;
 
 /**
  * Output-language rule injected into SUMMARY/REFINE prompts.
@@ -64,6 +73,8 @@ const LANGUAGE_RULE_TRANSLATE_TO = (langName: string) => `🌐 MANDATORY OUTPUT-
 
 export const SUMMARY_SYSTEM = (studentName: string) => `${LANGUAGE_RULE_KEEP}
 
+${HTML_CLEANUP_RULE}
+
 أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة المستخدم باسمه بلطف.
 
 قواعد التلخيص:
@@ -89,6 +100,8 @@ export const SUMMARY_USER = (content: string, studentName: string) =>
 // -------------------------------------------------------
 
 export const REFINE_SYSTEM = (studentName: string) => `${LANGUAGE_RULE_KEEP}
+
+${HTML_CLEANUP_RULE}
 
 أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب المستخدم باسمه بأسلوب ودود.
 
@@ -156,7 +169,16 @@ export const QUIZ_SYSTEM = (
   totalCount: number,
   typeConfig: string[],
   studentName: string,
-) => `أنت معلم خبير متخصص في إنشاء اختبارات تعليمية حقيقية ومفيدة باللغة العربية. تقوم بإنشاء اختبارات بتنسيق JSON فقط.
+) => `${LANGUAGE_RULE_KEEP}
+
+${HTML_CLEANUP_RULE}
+
+أنت معلم خبير متخصص في إنشاء اختبارات تعليمية حقيقية ومفيدة. تقوم بإنشاء الاختبارات من المحتوى المقدم فقط وبنفس لغته، وترد بتنسيق JSON فقط.
+
+⚠️ قاعدة لغة الأسئلة (إلزامية): الأسئلة والخيارات والإجابات كلها يجب أن تكون بنفس لغة المحتوى المقدم تماماً — اسأل عن المفاهيم الموجودة في المحتوى نفسه بصياغتك، ولا تُترجم ولا تنقل من خارج المحتوى.
+- إذا كان المحتوى بالإنجليزية → كل الأسئلة والخيارات بالإنجليزية، وخيارات أسئلة الصح/الخطأ تكون ["True", "False"]
+- إذا كان المحتوى بالعربية → كل الأسئلة والخيارات بالعربية، وخيارات أسئلة الصح/الخطأ تكون ["صح", "خطأ"]
+- أي لغة أخرى → بنفس اللغة مع خيارات صح/خطأ مكافئة فيها
 
 يجب أن يكون الرد بتنسيق JSON فقط ويحتوي على مصفوفة من الكائنات تحت اسم "questions":
 - للـ mcq: { "type": "mcq", "question": "...", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctAnswer": "الخيار الصحيح" }
@@ -193,7 +215,7 @@ export const QUIZ_SYSTEM = (
 15. غطّ جوانب متعددة من المحتوى — لا تركز على جزء واحد فقط`;
 
 export const QUIZ_USER = (content: string, totalCount: number) =>
-  `أنشئ اختباراً شاملاً مكوناً من ${totalCount} سؤال من المحتوى التالي. الأسئلة يجب أن تكون مباشرة وواضحة بدون أي إشارة للمصدر أو النص. الرد يجب أن يكون JSON فقط:\n\n${content}`;
+  `أنشئ اختباراً شاملاً مكوناً من ${totalCount} سؤال من المحتوى التالي. الأسئلة يجب أن تكون مباشرة وواضحة، بنفس لغة المحتوى التالي تماماً (بدون أي ترجمة)، وبدون أي إشارة للمصدر أو النص. الرد يجب أن يكون JSON فقط:\n\n${content}`;
 
 // -------------------------------------------------------
 // Evaluation Prompts

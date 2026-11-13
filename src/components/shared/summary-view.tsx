@@ -28,9 +28,11 @@ import {
   History,
   ChevronDown,
   RotateCcw,
+  GraduationCap,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
+import { cleanMarkdownForDisplay, markdownToHtml } from '@/lib/markdown-utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
@@ -604,10 +606,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
-  const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
+  // v135e: single toggle replaces the duplicated 'after/during' button pair.
+  // ON → student sees score + questions review after submission.
+  const [quizShowResults, setQuizShowResults] = useState(true);
   const [quizAllowRetake, setQuizAllowRetake] = useState(true);
   const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [showQuizConfig, setShowQuizConfig] = useState(false);
+
+  // ─── v135e: Assign summary as lesson (teacher only) ───
+  type TeacherSubject = { id: string; name: string; color?: string | null };
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignSubjects, setAssignSubjects] = useState<TeacherSubject[]>([]);
+  const [assignSubjectsLoading, setAssignSubjectsLoading] = useState(false);
+  const [assignSelectedSubject, setAssignSelectedSubject] = useState<string>('');
+  const [assigning, setAssigning] = useState(false);
 
   // ─── Summary versions state (النسخ المؤرشفة) ───
   type SummaryVersion = {
@@ -1254,7 +1266,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         title: `${t('quiz.quiz')}: ${summary?.title || t('summary.summary')}`,
         questions: quizData.data.questions,
         summaryId,
-        show_results: quizAnswerMode === 'after' ? false : true,
+        show_results: quizShowResults,
         allow_retake: quizAllowRetake,
       };
 
@@ -1450,6 +1462,71 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     toast.error(t('summary.translateError'));
     setTranslating(false);
     setTranslateTargetLang(null);
+  };
+
+  // -------------------------------------------------------
+  // v135e: Assign this summary/transcription as a lesson (teacher only)
+  // -------------------------------------------------------
+  const openAssignDialog = useCallback(async () => {
+    setAssignDialogOpen(true);
+    setAssignSelectedSubject('');
+    if (assignSubjects.length === 0) {
+      setAssignSubjectsLoading(true);
+      try {
+        const res = await fetch('/api/teacher/subjects', { headers: await getCachedAuthHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          setAssignSubjects((data.data as TeacherSubject[]) || []);
+        } else {
+          console.warn('[openAssignDialog] Failed to fetch subjects:', res.status);
+        }
+      } catch (err) {
+        console.warn('[openAssignDialog] Error:', err);
+      } finally {
+        setAssignSubjectsLoading(false);
+      }
+    }
+  }, [assignSubjects.length]);
+
+  const handleAssignAsLesson = async () => {
+    if (!summary || !assignSelectedSubject) return;
+    setAssigning(true);
+    try {
+      // 1. Create the lesson shell
+      const createRes = await fetch('/api/lessons', {
+        method: 'POST',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({
+          subject_id: assignSelectedSubject,
+          title: summary.title || t('summary.summary'),
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok || !createData.lesson?.id) {
+        throw new Error(createData.error || 'create failed');
+      }
+      const lessonId = createData.lesson.id as string;
+
+      // 2. Fill it with the summary content (Markdown → HTML for TipTap)
+      const html = markdownToHtml(cleanMarkdownForDisplay(summary.summary_content || ''));
+      const updateRes = await fetch(`/api/lessons/${lessonId}`, {
+        method: 'PUT',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ content_html: html, summary: summary.title || undefined }),
+      });
+      if (!updateRes.ok) {
+        const updateData = await updateRes.json().catch(() => ({}));
+        throw new Error(updateData.error || 'update failed');
+      }
+
+      toast.success(t('summary.assignLessonSuccess'));
+      setAssignDialogOpen(false);
+    } catch (err) {
+      console.error('[handleAssignAsLesson] Failed:', err);
+      toast.error(t('summary.assignLessonError'));
+    } finally {
+      setAssigning(false);
+    }
   };
 
   // -------------------------------------------------------
@@ -1817,6 +1894,21 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuSeparator />
+                  {/* v135e: Assign as lesson — teacher only */}
+                  {teacherMode && (
+                    <DropdownMenuItem
+                      onClick={openAssignDialog}
+                      className="gap-2.5 cursor-pointer py-2.5"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
+                        <GraduationCap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t('summary.assignAsLesson')}</span>
+                        <span className="text-xs text-muted-foreground">{t('summary.assignAsLessonDesc')}</span>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
                   {/* Versions — history */}
                   <DropdownMenuItem
                     onClick={openVersionsDialog}
@@ -1884,7 +1976,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               </div>
             ) : (
               <div className="prose-summary">
-                <ReactMarkdown>{summary?.summary_content || ''}</ReactMarkdown>
+                <ReactMarkdown>{cleanMarkdownForDisplay(summary?.summary_content || '')}</ReactMarkdown>
               </div>
             )}
           </CardContent>
@@ -2013,36 +2105,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   ))}
                 </div>
 
-                {/* Answer display mode */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t('quiz.showResults')}</label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setQuizAnswerMode('after')}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
-                        quizAnswerMode === 'after'
-                          ? 'border-teal-500 bg-teal-50 text-teal-700'
-                          : 'border-border text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {t('quiz.showResultsAfter')}
-                    </button>
-                    <button
-                      onClick={() => setQuizAnswerMode('during')}
-                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
-                        quizAnswerMode === 'during'
-                          ? 'border-teal-500 bg-teal-50 text-teal-700'
-                          : 'border-border text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {t('quiz.showResultsAfter')}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Retake & Shuffle toggles */}
+                {/* v135e: Quiz settings — single toggle menu (show results / retake / shuffle) */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t('quiz.quizSettings')}</label>
+                  <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-foreground">{t('quiz.showResultsAfter')}</span>
+                      <span className="text-xs text-muted-foreground">{t('quiz.showReviewDesc')}</span>
+                    </div>
+                    <Switch
+                      checked={quizShowResults}
+                      onCheckedChange={setQuizShowResults}
+                      className="data-[state=checked]:bg-teal-600"
+                    />
+                  </div>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
                     <span className="text-sm font-medium text-foreground">{t('quiz.allowRetake')}</span>
                     <Switch
@@ -2091,7 +2167,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <Button
                   onClick={() => {
                     setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
-                    setQuizAnswerMode('after');
+                    setQuizShowResults(true);
                     setQuizAllowRetake(true);
                     setQuizShuffleQuestions(true);
                     setShowQuizConfig(true);
@@ -2311,6 +2387,90 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 );
               })
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* v135e: Assign as Lesson Dialog (teacher only) */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent dir={direction} className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-emerald-800 dark:text-emerald-300">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
+                <GraduationCap className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+              </span>
+              <span>{t('summary.assignAsLesson')}</span>
+            </DialogTitle>
+            <DialogDescription>{t('summary.assignAsLessonDesc')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {/* Summary title preview */}
+            <div className="rounded-lg border bg-muted/40 px-3 py-2">
+              <p className="text-xs text-muted-foreground">{t('summary.summaryTitle')}</p>
+              <p className="text-sm font-medium text-foreground truncate">{summary?.title}</p>
+            </div>
+
+            {/* Subject picker */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{t('summary.assignPickCourse')}</label>
+              {assignSubjectsLoading ? (
+                <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                  <span className="text-sm text-muted-foreground">{t('common.loading')}...</span>
+                </div>
+              ) : assignSubjects.length === 0 ? (
+                <div className="rounded-lg border border-dashed px-3 py-4 text-center">
+                  <p className="text-sm text-muted-foreground">{t('summary.assignNoCourses')}</p>
+                </div>
+              ) : (
+                <div className="max-h-56 space-y-1.5 overflow-y-auto pe-1">
+                  {assignSubjects.map((subject) => (
+                    <button
+                      key={subject.id}
+                      onClick={() => setAssignSelectedSubject(subject.id)}
+                      className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-start transition-colors ${
+                        assignSelectedSubject === subject.id
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                          : 'border-border bg-card hover:bg-muted/50'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: subject.color || '#10b981' }}
+                        />
+                        <span className="truncate text-sm font-medium text-foreground">{subject.name}</span>
+                      </span>
+                      {assignSelectedSubject === subject.id && (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 justify-end pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAssignDialogOpen(false)}
+                disabled={assigning}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAssignAsLesson}
+                disabled={assigning || !assignSelectedSubject}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <GraduationCap className="h-4 w-4" />}
+                {t('summary.assignConfirm')}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
