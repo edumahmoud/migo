@@ -14,6 +14,7 @@ export {
   isAiError,
   generateSummary,
   refineTranscribedText,
+  translateContent,
   generateQuiz,
   evaluateCompletionAnswer,
   explainWrongAnswer,
