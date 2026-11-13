@@ -13,7 +13,7 @@ export type { AiErrorCode, AiProviderError as AiProviderErrorType, QuizQuestion 
 export { AiProviderError, isAiError } from './types';
 
 // Re-export unified functions (same signatures as before)
-export { generateSummary, refineTranscribedText, generateQuiz, evaluateCompletionAnswer, explainWrongAnswer } from './provider-manager';
+export { generateSummary, refineTranscribedText, translateContent, generateQuiz, evaluateCompletionAnswer, explainWrongAnswer } from './provider-manager';
 
 // Export new APIs
 export { evaluateCompletionDetailed, checkAllProvidersHealth, getAiLogs, getAiStats } from './provider-manager';

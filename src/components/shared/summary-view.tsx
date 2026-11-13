@@ -51,6 +51,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
@@ -202,12 +205,22 @@ const AI_PHASES_SUMMARY = [
   { threshold: 90, label: 'summary.phases.saving' },
 ];
 
+// v135d: refine phases use distinct labels (no "توليد الملخص" — that was the bug)
 const AI_PHASES_REFINE = [
-  { threshold: 0,  label: 'summary.phases.reading' },
-  { threshold: 20, label: 'summary.phases.analyzing' },
-  { threshold: 45, label: 'summary.phases.generating' },
-  { threshold: 70, label: 'summary.phases.formatting' },
-  { threshold: 90, label: 'summary.phases.saving' },
+  { threshold: 0,  label: 'summary.phasesRefine.reading' },
+  { threshold: 20, label: 'summary.phasesRefine.analyzing' },
+  { threshold: 45, label: 'summary.phasesRefine.generating' },
+  { threshold: 70, label: 'summary.phasesRefine.formatting' },
+  { threshold: 90, label: 'summary.phasesRefine.saving' },
+];
+
+// v135d: dedicated translation phases
+const AI_PHASES_TRANSLATE = [
+  { threshold: 0,  label: 'summary.phasesTranslate.reading' },
+  { threshold: 20, label: 'summary.phasesTranslate.analyzing' },
+  { threshold: 50, label: 'summary.phasesTranslate.generating' },
+  { threshold: 75, label: 'summary.phasesTranslate.formatting' },
+  { threshold: 90, label: 'summary.phasesTranslate.saving' },
 ];
 
 const AI_PHASES_QUIZ = [
@@ -282,12 +295,14 @@ function StepProgress({
   steps,
   color = 'sky',
   pleaseWaitText,
+  title,
 }: {
   percent: number;
   phase: string;
   steps: { threshold: number; label: string }[];
-  color?: 'sky' | 'teal' | 'rose';
+  color?: 'sky' | 'teal' | 'rose' | 'violet';
   pleaseWaitText?: string;
+  title?: string;
 }) {
   const { t } = useTranslations();
   // Determine active step based on percent and thresholds
@@ -336,11 +351,37 @@ function StepProgress({
       labelUpcoming: '#fb7185',
       checkColor: '#be123c',
     },
+    violet: {
+      text: '#7c3aed',
+      barGradient: 'linear-gradient(to left, #7c3aed, #c4b5fd)',
+      barBg: '#ede9fe',
+      dotActive: '#8b5cf6',
+      dotCompleted: '#c4b5fd',
+      dotUpcoming: '#ddd6fe',
+      glow: 'rgba(139,92,246,0.25)',
+      labelActive: '#7c3aed',
+      labelUpcoming: '#c4b5fd',
+      checkColor: '#7c3aed',
+    },
   };
   const c = colorSchemes[color];
 
   return (
     <div className="w-full max-w-xs mx-auto space-y-4 py-2">
+      {/* Operation title — distinguishes refine vs summarize vs translate */}
+      {title && percent < 100 && (
+        <div className="text-center">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+            style={{
+              color: c.text,
+              backgroundColor: c.barBg,
+            }}
+          >
+            {title}
+          </span>
+        </div>
+      )}
       {/* Large percentage display */}
       <div className="text-center">
         {percent === 100 ? (
@@ -544,12 +585,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refining, setRefining] = useState(false);
-  // v134t: opt-in Arabic translation for regenerate/refine (default OFF — keep source language)
-  const [translateToArabic, setTranslateToArabic] = useState(false);
+  // v135d: dedicated translation state — replaces the old translateToArabic toggle
+  const [translating, setTranslating] = useState(false);
+  const [translateTargetLang, setTranslateTargetLang] = useState<string | null>(null);
 
   // ─── AI Progress trackers (pass raw constant arrays for stable references) ───
   const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 60000);
   const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 60000);
+  const translateProgress = useAiProgress(translating, AI_PHASES_TRANSLATE, 60000);
   const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
 
   // ─── Tab state ───
@@ -1087,7 +1130,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const res = await fetchWithRetry('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ summaryId, translate_to_arabic: translateToArabic }),
+        body: JSON.stringify({ summaryId }),
         timeoutMs: 300000,
       }, 3);
       const data = await res.json();
@@ -1306,7 +1349,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const res = await fetchWithRetry('/api/gemini/summary', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ summaryId, translate_to_arabic: translateToArabic }),
+        body: JSON.stringify({ summaryId }),
         timeoutMs: 300000,
       }, 3);
       const data = await res.json();
@@ -1341,6 +1384,72 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     markOpComplete();
     toast.error(t('common.unexpectedError'));
     setRefining(false);
+  };
+
+  // -------------------------------------------------------
+  // Translate current content to a target language (v135d)
+  // -------------------------------------------------------
+  const LANGUAGE_LABEL_KEYS: Record<string, string> = {
+    ar: 'summary.translateLanguageArabic',
+    en: 'summary.translateLanguageEnglish',
+    fr: 'summary.translateLanguageFrench',
+    es: 'summary.translateLanguageSpanish',
+    de: 'summary.translateLanguageGerman',
+    tr: 'summary.translateLanguageTurkish',
+    ru: 'summary.translateLanguageRussian',
+    it: 'summary.translateLanguageItalian',
+  };
+
+  const handleTranslate = async (targetLang: string) => {
+    if (!summary) return;
+    setTranslating(true);
+    setTranslateTargetLang(targetLang);
+    markOpPending('translate');
+    const previousContent = summary?.summary_content || '';
+
+    try {
+      const res = await fetchWithRetry('/api/gemini/translate', {
+        method: 'PUT',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ summaryId, target_language: targetLang }),
+        timeoutMs: 300000,
+      }, 3);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        translateProgress.completeProgress(t('summary.completed'));
+        setSummary(data.data as Summary);
+        hasValidDataRef.current = true;
+        markOpComplete();
+        toast.success(t('summary.translateSuccess'));
+        setTranslating(false);
+        setTranslateTargetLang(null);
+        // Refresh versions list (translate archives a 'previous' version)
+        fetchVersions();
+        return;
+      }
+    } catch {
+      // Network error — try recovery below
+    }
+
+    // Recovery: server may have completed despite lost HTTP response
+    console.log('[handleTranslate] Fetch failed, attempting DB recovery...');
+    const recovered = await recoverSummaryFromDB(summaryId, previousContent);
+    if (recovered) {
+      translateProgress.completeProgress(t('summary.completed'));
+      setSummary(recovered);
+      hasValidDataRef.current = true;
+      markOpComplete();
+      toast.success(t('summary.translateSuccess'));
+      setTranslating(false);
+      setTranslateTargetLang(null);
+      fetchVersions();
+      return;
+    }
+
+    markOpComplete();
+    toast.error(t('summary.translateError'));
+    setTranslating(false);
+    setTranslateTargetLang(null);
   };
 
   // -------------------------------------------------------
@@ -1575,22 +1684,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   </p>
                 </div>
               </div>
-              {/* v134t: Opt-in Arabic translation toggle (default OFF — keep source language) */}
+              {/* v135d: Tools cluster — source file, versions, single Tools dropdown */}
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <label
-                  htmlFor="translate-to-arabic"
-                  className="flex cursor-pointer select-none items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-900/15 px-2.5 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 transition-colors hover:bg-sky-50 dark:hover:bg-sky-900/25"
-                  title={t('summary.translateToArabicHint')}
-                >
-                  <Switch
-                    id="translate-to-arabic"
-                    checked={translateToArabic}
-                    onCheckedChange={(checked) => setTranslateToArabic(checked === true)}
-                    className="scale-90 data-[state=checked]:bg-sky-600"
-                  />
-                  <Languages className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t('summary.translateToArabic')}</span>
-                </label>
               {/* Source file download link */}
               {summary?.source_file_url && (
                 <a
@@ -1622,103 +1717,113 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   </span>
                 )}
               </button>
-              {/* Generate dropdown — main action + alternate action + versions */}
+              {/* Tools dropdown — Refine / Summarize / Translate (submenu) / Versions */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    disabled={regenerating || refining || restoringVersion}
-                    className={`gap-1.5 text-white shadow-sm h-8 ${isTranscribed ? 'bg-teal-600 hover:bg-teal-700' : 'bg-sky-700 hover:bg-sky-800'}`}
+                    disabled={regenerating || refining || translating || restoringVersion}
+                    className="gap-1.5 text-white shadow-sm h-8 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-800"
                     size="sm"
-                    title={isTranscribed ? t('summary.refineFormat') : t('summary.generateSummary')}
+                    title={t('summary.toolsMenu')}
                   >
-                    {regenerating || refining || restoringVersion ? (
+                    {regenerating || refining || translating || restoringVersion ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isTranscribed ? (
-                      <Wand2 className="h-4 w-4" />
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
                     <span className="hidden sm:inline">
-                      {regenerating || refining
+                      {regenerating || refining || translating
                         ? `${t('common.loading')}...`
-                        : isTranscribed
-                          ? t('summary.refineFormat')
-                          : t('summary.generateSummary')}
+                        : t('summary.toolsMenu')}
                     </span>
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  {isTranscribed ? (
-                    <>
-                      {/* Primary: format-only (no translation unless toggled) */}
-                      <DropdownMenuItem
-                        onClick={handleRefineText}
-                        disabled={refining}
-                        className="gap-2.5 cursor-pointer py-2.5"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/40">
-                          <Wand2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        </span>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{t('summary.refineFormat')}</span>
-                          <span className="text-xs text-muted-foreground">{t('summary.refineFormatDesc')}</span>
-                        </div>
-                      </DropdownMenuItem>
-                      {/* Alternate: summarize */}
-                      <DropdownMenuItem
-                        onClick={handleRegenerateSummary}
-                        disabled={regenerating}
-                        className="gap-2.5 cursor-pointer py-2.5"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
-                          <Sparkles className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                        </span>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{t('summary.summarizeOption')}</span>
-                          <span className="text-xs text-muted-foreground">{t('summary.summarizeOptionDesc')}</span>
-                        </div>
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <>
-                      {/* Primary: re-summarize */}
-                      <DropdownMenuItem
-                        onClick={handleRegenerateSummary}
-                        disabled={regenerating}
-                        className="gap-2.5 cursor-pointer py-2.5"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
-                          <RefreshCw className="h-4 w-4 text-sky-700 dark:text-sky-400" />
-                        </span>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{t('summary.reSummarize')}</span>
-                          <span className="text-xs text-muted-foreground">{t('summary.generateSummary')}</span>
-                        </div>
-                      </DropdownMenuItem>
-                      {/* Alternate: format-only */}
-                      <DropdownMenuItem
-                        onClick={handleRefineText}
-                        disabled={refining}
-                        className="gap-2.5 cursor-pointer py-2.5"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/40">
-                          <Wand2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        </span>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{t('summary.refineFormat')}</span>
-                          <span className="text-xs text-muted-foreground">{t('summary.refineFormatDesc')}</span>
-                        </div>
-                      </DropdownMenuItem>
-                    </>
-                  )}
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">
+                    {t('summary.toolsMenuDesc')}
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  {/* Refine — teal, keeps source language */}
+                  <DropdownMenuItem
+                    onClick={handleRefineText}
+                    disabled={refining || translating || regenerating}
+                    className="gap-2.5 cursor-pointer py-2.5"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/40">
+                      <Wand2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{t('summary.refineFormat')}</span>
+                      <span className="text-xs text-muted-foreground">{t('summary.refineFormatDesc')}</span>
+                    </div>
+                  </DropdownMenuItem>
+                  {/* Summarize — sky, keeps source language */}
+                  <DropdownMenuItem
+                    onClick={handleRegenerateSummary}
+                    disabled={refining || translating || regenerating}
+                    className="gap-2.5 cursor-pointer py-2.5"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/40">
+                      <Sparkles className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{t('summary.summarizeOption')}</span>
+                      <span className="text-xs text-muted-foreground">{t('summary.summarizeOptionDesc')}</span>
+                    </div>
+                  </DropdownMenuItem>
+                  {/* Translate — violet, with multi-language submenu */}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger
+                      disabled={refining || translating || regenerating}
+                      className="gap-2.5 cursor-pointer py-2.5"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/40">
+                        <Languages className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                      </span>
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">{t('summary.translateTo')}</span>
+                        <span className="text-xs text-muted-foreground">{t('summary.translateToDesc')}</span>
+                      </div>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-56">
+                      <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">
+                        {t('summary.translateTo')}
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {([
+                        { code: 'ar', key: 'summary.translateLanguageArabic' },
+                        { code: 'en', key: 'summary.translateLanguageEnglish' },
+                        { code: 'fr', key: 'summary.translateLanguageFrench' },
+                        { code: 'es', key: 'summary.translateLanguageSpanish' },
+                        { code: 'de', key: 'summary.translateLanguageGerman' },
+                        { code: 'tr', key: 'summary.translateLanguageTurkish' },
+                        { code: 'ru', key: 'summary.translateLanguageRussian' },
+                        { code: 'it', key: 'summary.translateLanguageItalian' },
+                      ]).map(({ code, key }) => (
+                        <DropdownMenuItem
+                          key={code}
+                          onClick={() => handleTranslate(code)}
+                          disabled={translating}
+                          className="gap-2 cursor-pointer"
+                        >
+                          <Languages className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                          <span>{t(key)}</span>
+                          {translateTargetLang === code && translating && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin ms-auto" />
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                  {/* Versions — history */}
                   <DropdownMenuItem
                     onClick={openVersionsDialog}
                     className="gap-2.5 cursor-pointer py-2.5"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/40">
-                      <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
+                      <History className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     </span>
                     <div className="flex flex-col">
                       <span className="font-medium">{t('summary.versions')}</span>
@@ -1738,6 +1843,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   phase={summaryProgress.progress.phase}
                   steps={AI_PHASES_SUMMARY}
                   color="sky"
+                  title={t('summary.opSummarize')}
                   pleaseWaitText={t('summary.pleaseWait')}
                 />
               </div>
@@ -1748,6 +1854,22 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   phase={refineProgress.progress.phase}
                   steps={AI_PHASES_REFINE}
                   color="teal"
+                  title={t('summary.opRefine')}
+                  pleaseWaitText={t('summary.pleaseWait')}
+                />
+              </div>
+            ) : translating ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <StepProgress
+                  percent={translateProgress.progress.percent}
+                  phase={translateProgress.progress.phase}
+                  steps={AI_PHASES_TRANSLATE}
+                  color="violet"
+                  title={
+                    translateTargetLang
+                      ? t('summary.translatingTo', { lang: t(LANGUAGE_LABEL_KEYS[translateTargetLang] || 'summary.translateTo') })
+                      : t('summary.opTranslate')
+                  }
                   pleaseWaitText={t('summary.pleaseWait')}
                 />
               </div>
@@ -2127,6 +2249,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   v.source_op === 'initial' ? t('summary.versionSourceInitial') :
                   v.source_op === 'regenerate' ? t('summary.versionSourceRegenerate') :
                   v.source_op === 'refine' ? t('summary.versionSourceRefine') :
+                  v.source_op === 'translate' ? t('summary.versionSourceTranslate') :
                   v.source_op === 'restore' ? t('summary.versionSourceRestore') : '';
                 return (
                   <div

@@ -346,14 +346,13 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
  * Generate a summary of the given content.
  * Uses Gemini with fallback chain and caching.
  */
-export async function generateSummary(content: string, studentName?: string, translateToArabic?: boolean): Promise<string> {
+export async function generateSummary(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
   const name = extractFirstName(studentName);
-  const translate = translateToArabic === true;
 
   return chatWithFallback(
-    SUMMARY_SYSTEM(name, translate),
-    SUMMARY_USER(truncatedContent, name, translate),
+    SUMMARY_SYSTEM(name),
+    SUMMARY_USER(truncatedContent, name),
     // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
     // (3s auth + 53s AI + 4s buffer for DB save = 60s)
     { temperature: 0.3, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'summary' },
@@ -362,17 +361,49 @@ export async function generateSummary(content: string, studentName?: string, tra
 
 /**
  * Refine/format transcribed (OCR-extracted) text.
+ * v135d: ALWAYS keeps source language — no translation toggle.
  */
-export async function refineTranscribedText(content: string, studentName?: string, translateToArabic?: boolean): Promise<string> {
+export async function refineTranscribedText(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
   const name = extractFirstName(studentName);
-  const translate = translateToArabic === true;
 
   return chatWithFallback(
-    REFINE_SYSTEM(name, translate),
-    REFINE_USER(truncatedContent, name, translate),
+    REFINE_SYSTEM(name),
+    REFINE_USER(truncatedContent, name),
     // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
     { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'refine' },
+  );
+}
+
+/**
+ * Translate existing summary content into the requested target language.
+ * v135d: dedicated translation operation — does NOT refine or summarize.
+ * Returns the translated text preserving Markdown structure.
+ */
+export async function translateContent(
+  content: string,
+  targetLanguage: string,
+  studentName?: string,
+): Promise<string> {
+  const truncatedContent = truncateContent(content);
+  const name = extractFirstName(studentName);
+  // Map language codes to display names used inside the prompt
+  const LANG_NAMES: Record<string, string> = {
+    ar: 'اللغة العربية',
+    en: 'English',
+    fr: 'French / Français',
+    es: 'Spanish / Español',
+    de: 'German / Deutsch',
+    tr: 'Turkish / Türkçe',
+    ru: 'Russian / Русский',
+    it: 'Italian / Italiano',
+  };
+  const langName = LANG_NAMES[targetLanguage] || targetLanguage;
+
+  return chatWithFallback(
+    TRANSLATE_SYSTEM(name, langName),
+    TRANSLATE_USER(truncatedContent, name, langName),
+    { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'translate' },
   );
 }
 

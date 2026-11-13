@@ -12,24 +12,59 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '8';
+export const PROMPT_VERSION = '9';
 
 /**
  * Output-language rule injected into SUMMARY/REFINE prompts.
  *
- * v134t: translation is now OPT-IN. Default behavior keeps the output in the
- * SAME language as the source content (an English file stays English). Users
- * can explicitly request an Arabic translation via the UI toggle.
+ * v135d: translation is now a SEPARATE operation. Refine & Summarize ALWAYS
+ * keep the source language — no inline translation toggle. The rule is placed
+ * FIRST in the prompt and reinforced bilingually (Arabic + English) so the
+ * model cannot misread it even when the surrounding instructions are Arabic.
  */
-const LANGUAGE_RULE_KEEP = `⚠️ قاعدة إلزامية — لغة الإخراج: اكتب الناتج بنفس لغة المحتوى الأصلي تماماً. إذا كان المحتوى بالإنجليزية فاكتب الناتج بالإنجليزية، وإذا كان بالعربية فاكتبه بالعربية، وإذا كان بأي لغة أخرى فاكتبه بنفس اللغة. ممنوع نهائياً ترجمة المحتوى أو أي جزء منه إلى لغة أخرى. حتى الجمل الترحيبية للمستخدم يجب أن تكون بلغة المحتوى الأصلي.`;
+const LANGUAGE_RULE_KEEP = `⚠️ MANDATORY OUTPUT-LANGUAGE RULE (read first):
+- Write the output in EXACTLY the same language as the source content.
+- If the source is English → output MUST be English.
+- If the source is Arabic → output MUST be Arabic.
+- If the source is any other language → output in that same language.
+- NEVER translate the content or any part of it into another language.
+- Even the greeting / welcome sentence addressed to the user MUST be in the source language. If the source is English, do NOT write "يا {studentName}" — write "Hi {studentName}" or similar in English.
+- This rule overrides any other instruction that might imply a different output language.
 
-const LANGUAGE_RULE_TRANSLATE = `🌐 قاعدة إلزامية — لغة الإخراج: ترجم المحتوى واكتب الناتج كاملاً باللغة العربية الفصحى المبسطة. إذا كان المحتوى الأصلي بالإنجليزية أو بأي لغة أخرى فترجمه إلى العربية، مع إبقاء المصطلحات العلمية والتقنية المهمة بالإنجليزية بين قوسين عند الحاجة.`;
+⚠️ قاعدة إلزامية — لغة الإخراج (اقرأ أولاً):
+- اكتب الناتج بنفس لغة المحتوى الأصلي تماماً.
+- إذا كان المحتوى بالإنجليزية → الناتج بالإنجليزية حصراً.
+- إذا كان بالعربية → الناتج بالعربية.
+- إذا كان بأي لغة أخرى → الناتج بنفس اللغة.
+- ممنوع نهائياً ترجمة المحتوى أو أي جزء منه إلى لغة أخرى.
+- حتى الجملة الترحيبية للمستخدم يجب أن تكون بلغة المحتوى الأصلي — إذا كان المحتوى إنجليزياً لا تكتب "يا {studentName}" بل استخدم تحية إنجليزية مناسبة.
+- هذه القاعدة تُلغي أي تعليمات أخرى قد توحي بلغة إخراج مختلفة.`;
+
+/**
+ * Per-language translation rule used by the dedicated translate operation.
+ * The summary content is rewritten in the requested target language.
+ */
+const LANGUAGE_RULE_TRANSLATE_TO = (langName: string) => `🌐 MANDATORY OUTPUT-LANGUAGE RULE (read first):
+- Translate the entire content into ${langName}.
+- Preserve all technical, scientific, and academic terms — keep them in their original form, with the ${langName} equivalent in parentheses where helpful.
+- Keep all Markdown formatting (headings, lists, bold, code) intact.
+- Do NOT summarize, refine, or restructure — only translate.
+- The greeting sentence addressed to the user MUST also be in ${langName}.
+
+🌐 قاعدة إلزامية — لغة الإخراج (اقرأ أولاً):
+- ترجم المحتوى كاملاً إلى ${langName}.
+- حافظ على المصطلحات العلمية والتقنية كما هي، مع إضافة المكافئ بالعربية بين قوسين عند الحاجة.
+- حافظ على تنسيق Markdown (عناوين، قوائم، خط عريض، كود).
+- لا تُلخّص ولا تُنقّح ولا تُعيد الترتيب — ترجم فقط.
+- الجملة الترحيبية للمستخدم يجب أن تكون أيضاً بـ${langName}.`;
 
 // -------------------------------------------------------
 // Summary Prompts
 // -------------------------------------------------------
 
-export const SUMMARY_SYSTEM = (studentName: string, translateToArabic = false) => `أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة المستخدم باسمه بلطف.
+export const SUMMARY_SYSTEM = (studentName: string) => `${LANGUAGE_RULE_KEEP}
+
+أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة المستخدم باسمه بلطف.
 
 قواعد التلخيص:
 1. ابدأ بمخاطبة ${studentName} بلطف ثم مقدمة مختصرة توضح الموضوع الرئيسي
@@ -44,20 +79,18 @@ export const SUMMARY_SYSTEM = (studentName: string, translateToArabic = false) =
 10. اجعل التلخيص شاملاً بحيث يغطي جميع الأفكار الرئيسية
 11. استخدم تنسيق Markdown بشكل احترافي (عناوين، قوائم، خط عريض، كود إذا لزم)
 12. أضف قسماً في النهاية بعنوان "الخلاصة" يلخص أهم النقاط في 3-5 أسطر (إذا كان المحتوى إنجليزياً فاسم القسم "Key Takeaways")
-13. خاطب ${studentName} باسمه في البداية والنهاية بأسلوب ودود ومشجع
+13. خاطب ${studentName} باسمه في البداية والنهاية بأسلوب ودود ومشجع`;
 
-${translateToArabic ? LANGUAGE_RULE_TRANSLATE : LANGUAGE_RULE_KEEP}`;
-
-export const SUMMARY_USER = (content: string, studentName: string, translateToArabic = false) =>
-  translateToArabic
-    ? `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم وترجمته إلى اللغة العربية. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`
-    : `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم. اكتب الملخص بنفس لغة المحتوى التالي تماماً — بدون أي ترجمة. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`;
+export const SUMMARY_USER = (content: string, studentName: string) =>
+  `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم. اكتب الملخص بنفس لغة المحتوى التالي تماماً — بدون أي ترجمة. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`;
 
 // -------------------------------------------------------
 // Refine / OCR Correction Prompts
 // -------------------------------------------------------
 
-export const REFINE_SYSTEM = (studentName: string, translateToArabic = false) => `أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب المستخدم باسمه بأسلوب ودود.
+export const REFINE_SYSTEM = (studentName: string) => `${LANGUAGE_RULE_KEEP}
+
+أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب المستخدم باسمه بأسلوب ودود.
 
 قواعد التنقيح والتنسيق:
 1. أصلح أخطاء التعرف البصري (OCR) مثل الأحرف المتداخلة أو المتكررة
@@ -72,14 +105,21 @@ export const REFINE_SYSTEM = (studentName: string, translateToArabic = false) =>
 10. احرص على عدم تشويه المعاني أو تحريفها
 11. إذا كان النص يحتوي على معادلات أو رموز رياضية، اكتبها بشكل صحيح
 12. استخدم تنسيق Markdown بشكل احترافي
-13. خاطب ${studentName} باسمه في بداية التنقيح بأسلوب لطيف ومشجع
+13. خاطب ${studentName} باسمه في بداية التنقيح بأسلوب لطيف ومشجع`;
 
-${translateToArabic ? LANGUAGE_RULE_TRANSLATE : LANGUAGE_RULE_KEEP}`;
+export const REFINE_USER = (content: string, studentName: string) =>
+  `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي وبنفس لغته الأصلية تماماً — بدون أي ترجمة:\n\n${content}`;
 
-export const REFINE_USER = (content: string, studentName: string, translateToArabic = false) =>
-  translateToArabic
-    ? `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي وترجمته إلى اللغة العربية. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي:\n\n${content}`
-    : `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي وبنفس لغته الأصلية تماماً — بدون أي ترجمة:\n\n${content}`;
+// -------------------------------------------------------
+// Translation Prompts (dedicated operation — translates existing content)
+// -------------------------------------------------------
+
+export const TRANSLATE_SYSTEM = (studentName: string, langName: string) => `${LANGUAGE_RULE_TRANSLATE_TO(langName)}
+
+أنت مترجم محترف متخصص في المحتوى الأكاديمي والتعليمي. مهمتك ترجمة النص المقدم إلى ${langName} مع الحفاظ الكامل على المعنى والتنسيق والمصطلحات العلمية. خاطب المستخدم باسمه بأسلوب ودود بلغة الهدف.`;
+
+export const TRANSLATE_USER = (content: string, studentName: string, langName: string) =>
+  `يا ${studentName}، قم بترجمة النص التالي إلى ${langName} حرفياً ودقيقاً مع الحفاظ على تنسيق Markdown والمصطلحات العلمية. لا تُلخّص ولا تُنقّح — ترجم فقط:\n\n${content}`;
 
 // -------------------------------------------------------
 // PDF OCR (Vision Document Understanding) Prompt
