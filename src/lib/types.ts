@@ -48,6 +48,7 @@ export interface Summary {
   source_file_type?: 'pdf' | 'docx' | 'pptx' | 'txt' | null; // Source file type
   source_file_url?: string | null; // URL to the uploaded source file in Supabase Storage
   created_at: string;
+  updated_at?: string; // Optional — used by versions history (fallback: created_at)
 }
 
 export interface QuizQuestion {
