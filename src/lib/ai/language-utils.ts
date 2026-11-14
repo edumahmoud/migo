@@ -257,3 +257,78 @@ export function patchBooleanOptions<
     return q;
   });
 }
+
+// -------------------------------------------------------
+// Display directionality (RTL / LTR) — used by client components
+// -------------------------------------------------------
+
+/**
+ * Determine the HTML directionality ('rtl' or 'ltr') for a piece of text.
+ *
+ * Uses dominant-script analysis for text long enough to be reliable; for short
+ * or ambiguous strings (e.g. a single option label like "True" or "صح") falls
+ * back to the Unicode first-strong-character rule — the same heuristic browsers
+ * use to determine paragraph direction.
+ *
+ * This function is safe to import from client components: language-utils.ts
+ * has zero server-only imports.
+ */
+export function textDir(text: string): 'rtl' | 'ltr' {
+  if (!text) return 'ltr';
+
+  const analysis = analyzeScript(text);
+  if (!analysis.isAmbiguous) {
+    return analysis.script === 'arabic' || analysis.script === 'hebrew' ? 'rtl' : 'ltr';
+  }
+
+  // Short / ambiguous text: first strong directional character wins.
+  const cleaned = stripNonLinguisticNoise(text);
+  for (const ch of cleaned) {
+    const code = ch.codePointAt(0);
+    if (code === undefined) continue;
+    // Arabic / Arabic Supplement / Arabic Extended-A / Hebrew → RTL
+    if (
+      (code >= 0x0600 && code <= 0x06ff) ||
+      (code >= 0x0750 && code <= 0x077f) ||
+      (code >= 0x08a0 && code <= 0x08ff) ||
+      (code >= 0x0590 && code <= 0x05ff)
+    ) {
+      return 'rtl';
+    }
+    // Latin / Latin-1 supplement / Cyrillic / Greek → LTR
+    if (
+      (code >= 0x41 && code <= 0x5a) ||
+      (code >= 0x61 && code <= 0x7a) ||
+      (code >= 0xc0 && code <= 0xff && code !== 0xd7 && code !== 0xf7) ||
+      (code >= 0x0400 && code <= 0x04ff) ||
+      (code >= 0x0370 && code <= 0x03ff)
+    ) {
+      return 'ltr';
+    }
+  }
+  return 'ltr';
+}
+
+/**
+ * Determine directionality for a parsed quiz question by concatenating all of
+ * its human-readable text (question + options + answer + pairs). The combined
+ * text is virtually always long enough for reliable dominant-script detection,
+ * so per-option short-string fallbacks are rarely needed.
+ */
+export function questionDir(question: {
+  question?: string;
+  options?: string[];
+  correctAnswer?: string;
+  pairs?: { key: string; value: string }[];
+}): 'rtl' | 'ltr' {
+  const parts: string[] = [question.question || ''];
+  if (Array.isArray(question.options)) parts.push(question.options.join(' '));
+  if (question.correctAnswer) parts.push(question.correctAnswer);
+  if (Array.isArray(question.pairs)) {
+    for (const p of question.pairs) {
+      parts.push(p.key || '');
+      parts.push(p.value || '');
+    }
+  }
+  return textDir(parts.join(' '));
+}

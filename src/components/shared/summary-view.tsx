@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -33,6 +33,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { cleanMarkdownForDisplay, markdownToHtml } from '@/lib/markdown-utils';
+import { textDir } from '@/lib/ai/language-utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
@@ -575,6 +576,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // ─── Detect transcribed content (original_content === summary_content means no AI summarization) ───
   const isTranscribed = !!(summary?.original_content && summary?.summary_content &&
     summary.original_content.trim() === summary.summary_content.trim());
+
+  // ─── v135g: content-language-aware directionality (RTL/LTR) ───
+  // The summary may be in Arabic, English, or any other language regardless of
+  // the app locale. The rendered Markdown container follows the content's own
+  // dominant script so text, lists, headings, and code blocks all align correctly.
+  const summaryDir = useMemo(
+    () => textDir(summary?.summary_content || ''),
+    [summary?.summary_content],
+  );
 
   // ─── Detect source file type for display ───
   const sourceFileType = summary?.source_file_type || null;
@@ -1975,7 +1985,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <div className="h-4 w-5/6 animate-pulse rounded bg-sky-50" />
               </div>
             ) : (
-              <div className="prose-summary">
+              <div className="prose-summary" dir={summaryDir}>
                 <ReactMarkdown>{cleanMarkdownForDisplay(summary?.summary_content || '')}</ReactMarkdown>
               </div>
             )}

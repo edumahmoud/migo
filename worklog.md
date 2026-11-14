@@ -859,3 +859,39 @@ Verification:
 - Local webpack build OOM-killed at 4GB sandbox — Vercel build is the final gate.
 - All quiz entry points (summary-view, student-dashboard, question-bank, exams-tab)
   call /api/gemini/quiz → generateQuiz, so the fix covers every flow centrally.
+
+---
+Task: v135g — RTL/LTR display directionality follows content language (summaries + quiz)
+
+Before: the page <html dir> is set by the app locale (Arabic → rtl). An English
+summary or English quiz shown to an Arabic-locale user was forced RTL, misaligning
+headings, lists, option text, and the completion answer input.
+
+Fix: content-language-aware `dir` attribute on every text-rendering surface,
+driven by the same deterministic detection added in v135f.
+
+- src/lib/ai/language-utils.ts: added `textDir(text)` and `questionDir(question)`.
+  `textDir` uses dominant-script analysis for long text and the Unicode
+  first-strong-character rule for short strings (so "True" → ltr, "صح" → rtl).
+  Pure module with zero server-only imports → safe for client components.
+- src/components/shared/summary-view.tsx: `dir={textDir(summary_content)}` on the
+  prose-summary ReactMarkdown container (memoized).
+- src/components/shared/quiz-view.tsx: `dir={questionDir(question)}` on:
+    · main question <h3>
+    · MCQ option label spans
+    · Boolean option buttons
+    · Completion <Input> (was dir={direction} = app locale; now follows question)
+    · Matching key + value spans
+    · correct-answer feedback spans
+    · ReviewQuestionCard: question, user/correct pair spans, user answer, correct answer
+    · AI explanation div: `dir={textDir(explanation)}` (explanation language may differ)
+- 18 new unit tests (35 total) covering textDir/questionDir incl. short-string edges.
+
+Files modified (4):
+- src/lib/ai/language-utils.ts (textDir + questionDir)
+- src/lib/ai/__tests__/language-utils.test.ts (+18 tests)
+- src/components/shared/summary-view.tsx (dir on prose-summary)
+- src/components/shared/quiz-view.tsx (dir on all question text surfaces)
+
+Verification: tsc clean, 35 unit tests pass. UI chrome (badges, buttons, nav)
+keeps the page's dir; only the actual question/summary content follows its language.

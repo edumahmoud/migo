@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { questionDir, textDir } from '@/lib/ai/language-utils';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
@@ -1931,7 +1932,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                     {typeIcons[currentQuestion.type]}
                     {typeLabels[currentQuestion.type]}
                   </Badge>
-                  <h3 className="text-base font-semibold text-foreground leading-relaxed">
+                  <h3 className="text-base font-semibold text-foreground leading-relaxed" dir={questionDir(currentQuestion)}>
                     {currentQuestion.question}
                   </h3>
                 </div>
@@ -2008,11 +2009,11 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                           <XCircle className="h-5 w-5 shrink-0" />
                           <span className="text-sm font-medium">{t('quiz.incorrect')}</span>
                           {currentQuestion.type === 'matching' && currentQuestion.pairs ? (
-                            <span className="block text-sm text-rose-600 mt-1">
+                            <span className="block text-sm text-rose-600 mt-1" dir={questionDir(currentQuestion)}>
                               {t('quiz.correctAnswer')}: {currentQuestion.pairs.map(p => `${p.key} ↔ ${p.value}`).join(' , ')}
                             </span>
                           ) : currentQuestion.correctAnswer ? (
-                            <span className="block text-sm text-rose-600 mt-1">
+                            <span className="block text-sm text-rose-600 mt-1" dir={questionDir(currentQuestion)}>
                               {t('quiz.correctAnswer')}: {currentQuestion.correctAnswer}
                             </span>
                           ) : null}
@@ -2125,6 +2126,9 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
   const { t, locale } = useTranslations();
   if (!question.options) return null;
 
+  // v135g: directionality follows the question's own language, not the app locale.
+  const qDir = questionDir(question);
+
   // Arabic alphabetical letters: أ, ب, ج, د, هـ, و, ز, ح, ط, ي, ك, ل, م, ن, س, ع, ف, ص, ق, ر, ش, ت, ث, خ, ذ, ض, ظ, غ
   const arabicLetters = ['أ','ب','ج','د','هـ','و','ز','ح','ط','ي','ك','ل','م','ن','س','ع','ف','ص','ق','ر','ش','ت','ث','خ','ذ','ض','ظ','غ'];
   const getOptionLabel = (idx: number) => {
@@ -2188,7 +2192,7 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
               {getOptionLabel(idx)}
             </span>
 
-            <span className="flex-1">{option}</span>
+            <span className="flex-1" dir={qDir}>{option}</span>
 
             {/* Feedback icon — only when showing correctness */}
             {showCorrectness && answered && isCorrectOption && (
@@ -2225,6 +2229,8 @@ function BooleanQuestion({
   showCorrectness,
 }: BooleanQuestionProps) {
   const { t } = useTranslations();
+  // v135g: directionality follows the question's own language, not the app locale.
+  const qDir = questionDir(question);
   // v135e: use the question's own options (language-aware — English quizzes get
   // True/False, Arabic quizzes get صح/خطأ) instead of hardcoded Arabic values.
   const TRUE_VALUES = ['صح', 'true', 't', 'yes', 'نعم', '1'];
@@ -2286,6 +2292,7 @@ function BooleanQuestion({
             onClick={() => onAnswer(opt.value)}
             disabled={answered}
             className={btnClass}
+            dir={qDir}
           >
             {opt.icon}
             {opt.label}
@@ -2324,7 +2331,10 @@ function CompletionQuestion({
   onCheck,
   evaluating,
 }: CompletionQuestionProps) {
-  const { t, direction } = useTranslations();
+  const { t } = useTranslations();
+  // v135g: the answer input follows the question's language (English quiz → LTR input),
+  // not the app locale — so an Arabic-locale user typing an English term gets correct alignment.
+  const qDir = questionDir(question);
   return (
     <div className="space-y-3">
       <div className="relative">
@@ -2334,7 +2344,7 @@ function CompletionQuestion({
           placeholder={t('quiz.typeAnswer')}
           disabled={answered || evaluating}
           className="h-12 text-base border-sky-200 dark:border-sky-900/60 focus:border-sky-600 dark:focus:border-sky-500 focus:ring-sky-600/20"
-          dir={direction}
+          dir={qDir}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !answered && !evaluating) {
               onCheck();
@@ -2404,6 +2414,8 @@ function MatchingQuestion({
   feedback,
 }: MatchingQuestionProps) {
   const { t } = useTranslations();
+  // v135g: directionality follows the question's own language, not the app locale.
+  const qDir = questionDir(question);
   // Shuffle values so they don't appear in the same order as keys
   // Uses Fisher-Yates shuffle — ensures the order is DIFFERENT from the original
   const values = useMemo(() => {
@@ -2524,7 +2536,7 @@ function MatchingQuestion({
                 }`}>
                   {pairNum}
                 </span>
-                <span className="block mt-1 leading-relaxed">{key}</span>
+                <span className="block mt-1 leading-relaxed" dir={qDir}>{key}</span>
                 {/* Connection indicator when matched */}
                 {!answered && isMatched && color && (
                   <span className={`mt-1 inline-flex items-center gap-1 rounded-full ${color.bg} ${color.border} border px-2 py-0.5 text-[10px] ${color.text}`}>
@@ -2617,7 +2629,7 @@ function MatchingQuestion({
                     {pairNum}
                   </span>
                 )}
-                <span className="block leading-relaxed">{value}</span>
+                <span className="block leading-relaxed" dir={qDir}>{value}</span>
               </motion.button>
             );
           })}
@@ -2732,6 +2744,8 @@ interface ReviewQuestionCardProps {
 
 function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardProps) {
   const { t } = useTranslations();
+  // v135g: directionality follows the question's own language, not the app locale.
+  const rd = questionDir(question);
   const typeLabels: Record<string, string> = {
     mcq: t('quiz.questionTypes.mcq'),
     boolean: t('quiz.questionTypes.trueFalse'),
@@ -2770,7 +2784,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
               {typeLabels[question.type]}
             </Badge>
           </div>
-          <p className="text-sm font-medium text-foreground">{question.question}</p>
+          <p className="text-sm font-medium text-foreground" dir={rd}>{question.question}</p>
 
           {/* Show answer details based on type */}
           {question.type === 'matching' && question.pairs ? (
@@ -2791,9 +2805,9 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                           }`}>
                             {idx + 1}
                           </span>
-                          <span className="font-medium">{k}</span>
+                          <span className="font-medium" dir={rd}>{k}</span>
                           <Link2 className="h-3 w-3 shrink-0" />
-                          <span className={isPairCorrect ? 'text-sky-800 dark:text-sky-400 font-medium' : 'text-rose-700 dark:text-rose-500 font-medium'}>{v}</span>
+                          <span className={isPairCorrect ? 'text-sky-800 dark:text-sky-400 font-medium' : 'text-rose-700 dark:text-rose-500 font-medium'} dir={rd}>{v}</span>
                           {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-sky-600 ms-auto" /> : <XCircle className="h-3 w-3 text-rose-500 ms-auto" />}
                         </div>
                       );
@@ -2811,9 +2825,9 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
                           {idx + 1}
                         </span>
-                        <span className="font-medium">{p.key}</span>
+                        <span className="font-medium" dir={rd}>{p.key}</span>
                         <Link2 className="h-3 w-3 text-sky-600 shrink-0" />
-                        <span className="text-sky-800 dark:text-sky-400 font-medium">{p.value}</span>
+                        <span className="text-sky-800 dark:text-sky-400 font-medium" dir={rd}>{p.value}</span>
                       </div>
                     ))}
                   </div>
@@ -2823,11 +2837,11 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
           ) : (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">
-                {t('quiz.yourAnswer')}: <span className="font-medium">{String(userAnswer?.answer || '—')}</span>
+                {t('quiz.yourAnswer')}: <span className="font-medium" dir={rd}>{String(userAnswer?.answer || '—')}</span>
               </p>
               {question.correctAnswer && (
                 <p className="text-xs text-sky-800">
-                  {t('quiz.correctAnswer')}: <span className="font-medium">{question.correctAnswer}</span>
+                  {t('quiz.correctAnswer')}: <span className="font-medium" dir={rd}>{question.correctAnswer}</span>
                 </p>
               )}
             </div>
@@ -2909,7 +2923,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                 {t('quiz.incorrect')}
               </button>
               {explanation && (
-                <div className="mt-2 rounded-lg bg-rose-50/50 dark:bg-rose-900/15 border border-rose-100 dark:border-rose-900 p-3 text-sm text-rose-800 dark:text-rose-200 leading-relaxed">
+                <div className="mt-2 rounded-lg bg-rose-50/50 dark:bg-rose-900/15 border border-rose-100 dark:border-rose-900 p-3 text-sm text-rose-800 dark:text-rose-200 leading-relaxed" dir={textDir(explanation)}>
                   {explanation}
                 </div>
               )}

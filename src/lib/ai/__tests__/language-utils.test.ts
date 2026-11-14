@@ -5,6 +5,8 @@ import {
   patchBooleanOptions,
   quizQuestionsText,
   stripNonLinguisticNoise,
+  textDir,
+  questionDir,
 } from '../language-utils';
 
 describe('stripNonLinguisticNoise', () => {
@@ -147,5 +149,101 @@ describe('patchBooleanOptions', () => {
   test('non-boolean questions untouched', () => {
     const q = { type: 'mcq', question: 'Pick one', options: ['صح', 'خطأ', 'x'], correctAnswer: 'x' };
     expect(patchBooleanOptions([q], false)[0]).toEqual(q);
+  });
+});
+
+describe('textDir', () => {
+  test('English paragraph → ltr', () => {
+    expect(textDir('Photosynthesis converts sunlight into chemical energy in green plants.')).toBe('ltr');
+  });
+  test('Arabic paragraph → rtl', () => {
+    expect(textDir('التمثيل الضوئي يحول ضوء الشمس إلى طاقة كيميائية في النباتات الخضراء.')).toBe('rtl');
+  });
+  test('empty string → ltr (safe default)', () => {
+    expect(textDir('')).toBe('ltr');
+  });
+  test('short English label "True" → ltr (first-strong rule)', () => {
+    expect(textDir('True')).toBe('ltr');
+  });
+  test('short English label "False" → ltr', () => {
+    expect(textDir('False')).toBe('ltr');
+  });
+  test('short Arabic label "صح" → rtl (first-strong rule)', () => {
+    expect(textDir('صح')).toBe('rtl');
+  });
+  test('short Arabic label "خطأ" → rtl', () => {
+    expect(textDir('خطأ')).toBe('rtl');
+  });
+  test('French label "Vrai" → ltr', () => {
+    expect(textDir('Vrai')).toBe('ltr');
+  });
+  test('Russian label "Да" → ltr', () => {
+    expect(textDir('Да')).toBe('ltr');
+  });
+  test('punctuation-only string → ltr (no strong char)', () => {
+    expect(textDir('___ ??? !!!')).toBe('ltr');
+  });
+  test('English content prefixed with Arabic greeting still ltr', () => {
+    expect(textDir('يا أحمد، هذا الملخص\n\nPhotosynthesis converts sunlight into chemical energy.')).toBe('ltr');
+  });
+});
+
+describe('questionDir', () => {
+  test('English MCQ question → ltr', () => {
+    expect(questionDir({
+      type: 'mcq',
+      question: 'What do green plants convert sunlight into?',
+      options: ['Chemical energy', 'Kinetic energy', 'Heat', 'Sound'],
+      correctAnswer: 'Chemical energy',
+    })).toBe('ltr');
+  });
+  test('Arabic MCQ question → rtl', () => {
+    expect(questionDir({
+      type: 'mcq',
+      question: 'ما الذي تحوله النباتات الخضراء من ضوء الشمس؟',
+      options: ['طاقة كيميائية', 'طاقة حركية', 'حرارة', 'صوت'],
+      correctAnswer: 'طاقة كيميائية',
+    })).toBe('rtl');
+  });
+  test('English boolean question with True/False → ltr', () => {
+    expect(questionDir({
+      type: 'boolean',
+      question: 'Chlorophyll absorbs blue light most strongly.',
+      options: ['True', 'False'],
+      correctAnswer: 'True',
+    })).toBe('ltr');
+  });
+  test('Arabic boolean question with صح/خطأ → rtl', () => {
+    expect(questionDir({
+      type: 'boolean',
+      question: 'يمتص الكلوروفيل الضوء الأزرق بقوة.',
+      options: ['صح', 'خطأ'],
+      correctAnswer: 'صح',
+    })).toBe('rtl');
+  });
+  test('English matching question → ltr', () => {
+    expect(questionDir({
+      type: 'matching',
+      question: 'Match the term to its definition',
+      pairs: [
+        { key: 'ATP', value: 'Energy currency of the cell' },
+        { key: 'Chlorophyll', value: 'Green pigment that absorbs light' },
+        { key: 'Stomata', value: 'Pores for gas exchange' },
+        { key: 'Xylem', value: 'Water transport tissue' },
+      ],
+    })).toBe('ltr');
+  });
+  test('Arabic matching question → rtl', () => {
+    expect(questionDir({
+      type: 'matching',
+      question: 'طابق المصطلح بتعريفه',
+      pairs: [
+        { key: 'ATP', value: 'عملة الطاقة في الخلية' },
+        { key: 'الكلوروفيل', value: 'صبغة خضراء تمتص الضوء' },
+      ],
+    })).toBe('rtl');
+  });
+  test('empty question → ltr (safe default)', () => {
+    expect(questionDir({})).toBe('ltr');
   });
 });
