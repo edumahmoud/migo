@@ -895,3 +895,40 @@ Files modified (4):
 
 Verification: tsc clean, 35 unit tests pass. UI chrome (badges, buttons, nav)
 keeps the page's dir; only the actual question/summary content follows its language.
+
+---
+Task: v135h — fix raw i18n keys rendering app-wide ({t('quiz.question')} 5 bug)
+
+User report (screenshot): quiz count header showed the literal string
+"{t('quiz.question')} 5" instead of "5 سؤال" — and "many similar things missing
+in translations across the app".
+
+Root causes found (3 distinct bug classes, all systematically scanned):
+1. Template-literal bug: `` `${count} {t('quiz.question')}` `` — literal {t(...)}
+   text (missing `$`). AST scan (TypeScript compiler API) over all template
+   literals found exactly 1: summary-view.tsx:2011 → fixed with ${t(...)}.
+2. 204 missing translation keys rendering as raw key paths across the app
+   (admin, chat, files, question bank, settings, students tab, teacher tracking,
+   subjects, todos, payment, reports, lectures, exams...). Built a
+   namespace/hook-variable-aware scanner (handles multiple t hooks per file,
+   single+double quotes) that resolves every t('key') to its full dotted path
+   against src/i18n/messages/{ar,en}.json. All 204 keys added with proper
+   Arabic + English translations, at their correct nested paths.
+3. ar/en drift: en.json was missing course.categoryFolders → added.
+   Also questionBank root object vs string conflict → call site changed to
+   t('questionBank.title') + key added to both files.
+
+Verification tooling (kept in /home/z/my-project/scripts/):
+- scan-i18n-ast.cjs — AST scan for literal {t(...)} in template literals → 0 now
+- scan-missing-keys.cjs — namespace-aware t() vs JSON cross-check → 0 missing now
+- extract-missing-context.cjs — dumps usage context for each missing key
+- inject-missing-keys.cjs — the 204-key translation map used for injection
+
+Result: ar.json 5188 keys = en.json 5188 keys, 0 missing, 0 literal bugs.
+tsc clean, 35 unit tests pass.
+
+Files modified (4):
+- src/components/shared/summary-view.tsx (the screenshot bug — ${t('quiz.question')})
+- src/components/course/tabs/question-bank-tab.tsx (questionBank.title call site)
+- src/i18n/messages/ar.json (+204 keys)
+- src/i18n/messages/en.json (+205 keys)

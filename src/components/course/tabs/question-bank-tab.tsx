@@ -1373,7 +1373,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
       <div className="flex items-center gap-2 mb-2">
         <Database className="h-5 w-5 text-sky-700 dark:text-sky-400" />
         <h3 className="text-lg font-bold text-sky-800 dark:text-sky-300">
-          {t('questionBank')}
+          {t('questionBank.title')}
         </h3>
         <Badge variant="outline" className="bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
           {banks.length} {t('banksCount').replace('{count}', String(banks.length))}

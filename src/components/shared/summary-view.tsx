@@ -2008,7 +2008,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   <h2 className="text-sm font-bold text-teal-700">{t('quiz.quiz')}</h2>
                   <p className="text-xs text-teal-600/70">
                     {relatedQuiz
-                      ? `${relatedQuiz.questions?.length || 0} {t('quiz.question')}`
+                      ? `${relatedQuiz.questions?.length || 0} ${t('quiz.question')}`
                       : t('summary.generateQuiz')}
                   </p>
                 </div>
