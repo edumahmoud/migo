@@ -12,7 +12,7 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '10';
+export const PROMPT_VERSION = '11';
 
 /**
  * Content-cleanup rule injected into SUMMARY/REFINE prompts.
@@ -216,6 +216,91 @@ ${HTML_CLEANUP_RULE}
 
 export const QUIZ_USER = (content: string, totalCount: number) =>
   `أنشئ اختباراً شاملاً مكوناً من ${totalCount} سؤال من المحتوى التالي. الأسئلة يجب أن تكون مباشرة وواضحة، بنفس لغة المحتوى التالي تماماً (بدون أي ترجمة)، وبدون أي إشارة للمصدر أو النص. الرد يجب أن يكون JSON فقط:\n\n${content}`;
+
+/**
+ * v135f — FULLY ENGLISH quiz prompt track.
+ *
+ * WHY: English content kept producing Arabic quizzes. The Arabic prompt below is
+ * ~95% Arabic tokens (instructions + examples), and LLMs anchor their output
+ * language to the dominant instruction language regardless of an explicit
+ * "keep the source language" rule. The deterministic fix: when the source
+ * content is NOT Arabic-dominant (see language-utils.ts), the ENTIRE prompt is
+ * served in English — matching instruction language to required output
+ * language and eliminating the Arabic anchor completely.
+ *
+ * For non-English Latin/Cyrillic/Greek content (French, German, Russian…) this
+ * prompt still instructs the model to write in the content's own language —
+ * English instructions do not drag the OUTPUT into English when the rule and
+ * the content itself are both in the target language.
+ */
+export const QUIZ_SYSTEM_EN = (
+  totalCount: number,
+  typeConfig: string[],
+  detectedLanguage: string,
+) => `You are an expert teacher specializing in creating real, useful educational quizzes. You create quizzes ONLY from the provided content, IN THE CONTENT'S OWN LANGUAGE, and respond with JSON only.
+
+⚠️ MANDATORY QUESTION-LANGUAGE RULE:
+- The detected language of the source content is: ${detectedLanguage}.
+- EVERY question, option, and answer MUST be written in EXACTLY that language — the same language as the source content.
+- Do NOT translate the content into Arabic (or any other language) under any circumstances.
+- Phrase the questions in your own wording, asking about concepts found in the content itself.
+- If the content is English → all questions/options in English, and True/False boolean options must be ["True", "False"].
+- If the content is Arabic → all questions/options in Arabic, and boolean options must be ["صح", "خطأ"].
+- Any other language → use that language, with equivalent True/False labels in it.
+
+⚠️ HTML-cleanup rule: if the content contains raw HTML elements (such as <p>, <div>, <br>, <span>, &nbsp;, &amp;), do NOT copy them into the questions. Re-express that material as plain question text.
+
+The response MUST be JSON only, containing an array of objects under the key "questions":
+- mcq: { "type": "mcq", "question": "...", "options": ["option1", "option2", "option3", "option4"], "correctAnswer": "the correct option" }
+- boolean: { "type": "boolean", "question": "...", "options": ["True", "False"], "correctAnswer": "True or False" }
+- completion: { "type": "completion", "question": "the definition or description with ____ in place of the term", "correctAnswer": "the exact term" }
+- matching: { "type": "matching", "question": "question title", "pairs": [{"key": "the term", "value": "the definition"}] }
+
+⚠️ VERY IMPORTANT — Completion questions:
+- The question must look like: "the definition or description ____" where the required answer is the term or name
+- or like: "term = ____" where the required answer is the translation or meaning
+- Correct examples:
+  * { "type": "completion", "question": "The type of software testing that tests each unit individually is called ____", "correctAnswer": "Unit Testing" }
+  * { "type": "completion", "question": "The process of converting source code into machine language is called ____", "correctAnswer": "Compilation" }
+  * { "type": "completion", "question": "The data structure that follows the FIFO principle is called ____", "correctAnswer": "Queue" }
+- ❌ FORBIDDEN: a random sentence with a blank — the blank must stand for a key term or concept
+- ❌ FORBIDDEN: trivia like "Ahmed went to ____" — questions must be academic and conceptual
+
+Question-building rules:
+1. Create ${totalCount} questions with this distribution: ${typeConfig.join(', ')}
+2. Questions must be direct and clear — ask the way a teacher would ask in class
+3. ❌ FORBIDDEN phrases like "according to the text", "based on the passage", "in the chapter", or any reference to the source — ask directly
+4. ❌ FORBIDDEN asking about chapter/unit names or numbers — ask about the actual subject matter
+5. Focus on concepts, definitions, laws, theories, and examples found in the content
+6. In MCQ questions, make the options plausibly close in validity to increase challenge
+7. In completion questions, the ____ must stand for the scientific term or core concept — the student types the term, and correctAnswer is the exact term
+8. In matching questions, use at least 4 pairs
+9. Make sure every answer is correct according to the provided content
+10. Ensure the scientific accuracy of the information in questions and answers
+11. Make sure the response is valid JSON only, with no extra text
+12. Do not repeat the same question or the same idea — every question must be unique
+13. In MCQ questions, never repeat the same option — every option must be completely different
+14. In matching questions, never repeat the same element in key or value — each element appears exactly once
+15. Cover multiple aspects of the content — do not focus on just one part`;
+
+export const QUIZ_USER_EN = (content: string, totalCount: number) =>
+  `Create a comprehensive quiz of ${totalCount} questions from the following content. The questions must be direct and clear, written in EXACTLY the same language as the content below (no translation), with no reference to the source text. The response must be JSON only:\n\n${content}`;
+
+/**
+ * v135f — reinforcement block appended when a first generation attempt came
+ * back in the WRONG language and we retry. Telling the model exactly how it
+ * failed converts a vague rule into a concrete correction.
+ */
+export const QUIZ_LANGUAGE_RETRY_EN = (detectedLanguage: string) => `🚨 CRITICAL RETRY NOTICE:
+Your previous attempt produced quiz questions in the WRONG language. That was a failure.
+The source content is in ${detectedLanguage}. The new attempt MUST contain 100% of its questions, options, and answers in ${detectedLanguage} — not a single word of Arabic (unless the content itself is Arabic). Re-read the content language before writing anything.`;
+
+/**
+ * v135f — Arabic mirror of the retry reinforcement, used when an
+ * Arabic-dominant source somehow produced non-Arabic questions.
+ */
+export const QUIZ_LANGUAGE_RETRY_AR = `🚨 إشعار إعادة محاولة حرج:
+محاولتك السابقة أنتجت أسئلة بلغة خاطئة. المحتوى الأصلي بالعربية، لذا يجب أن تكون كل الأسئلة والخيارات والإجابات بالعربية بالكامل — دون كلمة واحدة بلغة أخرى. أعد قراءة لغة المحتوى قبل كتابة أي شيء.`;
 
 // -------------------------------------------------------
 // Evaluation Prompts

@@ -33,11 +33,19 @@ import {
   REFINE_SYSTEM, REFINE_USER,
   TRANSLATE_SYSTEM, TRANSLATE_USER,
   QUIZ_SYSTEM, QUIZ_USER,
+  QUIZ_SYSTEM_EN, QUIZ_USER_EN,
+  QUIZ_LANGUAGE_RETRY_EN, QUIZ_LANGUAGE_RETRY_AR,
   EVALUATE_SYSTEM, EVALUATE_USER,
   EVALUATE_DETAILED_SYSTEM, EVALUATE_DETAILED_USER,
   EXPLAIN_SYSTEM, EXPLAIN_USER,
 } from './prompts';
 import { extractJson, parseQuizResponse, parseEvaluationResponse } from './parser';
+import {
+  analyzeScript,
+  describeDetectedLanguage,
+  patchBooleanOptions,
+  quizQuestionsText,
+} from './language-utils';
 
 // -------------------------------------------------------
 // Provider Chain Configuration
@@ -411,6 +419,23 @@ export async function translateContent(
 /**
  * Generate a quiz from content.
  * Returns parsed and deduplicated questions.
+ *
+ * v135f — RADICAL output-language enforcement (fixes: English content kept
+ * producing Arabic quizzes):
+ *
+ *   Layer 1  Deterministic script detection of the source content
+ *            (language-utils.ts — pure Unicode math, zero AI).
+ *   Layer 2  Language-matched prompts: Arabic-dominant content → the original
+ *            Arabic prompt; anything else → a FULLY ENGLISH prompt track, so
+ *            the instruction language no longer anchors the output to Arabic.
+ *   Layer 3  Post-generation validation: the OUTPUT script is detected too.
+ *            On mismatch we retry ONCE with a reinforced prompt (budget
+ *            permitting), otherwise fall back to the first attempt.
+ *   Layer 4  Deterministic boolean-label patch: True/False ↔ صح/خطأ is always
+ *            normalized to the source language, no AI involved.
+ *
+ * The whole chain is self-correcting even when a wrong-language result comes
+ * from the response cache, because validation happens after every return path.
  */
 export async function generateQuiz(
   content: string,
@@ -425,20 +450,51 @@ export async function generateQuiz(
 
   const truncatedContent = truncateContent(content);
 
+  // ─── Layer 1: deterministic source-language detection ───
+  const sourceAnalysis = analyzeScript(truncatedContent);
+  const useArabicTrack = sourceAnalysis.isArabicDominant;
+  const detectedLanguage = describeDetectedLanguage(sourceAnalysis);
+  console.log(
+    `[Quiz] Language track: ${useArabicTrack ? 'arabic' : sourceAnalysis.script} (${detectedLanguage}), ` +
+    `arabicRatio=${sourceAnalysis.arabicRatio.toFixed(2)}, latinRatio=${sourceAnalysis.latinRatio.toFixed(2)}, ` +
+    `letters=${sourceAnalysis.totalLetters}, ambiguous=${sourceAnalysis.isAmbiguous}`,
+  );
+
   const typeConfig: string[] = [];
   if (mcqCount > 0) typeConfig.push(`${mcqCount} اختيار من متعدد (mcq)`);
   if (booleanCount > 0) typeConfig.push(`${booleanCount} صح أو خطأ (boolean)`);
   if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
   if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
 
+  const typeConfigEn: string[] = [];
+  if (mcqCount > 0) typeConfigEn.push(`${mcqCount} multiple-choice (mcq)`);
+  if (booleanCount > 0) typeConfigEn.push(`${booleanCount} true/false (boolean)`);
+  if (completionCount > 0) typeConfigEn.push(`${completionCount} fill-in-the-blank (completion)`);
+  if (matchingCount > 0) typeConfigEn.push(`${matchingCount} matching (matching)`);
+
   const name = extractFirstName(studentName);
 
+  // ─── Layer 2: language-matched prompts ───
+  // Total budget must stay inside Vercel's 60s route limit. On the non-Arabic
+  // track the first call gets a reduced budget so a language-validation retry
+  // still fits; on the Arabic track the mismatch case is rare, keep full budget.
+  const QUIZ_TOTAL_BUDGET_MS = 53000;
+  const quizStart = Date.now();
+  const firstCallBudget = useArabicTrack ? QUIZ_TOTAL_BUDGET_MS : 30000;
+
+  const firstSystem = useArabicTrack
+    ? QUIZ_SYSTEM(totalCount, typeConfig, name)
+    : QUIZ_SYSTEM_EN(totalCount, typeConfigEn, detectedLanguage);
+  const firstUser = useArabicTrack
+    ? QUIZ_USER(truncatedContent, totalCount)
+    : QUIZ_USER_EN(truncatedContent, totalCount);
+
   const text = await chatWithFallback(
-    QUIZ_SYSTEM(totalCount, typeConfig, name),
-    QUIZ_USER(truncatedContent, totalCount),
-    // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
+    firstSystem,
+    firstUser,
+    // Budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
     // Reduced retries to 1 to avoid exceeding Vercel's 60s maxDuration
-    { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, timeoutMs: 53000, operation: 'quiz' },
+    { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, timeoutMs: firstCallBudget, operation: 'quiz' },
   );
 
   // Parse and validate quiz response
@@ -451,6 +507,54 @@ export async function generateQuiz(
 
   if (!Array.isArray(questions) || questions.length === 0) {
     throw new AiProviderError('MALFORMED_JSON', 'تنسيق الأسئلة غير صحيح. يرجى المحاولة مرة أخرى', 'unknown');
+  }
+
+  // ─── Layer 3: output-language validation + single reinforced retry ───
+  const outputMatchesSource = (() => {
+    const outputAnalysis = analyzeScript(quizQuestionsText(questions));
+    const matches = useArabicTrack
+      ? outputAnalysis.isArabicDominant   // Arabic track → questions must be Arabic
+      : !outputAnalysis.isArabicDominant; // Other tracks → questions must NOT be Arabic
+    if (!matches) {
+      console.warn(
+        `[Quiz] Output-language MISMATCH: source=${useArabicTrack ? 'arabic' : sourceAnalysis.script}, ` +
+        `output script=${outputAnalysis.script} (arabicRatio=${outputAnalysis.arabicRatio.toFixed(2)}) — attempting reinforced retry`,
+      );
+    }
+    return matches;
+  })();
+
+  if (!outputMatchesSource) {
+    const elapsed = Date.now() - quizStart;
+    // Keep a 2s safety margin inside the total quiz budget
+    const retryBudget = QUIZ_TOTAL_BUDGET_MS - elapsed - 2000;
+    if (retryBudget >= 15000) {
+      const retrySystem = useArabicTrack
+        ? `${QUIZ_LANGUAGE_RETRY_AR}\n\n${QUIZ_SYSTEM(totalCount, typeConfig, name)}`
+        : `${QUIZ_LANGUAGE_RETRY_EN(detectedLanguage)}\n\n${QUIZ_SYSTEM_EN(totalCount, typeConfigEn, detectedLanguage)}`;
+      try {
+        const retryText = await chatWithFallback(
+          retrySystem,
+          firstUser,
+          { temperature: 0.4, maxTokens: 8192, retries: 0, jsonMode: true, timeoutMs: retryBudget, operation: 'quiz-retry-lang' },
+        );
+        const retryQuestions = parseQuizResponse(retryText);
+        const retryOutput = analyzeScript(quizQuestionsText(retryQuestions));
+        const retryMatches = useArabicTrack
+          ? retryOutput.isArabicDominant
+          : !retryOutput.isArabicDominant;
+        if (Array.isArray(retryQuestions) && retryQuestions.length > 0 && retryMatches) {
+          console.log('[Quiz] Reinforced retry produced correct-language questions — using retry result');
+          questions = retryQuestions;
+        } else {
+          console.warn('[Quiz] Retry still wrong language — falling back to first attempt + boolean patch');
+        }
+      } catch (retryError) {
+        console.warn('[Quiz] Language retry failed, keeping first attempt:', retryError instanceof Error ? retryError.message : String(retryError));
+      }
+    } else {
+      console.warn(`[Quiz] Not enough budget for language retry (elapsed ${elapsed}ms) — keeping first attempt + boolean patch`);
+    }
   }
 
   // Deduplicate questions and options
@@ -476,17 +580,23 @@ export async function generateQuiz(
     }
   }
 
+  // ─── Layer 4: deterministic boolean-label normalization (always) ───
+  // Even when question text is in the right language, boolean option labels
+  // can slip into the other language (e.g. صح/خطأ on an English quiz).
+  // This is fixed with pure string mapping — no AI, no retry.
+  const patched = patchBooleanOptions(trimmed, useArabicTrack);
+
   // If trimming removed all questions (unlikely), fall back to deduped list
-  if (trimmed.length === 0 && deduped.length > 0) {
+  if (patched.length === 0 && deduped.length > 0) {
     console.warn('[Quiz] Trimming removed all questions, falling back to deduped list');
-    return deduped;
+    return patchBooleanOptions(deduped, useArabicTrack);
   }
 
-  if (trimmed.length < totalCount) {
-    console.warn(`[Quiz] Generated ${trimmed.length} questions, requested ${totalCount}`);
+  if (patched.length < totalCount) {
+    console.warn(`[Quiz] Generated ${patched.length} questions, requested ${totalCount}`);
   }
 
-  return trimmed;
+  return patched;
 }
 
 /**

@@ -818,3 +818,44 @@ Stage Summary:
 - The modal clearly explains the flow (request → admin/teacher approval → activation).
 - tsc --noEmit clean.
 - No API changes needed — uses the existing /api/storage/check and /api/sections/activation-request endpoints.
+
+---
+Task: v135f — RADICAL fix: quiz language finally follows the source content language
+
+Root cause (why v135e's prompt rule failed):
+- The entire QUIZ_SYSTEM prompt is ~95% Arabic tokens (instructions + examples like "صح/خطأ").
+- LLMs anchor output language to the DOMINANT instruction language; a bilingual "keep the
+  source language" rule at the top cannot overcome that anchor. English content still got
+  Arabic quizzes.
+
+The radical fix — 4 deterministic layers (no reliance on the model obeying a rule):
+1. src/lib/ai/language-utils.ts (NEW) — pure Unicode-script detection:
+   - stripNonLinguisticNoise (code fences, URLs, images, HTML)
+   - analyzeScript: counts Arabic/Latin/Cyrillic/Greek/Hebrew/CJK letters → dominant script
+   - quizQuestionsText: concatenates all question text for output validation
+   - patchBooleanOptions: deterministic True/False ↔ صح/خطأ mapping
+2. prompts.ts — QUIZ_SYSTEM_EN + QUIZ_USER_EN (FULLY English prompt track) and
+   QUIZ_LANGUAGE_RETRY_EN/_AR reinforcements. PROMPT_VERSION 10 → 11 (cache bust).
+3. provider-manager.ts generateQuiz:
+   - Layer 1: detect source script. Arabic-dominant → Arabic prompt (unchanged);
+     anything else → the fully-English prompt with the detected language injected.
+   - Layer 2: non-Arabic first call gets 30s budget (of the 53s total) so a retry fits.
+   - Layer 3: after parsing, detect the OUTPUT script; on mismatch retry ONCE with a
+     reinforced prompt (only if ≥15s budget remains) — self-healing even for cached
+     wrong-language results, since validation runs on every return path.
+   - Layer 4: boolean labels always normalized to the source language (pure string map).
+4. Tests: src/lib/ai/__tests__/language-utils.test.ts — 17 passing unit tests
+   (EN/AR/FR/RU/mixed/ambiguous detection, boolean patch both directions).
+
+Files modified (3 + 1 test):
+- src/lib/ai/language-utils.ts (NEW)
+- src/lib/ai/prompts.ts (EN quiz track + retry reinforcements + version bump)
+- src/lib/ai/provider-manager.ts (generateQuiz 4-layer pipeline)
+- src/lib/ai/__tests__/language-utils.test.ts (NEW)
+- tsconfig.json (exclude ai/__tests__ like other bun:test dirs)
+
+Verification:
+- Full-project tsc --noEmit clean (excluded pre-existing unrelated fees test error).
+- Local webpack build OOM-killed at 4GB sandbox — Vercel build is the final gate.
+- All quiz entry points (summary-view, student-dashboard, question-bank, exams-tab)
+  call /api/gemini/quiz → generateQuiz, so the fix covers every flow centrally.

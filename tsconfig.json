@@ -42,6 +42,7 @@
     "mini-services",
     "skills",
     "src/lib/__tests__",
+    "src/lib/ai/__tests__",
     "src/lib/payment/__tests__",
     "src/lib/payment/providers/paymob/__tests__",
     "src/lib/payment/payout-domain/__tests__",
