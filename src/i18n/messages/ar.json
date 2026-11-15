@@ -1361,7 +1361,11 @@
         "linkUnit": "ربط بالوحدة",
         "noLink": "بدون ربط",
         "notPassed": "لم يجتز",
-        "mustPassToContinue": "يجب اجتياز هذا الاختبار للمتابعة"
+        "mustPassToContinue": "يجب اجتياز هذا الاختبار للمتابعة",
+        "showCorrectness": "إظهار صحة الإجابة",
+        "hideCorrectness": "إخفاء صحة الإجابة",
+        "wrongOnly": "الإجابات الخاطئة فقط",
+        "allQuestions": "كل الأسئلة"
     },
     "summary": {
         "summary": "ملخص",

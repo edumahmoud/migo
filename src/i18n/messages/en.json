@@ -1361,7 +1361,11 @@
         "linkUnit": "Link to Unit",
         "noLink": "No link",
         "notPassed": "Not passed",
-        "mustPassToContinue": "You must pass this quiz to continue"
+        "mustPassToContinue": "You must pass this quiz to continue",
+        "showCorrectness": "Show answer correctness",
+        "hideCorrectness": "Hide answer correctness",
+        "wrongOnly": "Wrong answers only",
+        "allQuestions": "All questions"
     },
     "summary": {
         "summary": "Summary",

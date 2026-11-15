@@ -22,6 +22,8 @@ import {
   Clock,
   AlertTriangle,
   Save,
+  EyeOff,
+  ListFilter,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -268,6 +270,11 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const [savingScore, setSavingScore] = useState(false);
   const [alreadyTaken, setAlreadyTaken] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
+
+  // v135i: client-side UI toggles — student can hide correctness feedback during the quiz,
+  // and filter the review to only wrong answers
+  const [showCorrectnessDuringQuiz, setShowCorrectnessDuringQuiz] = useState(true);
+  const [showWrongOnly, setShowWrongOnly] = useState(false);
 
   // ─── Shuffle question order state (Feature 8) ───
   const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
@@ -844,6 +851,18 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const currentQuestion: QuizQuestion | null = quiz?.questions?.[shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx] ?? null;
   const totalQuestions = quiz?.questions?.length ?? 0;
   const progressPct = totalQuestions > 0 ? ((currentIdx + 1) / totalQuestions) * 100 : 0;
+
+  // v135i: teacher's gate stays in effect; student can additionally hide correctness on their side
+  const effectiveShowCorrectness = quiz?.show_results !== false && showCorrectnessDuringQuiz;
+
+  // v135i: count of wrong answers for the review "wrong only" filter
+  const wrongAnswerCount = useMemo(() => {
+    if (!quiz?.questions) return 0;
+    return quiz.questions
+      .map((_, idx) => userAnswers.find(a => a.questionIndex === idx))
+      .filter((ans): ans is UserAnswer => !!ans && !ans.isCorrect)
+      .length;
+  }, [quiz?.questions, userAnswers]);
 
   // -------------------------------------------------------
   // Load saved answer for a question (when navigating back)
@@ -1721,12 +1740,36 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
               className="space-y-4 overflow-hidden"
             >
               <div className="border-t pt-4">
-                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-sky-700" />
-                  {t('quiz.reviewMode')}
-                </h3>
+                {/* v135i: review header with optional "wrong answers only" filter */}
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-sky-700" />
+                    {t('quiz.reviewMode')}
+                  </h3>
+                  {wrongAnswerCount > 0 && (
+                    <Button
+                      onClick={() => setShowWrongOnly(v => !v)}
+                      variant="outline"
+                      size="sm"
+                      aria-pressed={showWrongOnly}
+                      className={`gap-1.5 h-8 text-xs ${
+                        showWrongOnly
+                          ? 'border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/15 hover:bg-rose-100 dark:hover:bg-rose-900/25'
+                          : 'border-border text-muted-foreground hover:bg-muted/40'
+                      }`}
+                    >
+                      <ListFilter className="h-3.5 w-3.5" />
+                      {showWrongOnly ? t('quiz.allQuestions') : t('quiz.wrongOnly')}
+                      <span className="ms-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-400 px-1.5 text-[10px] font-bold tabular-nums">
+                        {wrongAnswerCount}
+                      </span>
+                    </Button>
+                  )}
+                </div>
                 {quiz?.questions?.map((q, idx) => {
                   const ans = userAnswers.find((a) => a.questionIndex === idx);
+                  // v135i: when showWrongOnly is on, hide correctly-answered & unanswered questions
+                  if (showWrongOnly && !(ans && !ans.isCorrect)) return null;
                   return (
                     <ReviewQuestionCard
                       key={idx}
@@ -1872,6 +1915,31 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           </div>
         </div>
 
+        {/* v135i: student-side toggle to hide/show correctness feedback during the quiz.
+            Only meaningful when the teacher has enabled show_results. */}
+        {quiz?.show_results !== false && (
+          <div className="flex justify-end">
+            <Button
+              onClick={() => setShowCorrectnessDuringQuiz(v => !v)}
+              variant="outline"
+              size="sm"
+              aria-pressed={showCorrectnessDuringQuiz}
+              className={`gap-1.5 h-8 text-xs ${
+                showCorrectnessDuringQuiz
+                  ? 'border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/15 hover:bg-sky-100 dark:hover:bg-sky-900/25'
+                  : 'border-border text-muted-foreground hover:bg-muted/40'
+              }`}
+            >
+              {showCorrectnessDuringQuiz
+                ? <Eye className="h-3.5 w-3.5" />
+                : <EyeOff className="h-3.5 w-3.5" />}
+              {showCorrectnessDuringQuiz
+                ? t('quiz.hideCorrectness')
+                : t('quiz.showCorrectness')}
+            </Button>
+          </div>
+        )}
+
         {/* Progress restored indicator + answered count */}
         <AnimatePresence>
           {progressRestored && (
@@ -1945,7 +2013,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleMCQAnswer}
-                    showCorrectness={quiz?.show_results !== false}
+                    showCorrectness={effectiveShowCorrectness}
                   />
                 )}
 
@@ -1956,7 +2024,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleBooleanAnswer}
-                    showCorrectness={quiz?.show_results !== false}
+                    showCorrectness={effectiveShowCorrectness}
                   />
                 )}
 
@@ -1987,8 +2055,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                   />
                 )}
 
-                {/* Feedback indicator — only show during quiz if show_results is true */}
-                {answered && quiz?.show_results !== false && (
+                {/* Feedback indicator — only show during quiz if effective correctness display is on (v135i) */}
+                {answered && effectiveShowCorrectness && (
                   <>
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
