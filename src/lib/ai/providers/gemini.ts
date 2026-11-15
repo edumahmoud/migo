@@ -442,6 +442,10 @@ export class GeminiProvider implements AiProvider {
 
     let firstTokenReceived = false;
     let accumulatedText = '';
+    // v135j: track the finishReason carried on the final stream chunk —
+    // MAX_TOKENS means the visible output was cut (thinking tokens count
+    // against maxOutputTokens on Gemini 2.5), and the caller must know.
+    let finishReason: string | undefined;
 
     try {
       for await (const chunk of result.stream) {
@@ -452,6 +456,11 @@ export class GeminiProvider implements AiProvider {
             console.log('[Gemini] First token received in', Date.now() - startTime, 'ms');
           }
           accumulatedText += chunkText;
+        }
+
+        const chunkFinishReason = chunk.candidates?.[0]?.finishReason;
+        if (chunkFinishReason) {
+          finishReason = String(chunkFinishReason);
         }
 
         // Check overall deadline
@@ -466,10 +475,14 @@ export class GeminiProvider implements AiProvider {
     } catch (streamError: unknown) {
       const errMsg = streamError instanceof Error ? streamError.message : String(streamError);
 
-      // If we accumulated significant text, return it as partial
+      // If we accumulated significant text, return it as partial.
+      // v135j: the partial is now flagged with a truncation marker so the
+      // completion-enforcement layer in provider-manager can detect it and
+      // request a continuation — a bare partial used to be saved silently
+      // as a "complete" summary.
       if (accumulatedText.trim().length > 100 && !errMsg.includes('مهلة')) {
-        console.warn('[Gemini] Stream error after', Date.now() - startTime, 'ms, returning partial (', accumulatedText.length, 'chars):', errMsg);
-        return accumulatedText;
+        console.warn('[Gemini] Stream error after', Date.now() - startTime, 'ms, returning flagged partial (', accumulatedText.length, 'chars):', errMsg);
+        return accumulatedText + '\n\n[... تم قطع الاستجابة بسبب خطأ في الاتصال ...]';
       }
 
       if (!firstTokenReceived) {
@@ -488,7 +501,15 @@ export class GeminiProvider implements AiProvider {
       throw new AiProviderError('EMPTY_RESPONSE', 'لم يتمكن الذكاء الاصطناعي من إنشاء رد. يرجى المحاولة مرة أخرى', 'gemini');
     }
 
-    console.log('[Gemini] Stream complete, length:', accumulatedText.length, ', time:', Date.now() - startTime, 'ms');
+    // v135j: MAX_TOKENS means the output was cut mid-generation — flag it so
+    // the completion-enforcement layer can continue it. With the raised
+    // 65,535-token ceiling this should be rare, but it must never be silent.
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn('[Gemini] Stream finished with MAX_TOKENS (', accumulatedText.length, 'chars) — flagging output as truncated');
+      accumulatedText += '\n\n[... تم قطع الاستجابة بسبب بلوغ حد المخرجات ...]';
+    }
+
+    console.log('[Gemini] Stream complete, length:', accumulatedText.length, ', finishReason:', finishReason || 'unset', ', time:', Date.now() - startTime, 'ms');
     return accumulatedText;
   }
 
@@ -523,13 +544,24 @@ export class GeminiProvider implements AiProvider {
       throw new AiProviderError('EMPTY_RESPONSE', 'لم يتمكن الذكاء الاصطناعي من إنشاء رد. يرجى المحاولة مرة أخرى', 'gemini');
     }
 
+    // v135j: flag MAX_TOKENS cuts (see streamChat for rationale)
+    const finishReason = result.response.candidates?.[0]?.finishReason;
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn('[Gemini] Non-stream response hit MAX_TOKENS (', text.length, 'chars) — flagging output as truncated');
+      return text + '\n\n[... تم قطع الاستجابة بسبب بلوغ حد المخرجات ...]';
+    }
+
     return text;
   }
 
   private buildGenerationConfig(options?: AiChatOptions): GenerationConfig {
     const config: GenerationConfig = {
       temperature: options?.temperature ?? 0.4,
-      maxOutputTokens: options?.maxTokens ?? 16384,
+      // v135j: ceiling raised from a flat 16384 — callers may request up to
+      // the model's true max output (65,535 for Gemini 2.5 Flash). Thinking
+      // tokens count against maxOutputTokens, so the old 16k budget could
+      // leave the visible summary cut off (finishReason = MAX_TOKENS).
+      maxOutputTokens: Math.min(options?.maxTokens ?? 16384, 65535),
     };
 
     if (options?.jsonMode) {

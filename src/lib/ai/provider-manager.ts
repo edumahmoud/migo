@@ -38,6 +38,8 @@ import {
   EVALUATE_SYSTEM, EVALUATE_USER,
   EVALUATE_DETAILED_SYSTEM, EVALUATE_DETAILED_USER,
   EXPLAIN_SYSTEM, EXPLAIN_USER,
+  CONTINUE_SYSTEM_AR, CONTINUE_USER_AR,
+  CONTINUE_SYSTEM_EN, CONTINUE_USER_EN,
 } from './prompts';
 import { extractJson, parseQuizResponse, parseEvaluationResponse } from './parser';
 import {
@@ -46,6 +48,11 @@ import {
   patchBooleanOptions,
   quizQuestionsText,
 } from './language-utils';
+import {
+  isTruncatedText,
+  mergeContinuation,
+  stripTruncationMarkers,
+} from './completion-utils';
 
 // -------------------------------------------------------
 // Provider Chain Configuration
@@ -348,46 +355,172 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
 }
 
 // -------------------------------------------------------
+// v135j — Completion Enforcement for Long-Form Text
+// -------------------------------------------------------
+
+/**
+ * Total-budget share reserved for a single continuation attempt (ms).
+ * A continuation shorter than this rarely completes anything useful.
+ */
+const MIN_CONTINUATION_BUDGET_MS = 12000;
+
+/** Safety margin kept inside the operation budget for the final throw/return. */
+const CONTINUATION_SAFETY_MS = 2000;
+
+/** Maximum number of continuation attempts before giving up. */
+const MAX_CONTINUATION_ATTEMPTS = 3;
+
+/**
+ * v135j — NEVER return truncated long-form text.
+ *
+ * The user-facing contract is that a summary / refined text / translation is
+ * either COMPLETE or the operation fails with a clear retry message — an
+ * incomplete summary silently saved to the DB is the worst outcome.
+ *
+ * Flow:
+ *   1. Detect truncation (explicit provider marker or mid-sentence ending).
+ *   2. While budget remains (≥12s after a 2s safety margin), ask the AI to
+ *      CONTINUE the text from where it stopped. The continuation prompt
+ *      instructs the model to repeat the final line first, so the splice
+ *      point is found deterministically (mergeContinuation).
+ *   3. The continuation prompt track is language-matched to the text itself
+ *      (same lesson as v135f's quiz prompts) so instruction language never
+ *      drags the continuation into the wrong language.
+ *   4. If the model answers with the sentinel [COMPLETE], the text was a
+ *      false positive of the heuristic — accept it as-is.
+ *   5. If the text is STILL truncated after all attempts (or there is no
+ *      budget left to continue it), throw instead of returning it.
+ */
+async function enforceCompleteText(
+  firstText: string,
+  totalBudgetMs: number,
+  startedAt: number,
+  operation: string,
+): Promise<string> {
+  let text = firstText;
+
+  for (let attempt = 1; attempt <= MAX_CONTINUATION_ATTEMPTS; attempt++) {
+    if (!isTruncatedText(text)) {
+      return text;
+    }
+
+    const remaining = totalBudgetMs - (Date.now() - startedAt) - CONTINUATION_SAFETY_MS;
+    if (remaining < MIN_CONTINUATION_BUDGET_MS) {
+      console.warn(
+        `[${operation}] Output truncated but only ${Math.max(0, remaining)}ms left — cannot continue`,
+      );
+      break;
+    }
+
+    console.warn(
+      `[${operation}] Truncated output detected (attempt ${attempt}/${MAX_CONTINUATION_ATTEMPTS}) — requesting continuation with ${remaining}ms budget`,
+    );
+
+    // Strip provider markers first: the model must repeat the REAL final
+    // line, not the marker, and the marker must not survive into the result.
+    const clean = stripTruncationMarkers(text);
+
+    // Language-match the continuation instructions to the text itself.
+    const useArabicTrack = analyzeScript(clean.slice(-2000)).isArabicDominant;
+
+    try {
+      const continuation = await chatWithFallback(
+        useArabicTrack ? CONTINUE_SYSTEM_AR : CONTINUE_SYSTEM_EN,
+        useArabicTrack ? CONTINUE_USER_AR(clean) : CONTINUE_USER_EN(clean),
+        {
+          temperature: 0.3,
+          maxTokens: 16384,
+          retries: 0,
+          timeoutMs: remaining,
+          operation: `${operation}-continue`,
+        },
+      );
+
+      const merged = mergeContinuation(clean, continuation);
+      if (merged === clean) {
+        // Model answered [COMPLETE] (or nothing usable) — heuristic false
+        // positive. Accept the text rather than erroring on good content.
+        console.log(`[${operation}] Continuation signaled [COMPLETE] — accepting text as-is`);
+        return clean;
+      }
+      text = merged;
+    } catch (err) {
+      console.warn(
+        `[${operation}] Continuation call failed:`,
+        err instanceof Error ? err.message : String(err),
+      );
+      break;
+    }
+  }
+
+  // Still truncated — refuse to hand back incomplete output.
+  throw new AiProviderError(
+    'UNKNOWN',
+    'تعذر توليد المحتوى كاملاً خلال الوقت المتاح. يرجى المحاولة مرة أخرى — المحتوى الأطول قد يحتاج محاولة ثانية',
+    'unknown',
+  );
+}
+
+// -------------------------------------------------------
 // Public API — Unified Interface
 // -------------------------------------------------------
 
 /**
  * Generate a summary of the given content.
  * Uses Gemini with fallback chain and caching.
+ *
+ * v135j: the output is COMPLETION-ENFORCED — a truncated summary is never
+ * returned; it is continued (up to budget) or the call fails with a clear
+ * retry message.
  */
 export async function generateSummary(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
   const name = extractFirstName(studentName);
 
-  return chatWithFallback(
+  // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
+  // (3s auth + 53s AI + 4s buffer for DB save = 60s)
+  const TOTAL_BUDGET_MS = 53000;
+  const startedAt = Date.now();
+
+  const firstText = await chatWithFallback(
     SUMMARY_SYSTEM(name),
     SUMMARY_USER(truncatedContent, name),
-    // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
-    // (3s auth + 53s AI + 4s buffer for DB save = 60s)
-    { temperature: 0.3, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'summary' },
+    // v135j: maxTokens raised 16384 → 65535 — on Gemini 2.5 the model's
+    // thinking tokens count against maxOutputTokens, so the old 16k budget
+    // could cut the visible summary (finishReason = MAX_TOKENS).
+    { temperature: 0.3, maxTokens: 65535, retries: 1, timeoutMs: TOTAL_BUDGET_MS, operation: 'summary' },
   );
+
+  return enforceCompleteText(firstText, TOTAL_BUDGET_MS, startedAt, 'summary');
 }
 
 /**
  * Refine/format transcribed (OCR-extracted) text.
  * v135d: ALWAYS keeps source language — no translation toggle.
+ * v135j: output is completion-enforced like summaries.
  */
 export async function refineTranscribedText(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
   const name = extractFirstName(studentName);
 
-  return chatWithFallback(
+  const TOTAL_BUDGET_MS = 53000;
+  const startedAt = Date.now();
+
+  const firstText = await chatWithFallback(
     REFINE_SYSTEM(name),
     REFINE_USER(truncatedContent, name),
     // 53s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
-    { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'refine' },
+    { temperature: 0.2, maxTokens: 65535, retries: 1, timeoutMs: TOTAL_BUDGET_MS, operation: 'refine' },
   );
+
+  return enforceCompleteText(firstText, TOTAL_BUDGET_MS, startedAt, 'refine');
 }
 
 /**
  * Translate existing summary content into the requested target language.
  * v135d: dedicated translation operation — does NOT refine or summarize.
  * Returns the translated text preserving Markdown structure.
+ * v135j: output is completion-enforced like summaries.
  */
 export async function translateContent(
   content: string,
@@ -409,11 +542,16 @@ export async function translateContent(
   };
   const langName = LANG_NAMES[targetLanguage] || targetLanguage;
 
-  return chatWithFallback(
+  const TOTAL_BUDGET_MS = 53000;
+  const startedAt = Date.now();
+
+  const firstText = await chatWithFallback(
     TRANSLATE_SYSTEM(name, langName),
     TRANSLATE_USER(truncatedContent, name, langName),
-    { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 53000, operation: 'translate' },
+    { temperature: 0.2, maxTokens: 65535, retries: 1, timeoutMs: TOTAL_BUDGET_MS, operation: 'translate' },
   );
+
+  return enforceCompleteText(firstText, TOTAL_BUDGET_MS, startedAt, 'translate');
 }
 
 /**

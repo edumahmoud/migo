@@ -76,7 +76,10 @@ export class OpenRouterProvider implements AiProvider {
               { role: 'user', content: truncatedUser },
             ],
             temperature: options?.temperature ?? 0.4,
-            max_tokens: options?.maxTokens ?? 4096,
+            // v135j: clamp to the smallest free-model output ceiling — callers
+            // may request a higher budget for Gemini (65,535); the free models
+            // here (gemma-2-9b / llama-3.1-8b / mistral-7b) keep 16,384.
+            max_tokens: Math.min(options?.maxTokens ?? 4096, 16384),
           }),
           signal: controller.signal,
         });

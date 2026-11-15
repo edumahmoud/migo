@@ -12,7 +12,16 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '11';
+export const PROMPT_VERSION = '12';
+
+/**
+ * v135j — completeness rule injected into long-form text prompts.
+ * Reinforced bilingually so the model cannot misread it regardless of the
+ * instruction track it is serving.
+ */
+const COMPLETENESS_RULE = `✅ COMPLETENESS RULE (applies to the whole output): ALWAYS deliver the output COMPLETE, from its beginning to its natural end. NEVER leave it truncated, cut off, or unfinished mid-sentence. If you feel you are approaching an output limit, prioritize finishing the current thought and the concluding section over adding more detail.
+
+✅ قاعدة الاكتمال (تنطبق على الناتج كاملاً): قدّم الناتج مكتملاً دائماً من بدايته حتى نهايته الطبيعية. يُمنع نهائياً تركه مقطوعاً أو ناقصاً في منتصف جملة. إذا شعرت أنك تقترب من حد الإخراج فأعطِ الأولوية لإنهاء الفكرة الحالية وقسم الخلاصة على إضافة تفاصيل جديدة.`;
 
 /**
  * Content-cleanup rule injected into SUMMARY/REFINE prompts.
@@ -73,6 +82,8 @@ const LANGUAGE_RULE_TRANSLATE_TO = (langName: string) => `🌐 MANDATORY OUTPUT-
 
 export const SUMMARY_SYSTEM = (studentName: string) => `${LANGUAGE_RULE_KEEP}
 
+${COMPLETENESS_RULE}
+
 ${HTML_CLEANUP_RULE}
 
 أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة المستخدم باسمه بلطف.
@@ -101,6 +112,8 @@ export const SUMMARY_USER = (content: string, studentName: string) =>
 
 export const REFINE_SYSTEM = (studentName: string) => `${LANGUAGE_RULE_KEEP}
 
+${COMPLETENESS_RULE}
+
 ${HTML_CLEANUP_RULE}
 
 أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب المستخدم باسمه بأسلوب ودود.
@@ -128,6 +141,8 @@ export const REFINE_USER = (content: string, studentName: string) =>
 // -------------------------------------------------------
 
 export const TRANSLATE_SYSTEM = (studentName: string, langName: string) => `${LANGUAGE_RULE_TRANSLATE_TO(langName)}
+
+${COMPLETENESS_RULE}
 
 أنت مترجم محترف متخصص في المحتوى الأكاديمي والتعليمي. مهمتك ترجمة النص المقدم إلى ${langName} مع الحفاظ الكامل على المعنى والتنسيق والمصطلحات العلمية. خاطب المستخدم باسمه بأسلوب ودود بلغة الهدف.`;
 
@@ -378,3 +393,63 @@ export const EXPLAIN_USER = (
 إجابة الطالب: ${studentAnswer}
 
 يا ${studentName}، اشرح بالتفصيل سبب الخطأ ولماذا إجابة الطالب خاطئة، ثم وضّح الإجابة الصحيحة:`;
+
+// -------------------------------------------------------
+// Continuation Prompts (v135j — completion enforcement)
+// -------------------------------------------------------
+
+/**
+ * v135j — Arabic continuation track.
+ *
+ * Used when a long-form output (summary/refine/translate) was detected as
+ * truncated and must be completed. The model is instructed to START by
+ * repeating the final line of the given text verbatim, which makes the join
+ * point discoverable deterministically (see completion-utils.ts
+ * mergeContinuation) — no guessing whether to insert a space or not.
+ *
+ * The instruction track is language-matched to the OUTPUT (same lesson as
+ * v135f's quiz prompts): an Arabic-dominant text gets Arabic instructions,
+ * anything else gets the English track below, so instruction language never
+ * drags the continuation into the wrong language.
+ */
+export const CONTINUE_SYSTEM_AR = `أنت محرك إكمال نصوص سلس. يصلك نص انقطع قبل اكتماله، ومهمتك إكماله حتى نهايته الطبيعية.
+
+القواعد الحرجة:
+1. ابدأ مخرجك بتكرار السطر الأخير من النص المعطى حرفياً كما هو تماماً، ثم واصل منه بسلاسة — أكمل الجملة أو الكلمة المقطوعة أولاً
+2. أكمل بنفس لغة النص المعطى ونفس أسلوب تنسيق Markdown تماماً
+3. أنهِ البنية المتبقية كما يقتضي منطق النص نفسه (أكمل القوائم والأقسام وقسم الخلاصة إن وُجد)
+4. ممنوع إعادة كتابة أو تلخيص أو اختصار ما هو مكتوب بالفعل
+5. ممنوع المقدمات أو الاعتذارات أو أي تعليق خارج النص
+6. أخرج الإكمال فقط — دون أقواس كود أو علامات تمييز
+7. أما إذا كان النص المعطى مكتملًا تماماً ولا يحتاج أي إضافة، فأخرج حرفياً: [COMPLETE]`;
+
+/** v135j — Arabic continuation user prompt (text is placed last, closest to generation). */
+export const CONTINUE_USER_AR = (text: string) => `النص التالي انقطع قبل اكتماله. أكمله حتى نهايته الطبيعية باتباع كل القواعد:
+
+${text}
+
+أخرج الإكمال فقط (مبتدئاً بتكرار السطر الأخير من النص أعلاه):`;
+
+/**
+ * v135j — English continuation track (mirrors CONTINUE_SYSTEM_AR).
+ * Served when the truncated text is NOT Arabic-dominant. For non-English
+ * Latin/Cyrillic/Greek text the "same language as the given text" rule keeps
+ * the continuation in the text's own language.
+ */
+export const CONTINUE_SYSTEM_EN = `You are a seamless text-continuation engine. You receive text that was cut off before it finished; your job is to continue it to its natural end.
+
+CRITICAL RULES:
+1. Begin your output by repeating VERBATIM the final line of the given text, then continue seamlessly from it — complete the interrupted sentence or word first.
+2. Continue in EXACTLY the same language and the same Markdown style as the given text.
+3. Finish the remaining structure as the text's own logic demands (complete lists, sections, and the conclusion section if one exists).
+4. Do NOT rewrite, re-summarize, or shorten what is already written.
+5. Do NOT add introductions, apologies, or any commentary outside the text.
+6. Output ONLY the continuation — no code fences, no delimiters.
+7. If — and only if — the given text is already fully complete and needs nothing more, output exactly: [COMPLETE]`;
+
+/** v135j — English continuation user prompt. */
+export const CONTINUE_USER_EN = (text: string) => `The following text was cut off before it finished. Continue it to its natural end, following ALL the rules:
+
+${text}
+
+Output only the continuation (starting by repeating the final line of the text above):`;

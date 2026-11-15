@@ -65,7 +65,9 @@ export class CerebrasProvider implements AiProvider {
             { role: 'user', content: truncatedUser },
           ],
           temperature: options?.temperature ?? 0.4,
-          max_tokens: options?.maxTokens ?? 4096,
+          // v135j: clamp to this model's proven ceiling — callers may request
+          // a higher budget for Gemini (65,535); llama-3.3-70b keeps 16,384.
+          max_tokens: Math.min(options?.maxTokens ?? 4096, 16384),
           stream: false,
         }),
         signal: controller.signal,
