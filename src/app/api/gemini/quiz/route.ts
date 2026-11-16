@@ -19,7 +19,7 @@ import { supabaseServer } from '@/lib/supabase-server';
  *   questionTypes?: { mcq?: number, boolean?: number, completion?: number, matching?: number },
  *   totalQuestions?: number,
  *   difficulty?: 'easy' | 'medium' | 'hard' | 'very_hard' | 'mixed',   // v136
- *   contentScope?: 'file_only' | 'beyond_file',                        // v136 (beyond only applies to hard/very_hard)
+ *   contentScope?: 'file_only' | 'beyond_file',                        // v136d (allowed at every level — questions stay anchored to the content's topic)
  *   mixCounts?: { easy?, medium?, hard?, very_hard? },                 // v136 — required for 'mixed' (teacher-controlled)
  *   bankId?: string,                                                    // v136 — pulls bank questions as dedup guard
  * }
@@ -78,14 +78,9 @@ export async function POST(request: NextRequest) {
     const rawContent = body.content;
     const questionTypes = body.questionTypes as { mcq?: number; boolean?: number; completion?: number; matching?: number } | undefined;
 
-    // ─── v136: difficulty strategy params (validated + scope enforcement) ───
+    // ─── v136d: difficulty strategy params (validated; beyond_file allowed at every level) ───
     const difficulty: string | undefined = VALID_DIFFICULTIES.includes(body.difficulty) ? body.difficulty : undefined;
-    let contentScope: string | undefined = VALID_SCOPES.includes(body.contentScope) ? body.contentScope : undefined;
-    // HARD RULE: beyond-file is restricted to hard/very_hard — downgrade silently otherwise
-    if (contentScope === 'beyond_file' && (difficulty === 'easy' || difficulty === 'medium')) {
-      console.log('[Quiz API] beyond_file rejected for difficulty "' + difficulty + '" — forcing file_only');
-      contentScope = 'file_only';
-    }
+    const contentScope: string | undefined = VALID_SCOPES.includes(body.contentScope) ? body.contentScope : undefined;
     const mixCounts = parseMixCounts(body.mixCounts);
     const bankId: string | undefined = typeof body.bankId === 'string' && body.bankId.length > 0 ? body.bankId : undefined;
 

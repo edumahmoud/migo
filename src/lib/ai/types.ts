@@ -141,7 +141,9 @@ export type QuizQuestionDifficulty = 'easy' | 'medium' | 'hard' | 'very_hard';
 /** v136: difficulty strategy for a generation request. 'mixed' = teacher-controlled combination. */
 export type QuizDifficultyMode = QuizQuestionDifficulty | 'mixed';
 
-/** v136: where the AI may draw question material from. beyond_file is only ever applied to hard/very_hard. */
+/** v136: where the AI may draw question material from. beyond_file = may exceed the
+ *  literal text at ANY level (v136d), but the prompt anchors every question to the
+ *  content's topic — unrelated questions are forbidden. */
 export type QuizContentScope = 'file_only' | 'beyond_file';
 
 /** v136: per-level counts when difficulty === 'mixed' (teacher-controlled mix). */

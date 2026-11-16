@@ -7,9 +7,10 @@
 // Five modes: easy / medium / hard / very_hard / mixed.
 // - 'mixed' = teacher-controlled combination: exact per-level counts
 //   (question types are then auto-distributed by the AI to fit each level).
-// - Content scope: file_only (default) or beyond_file — beyond_file is
-//   RESTRICTED to hard/very_hard; selecting it with easy/medium is
-//   auto-downgraded here AND enforced again server-side.
+// - Content scope: file_only (default) or beyond_file — available at ALL
+//   difficulty levels (v136d). beyond_file lets the AI exceed the literal
+//   text at any level, but every question stays anchored to the content's
+//   topic (enforced in the prompt — no unrelated questions).
 
 import { Layers, Minus, Plus } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
@@ -86,13 +87,9 @@ export function DifficultySelector({
   const handleDifficultyChange = (mode: DifficultyMode) => {
     if (disabled) return;
     onDifficultyChange(mode);
-    // Hard rule: beyond-file applies only to hard/very_hard — auto-downgrade otherwise
-    if (contentScope === 'beyond_file' && (mode === 'easy' || mode === 'medium')) {
-      onContentScopeChange('file_only');
-    }
+    // v136d: beyond_file is allowed at every level — no auto-downgrade.
+    // The prompt layer keeps every question anchored to the content's topic.
   };
-
-  const beyondAllowed = difficulty === 'hard' || difficulty === 'very_hard' || difficulty === 'mixed';
 
   return (
     <div className="space-y-3">
@@ -198,10 +195,9 @@ export function DifficultySelector({
           </button>
           <button
             type="button"
-            disabled={disabled || !beyondAllowed}
+            disabled={disabled}
             onClick={() => onContentScopeChange(contentScope === 'beyond_file' ? 'file_only' : 'beyond_file')}
             aria-pressed={contentScope === 'beyond_file'}
-            title={beyondAllowed ? undefined : t('quiz.scopeBeyondHint')}
             className={`rounded-lg border px-2 py-2 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               contentScope === 'beyond_file'
                 ? 'border-fuchsia-500 bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950 dark:text-fuchsia-300'
@@ -211,7 +207,7 @@ export function DifficultySelector({
             {t('quiz.scopeBeyondFile')}
           </button>
         </div>
-        {(contentScope === 'beyond_file' || difficulty === 'mixed') && (
+        {contentScope === 'beyond_file' && (
           <p className="text-xs text-muted-foreground">{t('quiz.scopeBeyondHint')}</p>
         )}
       </div>

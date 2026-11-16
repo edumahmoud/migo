@@ -660,13 +660,10 @@ export async function generateQuiz(
   const difficulty: QuizDifficultyMode =
     rawDifficulty && VALID_DIFFICULTY_MODES.includes(rawDifficulty) ? rawDifficulty : 'mixed';
 
-  let contentScope: QuizContentScope = options?.contentScope === 'beyond_file' ? 'beyond_file' : 'file_only';
-  // HARD RULE (user decision): beyond-file applies ONLY to hard/very_hard.
-  // An easy/medium request with beyond_file is silently downgraded to file_only.
-  if (contentScope === 'beyond_file' && (difficulty === 'easy' || difficulty === 'medium')) {
-    console.log(`[Quiz] beyond_file requested with "${difficulty}" — forcing file_only (beyond-file is restricted to hard/very_hard)`);
-    contentScope = 'file_only';
-  }
+  // v136d: beyond_file is allowed at EVERY difficulty level. The context-anchoring
+  // rule lives in the prompt (scopeRuleAr/scopeRuleEn) — every question must stay
+  // directly related to the content's topic, unrelated questions are forbidden.
+  const contentScope: QuizContentScope = options?.contentScope === 'beyond_file' ? 'beyond_file' : 'file_only';
 
   const isMixed = difficulty === 'mixed';
   const mixCounts = isMixed

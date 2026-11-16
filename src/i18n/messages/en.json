@@ -1375,7 +1375,7 @@
         "contentScope": "Content Scope",
         "scopeFileOnly": "From content only",
         "scopeBeyondFile": "Allow beyond content",
-        "scopeBeyondHint": "Going beyond the content applies to \"Hard\" and \"Very Hard\" only — Easy and Medium questions always stay inside the content",
+        "scopeBeyondHint": "Questions may go beyond the literal text but always stay within the content's topic and context — no unrelated questions will be created",
         "mixDistribution": "Mix Distribution",
         "mixAutoNote": "Question types will be distributed automatically to fit each level",
         "mixTotal": "Total: {count} questions"

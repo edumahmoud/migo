@@ -7,7 +7,8 @@
 -- 4. quizzes.difficulty_mode + quizzes.content_scope: generation metadata
 --    (difficulty_mode: easy|medium|hard|very_hard|mixed — 'mixed' means a
 --    teacher-controlled combination; content_scope: file_only|beyond_file,
---    where beyond_file is only ever applied to hard/very_hard questions)
+--    where beyond_file is allowed at EVERY level (v136d) and the AI prompt
+--    anchors every question to the content's topic — no unrelated questions)
 -- =====================================================
 
 -- 1) Extend the difficulty CHECK to include 'very_hard'

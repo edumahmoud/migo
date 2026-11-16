@@ -83,7 +83,7 @@ export interface Quiz {
   is_gate?: boolean;              // When true, this quiz gates progression
   // v136: difficulty strategy metadata (informational — question-level difficulty lives on each question)
   difficulty_mode?: QuizDifficultyMode | null; // level used for generation, or 'mixed'
-  content_scope?: QuizContentScope | null;     // 'file_only' | 'beyond_file' (beyond only applies to hard/very_hard)
+  content_scope?: QuizContentScope | null;     // 'file_only' | 'beyond_file' (beyond allowed at every level, anchored to the content's topic)
   created_at: string;
 }
 

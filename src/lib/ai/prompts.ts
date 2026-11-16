@@ -12,7 +12,7 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '13';
+export const PROMPT_VERSION = '14';
 
 /**
  * v135j — completeness rule injected into long-form text prompts.
@@ -345,18 +345,19 @@ Level criteria:
 - hard: application — a scenario or multi-step problem requiring two or more steps or combining two concepts, with very close distractors that demand deep understanding to tell apart.
 - very_hard: analysis/synthesis/evaluation — indirect inference from the available information, a brand-new case in the same subject domain, "why"/"what-if" questions, and distractors that all look superficially correct so the student must analyze carefully to eliminate the wrong ones.`;
 
-/** Scope rules shared by both languages (built per request). */
+/** Scope rules shared by both languages (built per request). v136d: beyond_file is
+ *  available at ALL levels; a hard context-anchoring rule forbids unrelated questions. */
 function scopeRuleAr(contentScope: QuizContentScope): string {
   return contentScope === 'beyond_file'
-    ? `- الأسئلة ذات المستويين easy و medium يجب أن تعتمد حصراً على المعلومات الموجودة في المحتوى المقدم (مع جواز إعادة الصياغة).
-- أما أسئلة hard و very_hard فيُسمح لها بالخروج عن النص الحرفي: بناء سيناريوهات تطبيقية وأمثلة جديدة من نفس مجال المادة وربط مفاهيم المحتوى بمعارف مجاورة في نفس التخصص — مع الحفاظ على الصحة العلمية المطلقة وتظل اللغة هي لغة المحتوى.`
+    ? `- نطاق التوسع: يُسمح لجميع الأسئلة بجميع المستويات (easy و medium و hard و very_hard) بالخروج عن النص الحرفي للمحتوى: إعادة الصياغة بعمق أوسع، بناء أمثلة وسيناريوهات جديدة، وربط مفاهيم المحتوى بمعارف مجاورة في نفس التخصص — مع الحفاظ على الصحة العلمية المطلقة وتظل اللغة هي لغة المحتوى.
+- ⚠️ قيد الارتباط بالسياق (إلزامي لكل سؤال دون استثناء): كل سؤال يجب أن يبقى مرتبطاً مباشرةً بموضوع المحتوى المقدم وسياقه العلمي. يُمنع منعاً باتاً إنشاء أي سؤال ليس له علاقة بالمحتوى أو خارج مجاله — الخروج عن النص الحرفي لا يعني أبداً الخروج عن سياق الموضوع. قبل تسليم كل سؤال تحقق: هل هو مرتبط بموضوع المحتوى؟ إن لم يكن كذلك فاحذفه واستبدله بآخر مرتبط.`
     : `- جميع الأسئلة بجميع المستويات يجب أن تعتمد على المعلومات الموجودة في المحتوى المقدم فقط. يُسمح بإعادة الصياغة وتغيير عمق الطرح حسب المستوى، لكن يُمنع إدخال أي معلومة من خارج المحتوى.`;
 }
 
 function scopeRuleEn(contentScope: QuizContentScope): string {
   return contentScope === 'beyond_file'
-    ? `- easy and medium questions MUST rely exclusively on information present in the provided content (rephrasing allowed).
-- hard and very_hard questions MAY go beyond the literal text: build applied scenarios and new examples from the same subject domain and connect the content's concepts to adjacent knowledge in the same field — while keeping absolute scientific accuracy and staying in the content's language.`
+    ? `- Expansion scope: questions at ALL levels (easy, medium, hard, very_hard) MAY go beyond the literal text of the content: rephrasing with added depth, building new examples and scenarios, and connecting the content's concepts to adjacent knowledge in the same field — while keeping absolute scientific accuracy and staying in the content's language.
+- ⚠️ Context-anchoring constraint (mandatory for every single question): each question MUST remain directly related to the topic and scientific context of the provided content. Creating any question unrelated to the content or outside its domain is STRICTLY FORBIDDEN — going beyond the literal text NEVER means leaving the topic's context. Before emitting each question, verify: is it related to the content's topic? If not, discard it and replace it with a related one.`
     : `- ALL questions at ALL levels must rely exclusively on information present in the provided content. Rephrasing and adjusting depth per level is allowed, but introducing any information from outside the content is forbidden.`;
 }
 
