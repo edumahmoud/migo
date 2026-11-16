@@ -1365,7 +1365,20 @@
         "showCorrectness": "Show answer correctness",
         "hideCorrectness": "Hide answer correctness",
         "wrongOnly": "Wrong answers only",
-        "allQuestions": "All questions"
+        "allQuestions": "All questions",
+        "difficultyLevel": "Difficulty Level",
+        "difficultyEasy": "Easy",
+        "difficultyMedium": "Medium",
+        "difficultyHard": "Hard",
+        "difficultyVeryHard": "Very Hard",
+        "difficultyMixed": "Mixed",
+        "contentScope": "Content Scope",
+        "scopeFileOnly": "From content only",
+        "scopeBeyondFile": "Allow beyond content",
+        "scopeBeyondHint": "Going beyond the content applies to \"Hard\" and \"Very Hard\" only — Easy and Medium questions always stay inside the content",
+        "mixDistribution": "Mix Distribution",
+        "mixAutoNote": "Question types will be distributed automatically to fit each level",
+        "mixTotal": "Total: {count} questions"
     },
     "summary": {
         "summary": "Summary",
@@ -4662,7 +4675,13 @@
         "typeCompletion": "Completion (Short Answer)",
         "typeMatching": "Matching",
         "typeMcq": "Multiple Choice (MCQ)",
-        "title": "Question Bank"
+        "title": "Question Bank",
+        "difficultyVeryHard": "Very Hard",
+        "difficultyMixed": "Mixed",
+        "filterByDifficulty": "Filter by level",
+        "allLevels": "All levels",
+        "duplicatesSkipped": "{count} duplicate question(s) skipped",
+        "duplicateProtectionOn": "Duplicate-question protection is automatically enabled"
     },
     "studentsTab": {
         "acceptAllTitle": "Accept All Requests",
@@ -5366,6 +5385,7 @@
     "difficultyHard": "Hard",
     "difficultyMedium": "Medium",
     "difficultyUnspecified": "Unspecified",
+    "difficultyVeryHard": "Very Hard",
     "matchPlaceholder": "Type the matching item...",
     "matchingPairs": "Matching pairs",
     "noBanks": "No question banks",

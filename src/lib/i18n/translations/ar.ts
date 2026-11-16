@@ -2719,6 +2719,7 @@ export const ar: TranslationDict = {
     difficultyEasy: 'سهل',
     difficultyMedium: 'متوسط',
     difficultyHard: 'صعب',
+    difficultyVeryHard: 'صعب جداً',
     difficultyUnspecified: 'غير محدد',
     category: 'التصنيف',
     categoryPlaceholder: 'مثال: الفصل الأول',

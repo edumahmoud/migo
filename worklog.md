@@ -932,3 +932,93 @@ Files modified (4):
 - src/components/course/tabs/question-bank-tab.tsx (questionBank.title call site)
 - src/i18n/messages/ar.json (+204 keys)
 - src/i18n/messages/en.json (+205 keys)
+
+---
+
+## v135i — quiz UI toggles (show/hide correctness + wrong-only review)
+
+quiz-view.tsx: student-side Eye/EyeOff toggle during quiz (respects teacher
+show_results), ListFilter "wrong-only" filter in review mode with a rose
+duplicates-count badge. i18n: quiz.showCorrectness/hideCorrectness/wrongOnly/
+allQuestions (ar+en).
+
+## v135j — force complete AI output (truncated summaries)
+
+Truncated AI summaries are continued (CONTINUE prompts) or rejected — never
+saved half-finished. completion-utils.ts + PROMPT_VERSION 12.
+
+---
+
+## v136 — quiz difficulty levels strategy + bank duplicate protection
+
+User request: 4 difficulty levels (easy/medium/hard/very_hard) + a 5th "mixed"
+mode creating a quiz with a teacher-controlled combination of levels at once.
+Content scope either strictly from the file, or allowed to go beyond it — with
+the system asking questions differently per level. Question banks protected
+from duplicate questions even when rephrased.
+
+User decisions: (1) teacher controls the mix counts, (2) difficulty display is
+teacher-only (never shown to students during quizzes), (3) bank dedup is
+automatic with a skipped-count notice, (4) beyond-file scope applies ONLY to
+hard/very_hard (enforced client + server).
+
+### v136a — foundation (7dda19d)
+- migration v136_difficulty_levels.sql: bank_questions.difficulty +very_hard
+  & fingerprint column (+bank_id,fingerprint index), question_banks.
+  dedup_enabled default true, quizzes.difficulty_mode/content_scope.
+- types: QuestionDifficulty/QuizDifficultyMode/QuizContentScope;
+  QuizQuestion.difficulty; Quiz/BankQuestion/QuestionBank additive fields
+  (both lib/types.ts and lib/ai/types.ts).
+- NEW src/lib/question-dedup.ts — 3-layer engine: (1) SHA-256 fingerprint of
+  Arabic-normalized text (diacritics/tatweel/hamza/taa-marbuta/digits/
+  punctuation/boilerplate-prefix stripped), (2) lexical similarity (Jaccard +
+  trigram, 0.82 threshold) + answer-signature boost (0.60), (3) caller-side
+  prompt avoidance. 16 bun tests pass (src/lib/__tests__/question-dedup.test.ts).
+
+### v136b — AI layer + APIs (d29d021)
+- prompts.ts: PROMPT_VERSION 13. Difficulty criteria per level (recall →
+  comprehension → application → analysis) in AR+EN; scope rules; mixed-mode
+  exact counts; dedup avoidance block (60-question cap); "difficulty" field in
+  the JSON schema of both prompt tracks.
+- provider-manager generateQuiz(content, types, name, options{difficulty,
+  contentScope, mixCounts, existingQuestions}): beyond_file hard-restricted to
+  hard/very_hard; mix sanitizing with 25/35/25/15 fallback; post-generation
+  validation (single-level forces the tag on all questions, mixed trims to
+  exact per-level counts).
+- /api/gemini/quiz: difficulty/contentScope/mixCounts/bankId params; loads the
+  bank's existing questions (owner or co-teacher) as the prompt dedup guard.
+- /api/question-bank: every insert path (POST create, PUT replace, PUT
+  addQuestions) normalized (very_hard + fingerprint) and run through the dedup
+  engine; responses include addedCount + duplicatesSkipped; dedup_enabled
+  toggle respected.
+- /api/quizzes: persists difficulty_mode/content_scope (validated); PUT
+  regeneration reuses the original strategy (mix counts derived from the
+  original questions' tags).
+
+### v136c — UI (this commit)
+- NEW shared component difficulty-selector.tsx: 5 level buttons (color-coded)
+  + teacher-controlled mix steppers (types auto-distribute in mixed mode) +
+  content-scope segmented control (beyond-file disabled for easy/medium with a
+  hint; auto-downgrade).
+- Integrated in 4 generation sites: summary-view quiz config,
+  student-dashboard quiz-from-summary config, exams-tab AI-file section
+  (teacher-only modal), question-bank-section AI modal. Type steppers hidden
+  in mixed mode; confirm buttons respect the mix total.
+- question-bank-section: AI flow sends bankId + strategy; difficulty persisted
+  on generated questions; duplicatesSkipped toast (generation + manual add);
+  manual form gains very_hard; bank detail gains difficulty filter + level
+  distribution stats; helper labels/colors support very_hard.
+- question-bank-tab (course tab): very_hard labels/colors + breakdown badges.
+- exams-tab: question list shows teacher-only difficulty badges; bank import
+  gains a difficulty filter + colored badges; imported questions carry their
+  difficulty; quiz save/edit preserves difficulty_mode/content_scope.
+- i18n: 19 keys in quiz + questionBank namespaces (ar+en) + root
+  difficultyVeryHard + legacy translations questionBank.difficultyVeryHard.
+  Injected via scripts/add_v136_i18n.py (indent=4 round-trip safe).
+
+NOT changed (by design): quiz-view.tsx (students never see difficulty while
+taking a quiz), summary generation itself, scorm/google-forms exports
+(difficulty passes through as data).
+
+Verification: tsc clean (only pre-existing fees test noise), eslint clean
+(1 pre-existing unused-directive warning), 16/16 dedup tests pass.

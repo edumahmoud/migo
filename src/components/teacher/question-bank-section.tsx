@@ -34,6 +34,7 @@ import { useAiGenerationStore } from '@/stores/ai-generation-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile, looksGarbled } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
+import { DifficultySelector, DEFAULT_MIX_COUNTS, type DifficultyMode, type DifficultyMixCounts, type ContentScope } from '@/components/shared/difficulty-selector';
 import { stripFileExtension } from '@/lib/utils';
 import { useTranslations } from '@/i18n/use-translations';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -127,6 +128,7 @@ function difficultyLabel(d: string | null | undefined, t: (key: string) => strin
     case 'easy': return t('questionBank.difficultyEasy');
     case 'medium': return t('questionBank.difficultyMedium');
     case 'hard': return t('questionBank.difficultyHard');
+    case 'very_hard': return t('questionBank.difficultyVeryHard');
     default: return t('questionBank.difficultyUnspecified');
   }
 }
@@ -134,8 +136,9 @@ function difficultyLabel(d: string | null | undefined, t: (key: string) => strin
 function difficultyColor(d?: string | null): string {
   switch (d) {
     case 'easy': return 'bg-emerald-100 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 border-emerald-200 dark:border-emerald-900/60';
-    case 'medium': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60';
-    case 'hard': return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60';
+    case 'medium': return 'bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-500 border-sky-200 dark:border-sky-900/60';
+    case 'hard': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60';
+    case 'very_hard': return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60';
     default: return 'bg-muted/50 text-muted-foreground border-border';
   }
 }
@@ -181,7 +184,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   const [booleanCorrect, setBooleanCorrect] = useState(true);
   const [completionAnswer, setCompletionAnswer] = useState('');
   const [matchingPairs, setMatchingPairs] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
-  const [questionDifficulty, setQuestionDifficulty] = useState<'easy' | 'medium' | 'hard' | ''>('');
+  const [questionDifficulty, setQuestionDifficulty] = useState<'easy' | 'medium' | 'hard' | 'very_hard' | ''>('');
   const [questionCategory, setQuestionCategory] = useState('');
   const [addingQuestion, setAddingQuestion] = useState(false);
 
@@ -192,6 +195,12 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   const [loadingCourseFiles, setLoadingCourseFiles] = useState(false);
   const [generatingFromAi, setGeneratingFromAi] = useState(false);
   const [aiConfigTypes, setAiConfigTypes] = useState({ mcq: 3, boolean: 2, completion: 2, matching: 2 });
+  // v136: difficulty strategy for bank AI generation
+  const [aiDifficulty, setAiDifficulty] = useState<DifficultyMode>('mixed');
+  const [aiMixCounts, setAiMixCounts] = useState<DifficultyMixCounts>(DEFAULT_MIX_COUNTS);
+  const [aiContentScope, setAiContentScope] = useState<ContentScope>('file_only');
+  // v136: difficulty filter for the bank's question list
+  const [bankListDifficultyFilter, setBankListDifficultyFilter] = useState<string>('');
   const { activeTask: aiBackgroundTask, startTask: startAiTask, updateStatus: updateAiStatus, completeTask: completeAiTask, cancelTask: cancelAiTask } = useAiGenerationStore();
   const aiAbortRef = useRef<AbortController | null>(null);
 
@@ -610,7 +619,12 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success(t('questionBank.toastQuestionAdded'));
+        // v136: duplicate protection feedback
+        if (data.duplicatesSkipped > 0) {
+          toast.info(t('questionBank.duplicatesSkipped', { count: data.duplicatesSkipped }), { duration: 8000 });
+        } else {
+          toast.success(t('questionBank.toastQuestionAdded'));
+        }
         setAddQuestionModalOpen(false);
         resetQuestionForm();
         fetchBankDetail(selectedBank.id);
@@ -696,6 +710,10 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     const capturedFile = selectedCourseFile;
     const capturedBank = selectedBank;
     const capturedConfig = { ...aiConfigTypes };
+    // v136: capture difficulty strategy before the modal resets
+    const capturedAiDifficulty = aiDifficulty;
+    const capturedAiScope = aiContentScope;
+    const capturedAiMix = { ...aiMixCounts };
 
     // Close the modal immediately — generation runs in the background
     setAiModalOpen(false);
@@ -834,6 +852,11 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             body: JSON.stringify({
               content,
               questionTypes: capturedConfig,
+              // v136: difficulty strategy + bank dedup guard
+              difficulty: capturedAiDifficulty,
+              contentScope: capturedAiScope,
+              ...(capturedAiDifficulty === 'mixed' ? { mixCounts: capturedAiMix } : {}),
+              bankId: capturedBank.id,
             }),
           });
         } catch (quizErr) {
@@ -870,9 +893,12 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           options: q.options || null,
           correct_answer: q.correctAnswer ?? null,
           pairs: q.pairs || null,
+          // v136: persist the AI-assigned difficulty level
+          difficulty: (q as { difficulty?: string }).difficulty || null,
         }));
 
         let saveSucceeded = false;
+        let saveResult: { success?: boolean; error?: string; duplicatesSkipped?: number; addedCount?: number } | null = null;
         try {
           const saveRes = await fetchWithRetry('/api/question-bank', {
             method: 'PUT',
@@ -886,6 +912,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           });
 
           const result = await saveRes.json();
+          saveResult = result;
           saveSucceeded = result.success === true;
           if (!saveSucceeded) {
             toast.error(result.error || t('questionBank.toastAddQuestionsError'));
@@ -902,7 +929,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         }
 
         if (saveSucceeded) {
-          toast.success(t('questionBank.generatedCount', { count: questions.length }));
+          const skipped = saveResult?.duplicatesSkipped ?? 0;
+          const added = saveResult?.addedCount ?? questions.length;
+          if (skipped > 0) {
+            toast.success(t('questionBank.generatedCount', { count: added }), { duration: 6000 });
+            toast.info(t('questionBank.duplicatesSkipped', { count: skipped }), { duration: 8000 });
+          } else {
+            toast.success(t('questionBank.generatedCount', { count: added }));
+          }
           fetchBankDetail(capturedBank.id);
           fetchBanks();
         }
@@ -1222,7 +1256,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.difficulty')}</label>
           <select
             value={questionDifficulty}
-            onChange={e => setQuestionDifficulty(e.target.value as '' | 'easy' | 'medium' | 'hard')}
+            onChange={e => setQuestionDifficulty(e.target.value as '' | 'easy' | 'medium' | 'hard' | 'very_hard')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer"
             dir={direction}
           >
@@ -1230,6 +1264,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <option value="easy">{t('questionBank.difficultyEasy')}</option>
             <option value="medium">{t('questionBank.difficultyMedium')}</option>
             <option value="hard">{t('questionBank.difficultyHard')}</option>
+            <option value="very_hard">{t('questionBank.difficultyVeryHard')}</option>
           </select>
         </div>
         <div>
@@ -1413,6 +1448,16 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   const renderBankDetail = () => {
     if (!selectedBank) return null;
     const questions = selectedBank.questions || [];
+    // v136: difficulty filter + breakdown stats
+    const filteredQuestions = bankListDifficultyFilter
+      ? questions.filter(q => q.difficulty === bankListDifficultyFilter)
+      : questions;
+    const breakdown = {
+      easy: questions.filter(q => q.difficulty === 'easy').length,
+      medium: questions.filter(q => q.difficulty === 'medium').length,
+      hard: questions.filter(q => q.difficulty === 'hard').length,
+      very_hard: questions.filter(q => q.difficulty === 'very_hard').length,
+    };
 
     return (
       <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
@@ -1628,6 +1673,31 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           </motion.div>
         )}
 
+        {/* v136: Difficulty filter + level distribution stats */}
+        {questions.length > 0 && (
+          <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-2">
+            <select
+              value={bankListDifficultyFilter}
+              onChange={e => setBankListDifficultyFilter(e.target.value)}
+              className="text-xs rounded-md border border-border bg-card px-2 py-1.5 text-foreground max-w-[11rem]"
+              dir={direction}
+              aria-label={t('questionBank.filterByDifficulty')}
+            >
+              <option value="">{t('questionBank.allLevels')} ({questions.length})</option>
+              <option value="easy">{t('questionBank.difficultyEasy')} ({breakdown.easy})</option>
+              <option value="medium">{t('questionBank.difficultyMedium')} ({breakdown.medium})</option>
+              <option value="hard">{t('questionBank.difficultyHard')} ({breakdown.hard})</option>
+              <option value="very_hard">{t('questionBank.difficultyVeryHard')} ({breakdown.very_hard})</option>
+            </select>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${difficultyColor('easy')}`}>{t('questionBank.difficultyEasy')}: {breakdown.easy}</span>
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${difficultyColor('medium')}`}>{t('questionBank.difficultyMedium')}: {breakdown.medium}</span>
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${difficultyColor('hard')}`}>{t('questionBank.difficultyHard')}: {breakdown.hard}</span>
+              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${difficultyColor('very_hard')}`}>{t('questionBank.difficultyVeryHard')}: {breakdown.very_hard}</span>
+            </div>
+          </motion.div>
+        )}
+
         {/* Questions list */}
         {questions.length === 0 ? (
           <motion.div variants={itemVariants} className="flex flex-col items-center justify-center py-16 text-center">
@@ -1653,9 +1723,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               </button>
             </div>
           </motion.div>
+        ) : filteredQuestions.length === 0 ? (
+          <motion.div variants={itemVariants} className="flex flex-col items-center justify-center py-10 text-center">
+            <ListChecks className="h-6 w-6 text-muted-foreground/40 mb-2" />
+            <p className="text-xs text-muted-foreground">{t('questionBank.noQuestionsYet')}</p>
+          </motion.div>
         ) : (
           <motion.div variants={itemVariants} className="space-y-2">
-            {questions.map((q, idx) => (
+            {filteredQuestions.map((q, idx) => (
               <div key={q.id} className="rounded-lg border bg-card p-4 shadow-sm group hover:border-sky-200 dark:hover:border-sky-900/60 transition-all">
                 <div className="flex items-start gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 text-xs font-bold">
@@ -1947,7 +2022,19 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 )}
               </div>
 
-              {/* Question types config */}
+              {/* v136: Difficulty strategy (level / mix / content scope) */}
+              <DifficultySelector
+                difficulty={aiDifficulty}
+                onDifficultyChange={setAiDifficulty}
+                mixCounts={aiMixCounts}
+                onMixCountsChange={setAiMixCounts}
+                contentScope={aiContentScope}
+                onContentScopeChange={setAiContentScope}
+                disabled={!!aiBackgroundTask}
+              />
+
+              {/* Question types config (hidden in mixed mode — types auto-distribute) */}
+              {aiDifficulty !== 'mixed' && (
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">{t('questionBank.questionCountByType')}</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -1971,10 +2058,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   ))}
                 </div>
               </div>
+              )}
+
+              {/* v136: duplicate-protection notice */}
+              <p className="text-xs text-muted-foreground">{t('questionBank.duplicateProtectionOn')}</p>
 
               <button
                 onClick={handleGenerateFromAiFile}
-                disabled={!!aiBackgroundTask || !selectedCourseFile}
+                disabled={!!aiBackgroundTask || !selectedCourseFile || (aiDifficulty === 'mixed' && (aiMixCounts.easy + aiMixCounts.medium + aiMixCounts.hard + aiMixCounts.very_hard === 0))}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-violet-600 py-2.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {aiBackgroundTask ? (

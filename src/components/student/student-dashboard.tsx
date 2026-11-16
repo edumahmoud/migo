@@ -45,6 +45,7 @@ import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import StatCard from '@/components/shared/stat-card';
+import { DifficultySelector, DEFAULT_MIX_COUNTS, mixTotal, type DifficultyMode, type DifficultyMixCounts, type ContentScope } from '@/components/shared/difficulty-selector';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -514,6 +515,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [quizConfigSummaryId, setQuizConfigSummaryId] = useState<string | null>(null);
   const [quizConfigSummaryTitle, setQuizConfigSummaryTitle] = useState('');
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+  // v136: difficulty strategy (level / teacher-controlled mix / content scope)
+  const [quizDifficulty, setQuizDifficulty] = useState<DifficultyMode>('mixed');
+  const [quizMixCounts, setQuizMixCounts] = useState<DifficultyMixCounts>(DEFAULT_MIX_COUNTS);
+  const [quizContentScope, setQuizContentScope] = useState<ContentScope>('file_only');
   // v135e: single toggle replaces the two-button 'after/during' selector
   const [quizShowResults, setQuizShowResults] = useState(true);
   const [quizAllowRetake, setQuizAllowRetake] = useState(true);
@@ -2562,7 +2567,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       return;
     }
 
-    const totalQ = quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching;
+    const totalQ = quizDifficulty === 'mixed'
+      ? mixTotal(quizMixCounts)
+      : quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching;
     if (totalQ === 0) {
       toast.error(t('student.selectQuestionType'));
       return;
@@ -2603,7 +2610,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${quizToken}`,
         },
-        body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
+        body: JSON.stringify({
+          content,
+          questionTypes: quizConfigTypes,
+          difficulty: quizDifficulty,
+          contentScope: quizContentScope,
+          ...(quizDifficulty === 'mixed' ? { mixCounts: quizMixCounts } : {}),
+        }),
       });
       const quizData = await quizRes.json();
 
@@ -2625,6 +2638,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryId: quizConfigSummaryId,
           show_results: quizShowResults,
           allow_retake: quizAllowRetake,
+          // v136: difficulty strategy metadata
+          difficulty_mode: quizDifficulty,
+          content_scope: quizContentScope,
           // NOTE: shuffle_questions is client-side only, not stored in DB
         }),
       });
@@ -3469,7 +3485,19 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <p className="text-sm font-medium text-teal-800 truncate">{quizConfigSummaryTitle}</p>
                 </div>
 
-                {/* Question types */}
+                {/* v136: Difficulty strategy (level / mix / content scope) */}
+                <DifficultySelector
+                  difficulty={quizDifficulty}
+                  onDifficultyChange={setQuizDifficulty}
+                  mixCounts={quizMixCounts}
+                  onMixCountsChange={setQuizMixCounts}
+                  contentScope={quizContentScope}
+                  onContentScopeChange={setQuizContentScope}
+                  disabled={creatingQuizFromSummary}
+                />
+
+                {/* Question types (hidden in mixed mode — types auto-distribute) */}
+                {quizDifficulty !== 'mixed' && (
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">{t('summary.questionTypesAndCount')}</label>
                   {([
@@ -3501,6 +3529,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* v135e: Quiz settings — single toggle menu (show results / retake / shuffle) */}
                 <div className="space-y-2">
@@ -3537,7 +3566,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {/* Create button */}
                 <button
                   onClick={handleCreateQuizFromSummary}
-                  disabled={creatingQuizFromSummary || (quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching === 0)}
+                  disabled={creatingQuizFromSummary || (quizDifficulty === 'mixed'
+                    ? mixTotal(quizMixCounts) === 0
+                    : (quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching === 0))}
                   className="w-full flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {creatingQuizFromSummary ? (

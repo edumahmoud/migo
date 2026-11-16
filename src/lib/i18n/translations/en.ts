@@ -2707,6 +2707,7 @@ export const en: TranslationDict = {
     difficultyEasy: 'Easy',
     difficultyMedium: 'Medium',
     difficultyHard: 'Hard',
+    difficultyVeryHard: 'Very Hard',
     difficultyUnspecified: 'Unspecified',
     category: 'Category',
     categoryPlaceholder: 'e.g.: Chapter 1',

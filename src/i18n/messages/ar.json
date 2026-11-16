@@ -1365,7 +1365,20 @@
         "showCorrectness": "إظهار صحة الإجابة",
         "hideCorrectness": "إخفاء صحة الإجابة",
         "wrongOnly": "الإجابات الخاطئة فقط",
-        "allQuestions": "كل الأسئلة"
+        "allQuestions": "كل الأسئلة",
+        "difficultyLevel": "مستوى الصعوبة",
+        "difficultyEasy": "سهل",
+        "difficultyMedium": "متوسط",
+        "difficultyHard": "صعب",
+        "difficultyVeryHard": "صعب جداً",
+        "difficultyMixed": "تشكيلة",
+        "contentScope": "نطاق المحتوى",
+        "scopeFileOnly": "من المحتوى فقط",
+        "scopeBeyondFile": "السماح بالخروج عن المحتوى",
+        "scopeBeyondHint": "الخروج عن المحتوى مطبَّق على مستويي «صعب» و«صعب جداً» فقط — أسئلة السهل والمتوسط تبقى من داخل المحتوى دائماً",
+        "mixDistribution": "توزيع التشكيلة",
+        "mixAutoNote": "سيوزّع النظام أنواع الأسئلة تلقائياً بما يناسب كل مستوى",
+        "mixTotal": "الإجمالي: {count} سؤال"
     },
     "summary": {
         "summary": "ملخص",
@@ -4662,7 +4675,13 @@
         "typeCompletion": "إكمال (إجابة قصيرة)",
         "typeMatching": "مطابقة",
         "typeMcq": "اختيار من متعدد (MCQ)",
-        "title": "بنك الأسئلة"
+        "title": "بنك الأسئلة",
+        "difficultyVeryHard": "صعب جداً",
+        "difficultyMixed": "تشكيلة",
+        "filterByDifficulty": "تصفية بالمستوى",
+        "allLevels": "كل المستويات",
+        "duplicatesSkipped": "تم تجاهل {count} سؤال مكرر",
+        "duplicateProtectionOn": "الحماية من الأسئلة المكررة مفعّلة تلقائياً"
     },
     "studentsTab": {
         "acceptAllTitle": "قبول جميع الطلبات",
@@ -5366,6 +5385,7 @@
     "difficultyHard": "صعب",
     "difficultyMedium": "متوسط",
     "difficultyUnspecified": "غير محدد",
+    "difficultyVeryHard": "صعب جداً",
     "matchPlaceholder": "اكتب العنصر المطابق...",
     "matchingPairs": "أزواج المطابقة",
     "noBanks": "لا توجد بنوك أسئلة",

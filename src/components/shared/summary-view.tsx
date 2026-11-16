@@ -34,6 +34,7 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { cleanMarkdownForDisplay, markdownToHtml } from '@/lib/markdown-utils';
 import { textDir } from '@/lib/ai/language-utils';
+import { DifficultySelector, DEFAULT_MIX_COUNTS, mixTotal, type DifficultyMode, type DifficultyMixCounts, type ContentScope } from '@/components/shared/difficulty-selector';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
@@ -616,6 +617,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+  // v136: difficulty strategy (level / teacher-controlled mix / content scope)
+  const [quizDifficulty, setQuizDifficulty] = useState<DifficultyMode>('mixed');
+  const [quizMixCounts, setQuizMixCounts] = useState<DifficultyMixCounts>(DEFAULT_MIX_COUNTS);
+  const [quizContentScope, setQuizContentScope] = useState<ContentScope>('file_only');
   // v135e: single toggle replaces the duplicated 'after/during' button pair.
   // ON → student sees score + questions review after submission.
   const [quizShowResults, setQuizShowResults] = useState(true);
@@ -1250,7 +1255,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const quizRes = await fetchWithRetry('/api/gemini/quiz', {
         method: 'POST',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
+        body: JSON.stringify({
+          content,
+          questionTypes: quizConfigTypes,
+          difficulty: quizDifficulty,
+          contentScope: quizContentScope,
+          ...(quizDifficulty === 'mixed' ? { mixCounts: quizMixCounts } : {}),
+        }),
         timeoutMs: 300000,
       }, 3);
       const quizData = await quizRes.json();
@@ -1278,6 +1289,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         summaryId,
         show_results: quizShowResults,
         allow_retake: quizAllowRetake,
+        // v136: difficulty strategy metadata
+        difficulty_mode: quizDifficulty,
+        content_scope: quizContentScope,
       };
 
       // Summary quizzes are independent from courses — do NOT link subject_id
@@ -2082,7 +2096,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               </div>
             ) : showQuizConfig ? (
               <div className="space-y-4">
-                {/* Question types */}
+                {/* v136: Difficulty strategy (level / mix / content scope) */}
+                <DifficultySelector
+                  difficulty={quizDifficulty}
+                  onDifficultyChange={setQuizDifficulty}
+                  mixCounts={quizMixCounts}
+                  onMixCountsChange={setQuizMixCounts}
+                  contentScope={quizContentScope}
+                  onContentScopeChange={setQuizContentScope}
+                  disabled={generatingQuiz}
+                />
+
+                {/* Question types (hidden in mixed mode — types auto-distribute) */}
+                {quizDifficulty !== 'mixed' && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t('quiz.questionCount')}</label>
                   {([
@@ -2114,6 +2140,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* v135e: Quiz settings — single toggle menu (show results / retake / shuffle) */}
                 <div className="space-y-2">
@@ -2151,7 +2178,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <div className="flex gap-2">
                   <Button
                     onClick={handleGenerateQuiz}
-                    disabled={generatingQuiz || (quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching === 0)}
+                    disabled={generatingQuiz || (quizDifficulty === 'mixed'
+                      ? mixTotal(quizMixCounts) === 0
+                      : (quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching === 0))}
                     className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
                     size="sm"
                   >

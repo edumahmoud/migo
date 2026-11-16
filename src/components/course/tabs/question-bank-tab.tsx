@@ -104,6 +104,8 @@ function difficultyLabel(d: string | null | undefined, t: (key: string) => strin
       return t('difficultyMedium');
     case 'hard':
       return t('difficultyHard');
+    case 'very_hard':
+      return t('difficultyVeryHard');
     default:
       return t('difficultyUnspecified');
   }
@@ -114,8 +116,10 @@ function difficultyColor(d?: string | null): string {
     case 'easy':
       return 'bg-emerald-100 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 border-emerald-200 dark:border-emerald-900/60';
     case 'medium':
-      return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60';
+      return 'bg-sky-100 dark:bg-sky-900/15 text-sky-700 dark:text-sky-500 border-sky-200 dark:border-sky-900/60';
     case 'hard':
+      return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60';
+    case 'very_hard':
       return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60';
     default:
       return 'bg-muted/50 text-muted-foreground border-border';
@@ -288,8 +292,9 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
     const easy = questions.filter(q => q.difficulty === 'easy').length;
     const medium = questions.filter(q => q.difficulty === 'medium').length;
     const hard = questions.filter(q => q.difficulty === 'hard').length;
-    const unspecified = questions.length - easy - medium - hard;
-    return { easy, medium, hard, unspecified, total: questions.length };
+    const very_hard = questions.filter(q => q.difficulty === 'very_hard').length;
+    const unspecified = questions.length - easy - medium - hard - very_hard;
+    return { easy, medium, hard, very_hard, unspecified, total: questions.length };
   };
 
   // Type breakdown for a bank
@@ -989,8 +994,13 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
             </Badge>
           )}
           {breakdown.hard > 0 && (
-            <Badge variant="outline" className="bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60">
+            <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60">
               {t('difficultyHard')}: {breakdown.hard}
+            </Badge>
+          )}
+          {breakdown.very_hard > 0 && (
+            <Badge variant="outline" className="bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60">
+              {t('difficultyVeryHard')}: {breakdown.very_hard}
             </Badge>
           )}
         </div>
@@ -1453,8 +1463,13 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
                           </Badge>
                         )}
                         {breakdown.hard > 0 && (
-                          <Badge variant="outline" className="bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60 text-[10px]">
+                          <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60 text-[10px]">
                             {t('difficultyHard')}: {breakdown.hard}
+                          </Badge>
+                        )}
+                        {breakdown.very_hard > 0 && (
+                          <Badge variant="outline" className="bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60 text-[10px]">
+                            {t('difficultyVeryHard')}: {breakdown.very_hard}
                           </Badge>
                         )}
                       </div>

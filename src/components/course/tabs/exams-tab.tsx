@@ -53,8 +53,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
-import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion } from '@/lib/types';
+import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion, QuizDifficultyMode, QuizContentScope } from '@/lib/types';
 import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
+import { DifficultySelector, DEFAULT_MIX_COUNTS, type DifficultyMode, type DifficultyMixCounts, type ContentScope } from '@/components/shared/difficulty-selector';
 import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
@@ -284,6 +285,13 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [loadingCourseFiles, setLoadingCourseFiles] = useState(false);
   const [generatingFromAi, setGeneratingFromAi] = useState(false);
   const [aiQuizConfigTypes, setAiQuizConfigTypes] = useState({ mcq: 3, boolean: 2, completion: 2, matching: 2 });
+  // v136: difficulty strategy for AI generation + metadata carried into the saved quiz
+  const [aiQuizDifficulty, setAiQuizDifficulty] = useState<DifficultyMode>('mixed');
+  const [aiQuizMixCounts, setAiQuizMixCounts] = useState<DifficultyMixCounts>(DEFAULT_MIX_COUNTS);
+  const [aiQuizContentScope, setAiQuizContentScope] = useState<ContentScope>('file_only');
+  // Metadata attached to the quiz being built (from AI generation or preserved on edit)
+  const [quizDifficultyMode, setQuizDifficultyMode] = useState<QuizDifficultyMode | null>(null);
+  const [quizContentScopeMeta, setQuizContentScopeMeta] = useState<QuizContentScope | null>(null);
 
   // ─── Import from bank ───
   const [subjectBanks, setSubjectBanks] = useState<QuestionBank[]>([]);
@@ -292,6 +300,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [selectedBankQuestionIds, setSelectedBankQuestionIds] = useState<Set<string>>(new Set());
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [importingFromBank, setImportingFromBank] = useState(false);
+  // v136: difficulty filter when importing from a bank
+  const [bankDifficultyFilter, setBankDifficultyFilter] = useState<string>('');
 
   // ─── Delete quiz ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -465,6 +475,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setSelectedBank(null);
     setBankQuestions([]);
     setSelectedBankQuestionIds(new Set());
+    // v136: reset difficulty metadata
+    setQuizDifficultyMode(null);
+    setQuizContentScopeMeta(null);
     setSubjectBanks([]);
     setQuizShowResults(true);
     setQuizAllowRetake(true);
@@ -597,6 +610,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         questions: quizQuestions,
         show_results: quizShowResults,
         allow_retake: quizAllowRetake,
+        // v136: difficulty strategy metadata (from AI generation or preserved on edit)
+        difficulty_mode: quizDifficultyMode ?? null,
+        content_scope: quizContentScopeMeta ?? null,
         // NOTE: shuffle_questions is NOT a DB column — stored client-side only
       };
 
@@ -736,6 +752,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizShowResults(quiz.show_results ?? true);
     setQuizAllowRetake(quiz.allow_retake ?? true);
     setQuizShuffleQuestions(quiz.shuffle_questions ?? true);
+    // v136: preserve difficulty metadata through the edit
+    setQuizDifficultyMode(quiz.difficulty_mode ?? null);
+    setQuizContentScopeMeta(quiz.content_scope ?? null);
     resetQuestionForm();
     setQuizModalOpen(true);
   };
@@ -867,6 +886,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         body: JSON.stringify({
           content,
           questionTypes: aiQuizConfigTypes,
+          difficulty: aiQuizDifficulty,
+          contentScope: aiQuizContentScope,
+          ...(aiQuizDifficulty === 'mixed' ? { mixCounts: aiQuizMixCounts } : {}),
         }),
       });
 
@@ -886,6 +908,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       }
 
       setQuizQuestions(questions);
+      // v136: carry the difficulty strategy into the saved quiz
+      setQuizDifficultyMode(aiQuizDifficulty);
+      setQuizContentScopeMeta(aiQuizContentScope);
       // Auto-set title if empty
       if (!quizTitle.trim()) {
         const baseName = selectedCourseFile.file_name.replace(/\.[^.]+$/, '');
@@ -930,6 +955,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setSelectedBank(bank);
     setBankQuestions([]);
     setSelectedBankQuestionIds(new Set());
+    setBankDifficultyFilter('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
@@ -964,6 +990,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         const quizQ: QuizQuestion = {
           type: q.type,
           question: q.question,
+          // v136: carry the per-question difficulty into the quiz
+          difficulty: q.difficulty ?? null,
         };
         if (q.type === 'mcq') {
           quizQ.options = (q.options as string[]) || [];
@@ -1613,9 +1641,25 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground truncate">{q.question}</p>
-                <p className="text-xs text-muted-foreground">
-                  {q.type === 'mcq' ? t('exams.mcqLabel') : q.type === 'boolean' ? t('exams.booleanLabel') : q.type === 'completion' ? t('exams.completionLabel') : t('exams.matchingLabel')}
-                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs text-muted-foreground">
+                    {q.type === 'mcq' ? t('exams.mcqLabel') : q.type === 'boolean' ? t('exams.booleanLabel') : q.type === 'completion' ? t('exams.completionLabel') : t('exams.matchingLabel')}
+                  </span>
+                  {/* v136: teacher-only difficulty badge */}
+                  {q.difficulty && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      q.difficulty === 'easy'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                        : q.difficulty === 'medium'
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
+                          : q.difficulty === 'hard'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                    }`}>
+                      {q.difficulty === 'easy' ? t('quiz.difficultyEasy') : q.difficulty === 'medium' ? t('quiz.difficultyMedium') : q.difficulty === 'hard' ? t('quiz.difficultyHard') : t('quiz.difficultyVeryHard')}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => handleRemoveQuestion(idx)}
@@ -1861,7 +1905,19 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                     </div>
                   </div>
 
-                  {/* Question types config */}
+                  {/* v136: Difficulty strategy (level / mix / content scope) */}
+                  <DifficultySelector
+                    difficulty={aiQuizDifficulty}
+                    onDifficultyChange={setAiQuizDifficulty}
+                    mixCounts={aiQuizMixCounts}
+                    onMixCountsChange={setAiQuizMixCounts}
+                    contentScope={aiQuizContentScope}
+                    onContentScopeChange={setAiQuizContentScope}
+                    disabled={generatingFromAi}
+                  />
+
+                  {/* Question types config (hidden in mixed mode — types auto-distribute) */}
+                  {aiQuizDifficulty !== 'mixed' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">{t('exams.questionTypesAndCount')}</label>
                     {([
@@ -1895,6 +1951,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                       </div>
                     ))}
                   </div>
+                  )}
 
                   {/* Course files selection */}
                   <div>
@@ -2034,26 +2091,43 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                         </button>
                         <span className="text-sm font-medium text-foreground">{selectedBank.name}</span>
                         <span className="text-xs text-muted-foreground">({t('exams.questionCount', { count: bankQuestions.length })})</span>
+                        {/* v136: difficulty filter */}
+                        <select
+                          value={bankDifficultyFilter}
+                          onChange={(e) => setBankDifficultyFilter(e.target.value)}
+                          disabled={importingFromBank}
+                          className="ms-auto text-xs rounded-md border border-border bg-card px-1.5 py-1 text-foreground max-w-[9rem]"
+                          aria-label={t('questionBank.filterByDifficulty')}
+                        >
+                          <option value="">{t('questionBank.allLevels')}</option>
+                          <option value="easy">{t('quiz.difficultyEasy')}</option>
+                          <option value="medium">{t('quiz.difficultyMedium')}</option>
+                          <option value="hard">{t('quiz.difficultyHard')}</option>
+                          <option value="very_hard">{t('quiz.difficultyVeryHard')}</option>
+                        </select>
                         <button
                           onClick={() => {
-                            if (selectedBankQuestionIds.size === bankQuestions.length) {
+                            const visible = bankQuestions.filter(q => !bankDifficultyFilter || q.difficulty === bankDifficultyFilter);
+                            if (selectedBankQuestionIds.size === visible.length) {
                               setSelectedBankQuestionIds(new Set());
                             } else {
-                              setSelectedBankQuestionIds(new Set(bankQuestions.map(q => q.id)));
+                              setSelectedBankQuestionIds(new Set(visible.map(q => q.id)));
                             }
                           }}
-                          className="ms-auto text-xs text-violet-600 dark:text-violet-500 hover:underline"
+                          className="text-xs text-violet-600 dark:text-violet-500 hover:underline"
                         >
-                          {selectedBankQuestionIds.size === bankQuestions.length ? t('exams.deselectAll') : t('exams.selectAll')}
+                          {selectedBankQuestionIds.size === bankQuestions.filter(q => !bankDifficultyFilter || q.difficulty === bankDifficultyFilter).length ? t('exams.deselectAll') : t('exams.selectAll')}
                         </button>
                       </div>
 
-                      {/* Questions list with checkboxes */}
+                      {/* Questions list with checkboxes (filtered by difficulty) */}
                       {bankQuestions.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-muted-foreground">{t('exams.noQuestionsInBank')}</div>
+                      ) : bankQuestions.filter(q => !bankDifficultyFilter || q.difficulty === bankDifficultyFilter).length === 0 ? (
                         <div className="py-4 text-center text-xs text-muted-foreground">{t('exams.noQuestionsInBank')}</div>
                       ) : (
                         <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1.5">
-                          {bankQuestions.map((q) => {
+                          {bankQuestions.filter(q => !bankDifficultyFilter || q.difficulty === bankDifficultyFilter).map((q) => {
                             const isSelected = selectedBankQuestionIds.has(q.id);
                             return (
                               <button
@@ -2080,8 +2154,16 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                                       {q.type === 'mcq' ? t('exams.mcqLabel') : q.type === 'boolean' ? t('exams.booleanLabel') : q.type === 'completion' ? t('exams.completionLabel') : t('exams.matchingLabel')}
                                     </span>
                                     {q.difficulty && (
-                                      <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
-                                        {q.difficulty === 'easy' ? t('exams.easy') : q.difficulty === 'medium' ? t('exams.medium') : t('exams.hard')}
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                        q.difficulty === 'easy'
+                                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                          : q.difficulty === 'medium'
+                                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
+                                            : q.difficulty === 'hard'
+                                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                              : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                      }`}>
+                                        {q.difficulty === 'easy' ? t('quiz.difficultyEasy') : q.difficulty === 'medium' ? t('quiz.difficultyMedium') : q.difficulty === 'hard' ? t('quiz.difficultyHard') : t('quiz.difficultyVeryHard')}
                                       </span>
                                     )}
                                   </div>
