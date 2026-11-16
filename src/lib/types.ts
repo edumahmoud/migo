@@ -57,6 +57,8 @@ export interface QuizQuestion {
   options?: string[];
   correctAnswer?: string;
   pairs?: { key: string; value: string }[];
+  // v136: difficulty level the question was generated/labelled with
+  difficulty?: QuestionDifficulty | null;
 }
 
 export interface Quiz {
@@ -79,6 +81,9 @@ export interface Quiz {
   lesson_id?: string | null;      // Optional link to a specific lesson
   unit_id?: string | null;        // Optional link to a specific unit
   is_gate?: boolean;              // When true, this quiz gates progression
+  // v136: difficulty strategy metadata (informational — question-level difficulty lives on each question)
+  difficulty_mode?: QuizDifficultyMode | null; // level used for generation, or 'mixed'
+  content_scope?: QuizContentScope | null;     // 'file_only' | 'beyond_file' (beyond only applies to hard/very_hard)
   created_at: string;
 }
 
@@ -724,6 +729,11 @@ export interface EvaluateAnswerResponse {
 // Question Bank
 // =====================================================
 
+// v136: difficulty strategy types
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard' | 'very_hard';
+export type QuizDifficultyMode = QuestionDifficulty | 'mixed';
+export type QuizContentScope = 'file_only' | 'beyond_file';
+
 export interface QuestionBank {
   id: string;
   teacher_id: string;
@@ -732,6 +742,8 @@ export interface QuestionBank {
   description?: string | null;
   created_at: string;
   updated_at: string;
+  // v136: duplicate protection toggle (defaults to true)
+  dedup_enabled?: boolean;
   // Joined data
   subject_name?: string;
   question_count?: number;
@@ -745,8 +757,10 @@ export interface BankQuestion {
   options?: string[] | null;        // for mcq
   correct_answer?: string | null;   // for mcq/boolean/completion
   pairs?: { key: string; value: string }[] | null; // for matching
-  difficulty?: 'easy' | 'medium' | 'hard' | null;
+  difficulty?: QuestionDifficulty | null;
   category?: string | null;
+  // v136: normalized-text fingerprint used for fast duplicate detection
+  fingerprint?: string | null;
   created_at: string;
 }
 

@@ -136,12 +136,40 @@ export interface AiProvider {
 // Quiz Types
 // -------------------------------------------------------
 
+export type QuizQuestionDifficulty = 'easy' | 'medium' | 'hard' | 'very_hard';
+
+/** v136: difficulty strategy for a generation request. 'mixed' = teacher-controlled combination. */
+export type QuizDifficultyMode = QuizQuestionDifficulty | 'mixed';
+
+/** v136: where the AI may draw question material from. beyond_file is only ever applied to hard/very_hard. */
+export type QuizContentScope = 'file_only' | 'beyond_file';
+
+/** v136: per-level counts when difficulty === 'mixed' (teacher-controlled mix). */
+export interface QuizMixCounts {
+  easy?: number;
+  medium?: number;
+  hard?: number;
+  very_hard?: number;
+}
+
+/** v136: difficulty + dedup options for generateQuiz. */
+export interface QuizGenerationOptions {
+  difficulty?: QuizDifficultyMode;
+  contentScope?: QuizContentScope;
+  /** Required when difficulty === 'mixed' — exact per-level counts. */
+  mixCounts?: QuizMixCounts;
+  /** Existing question texts (e.g. bank contents) the AI must not repeat or rephrase. */
+  existingQuestions?: string[];
+}
+
 export interface QuizQuestion {
   type: 'mcq' | 'boolean' | 'completion' | 'matching';
   question: string;
   options?: string[];
   correctAnswer?: string;
   pairs?: { key: string; value: string }[];
+  /** v136: difficulty level of this question. */
+  difficulty?: QuizQuestionDifficulty;
 }
 
 // -------------------------------------------------------
@@ -188,7 +216,7 @@ export interface AiService {
     boolean?: number;
     completion?: number;
     matching?: number;
-  }, studentName?: string): Promise<QuizQuestion[]>;
+  }, studentName?: string, options?: QuizGenerationOptions): Promise<QuizQuestion[]>;
   evaluateCompletionAnswer(
     question: string,
     correctAnswer: string,
