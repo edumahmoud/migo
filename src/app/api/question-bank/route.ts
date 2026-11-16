@@ -4,8 +4,98 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import {
+  filterDuplicateQuestions,
+  questionFingerprint,
+  type DedupQuestionInput,
+} from '@/lib/question-dedup';
 
 export const maxDuration = 60;
+
+// -------------------------------------------------------
+// v136 — question-row normalization + duplicate protection
+// -------------------------------------------------------
+
+const VALID_BANK_DIFFICULTIES = ['easy', 'medium', 'hard', 'very_hard'];
+
+interface NormalizedQuestionRow {
+  bank_id: string;
+  type: string;
+  question: string;
+  options: string[] | null;
+  correct_answer: string | null;
+  pairs: { key: string; value: string }[] | null;
+  difficulty: string | null;
+  category: string | null;
+  fingerprint: string | null;
+}
+
+function normalizePairs(raw: unknown): { key: string; value: string }[] | null {
+  const list = (raw as Record<string, string>[] | null | undefined) ||
+    ([] as Record<string, string>[]);
+  const arr = Array.isArray(list) ? list : [];
+  const normalized = arr
+    .map((p) => ({
+      key: p.key ?? p.term ?? p.left ?? '',
+      value: p.value ?? p.definition ?? p.right ?? '',
+    }))
+    .filter((p: { key: string; value: string }) => p.key && p.value);
+  return normalized.length > 0 ? normalized : null;
+}
+
+/** Validate + normalize one incoming question. Returns null when invalid. */
+function normalizeQuestionRow(bankId: string, q: Record<string, unknown>): NormalizedQuestionRow | null {
+  const type = String(q.type || '').trim();
+  const question = String(q.question || '').trim();
+  if (!type || !question) return null;
+
+  const rawDifficulty = q.difficulty;
+  const difficulty =
+    typeof rawDifficulty === 'string' && VALID_BANK_DIFFICULTIES.includes(rawDifficulty)
+      ? rawDifficulty
+      : null;
+
+  const correct = (q.correct_answer || q.correctAnswer || null) as string | null;
+  const options = Array.isArray(q.options) ? (q.options as string[]) : null;
+  const pairs = normalizePairs(q.pairs || q.matching_pairs || q.matchingPairs || q.pair_list);
+
+  const fingerprint = questionFingerprint({
+    type,
+    question,
+    correctAnswer: correct,
+    options,
+    pairs,
+  });
+
+  return {
+    bank_id: bankId,
+    type,
+    question,
+    options,
+    correct_answer: correct ? String(correct) : null,
+    pairs,
+    difficulty,
+    category: q.category ? String(q.category) : null,
+    fingerprint: fingerprint || null,
+  };
+}
+
+/** Load a bank's existing questions as dedup references. */
+async function loadExistingForDedup(bankId: string): Promise<DedupQuestionInput[]> {
+  const { data, error } = await supabaseServer
+    .from('bank_questions')
+    .select('type, question, correct_answer, options, pairs, fingerprint')
+    .eq('bank_id', bankId);
+  if (error || !data) return [];
+  return (data as Record<string, unknown>[]).map((row) => ({
+    type: (row.type as string) || null,
+    question: (row.question as string) || '',
+    correctAnswer: (row.correct_answer as string) || null,
+    options: (row.options as string[] | null) || null,
+    pairs: (row.pairs as { key: string; value: string }[] | null) || null,
+    fingerprint: (row.fingerprint as string) || null,
+  }));
+}
 
 // -------------------------------------------------------
 // GET — List question banks (optionally filtered by subject)
@@ -198,30 +288,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'حدث خطأ أثناء إنشاء بنك الأسئلة' }, { status: 500 });
     }
 
-    // Insert questions if provided
+    // Insert questions if provided (with duplicate protection)
+    let addedCount = 0;
+    let duplicatesSkipped = 0;
     if (questions && Array.isArray(questions) && questions.length > 0) {
-      const questionRows = questions.map((q: Record<string, unknown>) => ({
-        bank_id: (bank as { id: string }).id,
-        type: q.type,
-        question: q.question,
-        options: q.options || null,
-        correct_answer: q.correct_answer || q.correctAnswer || null,
-        pairs: q.pairs || null,
-        difficulty: q.difficulty || null,
-        category: q.category || null,
-      }));
+      const normalizedAll = (questions as Record<string, unknown>[])
+        .map((q) => normalizeQuestionRow(bank.id, q))
+        .filter((r: NormalizedQuestionRow | null): r is NormalizedQuestionRow => r !== null);
 
-      const { error: qError } = await supabase
-        .from('bank_questions')
-        .insert(questionRows);
+      // New bank — dedup within the incoming list itself
+      const { unique, duplicates } = filterDuplicateQuestions(normalizedAll, []);
+      duplicatesSkipped = duplicates.length;
 
-      if (qError) {
-        console.error('Error inserting bank questions:', qError);
-        // Bank was created but questions failed — still return success
+      if (unique.length > 0) {
+        const { error: qError } = await supabase
+          .from('bank_questions')
+          .insert(unique);
+        if (qError) {
+          console.error('Error inserting bank questions:', qError);
+          // Bank was created but questions failed — still return success
+        } else {
+          addedCount = unique.length;
+        }
       }
     }
 
-    return NextResponse.json({ success: true, data: bank });
+    return NextResponse.json({
+      success: true,
+      data: bank,
+      addedCount,
+      duplicatesSkipped,
+    });
   } catch (err) {
     console.error('Question bank POST error:', err);
     return NextResponse.json({ success: false, error: 'حدث خطأ غير متوقع' }, { status: 500 });
@@ -253,16 +350,18 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'يرجى تحديد بنك الأسئلة' }, { status: 400 });
     }
 
-    // Verify ownership
+    // Verify ownership (+ dedup toggle)
     const { data: bank } = await supabase
       .from('question_banks')
-      .select('teacher_id')
+      .select('teacher_id, dedup_enabled')
       .eq('id', bankId)
       .single();
 
     if (!bank || (bank as { teacher_id: string }).teacher_id !== user.id) {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
     }
+
+    const dedupEnabled = (bank as { dedup_enabled?: boolean }).dedup_enabled !== false;
 
     // Update bank metadata
     if (name !== undefined || description !== undefined) {
@@ -286,67 +385,70 @@ export async function PUT(req: NextRequest) {
       // Delete existing questions
       await supabase.from('bank_questions').delete().eq('bank_id', bankId);
 
-      // Insert new questions
+      // Insert new questions (normalized + deduped within the list)
       if (questions.length > 0) {
-        const questionRows = questions.map((q: Record<string, unknown>) => {
-        const rawPairs = (q.pairs || q.matching_pairs || q.matchingPairs || q.pair_list) as Record<string, string>[] | null | undefined;
-        const normalizedPairs = Array.isArray(rawPairs) && rawPairs.length > 0
-          ? rawPairs.map((p: Record<string, string>) => ({
-              key: p.key ?? p.term ?? p.left ?? '',
-              value: p.value ?? p.definition ?? p.right ?? '',
-            })).filter((p: { key: string; value: string }) => p.key && p.value)
-          : null;
-        return {
-          bank_id: bankId,
-          type: q.type,
-          question: q.question,
-          options: q.options || null,
-          correct_answer: q.correct_answer || q.correctAnswer || null,
-          pairs: normalizedPairs,
-          difficulty: q.difficulty || null,
-          category: q.category || null,
-        };
-      });
+        const normalizedAll = (questions as Record<string, unknown>[])
+          .map((q) => normalizeQuestionRow(bankId, q))
+          .filter((r: NormalizedQuestionRow | null): r is NormalizedQuestionRow => r !== null);
 
-        const { error: qError } = await supabase
-          .from('bank_questions')
-          .insert(questionRows);
+        const { unique, duplicates } = dedupEnabled
+          ? filterDuplicateQuestions(normalizedAll, [])
+          : { unique: normalizedAll, duplicates: [] as NormalizedQuestionRow[] };
 
-        if (qError) {
-          console.error('Error replacing bank questions:', qError);
+        if (unique.length > 0) {
+          const { error: qError } = await supabase
+            .from('bank_questions')
+            .insert(unique);
+
+          if (qError) {
+            console.error('Error replacing bank questions:', qError);
+          }
         }
+
+        return NextResponse.json({
+          success: true,
+          addedCount: unique.length,
+          duplicatesSkipped: duplicates.length,
+        });
       }
+
+      return NextResponse.json({ success: true, addedCount: 0, duplicatesSkipped: 0 });
     }
 
-    // Add individual questions
+    // Add individual questions (protected against bank duplicates)
     if (addQuestions && Array.isArray(addQuestions) && addQuestions.length > 0) {
-      const questionRows = addQuestions.map((q: Record<string, unknown>) => {
-        const rawPairs = (q.pairs || q.matching_pairs || q.matchingPairs || q.pair_list) as Record<string, string>[] | null | undefined;
-        const normalizedPairs = Array.isArray(rawPairs) && rawPairs.length > 0
-          ? rawPairs.map((p: Record<string, string>) => ({
-              key: p.key ?? p.term ?? p.left ?? '',
-              value: p.value ?? p.definition ?? p.right ?? '',
-            })).filter((p: { key: string; value: string }) => p.key && p.value)
-          : null;
-        return {
-          bank_id: bankId,
-          type: q.type,
-          question: q.question,
-          options: q.options || null,
-          correct_answer: q.correct_answer || q.correctAnswer || null,
-          pairs: normalizedPairs,
-          difficulty: q.difficulty || null,
-          category: q.category || null,
-        };
-      });
+      const normalizedAll = (addQuestions as Record<string, unknown>[])
+        .map((q) => normalizeQuestionRow(bankId, q))
+        .filter((r: NormalizedQuestionRow | null): r is NormalizedQuestionRow => r !== null);
 
-      const { error: qError } = await supabase
-        .from('bank_questions')
-        .insert(questionRows);
+      let toInsert = normalizedAll;
+      let duplicatesSkipped = 0;
 
-      if (qError) {
-        console.error('Error adding bank questions:', qError);
+      if (dedupEnabled) {
+        const existing = await loadExistingForDedup(bankId);
+        const { unique, duplicates } = filterDuplicateQuestions(normalizedAll, existing);
+        toInsert = unique;
+        duplicatesSkipped = duplicates.length;
+        if (duplicatesSkipped > 0) {
+          console.log(`[Question Bank] Duplicate protection skipped ${duplicatesSkipped} question(s) for bank ${bankId}`);
+        }
       }
+
+      if (toInsert.length > 0) {
+        const { error: qError } = await supabase
+          .from('bank_questions')
+          .insert(toInsert);
+
+        if (qError) {
+          console.error('Error adding bank questions:', qError);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        addedCount: toInsert.length,
+        duplicatesSkipped,
+      });
     }
 
     // Remove individual questions by ID

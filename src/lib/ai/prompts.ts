@@ -12,7 +12,7 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '12';
+export const PROMPT_VERSION = '13';
 
 /**
  * v135j — completeness rule injected into long-form text prompts.
@@ -184,6 +184,7 @@ export const QUIZ_SYSTEM = (
   totalCount: number,
   typeConfig: string[],
   studentName: string,
+  difficultyBlock: string = '',
 ) => `${LANGUAGE_RULE_KEEP}
 
 ${HTML_CLEANUP_RULE}
@@ -196,10 +197,11 @@ ${HTML_CLEANUP_RULE}
 - أي لغة أخرى → بنفس اللغة مع خيارات صح/خطأ مكافئة فيها
 
 يجب أن يكون الرد بتنسيق JSON فقط ويحتوي على مصفوفة من الكائنات تحت اسم "questions":
-- للـ mcq: { "type": "mcq", "question": "...", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctAnswer": "الخيار الصحيح" }
-- للـ boolean: { "type": "boolean", "question": "...", "options": ["صح", "خطأ"], "correctAnswer": "صح أو خطأ" }
-- للـ completion: { "type": "completion", "question": "التعريف أو الوصف مع ____ مكان المصطلح", "correctAnswer": "المصطلح الدقيق" }
-- للـ matching: { "type": "matching", "question": "عنوان السؤال", "pairs": [{"key": "المصطلح", "value": "التعريف"}] }
+- للـ mcq: { "type": "mcq", "question": "...", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctAnswer": "الخيار الصحيح", "difficulty": "easy أو medium أو hard أو very_hard" }
+- للـ boolean: { "type": "boolean", "question": "...", "options": ["صح", "خطأ"], "correctAnswer": "صح أو خطأ", "difficulty": "..." }
+- للـ completion: { "type": "completion", "question": "التعريف أو الوصف مع ____ مكان المصطلح", "correctAnswer": "المصطلح الدقيق", "difficulty": "..." }
+- للـ matching: { "type": "matching", "question": "عنوان السؤال", "pairs": [{"key": "المصطلح", "value": "التعريف"}], "difficulty": "..." }
+${difficultyBlock}
 
 ⚠️ مهم جداً — أسئلة Completion (الإكمال):
 - يجب أن يكون السؤال على شكل: "التعريف أو الوصف ____" والمطلوب هو المصطلح أو الاسم
@@ -252,6 +254,7 @@ export const QUIZ_SYSTEM_EN = (
   totalCount: number,
   typeConfig: string[],
   detectedLanguage: string,
+  difficultyBlock: string = '',
 ) => `You are an expert teacher specializing in creating real, useful educational quizzes. You create quizzes ONLY from the provided content, IN THE CONTENT'S OWN LANGUAGE, and respond with JSON only.
 
 ⚠️ MANDATORY QUESTION-LANGUAGE RULE:
@@ -266,10 +269,11 @@ export const QUIZ_SYSTEM_EN = (
 ⚠️ HTML-cleanup rule: if the content contains raw HTML elements (such as <p>, <div>, <br>, <span>, &nbsp;, &amp;), do NOT copy them into the questions. Re-express that material as plain question text.
 
 The response MUST be JSON only, containing an array of objects under the key "questions":
-- mcq: { "type": "mcq", "question": "...", "options": ["option1", "option2", "option3", "option4"], "correctAnswer": "the correct option" }
-- boolean: { "type": "boolean", "question": "...", "options": ["True", "False"], "correctAnswer": "True or False" }
-- completion: { "type": "completion", "question": "the definition or description with ____ in place of the term", "correctAnswer": "the exact term" }
-- matching: { "type": "matching", "question": "question title", "pairs": [{"key": "the term", "value": "the definition"}] }
+- mcq: { "type": "mcq", "question": "...", "options": ["option1", "option2", "option3", "option4"], "correctAnswer": "the correct option", "difficulty": "easy | medium | hard | very_hard" }
+- boolean: { "type": "boolean", "question": "...", "options": ["True", "False"], "correctAnswer": "True or False", "difficulty": "..." }
+- completion: { "type": "completion", "question": "the definition or description with ____ in place of the term", "correctAnswer": "the exact term", "difficulty": "..." }
+- matching: { "type": "matching", "question": "question title", "pairs": [{"key": "the term", "value": "the definition"}], "difficulty": "..." }
+${difficultyBlock}
 
 ⚠️ VERY IMPORTANT — Completion questions:
 - The question must look like: "the definition or description ____" where the required answer is the term or name
@@ -316,6 +320,130 @@ The source content is in ${detectedLanguage}. The new attempt MUST contain 100% 
  */
 export const QUIZ_LANGUAGE_RETRY_AR = `🚨 إشعار إعادة محاولة حرج:
 محاولتك السابقة أنتجت أسئلة بلغة خاطئة. المحتوى الأصلي بالعربية، لذا يجب أن تكون كل الأسئلة والخيارات والإجابات بالعربية بالكامل — دون كلمة واحدة بلغة أخرى. أعد قراءة لغة المحتوى قبل كتابة أي شيء.`;
+
+// -------------------------------------------------------
+// v136 — Difficulty Strategy Blocks
+// -------------------------------------------------------
+
+import type { QuizDifficultyMode, QuizMixCounts, QuizContentScope } from './types';
+
+const DIFFICULTY_LEVEL_RULES_AR = `⚠️ استراتيجية مستويات الصعوبة (إلزامية):
+كل سؤال يجب أن يحمل حقلاً باسم "difficulty" بقيمة واحدة من: "easy" أو "medium" أو "hard" أو "very_hard" — القيمة بالإنجليزية كما هي حتى لو كانت الأسئلة بالعربية.
+
+معايير المستويات:
+- easy (سهل): تذكّر مباشر — تعريف أو مصطلح أو حقيقة واردة نصاً في المحتوى، صياغة مباشرة وواضحة، والبدائل الخاطئة بعيدة الوضوح عن الصحيح.
+- medium (متوسط): فهم واستيعاب — إعادة صياغة المفهوم بأسلوب مختلف، أو مقارنة بين مفهومين، والبدائل الخاطئة متقاربة نسبياً.
+- hard (صعب): تطبيق — سيناريو أو مسألة تتطلب خطوتين فأكثر، أو ربط مفهومين معاً لحلها، والبدائل متقاربة جداً بحيث يتطلب التمييز بينها فهماً عميقاً.
+- very_hard (صعب جداً): تحليل وتركيب وتقييم — استنتاج غير مباشر من المعلومات المتاحة، حالة جديدة كلياً في نفس مجال المادة، أسئلة "لماذا" و"ماذا لو"، وبدائل كلها تبدو صحيحة ظاهرياً ويحتاج الطالب تحليلاً دقيقاً لاستبعاد الخاطئ منها.`;
+
+const DIFFICULTY_LEVEL_RULES_EN = `⚠️ DIFFICULTY-LEVEL STRATEGY (mandatory):
+Every question MUST carry a "difficulty" field with exactly one of these values: "easy", "medium", "hard", or "very_hard".
+
+Level criteria:
+- easy: direct recall — a definition, term, or fact stated verbatim in the content, plainly worded, with distractors that are clearly wrong.
+- medium: comprehension — the concept rephrased differently, or a comparison between two concepts, with fairly close distractors.
+- hard: application — a scenario or multi-step problem requiring two or more steps or combining two concepts, with very close distractors that demand deep understanding to tell apart.
+- very_hard: analysis/synthesis/evaluation — indirect inference from the available information, a brand-new case in the same subject domain, "why"/"what-if" questions, and distractors that all look superficially correct so the student must analyze carefully to eliminate the wrong ones.`;
+
+/** Scope rules shared by both languages (built per request). */
+function scopeRuleAr(contentScope: QuizContentScope): string {
+  return contentScope === 'beyond_file'
+    ? `- الأسئلة ذات المستويين easy و medium يجب أن تعتمد حصراً على المعلومات الموجودة في المحتوى المقدم (مع جواز إعادة الصياغة).
+- أما أسئلة hard و very_hard فيُسمح لها بالخروج عن النص الحرفي: بناء سيناريوهات تطبيقية وأمثلة جديدة من نفس مجال المادة وربط مفاهيم المحتوى بمعارف مجاورة في نفس التخصص — مع الحفاظ على الصحة العلمية المطلقة وتظل اللغة هي لغة المحتوى.`
+    : `- جميع الأسئلة بجميع المستويات يجب أن تعتمد على المعلومات الموجودة في المحتوى المقدم فقط. يُسمح بإعادة الصياغة وتغيير عمق الطرح حسب المستوى، لكن يُمنع إدخال أي معلومة من خارج المحتوى.`;
+}
+
+function scopeRuleEn(contentScope: QuizContentScope): string {
+  return contentScope === 'beyond_file'
+    ? `- easy and medium questions MUST rely exclusively on information present in the provided content (rephrasing allowed).
+- hard and very_hard questions MAY go beyond the literal text: build applied scenarios and new examples from the same subject domain and connect the content's concepts to adjacent knowledge in the same field — while keeping absolute scientific accuracy and staying in the content's language.`
+    : `- ALL questions at ALL levels must rely exclusively on information present in the provided content. Rephrasing and adjusting depth per level is allowed, but introducing any information from outside the content is forbidden.`;
+}
+
+/**
+ * Build the Arabic difficulty directive injected into QUIZ_SYSTEM.
+ * - single level → all questions at that level
+ * - mixed → exact per-level counts (teacher-controlled mix)
+ */
+export function buildDifficultyBlockAr(
+  difficulty: QuizDifficultyMode,
+  mixCounts: Required<QuizMixCounts>,
+  contentScope: QuizContentScope,
+): string {
+  const scope = scopeRuleAr(contentScope);
+  if (difficulty !== 'mixed') {
+    const labelsAr: Record<string, string> = {
+      easy: 'سهل (easy)', medium: 'متوسط (medium)', hard: 'صعب (hard)', very_hard: 'صعب جداً (very_hard)',
+    };
+    return `${DIFFICULTY_LEVEL_RULES_AR}
+
+المستوى المطلوب لهذا الاختبار: ${labelsAr[difficulty]} — أنشئ جميع الأسئلة بهذا المستوى تحديداً وفق معاييره أعلاه، وسجّل "difficulty": "${difficulty}" لكل سؤال دون استثناء.
+
+قواعد نطاق المحتوى:
+${scope}`;
+  }
+  return `${DIFFICULTY_LEVEL_RULES_AR}
+
+هذا الاختبار تشكيلة من مستويات متعددة — التوزيع الإلزامي بالأعداد الدقيقة:
+- ${mixCounts.easy} سؤال بمستوى easy
+- ${mixCounts.medium} سؤال بمستوى medium
+- ${mixCounts.hard} سؤال بمستوى hard
+- ${mixCounts.very_hard} سؤال بمستوى very_hard
+أنشئ بالضبط هذا العدد لكل مستوى (الأعداد أعلاه إلزامية حرفياً)، وسجّل حقل "difficulty" الصحيح لكل سؤال.
+
+قواعد نطاق المحتوى:
+${scope}`;
+}
+
+/** English mirror of the difficulty directive, injected into QUIZ_SYSTEM_EN. */
+export function buildDifficultyBlockEn(
+  difficulty: QuizDifficultyMode,
+  mixCounts: Required<QuizMixCounts>,
+  contentScope: QuizContentScope,
+): string {
+  const scope = scopeRuleEn(contentScope);
+  if (difficulty !== 'mixed') {
+    return `${DIFFICULTY_LEVEL_RULES_EN}
+
+Required level for this quiz: ${difficulty} — create ALL questions at exactly this level following its criteria above, and record "difficulty": "${difficulty}" on every single question.
+
+Content-scope rules:
+${scope}`;
+  }
+  return `${DIFFICULTY_LEVEL_RULES_EN}
+
+This quiz is a MIX of levels — the exact mandatory distribution is:
+- ${mixCounts.easy} question(s) at level easy
+- ${mixCounts.medium} question(s) at level medium
+- ${mixCounts.hard} question(s) at level hard
+- ${mixCounts.very_hard} question(s) at level very_hard
+Create EXACTLY these counts per level (the numbers above are literally mandatory), and record the correct "difficulty" field on every question.
+
+Content-scope rules:
+${scope}`;
+}
+
+/**
+ * v136 — dedup avoidance block: lists existing bank questions the AI must
+ * not repeat or rephrase. Caps the list so the prompt stays inside budget.
+ */
+const DEDUP_MAX_ITEMS = 60;
+const DEDUP_MAX_ITEM_CHARS = 110;
+
+export function buildDedupAvoidanceBlock(existingQuestions: string[]): string {
+  const items = (existingQuestions || [])
+    .map((q) => q.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, DEDUP_MAX_ITEMS)
+    .map((q) => (q.length > DEDUP_MAX_ITEM_CHARS ? q.substring(0, DEDUP_MAX_ITEM_CHARS) + '…' : q));
+  if (items.length === 0) return '';
+  const numbered = items.map((q, i) => `${i + 1}. ${q}`).join('\n');
+  return `
+🚫 حماية بنك الأسئلة من التكرار (إلزامية): الأسئلة التالية موجودة مسبقاً في بنك الأسئلة — يُمنع منعاً باتاً تكرار أي منها أو إعادة صياغته بنفس الفكرة أو نفس المصطلح المستهدف أو نفس الإجابة. أنشئ أسئلة جديدة كلياً عن أفكار ومفاهيم مختلفة:
+${numbered}
+
+🚫 Question-bank duplicate protection (mandatory): the following questions already exist in the question bank — you are STRICTLY FORBIDDEN from repeating any of them or rephrasing one with the same idea, the same target term, or the same answer. Create completely new questions about different ideas and concepts.`;
+}
 
 // -------------------------------------------------------
 // Evaluation Prompts

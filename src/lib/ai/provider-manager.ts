@@ -21,6 +21,10 @@ import type {
   AiErrorCode,
   AiLogEntry,
   QuizQuestion,
+  QuizGenerationOptions,
+  QuizDifficultyMode,
+  QuizMixCounts,
+  QuizContentScope,
 } from './types';
 import { AiProviderError, isAiError } from './types';
 import { geminiProvider } from './providers/gemini';
@@ -35,6 +39,7 @@ import {
   QUIZ_SYSTEM, QUIZ_USER,
   QUIZ_SYSTEM_EN, QUIZ_USER_EN,
   QUIZ_LANGUAGE_RETRY_EN, QUIZ_LANGUAGE_RETRY_AR,
+  buildDifficultyBlockAr, buildDifficultyBlockEn, buildDedupAvoidanceBlock,
   EVALUATE_SYSTEM, EVALUATE_USER,
   EVALUATE_DETAILED_SYSTEM, EVALUATE_DETAILED_USER,
   EXPLAIN_SYSTEM, EXPLAIN_USER,
@@ -575,16 +580,111 @@ export async function translateContent(
  * The whole chain is self-correcting even when a wrong-language result comes
  * from the response cache, because validation happens after every return path.
  */
+// -------------------------------------------------------
+// v136 — Difficulty strategy helpers
+// -------------------------------------------------------
+
+const VALID_DIFFICULTY_LEVELS: readonly string[] = ['easy', 'medium', 'hard', 'very_hard'];
+const VALID_DIFFICULTY_MODES: readonly string[] = ['easy', 'medium', 'hard', 'very_hard', 'mixed'];
+
+/** Clamp + normalize a mix-counts request; falls back to a proportional split of fallbackTotal. */
+function sanitizeMixCounts(raw: QuizMixCounts | undefined, fallbackTotal: number): Required<QuizMixCounts> {
+  const clamp = (n: unknown): number =>
+    typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.min(30, Math.floor(n))) : 0;
+  const counts: Required<QuizMixCounts> = {
+    easy: clamp(raw?.easy),
+    medium: clamp(raw?.medium),
+    hard: clamp(raw?.hard),
+    very_hard: clamp(raw?.very_hard),
+  };
+  const total = counts.easy + counts.medium + counts.hard + counts.very_hard;
+  if (total > 0) return counts;
+  // Default proportional distribution: 25/35/25/15 (at least 1 per level)
+  const t = Math.max(4, fallbackTotal);
+  return {
+    easy: Math.max(1, Math.round(t * 0.25)),
+    medium: Math.max(1, Math.round(t * 0.35)),
+    hard: Math.max(1, Math.round(t * 0.25)),
+    very_hard: Math.max(1, Math.round(t * 0.15)),
+  };
+}
+
+/** Deterministically force/repair the difficulty tag on every question. */
+function applyDifficultyStrategy(
+  questions: QuizQuestion[],
+  difficulty: QuizDifficultyMode,
+  mixCounts: Required<QuizMixCounts>,
+): QuizQuestion[] {
+  if (difficulty !== 'mixed') {
+    // Single level: the level is a hard requirement — override whatever the AI returned
+    for (const q of questions) q.difficulty = difficulty as QuizQuestion['difficulty'];
+    return questions;
+  }
+
+  // Mixed: sanitize invalid tags to 'medium', then trim to the exact per-level counts
+  const levelOf = (q: QuizQuestion) =>
+    q.difficulty && VALID_DIFFICULTY_LEVELS.includes(q.difficulty) ? q.difficulty : 'medium';
+
+  const taken: Record<string, number> = { easy: 0, medium: 0, hard: 0, very_hard: 0 };
+  const kept: QuizQuestion[] = [];
+  for (const q of questions) {
+    const level = levelOf(q);
+    q.difficulty = level;
+    if (taken[level] < mixCounts[level]) {
+      taken[level]++;
+      kept.push(q);
+    }
+  }
+  const shortfall =
+    mixCounts.easy + mixCounts.medium + mixCounts.hard + mixCounts.very_hard - kept.length;
+  if (shortfall > 0) {
+    console.warn(`[Quiz] Mixed-mode shortfall: requested ${JSON.stringify(mixCounts)}, kept ${kept.length} (${shortfall} missing)`);
+  }
+  return kept;
+}
+
 export async function generateQuiz(
   content: string,
   questionTypes?: { mcq?: number; boolean?: number; completion?: number; matching?: number },
   studentName?: string,
+  options?: QuizGenerationOptions,
 ): Promise<QuizQuestion[]> {
   const mcqCount = questionTypes?.mcq ?? 2;
   const booleanCount = questionTypes?.boolean ?? 2;
   const completionCount = questionTypes?.completion ?? 2;
   const matchingCount = questionTypes?.matching ?? 2;
-  const totalCount = mcqCount + booleanCount + completionCount + matchingCount;
+  const typeTotalCount = mcqCount + booleanCount + completionCount + matchingCount;
+
+  // ─── v136: difficulty strategy resolution ───
+  const rawDifficulty = options?.difficulty;
+  const difficulty: QuizDifficultyMode =
+    rawDifficulty && VALID_DIFFICULTY_MODES.includes(rawDifficulty) ? rawDifficulty : 'mixed';
+
+  let contentScope: QuizContentScope = options?.contentScope === 'beyond_file' ? 'beyond_file' : 'file_only';
+  // HARD RULE (user decision): beyond-file applies ONLY to hard/very_hard.
+  // An easy/medium request with beyond_file is silently downgraded to file_only.
+  if (contentScope === 'beyond_file' && (difficulty === 'easy' || difficulty === 'medium')) {
+    console.log(`[Quiz] beyond_file requested with "${difficulty}" — forcing file_only (beyond-file is restricted to hard/very_hard)`);
+    contentScope = 'file_only';
+  }
+
+  const isMixed = difficulty === 'mixed';
+  const mixCounts = isMixed
+    ? sanitizeMixCounts(options?.mixCounts, typeTotalCount)
+    : { easy: 0, medium: 0, hard: 0, very_hard: 0 };
+  const totalCount = isMixed
+    ? mixCounts.easy + mixCounts.medium + mixCounts.hard + mixCounts.very_hard
+    : typeTotalCount;
+
+  const dedupBlock = buildDedupAvoidanceBlock(options?.existingQuestions || []);
+  const difficultyBlockAr = buildDifficultyBlockAr(difficulty, mixCounts, contentScope) + dedupBlock;
+  const difficultyBlockEn = buildDifficultyBlockEn(difficulty, mixCounts, contentScope) + dedupBlock;
+
+  console.log(
+    `[Quiz] Difficulty strategy: mode=${difficulty}, scope=${contentScope}, total=${totalCount}` +
+    (isMixed ? `, mix=${JSON.stringify(mixCounts)}` : '') +
+    (dedupBlock ? `, dedupGuard=${(options?.existingQuestions || []).length}` : ''),
+  );
 
   const truncatedContent = truncateContent(content);
 
@@ -603,12 +703,14 @@ export async function generateQuiz(
   if (booleanCount > 0) typeConfig.push(`${booleanCount} صح أو خطأ (boolean)`);
   if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
   if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
+  if (isMixed) typeConfig.push('تنويع ذكي في أنواع الأسئلة (mcq و boolean و completion و matching) بما يناسب كل مستوى صعوبة');
 
   const typeConfigEn: string[] = [];
   if (mcqCount > 0) typeConfigEn.push(`${mcqCount} multiple-choice (mcq)`);
   if (booleanCount > 0) typeConfigEn.push(`${booleanCount} true/false (boolean)`);
   if (completionCount > 0) typeConfigEn.push(`${completionCount} fill-in-the-blank (completion)`);
   if (matchingCount > 0) typeConfigEn.push(`${matchingCount} matching (matching)`);
+  if (isMixed) typeConfigEn.push('a smart variety of question types (mcq, boolean, completion, matching) fitting each difficulty level');
 
   const name = extractFirstName(studentName);
 
@@ -621,8 +723,8 @@ export async function generateQuiz(
   const firstCallBudget = useArabicTrack ? QUIZ_TOTAL_BUDGET_MS : 30000;
 
   const firstSystem = useArabicTrack
-    ? QUIZ_SYSTEM(totalCount, typeConfig, name)
-    : QUIZ_SYSTEM_EN(totalCount, typeConfigEn, detectedLanguage);
+    ? QUIZ_SYSTEM(totalCount, typeConfig, name, difficultyBlockAr)
+    : QUIZ_SYSTEM_EN(totalCount, typeConfigEn, detectedLanguage, difficultyBlockEn);
   const firstUser = useArabicTrack
     ? QUIZ_USER(truncatedContent, totalCount)
     : QUIZ_USER_EN(truncatedContent, totalCount);
@@ -668,8 +770,8 @@ export async function generateQuiz(
     const retryBudget = QUIZ_TOTAL_BUDGET_MS - elapsed - 2000;
     if (retryBudget >= 15000) {
       const retrySystem = useArabicTrack
-        ? `${QUIZ_LANGUAGE_RETRY_AR}\n\n${QUIZ_SYSTEM(totalCount, typeConfig, name)}`
-        : `${QUIZ_LANGUAGE_RETRY_EN(detectedLanguage)}\n\n${QUIZ_SYSTEM_EN(totalCount, typeConfigEn, detectedLanguage)}`;
+        ? `${QUIZ_LANGUAGE_RETRY_AR}\n\n${QUIZ_SYSTEM(totalCount, typeConfig, name, difficultyBlockAr)}`
+        : `${QUIZ_LANGUAGE_RETRY_EN(detectedLanguage)}\n\n${QUIZ_SYSTEM_EN(totalCount, typeConfigEn, detectedLanguage, difficultyBlockEn)}`;
       try {
         const retryText = await chatWithFallback(
           retrySystem,
@@ -698,23 +800,33 @@ export async function generateQuiz(
   // Deduplicate questions and options
   const deduped = deduplicateQuestions(questions);
 
-  // Trim questions to match the requested count per type.
-  // The AI may generate more questions than requested, so we take only
-  // the requested number for each type (preserving order).
-  const requestedCounts: Record<string, number> = {};
-  if (mcqCount > 0) requestedCounts['mcq'] = mcqCount;
-  if (booleanCount > 0) requestedCounts['boolean'] = booleanCount;
-  if (completionCount > 0) requestedCounts['completion'] = completionCount;
-  if (matchingCount > 0) requestedCounts['matching'] = matchingCount;
+  // ─── v136: difficulty strategy (before type trimming) ───
+  // Single level → force the level on every question.
+  // Mixed → sanitize tags + trim to the exact per-level counts.
+  const difficultyApplied = applyDifficultyStrategy(deduped, difficulty, mixCounts);
 
-  const typeCounters: Record<string, number> = { mcq: 0, boolean: 0, completion: 0, matching: 0 };
-  const trimmed: QuizQuestion[] = [];
+  let trimmed: QuizQuestion[];
 
-  for (const q of deduped) {
-    const maxAllowed = requestedCounts[q.type] ?? 0;
-    if (maxAllowed > 0 && typeCounters[q.type] < maxAllowed) {
-      trimmed.push(q);
-      typeCounters[q.type]++;
+  if (isMixed) {
+    // Mixed mode: difficulty counts are the exact requirement — no type trimming
+    trimmed = difficultyApplied;
+  } else {
+    // Single-level mode: trim to the requested count per type (preserving order)
+    const requestedCounts: Record<string, number> = {};
+    if (mcqCount > 0) requestedCounts['mcq'] = mcqCount;
+    if (booleanCount > 0) requestedCounts['boolean'] = booleanCount;
+    if (completionCount > 0) requestedCounts['completion'] = completionCount;
+    if (matchingCount > 0) requestedCounts['matching'] = matchingCount;
+
+    const typeCounters: Record<string, number> = { mcq: 0, boolean: 0, completion: 0, matching: 0 };
+    trimmed = [];
+
+    for (const q of difficultyApplied) {
+      const maxAllowed = requestedCounts[q.type] ?? 0;
+      if (maxAllowed > 0 && typeCounters[q.type] < maxAllowed) {
+        trimmed.push(q);
+        typeCounters[q.type]++;
+      }
     }
   }
 

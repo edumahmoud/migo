@@ -2,7 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { supabaseServer } from '@/lib/supabase-server';
 import { generateQuiz, isAiError } from '@/lib/ai';
+import type { QuizGenerationOptions, QuizMixCounts } from '@/lib/ai/types';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
+
+/** v136: valid difficulty-mode / content-scope values persisted on quizzes. */
+const VALID_DIFFICULTY_MODES = ['easy', 'medium', 'hard', 'very_hard', 'mixed'];
+const VALID_CONTENT_SCOPES = ['file_only', 'beyond_file'];
+
+function parseDifficultyMode(raw: unknown): string | null {
+  return typeof raw === 'string' && VALID_DIFFICULTY_MODES.includes(raw) ? raw : null;
+}
+
+function parseContentScope(raw: unknown): string | null {
+  return typeof raw === 'string' && VALID_CONTENT_SCOPES.includes(raw) ? raw : null;
+}
 
 /**
  * POST /api/quizzes
@@ -10,7 +23,8 @@ import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse 
  * Create a new quiz.
  * Uses the service role key (bypasses RLS) to guarantee the quiz is saved.
  *
- * Body: { title: string, questions: array, summaryId?: string, subject_id?: string, show_results?: boolean, allow_retake?: boolean }
+ * Body: { title: string, questions: array, summaryId?: string, subject_id?: string, show_results?: boolean, allow_retake?: boolean,
+ *         difficulty_mode?: string, content_scope?: string }   // v136
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { title, questions, summaryId, subject_id, show_results, show_review, allow_retake, pass_threshold, lesson_id, unit_id, is_gate } = body;
+    const { title, questions, summaryId, subject_id, show_results, show_review, allow_retake, pass_threshold, lesson_id, unit_id, is_gate, difficulty_mode, content_scope } = body;
 
     if (!title || !questions || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -76,6 +90,12 @@ export async function POST(request: NextRequest) {
     if (is_gate !== undefined) {
       insertData.is_gate = !!is_gate;
     }
+
+    // v136: difficulty strategy metadata (informational)
+    const diffMode = parseDifficultyMode(difficulty_mode);
+    if (diffMode) insertData.difficulty_mode = diffMode;
+    const scope = parseContentScope(content_scope);
+    if (scope) insertData.content_scope = scope;
 
     // NOTE: shuffle_questions is a client-side-only feature.
     // It is NOT stored in the DB (no such column exists).
@@ -193,7 +213,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Build the update payload from allowed fields
-      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title', 'pass_threshold', 'lesson_id', 'unit_id', 'is_gate'];
+      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title', 'pass_threshold', 'lesson_id', 'unit_id', 'is_gate', 'difficulty_mode', 'content_scope'];
       // NOTE: shuffle_questions is NOT in the DB schema — it's a client-side-only feature
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
@@ -206,6 +226,19 @@ export async function PUT(request: NextRequest) {
                 { status: 400 }
               );
             }
+          }
+          // v136: validate enum fields
+          if (field === 'difficulty_mode' && updates[field] !== null && !parseDifficultyMode(updates[field])) {
+            return NextResponse.json(
+              { success: false, error: 'difficulty_mode غير صالح' },
+              { status: 400 }
+            );
+          }
+          if (field === 'content_scope' && updates[field] !== null && !parseContentScope(updates[field])) {
+            return NextResponse.json(
+              { success: false, error: 'content_scope غير صالح' },
+              { status: 400 }
+            );
           }
           updateData[field] = updates[field];
         }
@@ -272,7 +305,7 @@ export async function PUT(request: NextRequest) {
       // Preserve the quiz settings for the re-generated quiz
       const { data: fullQuiz } = await supabaseServer
         .from('quizzes')
-        .select('allow_retake, show_results, show_review, duration, subject_id, is_finished, pass_threshold, lesson_id, unit_id, is_gate')
+        .select('allow_retake, show_results, show_review, duration, subject_id, is_finished, pass_threshold, lesson_id, unit_id, is_gate, difficulty_mode, content_scope, questions')
         .eq('id', quizId)
         .single();
 
@@ -339,9 +372,35 @@ export async function PUT(request: NextRequest) {
     } catch {
       // Name lookup failed — will use default
     }
+
+    // v136: regenerate with the SAME difficulty strategy the quiz was created with.
+    // For 'mixed', the per-level counts are derived from the original questions' tags.
+    const regenOptions: QuizGenerationOptions | undefined = (() => {
+      const mode = parseDifficultyMode(preservedSettings.difficulty_mode);
+      const scope = parseContentScope(preservedSettings.content_scope);
+      if (!mode && !scope) return undefined;
+      let mixCounts: QuizMixCounts | undefined;
+      if (mode === 'mixed') {
+        const origQuestions = Array.isArray(preservedSettings.questions) ? preservedSettings.questions : [];
+        const counts = { easy: 0, medium: 0, hard: 0, very_hard: 0 };
+        for (const q of origQuestions) {
+          const d = (q as { difficulty?: string }).difficulty;
+          if (d === 'easy' || d === 'medium' || d === 'hard' || d === 'very_hard') counts[d]++;
+        }
+        if (counts.easy + counts.medium + counts.hard + counts.very_hard > 0) {
+          mixCounts = counts;
+        }
+      }
+      return {
+        difficulty: (mode || undefined) as QuizGenerationOptions['difficulty'],
+        contentScope: (scope || undefined) as QuizGenerationOptions['contentScope'],
+        mixCounts,
+      };
+    })();
+
     // The AI layer manages a global timeout budget (45s) across the entire fallback chain.
     // No duplicate route-level timeout — the provider-manager handles it internally.
-    const questions = await generateQuiz(originalContent, undefined, regenStudentName);
+    const questions = await generateQuiz(originalContent, undefined, regenStudentName, regenOptions);
 
     // Save the new quiz (preserving settings from the original)
     const newQuizData: Record<string, unknown> = {
@@ -356,6 +415,9 @@ export async function PUT(request: NextRequest) {
       // v63: preserve LMS gating fields
       pass_threshold: preservedSettings.pass_threshold ?? null,
       is_gate: preservedSettings.is_gate ?? false,
+      // v136: preserve difficulty strategy metadata
+      difficulty_mode: preservedSettings.difficulty_mode ?? null,
+      content_scope: preservedSettings.content_scope ?? null,
       // NOTE: shuffle_questions is NOT a DB column — it's client-side only
     };
 
