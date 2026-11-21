@@ -32,6 +32,7 @@ schemas.set('paymob', {
   displayName: 'Paymob',
   credentialFields: [
     { name: 'secretKey', label: 'Secret Key', type: 'password', required: true, placeholder: 'egy_sk_... / sk_...', helpText: '⚠️ الـ "Secret Key" من Paymob Dashboard → Settings → Account Info → API Keys — مش الـ "API Key" القديم اللي بيبدأ بـ ZXlK. لصق المفتاح القديم هنا بيخلي كل عملية دفع تفشل بخطأ 401 (الـ Intention API بيرفضه).' },
+    { name: 'apiKey', label: 'API Key (القديم — للتحقق من المعاملات)', type: 'password', required: false, placeholder: 'ZXlK...', helpText: 'الـ "API Key" القديم (بيبدأ بـ ZXlK) من نفس صفحة API Keys في لوحة Paymob. Paymob بتستخدمه في Transaction Inquiry API — بدونه التفعيل التلقائي بعد الدفع بيعتمد على الـ webhook بس. انسخه هنا عشان التحقق التلقائي من الدفع يشتغل.' },
     { name: 'publicKey', label: 'Public Key', type: 'password', required: true, placeholder: 'pk_test_...', helpText: '⚠️ ضروري عشان الـ Intention API (الموصى به). موجود في Paymob Dashboard → Settings → Account Info → API Keys → Public Key. بدونه، الـ webhook مش هيشتغل تلقائياً بعد الدفع.' },
     { name: 'hmacSecret', label: 'HMAC Secret', type: 'password', required: true, placeholder: 'HMAC...', helpText: 'سر HMAC من Paymob Dashboard → Settings → Account Info (للتحقق من webhook)' },
     { name: 'integrationIds', label: 'Card Integration IDs', type: 'array', required: true, placeholder: '123456', helpText: '⚠️ معرّف تكامل الكروت (Visa/Mastercard) من Paymob Dashboard → Payment Integrations → Online Card integration' },

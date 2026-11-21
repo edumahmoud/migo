@@ -118,6 +118,11 @@ export async function POST(request: NextRequest) {
   // 1. Read provider + gateway_id from query params
   const provider = request.nextUrl.searchParams.get('provider');
   const gatewayIdFromUrl = request.nextUrl.searchParams.get('gateway_id');
+  // Paymob sends the transaction-callback HMAC as a URL query parameter
+  // (?hmac=...), NOT in the JSON body — capture it so the adapter can
+  // verify the signature (previously the body-only lookup always failed
+  // with "Callback missing hmac field" and every callback was rejected).
+  const hmacFromUrl = request.nextUrl.searchParams.get('hmac');
 
   // ── Top-level diagnostic log ──
   // P2-17+P2-18 FIX: Replace console.error with logPaymentEvent (sanitized,
@@ -212,7 +217,7 @@ export async function POST(request: NextRequest) {
       message: `Calling PaymentService.handleWebhook — resolvedGatewayId=${resolvedGatewayId}, rawBodyLength=${rawBody.length}`,
     });
     webhookResult = await PaymentService.handleWebhook(
-      { rawBody, headers },
+      { rawBody, headers, metadata: hmacFromUrl ? { hmac: hmacFromUrl } : {} },
       resolvedGatewayId,
     );
     // P2-17 FIX: replaced console.error with logPaymentEvent

@@ -85,7 +85,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // ─── Stage 1: Get auth token ───
   let authToken: string | null = null;
   try {
-    authToken = await getAuthToken(creds.secretKey);
+    authToken = await getAuthToken(creds.apiKey ?? creds.secretKey);
     stages.push({
       stage: '1_auth_token',
       success: true,

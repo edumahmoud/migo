@@ -251,6 +251,29 @@ function isQuizEventRunning(
   return nowMs >= startMs && nowMs < endMs;
 }
 
+/**
+ * v127: has the quiz's window fully passed? (date-past, or today's timed
+ * window over). An ENDED quiz is not automatically a COMPLETED one — a
+ * student who never took it should see it as missed (فات أوانه), not مكتملة.
+ */
+function isQuizEventEnded(
+  scheduledDate: string | null | undefined,
+  scheduledTime: string | null | undefined,
+  duration: number | null | undefined
+): boolean {
+  if (!scheduledDate) return false;
+  const todayStr = toDateString(new Date());
+  if (scheduledDate < todayStr) return true; // a previous day's quiz is over
+  if (scheduledDate > todayStr) return false;
+  // Today: ended only when the timed window has fully passed
+  if (!scheduledTime) return false; // all-day quiz: still takeable today
+  const [hours, minutes] = scheduledTime.split(':').map(Number);
+  const endDt = new Date(scheduledDate);
+  endDt.setHours(hours, minutes, 0, 0);
+  const endMs = duration && duration > 0 ? endDt.getTime() + duration * 60 * 1000 : endDt.getTime() + 1000;
+  return Date.now() > endMs;
+}
+
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
@@ -382,27 +405,21 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         if (quizzes && quizzes.length > 0) {
           for (const q of quizzes) {
             if (q.scheduled_date) {
-              // Mark completed if: is_finished in DB OR time has passed OR student has already taken the quiz
-              let timeCompleted = false;
-              if (q.scheduled_time && q.duration) {
-                const [h, m] = q.scheduled_time.split(':').map(Number);
-                const endDt = new Date(q.scheduled_date);
-                endDt.setHours(h, m, 0, 0);
-                timeCompleted = Date.now() > endDt.getTime() + q.duration * 60 * 1000 + 1000;
-              } else if (q.scheduled_time) {
-                const [h, m] = q.scheduled_time.split(':').map(Number);
-                const endDt = new Date(q.scheduled_date);
-                endDt.setHours(h, m, 0, 0);
-                timeCompleted = Date.now() > endDt.getTime() + 1000;
-              }
+              // v127: "ended" (window passed / teacher finished) is NOT the
+              // same as "completed" (the student actually took the quiz).
+              // Students: completed = they took it — an ended quiz they never
+              // took renders as MISSED (فات أوانه), not مكتملة.
+              // Teachers/admins: completed = the quiz ran (ended).
+              const quizEnded = !!q.is_finished || isQuizEventEnded(q.scheduled_date, q.scheduled_time, q.duration);
+              const taken = studentCompletedQuizIds.has(q.id);
               allEvents.push({
                 id: `quiz-${q.id}`, type: 'quiz', title: q.title || '',
                 description: null, date: toDateString(parseLocalDate(q.scheduled_date)),
                 time: q.scheduled_time || null, subject_id: q.subject_id || null,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
                 color: 'indigo', icon: 'Star',
-                completed: q.is_finished || timeCompleted || studentCompletedQuizIds.has(q.id),
-                meta: { quiz_id: q.id, duration: q.duration, scheduled_date: q.scheduled_date, scheduled_time: q.scheduled_time },
+                completed: profile.role === 'student' ? taken : quizEnded,
+                meta: { quiz_id: q.id, duration: q.duration, scheduled_date: q.scheduled_date, scheduled_time: q.scheduled_time, ended: quizEnded },
               });
             }
           }
@@ -463,21 +480,16 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       setEvents((prev) =>
         prev.map((event) => {
           if (event.type === 'quiz' && !event.completed) {
-            const meta = event.meta as { duration?: number; scheduled_date?: string; scheduled_time?: string } | null;
-            if (meta?.scheduled_date && meta?.scheduled_time && meta?.duration) {
-              const [h, m] = meta.scheduled_time.split(':').map(Number);
-              const endDt = new Date(meta.scheduled_date);
-              endDt.setHours(h, m, 0, 0);
-              if (Date.now() > endDt.getTime() + meta.duration * 60 * 1000 + 1000) {
-                return { ...event, completed: true };
-              }
-            } else if (meta?.scheduled_date && meta?.scheduled_time) {
-              const [h, m] = meta.scheduled_time.split(':').map(Number);
-              const endDt = new Date(meta.scheduled_date);
-              endDt.setHours(h, m, 0, 0);
-              if (Date.now() > endDt.getTime() + 1000) {
-                return { ...event, completed: true };
-              }
+            const meta = event.meta as { duration?: number; scheduled_date?: string; scheduled_time?: string; ended?: boolean } | null;
+            if (meta && !meta.ended && isQuizEventEnded(meta.scheduled_date, meta.scheduled_time, meta.duration)) {
+              // v127: the window just ended. Students keep their REAL
+              // completion state (taken or not — a missed quiz must not
+              // flip to مكتملة); other roles mark it done (the quiz ran).
+              return {
+                ...event,
+                completed: profile.role === 'student' ? event.completed : true,
+                meta: { ...meta, ended: true },
+              };
             }
           }
           return event;
@@ -486,7 +498,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
     }, 30_000); // every 30 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [profile.role]);
 
   // -------------------------------------------------------
   // Tick for running quiz badge re-evaluation
@@ -783,7 +795,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {/* Mobile: dots only */}
                       <div className="flex sm:hidden items-center gap-0.5 mt-0.5">
                         {dayEvents.slice(0, 3).map((ev) => {
-                          const isOverdue = isPast && !isToday && !ev.completed && ev.type !== 'quiz';
+                          // v127: a quiz is overdue when its window ended and it wasn't done
+                          const quizMissed = ev.type === 'quiz' && !ev.completed && (ev.meta as { ended?: boolean } | null)?.ended === true;
+                          const isOverdue = ev.type === 'quiz' ? quizMissed : isPast && !isToday && !ev.completed;
                           const isDone = ev.completed;
                           return (
                             <span key={ev.id} className={`h-1.5 w-1.5 rounded-full ${isOverdue ? 'bg-rose-500' : isDone ? 'bg-emerald-500' : eventTypeConfig[ev.type].dotClass}`} />
@@ -795,7 +809,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       <div className="hidden sm:flex flex-col gap-0.5 mt-0.5 w-full px-0.5 overflow-hidden">
                         {dayEvents.slice(0, 2).map((ev) => {
                           const cfg = eventTypeConfig[ev.type];
-                          const isOverdue = isPast && !isToday && !ev.completed && ev.type !== 'quiz';
+                          // v127: a quiz is overdue when its window ended and it wasn't done
+                          const quizMissed = ev.type === 'quiz' && !ev.completed && (ev.meta as { ended?: boolean } | null)?.ended === true;
+                          const isOverdue = ev.type === 'quiz' ? quizMissed : isPast && !isToday && !ev.completed;
                           const isDone = ev.completed;
                           return (
                             <div key={ev.id} className={`flex items-center gap-1 rounded px-1 py-px ${
@@ -865,10 +881,13 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                   const todoId = isTodo ? event.id.replace('todo-', '') : null;
                   const todoMeta = isTodo ? event.meta as { priority?: TodoPriority } : null;
                   const priorityLabel = todoMeta?.priority ? priorityConfig[todoMeta.priority].label : null;
+                  // v127: a quiz is overdue when its window ended and it wasn't done
+                  const quizMissed = event.type === 'quiz' && !event.completed && (event.meta as { ended?: boolean } | null)?.ended === true;
+                  const isOverdue = event.type === 'quiz' ? quizMissed : isPast && !isToday && !event.completed;
 
                   return (
                     <div key={event.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
-                      isPast && !isToday && !event.completed && event.type !== 'quiz' ? 'bg-rose-100 dark:bg-rose-800/30' : isPast && !isToday && !event.completed && event.type === 'quiz' ? config.bgClass : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30' : config.bgClass
+                      isOverdue ? 'bg-rose-100 dark:bg-rose-800/30' : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30' : config.bgClass
                     } ${event.completed ? 'opacity-60' : ''}`}>
                       {isTodo && todoId ? (
                         <button
@@ -878,7 +897,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                         >
                           {event.completed ? (
                             <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
-                          ) : isPast && !isToday && event.type !== 'quiz' ? (
+                          ) : isOverdue ? (
                             <AlertCircle className={`h-3.5 w-3.5 text-rose-500`} />
                           ) : (
                             <Circle className={`h-3.5 w-3.5 ${config.textClass}`} />
@@ -887,27 +906,24 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       ) : (
                         event.completed ? (
                           <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
-                        ) : isPast && !isToday && event.type !== 'quiz' ? (
+                        ) : isOverdue ? (
                           <AlertCircle className={`h-3.5 w-3.5 text-rose-500`} />
                         ) : (
                           <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
                         )
                       )}
                       <span className={`text-xs font-medium truncate flex-1 ${
-                        isPast && !isToday && !event.completed && event.type !== 'quiz' ? 'text-rose-700 dark:text-rose-400' : event.completed ? 'text-emerald-700 dark:text-emerald-400 line-through' : config.textClass
+                        isOverdue ? 'text-rose-700 dark:text-rose-400' : event.completed ? 'text-emerald-700 dark:text-emerald-400 line-through' : config.textClass
                       } ${event.completed && isTodo ? 'line-through' : ''}`}>
                         {priorityLabel && <span className="me-0.5">{priorityLabel}</span>}
                         {event.title}
                       </span>
                       {event.time && <span className="text-[10px] text-muted-foreground shrink-0">{formatEventTime(event.time, locale)}</span>}
                       {/* Status badge */}
-                      {isPast && !isToday && !event.completed && event.type !== 'quiz' && (
+                      {isOverdue && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.missed')}</span>
                       )}
-                      {isPast && !isToday && !event.completed && event.type === 'quiz' && (
-                        <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
-                      )}
-                      {!isPast && !event.completed && event.type === 'quiz' && (() => {
+                      {!isOverdue && !event.completed && event.type === 'quiz' && (() => {
                         const quizMeta = event.meta as { duration?: number; scheduled_date?: string; scheduled_time?: string } | null;
                         const running = isQuizEventRunning(quizMeta?.scheduled_date, quizMeta?.scheduled_time, quizMeta?.duration);
                         if (running) {
@@ -981,7 +997,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
               const categoryInfo = todoMeta?.category ? categoryConfig[todoMeta.category] : null;
               const todoId = todoMeta?.todoId || (isTodo ? event.id.replace('todo-', '') : null);
               const isToggling = todoId ? togglingTodoId === todoId : false;
-              const isOverdue = isPast && !event.completed && event.type !== 'quiz';
+              // v127: a quiz is overdue when its window ended and it wasn't done
+              const quizMissed = event.type === 'quiz' && !event.completed && (event.meta as { ended?: boolean } | null)?.ended === true;
+              const isOverdue = event.type === 'quiz' ? quizMissed : isPast && !event.completed;
 
               return (
                 <motion.div
@@ -1053,9 +1071,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {!isOverdue && !event.completed && !isPast && event.type !== 'quiz' && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-sky-500 text-white">{t('calendar.upcoming')}</span>
                       )}
-                      {!isOverdue && !event.completed && isPast && event.type === 'quiz' && (
-                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
-                      )}
+
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
