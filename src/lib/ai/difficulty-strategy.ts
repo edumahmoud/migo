@@ -168,3 +168,43 @@ export function applyDifficultyStrategy(
   }
   return kept;
 }
+
+/**
+ * v136-fix — Enforce the requested per-type question counts (deterministic,
+ * no AI). The model sometimes returns more questions of a type than
+ * requested; in mixed mode the old code applied NO type trimming at all, so
+ * the AI effectively picked the type mix itself. Now the per-type overflow
+ * is trimmed (order preserved) in every mode, so the delivered quiz can
+ * never exceed the type distribution the user picked. Under-production is
+ * kept as-is and logged; fabricating questions would be worse.
+ */
+export function enforceQuestionTypeCounts(
+  questions: QuizQuestion[],
+  requested: { mcq: number; boolean: number; completion: number; matching: number },
+): QuizQuestion[] {
+  const counters = { mcq: 0, boolean: 0, completion: 0, matching: 0 };
+  const kept: QuizQuestion[] = [];
+  let dropped = 0;
+  for (const q of questions) {
+    const t = q.type as keyof typeof counters;
+    const max = requested[t] ?? 0;
+    if (max > 0 && counters[t] < max) {
+      counters[t]++;
+      kept.push(q);
+    } else {
+      dropped++;
+    }
+  }
+  if (dropped > 0) {
+    console.warn(
+      `[Quiz] Type-count enforcement: dropped ${dropped} over-produced question(s) beyond the requested per-type counts ${JSON.stringify(requested)}`,
+    );
+  }
+  const shortfall = (Object.keys(requested) as Array<keyof typeof counters>)
+    .filter((t) => requested[t] > counters[t])
+    .map((t) => `${t}: ${counters[t]}/${requested[t]}`);
+  if (shortfall.length > 0) {
+    console.warn(`[Quiz] Type-count shortfall (AI under-produced): ${shortfall.join(', ')}`);
+  }
+  return kept;
+}

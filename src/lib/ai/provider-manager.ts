@@ -46,7 +46,7 @@ import {
   CONTINUE_SYSTEM_EN, CONTINUE_USER_EN,
 } from './prompts';
 import { extractJson, parseQuizResponse, parseEvaluationResponse } from './parser';
-import { VALID_DIFFICULTY_MODES, sanitizeMixCounts, applyDifficultyStrategy } from './difficulty-strategy';
+import { VALID_DIFFICULTY_MODES, sanitizeMixCounts, applyDifficultyStrategy, enforceQuestionTypeCounts } from './difficulty-strategy';
 import {
   analyzeScript,
   describeDetectedLanguage,
@@ -735,35 +735,22 @@ export async function generateQuiz(
   // Deduplicate questions and options
   const deduped = deduplicateQuestions(questions);
 
-  // ─── v136: difficulty strategy (before type trimming) ───
+  // ─── v136-fix: the requested per-TYPE counts are enforced in EVERY mode ───
+  // Previously mixed mode applied "no type trimming", so the AI picked the
+  // type mix itself. Now per-type overflow is trimmed (order preserved)
+  // before the difficulty strategy runs, so the AI can no longer freelance
+  // on the type distribution the user selected.
+  const typeEnforced = enforceQuestionTypeCounts(deduped, {
+    mcq: mcqCount,
+    boolean: booleanCount,
+    completion: completionCount,
+    matching: matchingCount,
+  });
+
+  // ─── v136: difficulty strategy (after type enforcement) ───
   // Single level → force the level on every question.
-  // Mixed → sanitize tags + trim to the exact per-level counts.
-  const difficultyApplied = applyDifficultyStrategy(deduped, difficulty, mixCounts);
-
-  let trimmed: QuizQuestion[];
-
-  if (isMixed) {
-    // Mixed mode: difficulty counts are the exact requirement — no type trimming
-    trimmed = difficultyApplied;
-  } else {
-    // Single-level mode: trim to the requested count per type (preserving order)
-    const requestedCounts: Record<string, number> = {};
-    if (mcqCount > 0) requestedCounts['mcq'] = mcqCount;
-    if (booleanCount > 0) requestedCounts['boolean'] = booleanCount;
-    if (completionCount > 0) requestedCounts['completion'] = completionCount;
-    if (matchingCount > 0) requestedCounts['matching'] = matchingCount;
-
-    const typeCounters: Record<string, number> = { mcq: 0, boolean: 0, completion: 0, matching: 0 };
-    trimmed = [];
-
-    for (const q of difficultyApplied) {
-      const maxAllowed = requestedCounts[q.type] ?? 0;
-      if (maxAllowed > 0 && typeCounters[q.type] < maxAllowed) {
-        trimmed.push(q);
-        typeCounters[q.type]++;
-      }
-    }
-  }
+  // Mixed → sanitize tags + rebalance to the per-level counts (never drops).
+  const trimmed = applyDifficultyStrategy(typeEnforced, difficulty, mixCounts);
 
   // ─── Layer 4: deterministic boolean-label normalization (always) ───
   // Even when question text is in the right language, boolean option labels

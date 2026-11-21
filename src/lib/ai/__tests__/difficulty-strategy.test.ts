@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   sanitizeMixCounts,
   applyDifficultyStrategy,
+  enforceQuestionTypeCounts,
   VALID_DIFFICULTY_LEVELS,
   VALID_DIFFICULTY_MODES,
 } from '../difficulty-strategy';
@@ -114,5 +115,51 @@ describe('mode constants', () => {
   test('levels and modes are stable', () => {
     expect(VALID_DIFFICULTY_LEVELS).toEqual(['easy', 'medium', 'hard', 'very_hard']);
     expect(VALID_DIFFICULTY_MODES).toContain('mixed');
+  });
+});
+
+const typedQ = (type: QuizQuestion['type'], tag = ''): QuizQuestion => ({
+  type,
+  question: `q-${type}-${tag}`,
+  ...(type === 'mcq' ? { options: ['أ', 'ب'], correctAnswer: 'أ' } : {}),
+});
+
+describe('enforceQuestionTypeCounts — the AI cannot pick types on its own', () => {
+  const req = { mcq: 3, boolean: 2, completion: 2, matching: 1 };
+
+  test('over-produced type is trimmed to the exact requested count (mixed-mode regression)', () => {
+    // AI returned 6 mcq although 3 were requested: the old mixed mode kept all 6.
+    const qs = [typedQ('mcq','1'), typedQ('boolean','1'), typedQ('mcq','2'), typedQ('mcq','3'),
+                typedQ('mcq','4'), typedQ('mcq','5'), typedQ('mcq','6'), typedQ('completion','1')];
+    const out = enforceQuestionTypeCounts(qs, req);
+    expect(out.filter((x) => x.type === 'mcq').length).toBe(3);
+    expect(out.filter((x) => x.type === 'boolean').length).toBe(1);
+  });
+
+  test('no type can ever exceed its requested count, order preserved', () => {
+    const qs = [typedQ('mcq','1'), typedQ('mcq','2'), typedQ('mcq','3'), typedQ('mcq','4'),
+                typedQ('boolean','1'), typedQ('boolean','2'), typedQ('boolean','3'),
+                typedQ('completion','1'), typedQ('completion','2'), typedQ('completion','3'),
+                typedQ('matching','1'), typedQ('matching','2')];
+    const out = enforceQuestionTypeCounts(qs, req);
+    expect(out.length).toBe(8);
+    expect(out.filter((x) => x.type === 'mcq').length).toBe(3);
+    expect(out.filter((x) => x.type === 'boolean').length).toBe(2);
+    expect(out.filter((x) => x.type === 'completion').length).toBe(2);
+    expect(out.filter((x) => x.type === 'matching').length).toBe(1);
+    expect(out[0].question).toBe('q-mcq-1');
+  });
+
+  test('under-production is kept as-is (nothing fabricated)', () => {
+    const qs = [typedQ('mcq','1'), typedQ('boolean','1')];
+    const out = enforceQuestionTypeCounts(qs, req);
+    expect(out.length).toBe(2);
+  });
+
+  test('a type requested as 0 is fully excluded', () => {
+    const qs = [typedQ('mcq','1'), typedQ('matching','1'), typedQ('matching','2')];
+    const out = enforceQuestionTypeCounts(qs, { mcq: 1, boolean: 0, completion: 0, matching: 0 });
+    expect(out.length).toBe(1);
+    expect(out[0].type).toBe('mcq');
   });
 });
