@@ -2107,8 +2107,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   disabled={generatingQuiz}
                 />
 
-                {/* Question types (hidden in mixed mode — types auto-distribute) */}
-                {quizDifficulty !== 'mixed' && (
+                {/* v136-fix: question types & counts stay visible in EVERY difficulty mode, including mixed (they define the quiz total) */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t('quiz.questionCount')}</label>
                   {([
@@ -2140,7 +2139,6 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     </div>
                   ))}
                 </div>
-                )}
 
                 {/* v135e: Quiz settings — single toggle menu (show results / retake / shuffle) */}
                 <div className="space-y-2">

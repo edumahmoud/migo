@@ -375,6 +375,21 @@ export async function PUT(request: NextRequest) {
 
     // v136: regenerate with the SAME difficulty strategy the quiz was created with.
     // For 'mixed', the per-level counts are derived from the original questions' tags.
+    // v136-fix: derive the per-TYPE counts from the original questions too, so
+    // regeneration preserves the original type distribution instead of falling
+    // back to the 2/2/2/2 defaults (which silently changed the quiz's shape).
+    let regenQuestionTypes: { mcq?: number; boolean?: number; completion?: number; matching?: number } | undefined;
+    {
+      const origQuestions = Array.isArray(preservedSettings.questions) ? preservedSettings.questions : [];
+      const typeCounts = { mcq: 0, boolean: 0, completion: 0, matching: 0 };
+      for (const q of origQuestions) {
+        const t = (q as { type?: string }).type;
+        if (t === 'mcq' || t === 'boolean' || t === 'completion' || t === 'matching') typeCounts[t]++;
+      }
+      if (typeCounts.mcq + typeCounts.boolean + typeCounts.completion + typeCounts.matching > 0) {
+        regenQuestionTypes = typeCounts;
+      }
+    }
     const regenOptions: QuizGenerationOptions | undefined = (() => {
       const mode = parseDifficultyMode(preservedSettings.difficulty_mode);
       const scope = parseContentScope(preservedSettings.content_scope);
@@ -400,7 +415,7 @@ export async function PUT(request: NextRequest) {
 
     // The AI layer manages a global timeout budget (45s) across the entire fallback chain.
     // No duplicate route-level timeout — the provider-manager handles it internally.
-    const questions = await generateQuiz(originalContent, undefined, regenStudentName, regenOptions);
+    const questions = await generateQuiz(originalContent, regenQuestionTypes, regenStudentName, regenOptions);
 
     // Save the new quiz (preserving settings from the original)
     const newQuizData: Record<string, unknown> = {

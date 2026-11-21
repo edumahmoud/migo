@@ -23,7 +23,6 @@ import type {
   QuizQuestion,
   QuizGenerationOptions,
   QuizDifficultyMode,
-  QuizMixCounts,
   QuizContentScope,
 } from './types';
 import { AiProviderError, isAiError } from './types';
@@ -47,6 +46,7 @@ import {
   CONTINUE_SYSTEM_EN, CONTINUE_USER_EN,
 } from './prompts';
 import { extractJson, parseQuizResponse, parseEvaluationResponse } from './parser';
+import { VALID_DIFFICULTY_MODES, sanitizeMixCounts, applyDifficultyStrategy } from './difficulty-strategy';
 import {
   analyzeScript,
   describeDetectedLanguage,
@@ -580,69 +580,6 @@ export async function translateContent(
  * The whole chain is self-correcting even when a wrong-language result comes
  * from the response cache, because validation happens after every return path.
  */
-// -------------------------------------------------------
-// v136 — Difficulty strategy helpers
-// -------------------------------------------------------
-
-const VALID_DIFFICULTY_LEVELS: readonly string[] = ['easy', 'medium', 'hard', 'very_hard'];
-const VALID_DIFFICULTY_MODES: readonly string[] = ['easy', 'medium', 'hard', 'very_hard', 'mixed'];
-
-/** Clamp + normalize a mix-counts request; falls back to a proportional split of fallbackTotal. */
-function sanitizeMixCounts(raw: QuizMixCounts | undefined, fallbackTotal: number): Required<QuizMixCounts> {
-  const clamp = (n: unknown): number =>
-    typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.min(30, Math.floor(n))) : 0;
-  const counts: Required<QuizMixCounts> = {
-    easy: clamp(raw?.easy),
-    medium: clamp(raw?.medium),
-    hard: clamp(raw?.hard),
-    very_hard: clamp(raw?.very_hard),
-  };
-  const total = counts.easy + counts.medium + counts.hard + counts.very_hard;
-  if (total > 0) return counts;
-  // Default proportional distribution: 25/35/25/15 (at least 1 per level)
-  const t = Math.max(4, fallbackTotal);
-  return {
-    easy: Math.max(1, Math.round(t * 0.25)),
-    medium: Math.max(1, Math.round(t * 0.35)),
-    hard: Math.max(1, Math.round(t * 0.25)),
-    very_hard: Math.max(1, Math.round(t * 0.15)),
-  };
-}
-
-/** Deterministically force/repair the difficulty tag on every question. */
-function applyDifficultyStrategy(
-  questions: QuizQuestion[],
-  difficulty: QuizDifficultyMode,
-  mixCounts: Required<QuizMixCounts>,
-): QuizQuestion[] {
-  if (difficulty !== 'mixed') {
-    // Single level: the level is a hard requirement — override whatever the AI returned
-    for (const q of questions) q.difficulty = difficulty as QuizQuestion['difficulty'];
-    return questions;
-  }
-
-  // Mixed: sanitize invalid tags to 'medium', then trim to the exact per-level counts
-  const levelOf = (q: QuizQuestion) =>
-    q.difficulty && VALID_DIFFICULTY_LEVELS.includes(q.difficulty) ? q.difficulty : 'medium';
-
-  const taken: Record<string, number> = { easy: 0, medium: 0, hard: 0, very_hard: 0 };
-  const kept: QuizQuestion[] = [];
-  for (const q of questions) {
-    const level = levelOf(q);
-    q.difficulty = level;
-    if (taken[level] < mixCounts[level]) {
-      taken[level]++;
-      kept.push(q);
-    }
-  }
-  const shortfall =
-    mixCounts.easy + mixCounts.medium + mixCounts.hard + mixCounts.very_hard - kept.length;
-  if (shortfall > 0) {
-    console.warn(`[Quiz] Mixed-mode shortfall: requested ${JSON.stringify(mixCounts)}, kept ${kept.length} (${shortfall} missing)`);
-  }
-  return kept;
-}
-
 export async function generateQuiz(
   content: string,
   questionTypes?: { mcq?: number; boolean?: number; completion?: number; matching?: number },
@@ -666,12 +603,15 @@ export async function generateQuiz(
   const contentScope: QuizContentScope = options?.contentScope === 'beyond_file' ? 'beyond_file' : 'file_only';
 
   const isMixed = difficulty === 'mixed';
+  // v136-fix: the requested question count (questionTypes sum) always wins.
+  // sanitizeMixCounts scales any supplied mix to sum exactly to it, so the
+  // prompt never carries two contradictory totals again.
   const mixCounts = isMixed
     ? sanitizeMixCounts(options?.mixCounts, typeTotalCount)
     : { easy: 0, medium: 0, hard: 0, very_hard: 0 };
-  const totalCount = isMixed
-    ? mixCounts.easy + mixCounts.medium + mixCounts.hard + mixCounts.very_hard
-    : typeTotalCount;
+  const totalCount = typeTotalCount > 0
+    ? typeTotalCount
+    : mixCounts.easy + mixCounts.medium + mixCounts.hard + mixCounts.very_hard;
 
   const dedupBlock = buildDedupAvoidanceBlock(options?.existingQuestions || []);
   const difficultyBlockAr = buildDifficultyBlockAr(difficulty, mixCounts, contentScope) + dedupBlock;
@@ -700,14 +640,12 @@ export async function generateQuiz(
   if (booleanCount > 0) typeConfig.push(`${booleanCount} صح أو خطأ (boolean)`);
   if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
   if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
-  if (isMixed) typeConfig.push('تنويع ذكي في أنواع الأسئلة (mcq و boolean و completion و matching) بما يناسب كل مستوى صعوبة');
 
   const typeConfigEn: string[] = [];
   if (mcqCount > 0) typeConfigEn.push(`${mcqCount} multiple-choice (mcq)`);
   if (booleanCount > 0) typeConfigEn.push(`${booleanCount} true/false (boolean)`);
   if (completionCount > 0) typeConfigEn.push(`${completionCount} fill-in-the-blank (completion)`);
   if (matchingCount > 0) typeConfigEn.push(`${matchingCount} matching (matching)`);
-  if (isMixed) typeConfigEn.push('a smart variety of question types (mcq, boolean, completion, matching) fitting each difficulty level');
 
   const name = extractFirstName(studentName);
 

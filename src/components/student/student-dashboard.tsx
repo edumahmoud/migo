@@ -3496,8 +3496,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   disabled={creatingQuizFromSummary}
                 />
 
-                {/* Question types (hidden in mixed mode — types auto-distribute) */}
-                {quizDifficulty !== 'mixed' && (
+                {/* v136-fix: question types & counts stay visible in EVERY difficulty mode, including mixed (they define the quiz total) */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">{t('summary.questionTypesAndCount')}</label>
                   {([
@@ -3529,7 +3528,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </div>
                   ))}
                 </div>
-                )}
 
                 {/* v135e: Quiz settings — single toggle menu (show results / retake / shuffle) */}
                 <div className="space-y-2">
