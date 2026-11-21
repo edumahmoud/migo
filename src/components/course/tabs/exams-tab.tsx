@@ -1916,8 +1916,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                     disabled={generatingFromAi}
                   />
 
-                  {/* Question types config (hidden in mixed mode — types auto-distribute) */}
-                  {aiQuizDifficulty !== 'mixed' && (
+                  {/* v136-fix: question types & counts stay visible in EVERY difficulty mode, including mixed (they define the quiz total) */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">{t('exams.questionTypesAndCount')}</label>
                     {([
@@ -1951,7 +1950,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                       </div>
                     ))}
                   </div>
-                  )}
 
                   {/* Course files selection */}
                   <div>

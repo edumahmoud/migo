@@ -2033,8 +2033,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 disabled={!!aiBackgroundTask}
               />
 
-              {/* Question types config (hidden in mixed mode — types auto-distribute) */}
-              {aiDifficulty !== 'mixed' && (
+              {/* v136-fix: question types & counts stay visible in EVERY difficulty mode, including mixed (they define the quiz total) */}
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">{t('questionBank.questionCountByType')}</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -2058,7 +2057,6 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   ))}
                 </div>
               </div>
-              )}
 
               {/* v136: duplicate-protection notice */}
               <p className="text-xs text-muted-foreground">{t('questionBank.duplicateProtectionOn')}</p>
