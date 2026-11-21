@@ -6,6 +6,8 @@ import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 // v112: per-teacher commission resolver + v88 fees-on-top split helper
 // v117: shared ledger fallback helper (replaces inline ledger insert)
 import { createFinancialLedgerFallback } from '@/lib/payment/ledger-fallback';
+// v112: per-teacher commission resolver + v88 fees-on-top split helper
+import { getEffectiveCommissionRate, calculateSharesFromOrderFees, OrderFeesSnapshotError } from '@/lib/payment/commission';
 
 /**
  * POST /api/teacher/subscriptions/activate
@@ -211,6 +213,38 @@ export async function POST(request: NextRequest) {
 
     // v117: create financial_ledger row using the shared helper.
     if (fallbackPaymentId) {
+      // v112: validate the order_fees snapshot up front (fail-safe).
+      // The shared helper recomputes internally and also guards this,
+      // but an explicit check here keeps this path aligned with the
+      // other 3 fallback paths (force-activate, backfill,
+      // verify-after-redirect) and logs the problem at the source.
+      try {
+        const { data: subjectRow } = await supabaseServer
+          .from('subjects')
+          .select('teacher_id')
+          .eq('id', o.subject_id)
+          .maybeSingle();
+        const orderTeacherId = (subjectRow as { teacher_id: string } | null)?.teacher_id
+          ?? '00000000-0000-0000-0000-000000000000';
+        const { rate: effectiveCommissionRate } = await getEffectiveCommissionRate(orderTeacherId);
+        await calculateSharesFromOrderFees(
+          orderId,
+          Number(o.grand_total ?? o.amount),
+          o.base_amount ?? null,
+          effectiveCommissionRate,
+        );
+      } catch (err) {
+        if (err instanceof OrderFeesSnapshotError) {
+          // Fail safely — the ledger insert below is skipped by the
+          // helper too; the student is already activated above.
+          console.error('[teacher:activate] order_fees snapshot invalid — financial_ledger row will be skipped', {
+            orderId,
+            reason: err.reason,
+          });
+        } else {
+          throw err;
+        }
+      }
       const ledgerResult = await createFinancialLedgerFallback({
         orderId,
         paymentId: fallbackPaymentId,

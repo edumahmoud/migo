@@ -75,11 +75,11 @@ const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
     pillClass: 'bg-sky-500',
   },
   quiz: {
-    dotClass: 'bg-rose-500',
-    bgClass: 'bg-rose-100 dark:bg-rose-800/30',
-    textClass: 'text-rose-700 dark:text-rose-500',
-    borderClass: 'border-rose-200 dark:border-rose-900/60',
-    pillClass: 'bg-rose-500',
+    dotClass: 'bg-indigo-500',
+    bgClass: 'bg-indigo-100 dark:bg-indigo-800/30',
+    textClass: 'text-indigo-700 dark:text-indigo-500',
+    borderClass: 'border-indigo-200 dark:border-indigo-900/60',
+    pillClass: 'bg-indigo-500',
   },
   assignment: {
     dotClass: 'bg-amber-500',
@@ -400,7 +400,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                 description: null, date: toDateString(parseLocalDate(q.scheduled_date)),
                 time: q.scheduled_time || null, subject_id: q.subject_id || null,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
-                color: 'rose', icon: 'Star',
+                color: 'indigo', icon: 'Star',
                 completed: q.is_finished || timeCompleted || studentCompletedQuizIds.has(q.id),
                 meta: { quiz_id: q.id, duration: q.duration, scheduled_date: q.scheduled_date, scheduled_time: q.scheduled_time },
               });
@@ -921,7 +921,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                             </span>
                           );
                         }
-                        return <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.upcoming')}</span>;
+                        return <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-amber-500 text-white">{t('calendar.upcoming')}</span>;
                       })()}
                       {!isPast && !event.completed && event.type !== 'quiz' && (
                         <span className={`shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 text-white ${event.type === 'assignment' ? 'bg-amber-500' : event.type === 'lecture' ? 'bg-sky-500' : event.type === 'poll' ? 'bg-violet-500' : event.type === 'attendance' ? 'bg-teal-500' : 'bg-sky-500'}`}>{t('calendar.upcoming')}</span>
@@ -1048,7 +1048,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                             </span>
                           );
                         }
-                        return <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.upcoming')}</span>;
+                        return <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-amber-500 text-white">{t('calendar.upcoming')}</span>;
                       })()}
                       {!isOverdue && !event.completed && !isPast && event.type !== 'quiz' && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-sky-500 text-white">{t('calendar.upcoming')}</span>
