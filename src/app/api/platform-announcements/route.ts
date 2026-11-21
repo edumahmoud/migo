@@ -48,7 +48,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { announcement_id, user_id } = body;
+    const { announcement_id } = body;
 
     if (!announcement_id) {
       return NextResponse.json(
@@ -57,12 +57,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SECURITY (audit #7): the client-supplied user_id was trusted
+    // verbatim, letting anyone forge view records as any user. Derive the
+    // viewer from the session instead; anonymous views record null.
+    let viewerId: string | null = null;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const { data: { user } } = await supabaseServer.auth.getUser(authHeader.substring(7));
+      viewerId = user?.id ?? null;
+    }
+
     // Insert view record
     const { error: viewError } = await supabaseServer
       .from('platform_announcement_views')
       .insert({
         announcement_id,
-        user_id: user_id || null,
+        user_id: viewerId,
         viewed_at: new Date().toISOString(),
       });
 

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/push/setup
@@ -50,7 +51,11 @@ CREATE TRIGGER trg_push_subscriptions_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_push_subscriptions_updated_at();
 `;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // SECURITY (audit #1): this endpoint leaks schema DDL — admin only.
+  const auth = await requireAdmin(request);
+  if (!auth.success) return authErrorResponse(auth);
+
   try {
     // Check if table exists by trying to select from it
     const { error } = await supabaseServer
@@ -80,7 +85,12 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // SECURITY (audit #1): this endpoint executes DDL via the service role.
+  // It was previously callable by ANYONE on the internet. Admin only.
+  const auth = await requireAdmin(request);
+  if (!auth.success) return authErrorResponse(auth);
+
   try {
     // First check if table already exists
     const { error: checkError } = await supabaseServer

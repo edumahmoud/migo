@@ -35,13 +35,29 @@ function escapeHtml(text: string): string {
 function inlineMarkdownToHtml(text: string): string {
   let out = escapeHtml(text);
 
+  // SECURITY (audit #9): href/src values are escaped for quotes but their
+  // PROTOCOL was unchecked, so javascript:/data: URLs executed on click.
+  // Allow only web-safe protocols and relative/anchor URLs.
+  const isSafeUrl = (url: string): boolean => {
+    const trimmed = url.trim().toLowerCase();
+    return (
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('mailto:') ||
+      trimmed.startsWith('/') ||
+      trimmed.startsWith('#')
+    );
+  };
+
   // Images: ![alt](src) — must run before links
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_m, alt: string, src: string) => {
+    if (!isSafeUrl(src)) return alt;
     return `<img src="${src}" alt="${alt}" />`;
   });
 
   // Links: [text](url)
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_m, label: string, href: string) => {
+    if (!isSafeUrl(href)) return label;
     return `<a href="${href}">${label}</a>`;
   });
 

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/setup/check-otp-migration
@@ -15,7 +16,12 @@ import { supabaseServer } from '@/lib/supabase-server';
  * No auth required (only reads catalog + sample rows) — but DOES require
  * the service role key.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // SECURITY (audit #5): unauthenticated schema-introspection oracle —
+  // it revealed which tables/columns exist. Admin only.
+  const auth = await requireAdmin(request);
+  if (!auth.success) return authErrorResponse(auth);
+
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json(
       { error: 'SUPABASE_SERVICE_ROLE_KEY not configured on the server.' },

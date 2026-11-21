@@ -340,13 +340,6 @@ export default function ServiceWorkerRegistration() {
       // Only subscribe if permission already granted (don't prompt on every visit)
       if (Notification.permission !== 'granted') return;
 
-      // Ensure push_subscriptions table exists before subscribing
-      try {
-        await fetch('/api/push/setup', { method: 'POST' });
-      } catch {
-        // Non-critical — table might already exist
-      }
-
       // Get current user from Supabase auth using the existing client
       try {
         const { supabase } = await import('@/lib/supabase');

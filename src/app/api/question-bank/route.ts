@@ -176,6 +176,31 @@ export async function GET(req: NextRequest) {
 
     // Filter by subject if provided
     if (subjectId) {
+      // SECURITY (audit #6): previously ANY authenticated user (e.g. a
+      // student) could list every teacher's question banks for a subject
+      // by passing its id. Require owner or co-teacher of the subject.
+      const { data: subject } = await supabase
+        .from('subjects')
+        .select('teacher_id')
+        .eq('id', subjectId)
+        .single();
+
+      if (!subject) {
+        return NextResponse.json({ success: false, error: 'المقرر غير موجود' }, { status: 404 });
+      }
+
+      if (subject.teacher_id !== user.id) {
+        const { data: coTeacher } = await supabase
+          .from('subject_teachers')
+          .select('id')
+          .eq('subject_id', subjectId)
+          .eq('teacher_id', user.id)
+          .maybeSingle();
+        if (!coTeacher) {
+          return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
+        }
+      }
+
       query = query.eq('subject_id', subjectId);
     } else {
       // Only show the teacher's own banks
