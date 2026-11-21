@@ -465,6 +465,53 @@ export async function createIntention(
   };
 }
 
+// ─── Intention API auth probe ───
+//
+// Lightweight credential check for the Intention API. Sends an
+// intentionally-incomplete body: Paymob authenticates the request
+// BEFORE validating the payload, so:
+//   - HTTP 401  → the Secret Key itself was rejected (invalid key)
+//   - anything else (400/422/2xx) → the key was accepted
+//
+// Why this exists: /api/auth/tokens (legacy Accept API) validates the
+// OLD "API Key" (ZXlK...), NOT the Secret Key that /v1/intention/
+// requires. A merchant can pass an auth/tokens test with the old key
+// while every real checkout fails with HTTP 401
+// ("Authentication credentials were not provided."). This probe tests
+// the exact endpoint checkout uses.
+//
+export interface IntentionAuthProbeResult {
+  ok: boolean;           // true when Paymob ACCEPTED the secret key (any non-401 response)
+  httpStatus?: number;
+  detail?: string;       // Paymob's error detail, when present
+}
+
+export async function probeIntentionAuth(secretKey: string): Promise<IntentionAuthProbeResult> {
+  const res = await paymobFetch(
+    `${ACCEPT_BASE}/v1/intention/`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Token ${secretKey}`,
+      },
+      body: JSON.stringify({}), // intentionally invalid — auth is checked first
+    },
+    'probe intention auth',
+  );
+  const text = await res.text();
+  let detail: string | undefined;
+  try {
+    detail = (JSON.parse(text) as { detail?: string }).detail;
+  } catch {
+    // non-JSON body — detail stays undefined
+  }
+  if (res.status === 401) {
+    return { ok: false, httpStatus: res.status, detail };
+  }
+  return { ok: true, httpStatus: res.status, detail };
+}
+
 // ─── Build Unified Checkout URL (Intention API flow) ───
 //
 // Returns: https://accept.paymob.com/unifiedcheckout/?publicKey={pk}&clientSecret={cs}

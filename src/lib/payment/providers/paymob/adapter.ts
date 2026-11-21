@@ -52,6 +52,7 @@ import {
   createIntention,
   buildUnifiedCheckoutUrl,
   getTransaction,
+  probeIntentionAuth,
 } from './client';
 import { verifyPaymobHmac } from './hmac';
 import { appendGatewayIdToUrl } from '../../utils';
@@ -547,8 +548,44 @@ export class PaymobAdapter implements PaymentGateway {
     try {
       const creds = castCredentials(credentials);
 
-      // Try to actually get an auth token from Paymob.
-      // This validates the API key against the live Paymob API.
+      // When publicKey is set, checkout uses the Intention API — so the
+      // connection test must validate THAT path, not the legacy one.
+      // The legacy /api/auth/tokens endpoint accepts the OLD "API Key"
+      // (ZXlK...), so it can report success while every real checkout
+      // fails with HTTP 401 ("Authentication credentials were not
+      // provided."). Probe the exact endpoint checkout uses.
+      if (creds.publicKey) {
+        let probe;
+        try {
+          probe = await probeIntentionAuth(creds.secretKey);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'unknown error';
+          return {
+            success: false,
+            provider: 'paymob',
+            message: `فشل الاتصال بـ Paymob: ${msg}`,
+            testedAt: new Date().toISOString(),
+          };
+        }
+        if (!probe.ok) {
+          return {
+            success: false,
+            provider: 'paymob',
+            message:
+              'مفتاح Paymob السري (Secret Key) غير صالح — بوابة الدفع رفضته (HTTP 401). انسخ "Secret Key" من Paymob Dashboard → Settings → Account Info → API Keys، وليس "API Key" القديم (ZXlK...).',
+            testedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          success: true,
+          provider: 'paymob',
+          message: 'تم الاتصال بـ Paymob بنجاح. الـ Secret Key صالح لمسار الدفع المستخدم (Intention API).',
+          testedAt: new Date().toISOString(),
+        };
+      }
+
+      // Legacy fallback (no publicKey): checkout uses the 3-step Accept
+      // API, so validate the key against /api/auth/tokens.
       let token: string;
       try {
         token = await getAuthToken(creds.secretKey);

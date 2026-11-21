@@ -6,6 +6,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import '@/lib/payment/providers/paymob';
 import '@/lib/payment/providers/fawry';
 import { PaymentService, isPaymentError } from '@/lib/payment';
+import { PaymentErrorCode } from '@/lib/payment/errors';
 import { logPaymentEvent } from '@/lib/payment/logger';
 
 /**
@@ -236,6 +237,37 @@ export async function POST(request: NextRequest) {
       message: err instanceof Error ? err.message : 'unknown error',
       durationMs: Date.now() - startTime,
     });
+
+    // v126: HMAC verification failures were previously swallowed with a
+    // silent 200 — Paymob never retries and nobody noticed, so paid
+    // orders could sit pending forever when the stored HMAC secret
+    // drifts from the Paymob dashboard. Alert the admins (best-effort,
+    // non-blocking) while STILL returning 200 to avoid retry storms.
+    if (isPaymentError(err) && err.code === PaymentErrorCode.WebhookVerificationFailed) {
+      try {
+        const { data: adminUsers } = await supabaseServer
+          .from('users')
+          .select('id')
+          .in('role', ['admin', 'superadmin'])
+          .eq('account_status', 'active')
+          .limit(10);
+        const { notifyUsers } = await import('@/lib/notifications-service');
+        const adminIds = (adminUsers ?? []).map((u: { id: string }) => u.id);
+        if (adminIds.length > 0) {
+          notifyUsers(
+            adminIds,
+            'system',
+            'تنبيه: فشل التحقق من توقيع webhook الدفع',
+            `رفضت المنصة رد Paymob لأن توقيع HMAC غير مطابق — راجع سر HMAC في إعدادات بوابة الدفع مقابل لوحة Paymob. الطلبات المدفوعة قد تبقى معلقة حتى يُصحح. مزوّد: ${provider || 'غير معروف'}`,
+            '/admin/payment-gateways',
+          ).catch((notifyErr) => {
+            console.warn('[webhook] notifyUsers failed (non-fatal):', notifyErr?.message || notifyErr);
+          });
+        }
+      } catch (notifyLookupErr) {
+        console.warn('[webhook] admin lookup failed (non-fatal):', notifyLookupErr);
+      }
+    }
 
     // Return 200 to prevent retries on verification failure
     return NextResponse.json({ ok: true, ignored: 'verification_failed' });

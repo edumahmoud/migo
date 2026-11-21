@@ -17,6 +17,9 @@ import type { PaymobTransactionResponse } from '@/lib/payment/providers/paymob/c
 // signature = Paymob actually processed the payment (the secret is only
 // known to Paymob + our backend).
 import { verifyRedirectHmacFromUrlParams } from '@/lib/payment/providers/paymob/hmac';
+// v126: Strategy 2 may only activate on POSITIVE proof of capture
+// (Paymob API success tx or valid signed redirect) — never on age alone.
+import { evaluateTimeBasedVerification } from '@/lib/payment/time-based-verification';
 
 /**
  * POST /api/student/orders/verify-after-redirect
@@ -652,30 +655,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ── v110: TIME-BASED FALLBACK (Strategy 2) ──
-  // If ALL strategies failed (Paymob API + HMAC), but the order has a
-  // provider_order_ref (payment WAS initiated on Paymob) AND was created
-  // > 2 minutes ago (cooling-off period), activate anyway.
+  // ── v110+v126: TIME-BASED FALLBACK (Strategy 2) ──
+  // Candidate set: the student's pending orders older than 30s that
+  // carry a real provider_order_ref (payment was INITIATED on Paymob).
   //
-  // Rationale (from commit 8262643):
-  //   Paymob's iframe ONLY redirects the student back with
-  //   ?payment_callback=success AFTER the payment is processed.
-  //   If we got here, the student paid. The API query might fail because:
-  //   - The Paymob endpoints might not work for this account
-  //   - The transaction might not be indexed yet (delay)
-  //   - The auth token might have issues
-  //   - The HMAC might not be included in the redirect URL
+  // v126 CHANGE: initiation is no longer enough. Before activating,
+  // each candidate must be POSITIVELY verified through
+  // evaluateTimeBasedVerification():
+  //   - Paymob API shows a captured (non-refunded) transaction, or
+  //   - the redirect URL params carry a valid Paymob HMAC + success=true.
+  // A declined/failed transaction REFUSES activation; an unreachable
+  // API or unindexed transaction leaves the order pending for the
+  // HMAC webhook and the cron reconciler
+  // (/api/cron/reconcile-pending-orders) to settle.
   //
-  // Security: This is MORE secure than the old synthetic approach
-  // (which trusted URL params immediately) because:
-  //   1. The order must have a REAL provider_order_ref (Paymob accepted the payment initiation)
-  //   2. The order must be OLDER than 2 minutes (cooling-off period — gives Paymob time to process)
-  //   3. The order must still be pending (not already activated by webhook/RPC)
-  //   4. The student must be authenticated (the endpoint requires requireEligibleStudent)
-  //
-  // This matches the same logic as the Vercel Cron reconciliation endpoint
-  // (/api/cron/reconcile-pending-orders) — just triggered by the student's
-  // own request instead of a cron schedule.
+  // The student must be authenticated (requireEligibleStudent) and the
+  // order must still be pending (idempotency is handled by the RPC).
   console.info('[verify-after-redirect:debug] Strategy 2: time-based fallback — checking for pending orders > 30 seconds old');
 
   const twoMinutesAgo = new Date(Date.now() - 30 * 1000).toISOString();
@@ -736,10 +731,99 @@ export async function POST(request: NextRequest) {
         expandedCount: ordersToActivate.length,
       });
 
-      // Activate each order — try RPC FIRST (creates financial_ledger atomically),
+      // ── v126: POSITIVE-VERIFICATION GATE ──
+      // Previously every order above was force-activated on age alone
+      // (>30s + provider_order_ref) — a failed/declined/abandoned
+      // Paymob checkout could be activated for free. Now each
+      // ref-holding order must be POSITIVELY verified (Paymob API
+      // success transaction, or a valid HMAC-signed redirect with
+      // success=true). Verified sessions cover their pending siblings.
+      // Anything else stays pending: the HMAC webhook and the cron
+      // reconciler remain as activation channels.
+      const verifiedOrderIds = new Set<string>();
+      const verifiedSessionIds = new Set<string>();
+      for (const ord of oldOrders) {
+        let transactions: PaymobTransactionResponse[] = [];
+        let apiQuerySucceeded = false;
+        if (authToken && ord.provider_order_ref) {
+          try {
+            transactions = await getOrderTransactions(authToken, ord.provider_order_ref);
+            apiQuerySucceeded = true;
+          } catch (verifyErr) {
+            console.warn('[verify-after-redirect:debug] Strategy 2: getOrderTransactions failed', {
+              orderId: ord.id,
+              error: verifyErr instanceof Error ? verifyErr.message : String(verifyErr),
+            });
+          }
+        }
+
+        let redirectHmacValid = false;
+        let redirectSuccess = false;
+        if (body.urlParams) {
+          try {
+            const resolvedForHmac = await resolveDefaultGateway();
+            const hmacSecret = (resolvedForHmac.gateway.credentials as unknown as { hmacSecret?: string }).hmacSecret;
+            if (hmacSecret && verifyRedirectHmacFromUrlParams(body.urlParams, hmacSecret)) {
+              redirectHmacValid = true;
+              redirectSuccess = body.urlParams.success === 'true' || body.urlParams.success === '1';
+            }
+          } catch (hmacErr) {
+            console.warn('[verify-after-redirect:debug] Strategy 2: redirect HMAC validation failed (non-fatal)', hmacErr);
+          }
+        }
+
+        const verdict = evaluateTimeBasedVerification({
+          apiQuerySucceeded,
+          transactions,
+          redirectHmacValid,
+          redirectSuccess,
+        });
+
+        if (verdict === 'verified') {
+          verifiedOrderIds.add(ord.id);
+          if (ord.checkout_session_id) verifiedSessionIds.add(ord.checkout_session_id);
+        } else {
+          console.warn('[verify-after-redirect:debug] Strategy 2: order NOT activated — no proof of capture', {
+            orderId: ord.id,
+            verdict,
+            transactionCount: transactions.length,
+          });
+          logPaymentEvent({
+            level: 'warn',
+            operation: 'verifyPayment',
+            provider: 'paymob',
+            orderId: ord.id,
+            success: false,
+            errorCode: verdict === 'refused' ? 'CAPTURE_REFUSED' : 'CAPTURE_UNVERIFIED',
+            message: `Strategy 2 blocked activation — verdict=${verdict} (no positive proof of capture)`,
+          });
+        }
+      }
+
+      const verifiedOrdersToActivate = ordersToActivate.filter(
+        (ord) => verifiedOrderIds.has(ord.id)
+          || (ord.checkout_session_id !== null && verifiedSessionIds.has(ord.checkout_session_id)),
+      );
+
+      console.info('[verify-after-redirect:debug] Strategy 2: verification gate result', {
+        expandedCount: ordersToActivate.length,
+        verifiedCount: verifiedOrdersToActivate.length,
+        verifiedSessions: verifiedSessionIds.size,
+      });
+
+      if (verifiedOrdersToActivate.length === 0) {
+        return NextResponse.json({
+          success: false,
+          pending: true,
+          strategy: 'time_based_fallback',
+          message: 'لم نتمكن من تأكيد الدفع من بوابة الدفع بعد — لو اتخصم المبلغ هيُفعَّل اشتراكك تلقائياً فور وصول تأكيد Paymob، وإلا تواصل مع الدعم',
+        });
+      }
+
+      // Activate each VERIFIED order — try RPC FIRST (creates financial_ledger atomically),
       // then fall back to direct enrollment if RPC fails.
       const results: Array<{ order_id: string; success: boolean; error?: string }> = [];
-      for (const ord of ordersToActivate) {
+      for (const ord of verifiedOrdersToActivate) {
         try {
           const now = new Date().toISOString();
           const fallbackPaymentId = `timefallback_${ord.id}`;
@@ -961,7 +1045,7 @@ export async function POST(request: NextRequest) {
             provider: 'paymob',
             orderId: ord.id,
             success: true,
-            message: 'Activated via time-based fallback (Strategy 2) — order > 2min old + has provider_order_ref',
+            message: 'Activated via time-based fallback (Strategy 2) — capture positively verified via Paymob API or signed redirect',
           });
         } catch (err) {
           console.error('[verify-after-redirect:debug] Strategy 2: error processing order', ord.id, err);

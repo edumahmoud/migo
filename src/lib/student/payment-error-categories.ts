@@ -233,6 +233,12 @@ export function categorizePaymentError(
               paymobDetailHint = ' (السبب: معرّف التكامل غير صالح — تواصل مع المسؤول)';
             } else if (detailLower.includes('billing')) {
               paymobDetailHint = ' (السبب: بيانات الفوترة غير مكتملة)';
+            } else if (detailLower.includes('authentication credentials') || detailLower.includes('invalid token')) {
+              // Paymob returns "Authentication credentials were not provided."
+              // for BOTH a missing and an UNRECOGNIZED Token (verified live).
+              // Usual cause: the old "API Key" (ZXlK...) stored instead of
+              // the Secret Key the Intention API requires.
+              paymobDetailHint = ' (السبب: مفتاح Paymob السري غير صالح — تأكد من نسخ "Secret Key" من لوحة Paymob وليس "API Key" القديم)';
             } else if (detailLower.includes('special_reference') || detailLower.includes('reference')) {
               paymobDetailHint = ' (السبب: مرجع الطلب غير صالح)';
             } else {

@@ -74,6 +74,10 @@ function findForbiddenCommissionPercentage(): string[] {
       // in the repo for traceability. It WILL contain the forbidden
       // token. We assert its obsolescence separately.
       if (absPath.endsWith('v111_per_teacher_commission.sql')) return;
+      // Skip the v117 corrective migration — like v111, it is a one-time
+      // historical migration that references the column ONLY to copy its
+      // values to commission_rate and drop it. It is not active code.
+      if (absPath.endsWith('v117_comprehensive_fix.sql')) return;
       // Skip this test file itself — it references the token in its
       // own assertions (negated).
       if (absPath.endsWith('v111-per-teacher-commission.test.ts')) return;

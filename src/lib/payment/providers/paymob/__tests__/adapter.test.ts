@@ -597,6 +597,41 @@ describe('PaymobAdapter.testConnection', () => {
     expect(result.success).toBe(false);
     expect(result.message).toMatch(/integrationIds/i);
   });
+
+  // When publicKey is set, checkout uses the Intention API — the test
+  // must probe /v1/intention/ (the path checkout uses), NOT the legacy
+  // /api/auth/tokens endpoint, which accepts the OLD API Key and can
+  // pass while every real checkout fails with HTTP 401.
+  const CREDS_WITH_PUBLIC_KEY: GatewayCredentials = {
+    ...TEST_CREDENTIALS,
+    publicKey: 'pk_test_fake_public_key',
+  };
+
+  test('publicKey set + Intention probe 401 → failure naming the Secret Key', async () => {
+    // Paymob rejects the Token on /v1/intention/ (invalid Secret Key).
+    // Also mock auth/tokens as VALID to prove the legacy endpoint is not consulted.
+    mockFetch({
+      'v1/intention': { status: 401, body: { detail: 'Authentication credentials were not provided.' } },
+      'auth/tokens': { status: 200, body: { token: 'auth_token_test_123' } },
+    });
+
+    const result = await adapter.testConnection(CREDS_WITH_PUBLIC_KEY);
+    expect(result.success).toBe(false);
+    expect(result.provider).toBe('paymob');
+    expect(result.message).toContain('Secret Key');
+  });
+
+  test('publicKey set + Intention probe 400 (auth OK, body rejected) → success', async () => {
+    // Paymob authenticates first, then rejects the intentionally-empty
+    // probe body with 400 — a non-401 means the Secret Key was accepted.
+    mockFetch({
+      'v1/intention': { status: 400, body: { amount: ['This field is required.'] } },
+    });
+
+    const result = await adapter.testConnection(CREDS_WITH_PUBLIC_KEY);
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('paymob');
+  });
 });
 
 describe('PaymobAdapter.verifyPayment', () => {
