@@ -93,12 +93,16 @@ export async function POST(request: NextRequest) {
     studentId,
   });
 
-  // 1. Resolve the default gateway to get the secretKey
+  // 1. Resolve the default gateway to get the inquiry credential.
+  //    The Transaction Inquiry API (auth/tokens + transaction queries)
+  //    uses the LEGACY "API Key" (apiKey), NOT the Intention Secret Key —
+  //    Paymob documents them as different credentials. Fall back to
+  //    secretKey only when no apiKey is configured.
   let secretKey: string;
   try {
     const resolvedAdapter = await resolveDefaultGateway();
-    const creds = resolvedAdapter.gateway.credentials as unknown as { secretKey: string };
-    secretKey = creds.secretKey;
+    const creds = resolvedAdapter.gateway.credentials as unknown as { secretKey: string; apiKey?: string };
+    secretKey = creds.apiKey ?? creds.secretKey;
   } catch (err) {
     console.error('[verify-after-redirect:debug] failed to resolve default gateway', {
       error: err instanceof Error ? err.message : String(err),
@@ -110,9 +114,9 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Get auth token (OPTIONAL — if this fails, we fall back to
-  //    the synthetic transaction approach which doesn't need the
+  //    the HMAC-verified redirect approach which doesn't need the
   //    Paymob API. The synthetic approach activates based on:
-  //    - Student was redirected from Paymob with ?payment_callback=success
+  //    - Student was redirected from Paymob with a valid HMAC signature
   //    - Order has a numeric provider_order_ref (payment was initiated)
   let authToken: string | null = null;
   try {

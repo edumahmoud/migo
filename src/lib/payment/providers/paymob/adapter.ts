@@ -334,7 +334,7 @@ export class PaymobAdapter implements PaymentGateway {
     console.info('[paymob:debug] using Accept API (no publicKey set — falling back to legacy 3-step flow)');
 
     // ── Step 1: Get auth token ──
-    const authToken = await getAuthToken(creds.secretKey);
+    const authToken = await getAuthToken(creds.apiKey ?? creds.secretKey);
 
     // ── Step 2: Create order ──
     // CRITICAL: Paymob's Accept API expects `amount_cents` (not `amount`)
@@ -412,7 +412,7 @@ export class PaymobAdapter implements PaymentGateway {
     }
 
     // Get auth token + transaction status
-    const authToken = await getAuthToken(creds.secretKey);
+    const authToken = await getAuthToken(creds.apiKey ?? creds.secretKey);
     const tx = await getTransaction(authToken, input.paymentReference);
 
     const status: PaymentStatus = tx.is_refunded ? 'refunded' : tx.success ? 'paid' : tx.pending ? 'pending' : 'failed';
@@ -454,6 +454,14 @@ export class PaymobAdapter implements PaymentGateway {
       payload = JSON.parse(input.rawBody) as PaymobCallbackPayload;
     } catch {
       throw new WebhookVerificationFailedError('paymob', 'Invalid JSON in callback body');
+    }
+
+    // Paymob sends the transaction-callback HMAC as a URL query parameter
+    // (?hmac=...), not in the JSON body. The webhook route forwards it via
+    // metadata — merge it so verification can run (previously every real
+    // callback was rejected as "missing hmac").
+    if (!payload.hmac && typeof input.metadata?.hmac === 'string' && input.metadata.hmac) {
+      payload.hmac = input.metadata.hmac;
     }
 
     // Verify HMAC — CRITICAL security check (UNCHANGED)
@@ -588,7 +596,7 @@ export class PaymobAdapter implements PaymentGateway {
       // API, so validate the key against /api/auth/tokens.
       let token: string;
       try {
-        token = await getAuthToken(creds.secretKey);
+        token = await getAuthToken(creds.apiKey ?? creds.secretKey);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'unknown error';
         return {

@@ -131,27 +131,49 @@ export function verifyPaymobHmac(
 }
 
 /**
+ * Paymob's signed fields on the post-payment REDIRECT (GET) — the same
+ * 20 fields as the transaction callback, flattened as query params
+ * (e.g. `order` holds the order id directly, `source_data.pan` keeps
+ * its dotted name). Paymob signs ONLY these; the redirect URL also
+ * carries UNSIGNED params (merchant_order_id, message, data.message,
+ * txn_response_code, and any param baked into the merchant's
+ * redirection_url such as our `payment_callback`) which must be IGNORED.
+ */
+const PAYMOB_REDIRECT_HMAC_PARAMS = [
+  'amount_cents',
+  'created_at',
+  'currency',
+  'error_occured',
+  'has_parent_transaction',
+  'id',
+  'integration_id',
+  'is_3d_secure',
+  'is_auth',
+  'is_capture',
+  'is_refunded',
+  'is_standalone_payment',
+  'is_voided',
+  'order',
+  'owner',
+  'pending',
+  'source_data.pan',
+  'source_data.sub_type',
+  'source_data.type',
+  'success',
+] as const;
+
+/**
  * v110: Verify the HMAC signature on a Paymob redirect URL.
  *
- * IMPORTANT: Paymob uses a DIFFERENT algorithm for redirect URLs than for
- * webhook callbacks:
+ * v127 REWRITE: the v110 implementation hashed ALL query params (minus
+ * `hmac`) sorted alphabetically — including unsigned params Paymob appends
+ * (txn_response_code, message, merchant_order_id, ...) and our own
+ * `payment_callback` — so a genuine Paymob redirect could NEVER validate.
+ * Paymob signs only the fixed 20-field list above, in the documented
+ * order, values concatenated with no separator; absent keys are skipped.
  *
- *   - Webhook callback HMAC: computed over the 17 standard PAYMOB_HMAC_FIELDS
- *     from the `obj` payload (sorted + concatenated).
- *
- *   - Redirect URL HMAC: computed over ALL query params EXCEPT `hmac`,
- *     sorted alphabetically by KEY, then concatenating the VALUES.
- *     Reference: https://docs.paymob.com/docs/paymob-integration-api/transaction-callbacks
- *
- * The previous implementation incorrectly used PAYMOB_HMAC_FIELDS for the
- * redirect URL — this caused the HMAC to NEVER match (because the redirect
- * URL has different params than the webhook obj), which is why
- * "لم يتم العثور على معاملة ناجحة" appeared even after a successful payment.
- *
- * This is the SECURE replacement for the old bypassable URL-params check.
  * A malicious student cannot forge the HMAC without knowing the gateway's
- * secret — so we can trust that a valid HMAC = Paymob actually processed
- * the payment.
+ * secret — so a valid HMAC = Paymob actually processed the payment.
  *
  * @param urlParams   The redirect URL params (Record<string, string>)
  * @param hmacSecret  The gateway's HMAC secret (decrypted from DB)
@@ -174,16 +196,16 @@ export function verifyRedirectHmacFromUrlParams(
   }
 
   // ── Build the HMAC input string ──
-  // Algorithm (per Paymob docs for redirect URLs):
-  //   1. Collect ALL query param keys EXCEPT `hmac`
-  //   2. Sort the keys alphabetically
-  //   3. Concatenate the VALUES (in sorted key order) — NO separators
-  //   4. Compute HMAC-SHA512 using the gateway secret
-  const allKeys = Object.keys(urlParams).filter((k) => k !== 'hmac').sort();
+  // Paymob's documented algorithm: the fixed field list, in the fixed
+  // order, values concatenated with NO separator. Keys absent from the
+  // redirect are skipped (some methods omit e.g. source_data.*). Every
+  // other param — signed or not — is ignored.
   const parts: string[] = [];
-  for (const key of allKeys) {
+  for (const key of PAYMOB_REDIRECT_HMAC_PARAMS) {
     const value = urlParams[key];
-    parts.push(value !== undefined && value !== null ? String(value) : '');
+    if (value !== undefined && value !== null) {
+      parts.push(String(value));
+    }
   }
   const hmacInput = parts.join('');
 
@@ -200,7 +222,7 @@ export function verifyRedirectHmacFromUrlParams(
       console.warn('[paymob:hmac] verifyRedirectHmacFromUrlParams — HMAC length mismatch', {
         receivedLen: received.length,
         computedLen: computed.length,
-        keysUsed: allKeys,
+        keysUsed: PAYMOB_REDIRECT_HMAC_PARAMS.filter((k) => urlParams[k] !== undefined),
       });
       return false;
     }

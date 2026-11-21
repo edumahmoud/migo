@@ -437,7 +437,7 @@ export default function NotificationBell() {
                         <p className={`text-sm ${!notif.read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
                           {notif.title}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                        <p className="text-xs text-muted-foreground mt-0.5 break-words whitespace-pre-line">
                           {notif.message}
                         </p>
                         <p className="text-xs text-muted-foreground/60 mt-1">

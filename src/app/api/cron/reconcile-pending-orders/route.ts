@@ -127,11 +127,13 @@ export async function GET(request: NextRequest) {
 
     // ── Step 2: Resolve the default gateway to get the Paymob secretKey ──
     // (The Paymob credentials are stored in the payment_gateways DB table, not env vars.)
+    // The Transaction Inquiry API needs the LEGACY "API Key" (apiKey),
+    // not the Intention Secret Key — fall back to secretKey when unset.
     let secretKey: string;
     try {
       const resolvedAdapter = await resolveDefaultGateway();
-      const creds = resolvedAdapter.gateway.credentials as unknown as { secretKey: string };
-      secretKey = creds.secretKey;
+      const creds = resolvedAdapter.gateway.credentials as unknown as { secretKey: string; apiKey?: string };
+      secretKey = creds.apiKey ?? creds.secretKey;
     } catch (err) {
       console.error('[cron:reconcile-pending-orders] failed to resolve default gateway:', err);
       return NextResponse.json(

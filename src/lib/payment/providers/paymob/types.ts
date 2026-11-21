@@ -14,11 +14,28 @@
 // ─── Credentials (encrypted at rest in payment_gateways.credentials_encrypted) ───
 export interface PaymobCredentials {
   /**
-   * Paymob API Key — used for Accept API auth:
-   * POST /api/auth/tokens with {"api_key": "<secretKey>"}
-   * Found in: Paymob Dashboard → Settings → API Keys
+   * Paymob Secret Key — used for the Intention API (checkout creation):
+   * Authorization: Token <secretKey> on POST /v1/intention/.
+   * Found in: Paymob Dashboard → Settings → Account Info → API Keys → "Secret Key".
+   * NOTE: this is NOT the legacy "API Key" (ZXlK...) — see `apiKey` below.
    */
   secretKey: string;
+  /**
+   * Legacy Paymob "API Key" (ZXlK...) — REQUIRED for the Transaction
+   * Inquiry API (POST /api/auth/tokens → Bearer token → GET
+   * /api/acceptance/transactions/{id} etc.). Paymob documents this API
+   * as using the OLDER Auth-Token flow, "different from the
+   * Secret/Public keys used for Intentions".
+   *
+   * Without it, automatic post-payment verification (verify-after-redirect
+   * Strategies 0/1, cron reconciler, Accept-API fallback checkout) cannot
+   * query Paymob and activation depends on the webhook/redirect HMAC alone.
+   *
+   * Optional for backward compatibility; when absent, callers fall back
+   * to `secretKey` (which fails on the legacy endpoint if it is an sk_
+   * Secret Key — that failure is tolerated and logged).
+   */
+  apiKey?: string;
   /** Paymob HMAC Secret — used for webhook callback signature verification */
   hmacSecret: string;
   /**
@@ -111,9 +128,12 @@ export const PAYMOB_HMAC_FIELDS = [
   'has_parent_transaction',
   'id',
   'integration_id',
-  'is_3D_secure_authentication',
+  'is_3d_secure',
+  'is_auth',
+  'is_capture',
   'is_refunded',
   'is_standalone_payment',
+  'is_voided',
   'order',
   'owner',
   'pending',
