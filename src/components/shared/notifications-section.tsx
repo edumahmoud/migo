@@ -302,7 +302,7 @@ export default function NotificationsSection() {
                       <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-600 dark:bg-sky-400" />
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                  <p className="text-xs text-muted-foreground mt-1 break-words whitespace-pre-line">
                     {notif.message}
                   </p>
                   <p className="text-[11px] text-muted-foreground/60 mt-2">

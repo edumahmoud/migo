@@ -222,7 +222,7 @@ export function verifyRedirectHmacFromUrlParams(
       console.warn('[paymob:hmac] verifyRedirectHmacFromUrlParams — HMAC length mismatch', {
         receivedLen: received.length,
         computedLen: computed.length,
-        keysUsed: allKeys,
+        keysUsed: PAYMOB_REDIRECT_HMAC_PARAMS.filter((k) => urlParams[k] !== undefined),
       });
       return false;
     }
