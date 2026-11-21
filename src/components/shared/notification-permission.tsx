@@ -85,9 +85,6 @@ export default function NotificationPermission() {
 
       if (registration?.pushManager) {
         try {
-          // Ensure push_subscriptions table exists
-          await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
-
           // Subscribe to push
           const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,

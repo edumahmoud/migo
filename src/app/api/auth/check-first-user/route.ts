@@ -115,6 +115,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ─── SECURITY (audit #2): bootstrap gate ───
+    // Reaching here means NO superadmin exists and the caller is about to
+    // be promoted. Previously ANY authenticated user could claim it — if
+    // the superadmin account was ever deleted/demoted, the next caller
+    // owned the platform. Restrict promotion to the earliest-created
+    // account in the system (the platform owner who ran the original
+    // setup). Anyone else gets their current role, no promotion.
+    const { data: earliestUser } = await supabaseServer
+      .from('users')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (earliestUser && earliestUser.id !== userId) {
+      console.warn('[check-first-user] REFUSED superadmin promotion — caller is not the earliest account', {
+        caller: userId,
+        earliest: earliestUser.id,
+      });
+      return NextResponse.json({
+        success: true,
+        promoted: false,
+        role: currentProfile?.role || null,
+        user: currentProfile || null,
+      });
+    }
+
     // ─── This user should be superadmin ───
     // Either: no superadmin exists (this is the first user)
     // Or: app_metadata already says superadmin (previous partial promotion)

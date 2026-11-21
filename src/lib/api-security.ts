@@ -13,8 +13,8 @@ interface RateLimitEntry {
 
 const rateLimitMap = new Map<string, RateLimitEntry>();
 
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 20;
+export const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+export const RATE_LIMIT_MAX_REQUESTS = 20;
 
 /**
  * Check rate limit by a composite key (user ID if available, otherwise IP).
@@ -24,6 +24,14 @@ const RATE_LIMIT_MAX_REQUESTS = 20;
  * Falls back to IP-based limiting for unauthenticated requests.
  */
 export function checkRateLimit(request: NextRequest, userId?: string, maxRequests?: number): {
+  allowed: boolean;
+  remaining: number;
+  retryAfterMs: number;
+} {
+  return checkRateLimitInMemory(request, userId, maxRequests);
+}
+
+function checkRateLimitInMemory(request: NextRequest, userId?: string, maxRequests?: number): {
   allowed: boolean;
   remaining: number;
   retryAfterMs: number;

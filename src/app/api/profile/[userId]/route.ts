@@ -28,6 +28,13 @@ export async function GET(
     const { userId } = await params;
     const authUser = await getAuthUser(request);
 
+    // SECURITY (audit #8): profiles (name/role/avatar/files) were readable
+    // with NO authentication, enabling anonymous bulk scraping of every
+    // user's public data by enumerating IDs. Require a logged-in caller.
+    if (!authUser) {
+      return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 });
+    }
+
     // Fetch user profile - try with username first, fallback without
     // SECURITY: only expose student_code/teacher_code to the profile owner.
     // These codes are activation secrets — leaking them lets an attacker

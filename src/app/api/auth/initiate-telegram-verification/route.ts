@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { randomBytes, scryptSync } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { getRateLimitHeaders } from '@/lib/api-security';
+import { checkRateLimitDistributed } from '@/lib/rate-limit-server';
 import { normalizePhoneToE164 } from '@/lib/phone-utils';
 import { isBotConfigured, getBotUsername } from '@/lib/telegram-bot';
 
@@ -44,6 +46,20 @@ const BodySchema = z.object({
 export async function POST(request: NextRequest) {
   const auth = await authenticateRequest(request);
   if (!auth.success) return authErrorResponse(auth);
+
+  // SECURITY (audit #4): OTP issuance must be capped or the bot/channel
+  // can be abused to spam codes. Distributed per-user limit: 5/minute.
+  const rateLimit = await checkRateLimitDistributed(request, {
+    userId: auth.user.id,
+    maxRequests: 5,
+    scope: 'initiate-telegram-verification',
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'محاولات كثيرة جداً — حاول بعد قليل' },
+      { status: 429, headers: getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs) }
+    );
+  }
 
   if (!isBotConfigured()) {
     return NextResponse.json(

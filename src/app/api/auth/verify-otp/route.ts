@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { scryptSync, timingSafeEqual } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { getRateLimitHeaders } from '@/lib/api-security';
+import { checkRateLimitDistributed } from '@/lib/rate-limit-server';
 
 /**
  * POST /api/auth/verify-otp
@@ -32,6 +34,20 @@ const BodySchema = z.object({ code: z.string().trim().length(6) });
 export async function POST(request: NextRequest) {
   const auth = await authenticateRequest(request);
   if (!auth.success) return authErrorResponse(auth);
+
+  // SECURITY (audit #4): OTP guessing is only viable without attempt caps.
+  // Distributed per-user limit: 10 verify attempts/minute.
+  const rateLimit = await checkRateLimitDistributed(request, {
+    userId: auth.user.id,
+    maxRequests: 10,
+    scope: 'verify-otp',
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'محاولات كثيرة جداً — حاول بعد قليل' },
+      { status: 429, headers: getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs) }
+    );
+  }
 
   let body: unknown;
   try { body = await request.json(); } catch {

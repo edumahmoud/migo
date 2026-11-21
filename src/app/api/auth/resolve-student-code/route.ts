@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseServer } from '@/lib/supabase-server';
+import { getRateLimitHeaders } from '@/lib/api-security';
+import { checkRateLimitDistributed } from '@/lib/rate-limit-server';
 
 /**
  * POST /api/auth/resolve-student-code
@@ -35,6 +37,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { success: false, error: 'الكود غير صالح' },
       { status: 400 }
+    );
+  }
+
+  // SECURITY (audit #3): anonymous endpoint that maps student codes →
+  // emails. Without a cap, an attacker can enumerate codes and harvest
+  // the student email list. Strict distributed limit per IP: 10/minute.
+  const rateLimit = await checkRateLimitDistributed(request, {
+    maxRequests: 10,
+    scope: 'resolve-student-code',
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'محاولات كثيرة جداً — حاول بعد قليل' },
+      { status: 429, headers: getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs) }
     );
   }
 

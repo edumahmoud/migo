@@ -736,9 +736,6 @@ export default function SettingsSection({
         const registration = await waitForServiceWorker(4000);
         if (registration?.pushManager) {
           try {
-            // Ensure push_subscriptions table exists
-            await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
-
             const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
             const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4);
             const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/');
