@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Provider icon helper ───
 function getProviderIcon(provider: string, className?: string) {
@@ -170,7 +171,7 @@ export default function PaymentGatewaysSection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-sky-600" />
+        <MascotLoader kind="ai" size={72} />
       </div>
     );
   }

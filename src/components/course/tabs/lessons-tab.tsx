@@ -81,6 +81,7 @@ import RichTextEditor from '@/components/editor/rich-text-editor';
 import type { UserProfile, Subject, LessonUnit } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import { useIsMobile } from '@/hooks/use-mobile';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Lesson Type
@@ -1551,7 +1552,7 @@ export default function LessonsTab({ profile, role, subject }: LessonsTabProps) 
       {/* Lessons grid */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : visibleLessons.length === 0 && units.length === 0 ? (
         /* v99: improved empty state — when no units AND no lessons, ONLY offer to create a unit */
@@ -2281,7 +2282,7 @@ function UnitsInlineManager({ subject, onChanged }: { subject: Subject; onChange
     <div className="space-y-3">
       {loading ? (
         <div className="flex justify-center py-6">
-          <Loader2 className="h-6 w-6 animate-spin" />
+          <MascotLoader kind="book" size={72} />
         </div>
       ) : units.length === 0 ? (
         <div className="text-center py-6 border border-dashed rounded-lg">

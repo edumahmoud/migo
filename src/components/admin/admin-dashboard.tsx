@@ -97,6 +97,7 @@ import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import PlatformAnnouncementsSection from '@/components/admin/platform-announcements-section';
 import AdminPerformanceTrackingSection from '@/components/admin/admin-performance-tracking-section';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -1394,7 +1395,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const renderLoading = () => (
     <div className="flex items-center justify-center py-32">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="ai" size={96} />
         <span className="text-sm text-muted-foreground">{t('admin.loadingData')}</span>
       </div>
     </div>
@@ -2572,7 +2573,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="p-5 space-y-4">
                 {loadingSubjectDetail ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+                    <MascotLoader kind="ai" size={72} />
                   </div>
                 ) : (
                   <>
@@ -2737,7 +2738,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
       {flaggedLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="ai" size={96} />
         </div>
       ) : flaggedComments.length === 0 ? (
         <motion.div

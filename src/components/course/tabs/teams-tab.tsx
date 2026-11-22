@@ -55,6 +55,7 @@ import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar
 import type { UserProfile } from '@/lib/types';
 import * as XLSX from 'xlsx';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Types
@@ -581,7 +582,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="book" size={96} />
         <span className="ms-3 text-muted-foreground">{t('loadingGroups')}</span>
       </div>
     );

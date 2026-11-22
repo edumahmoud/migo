@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Lock, Loader2, CheckCircle2, Eye, EyeOff, ShieldCheck, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Supabase config ───
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -223,7 +224,7 @@ export default function ResetPasswordPage() {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center gap-4 py-16"
           >
-            <Loader2 className="h-10 w-10 animate-spin text-sky-600" />
+            <MascotLoader kind="book" size={104} />
             <p className="text-sm text-gray-500">{t('auth.verifyingLink')}</p>
           </motion.div>
         )}

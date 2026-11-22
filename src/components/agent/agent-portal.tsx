@@ -47,6 +47,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTranslations } from '@/i18n/use-translations';
 import AgentStudentSuspendDialog from '@/components/agent/agent-student-suspend-dialog';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Types ───
 interface StudentResult {
@@ -731,7 +732,7 @@ export default function AgentPortal({
           flashing briefly before the ban screen appears. */}
       {checkingSuspension && (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <MascotLoader kind="book" size={96} />
         </div>
       )}
 
@@ -1087,7 +1088,7 @@ export default function AgentPortal({
 
           {pendingLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+              <MascotLoader kind="book" size={72} />
             </div>
           ) : pendingOrders.length === 0 ? (
             <Card>
@@ -1238,7 +1239,7 @@ function TopLevelSection({
           </Card>
         ) : (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+            <MascotLoader kind="book" size={72} />
           </div>
         )}
       </>
@@ -2835,7 +2836,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+        <MascotLoader kind="book" size={72} />
       </div>
     );
   }

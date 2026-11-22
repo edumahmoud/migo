@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import MascotLoader from '@/components/shared/mascot-loader';
 import type { UserProfile, Quiz, QuizQuestion, UserAnswer, Score } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -1976,6 +1977,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           {loading ? (
             <Card className="border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
+                <MascotLoader kind="book" size={96} label={`${t('common.loading')}...`} />
                 <div className="space-y-3">
                   <div className="h-5 w-28 animate-pulse rounded bg-sky-100 dark:bg-sky-800/40" />
                   <div className="h-4 w-full animate-pulse rounded bg-sky-50 dark:bg-sky-900/15" />

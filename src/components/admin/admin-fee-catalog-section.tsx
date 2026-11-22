@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface FeeCatalogRow {
   id: string;
@@ -404,7 +405,7 @@ export default function AdminFeeCatalogSection() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <MascotLoader kind="ai" size={72} />
             </div>
           ) : fees.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">

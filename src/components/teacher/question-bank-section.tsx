@@ -39,6 +39,7 @@ import { stripFileExtension } from '@/lib/utils';
 import { useTranslations } from '@/i18n/use-translations';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ExportGoogleFormModal from '@/components/question-bank/export-google-form-modal';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -94,6 +95,7 @@ interface QuestionBankSectionProps {
 // -------------------------------------------------------
 // Animation variants
 // -------------------------------------------------------
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
@@ -1099,7 +1101,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="ai" />
       </div>
     );
   }

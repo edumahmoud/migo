@@ -52,6 +52,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ------------------------------------
 // Types (local)
@@ -525,7 +526,7 @@ export default function RegistrationAgentsSection() {
       {/* Agents grid */}
       {loading ? (
         <div className="flex items-center justify-center py-10">
-          <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+          <MascotLoader kind="ai" size={72} />
         </div>
       ) : agents.length === 0 ? (
         <Card>
@@ -1109,7 +1110,7 @@ export default function RegistrationAgentsSection() {
           </DialogHeader>
           {dashboardLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+              <MascotLoader kind="ai" size={72} />
             </div>
           ) : dashboard ? (
             <div className="space-y-5">

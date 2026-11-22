@@ -93,6 +93,7 @@ import { toast } from 'sonner';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -2519,7 +2520,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         <div className="mx-auto max-w-6xl p-3 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 min-w-0">
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">
-              <Loader2 className="h-10 w-10 animate-spin text-sky-700 dark:text-sky-400 mb-4" />
+              <MascotLoader kind="ai" size={104} />
               <p className="text-muted-foreground text-sm">{t('teacher.loadingData')}</p>
             </div>
           ) : (

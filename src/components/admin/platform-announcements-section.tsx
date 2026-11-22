@@ -40,6 +40,7 @@ import type {
   PlatformAnnouncementLocation,
   PlatformAnnouncementSize,
 } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -522,7 +523,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="ai" size={96} />
           <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
         </div>
       </div>

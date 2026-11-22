@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import type { UserProfile, Subject, Assignment, Submission, UserFile } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -906,7 +907,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : assignments.length === 0 ? (
         <motion.div
@@ -1142,7 +1143,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         </h4>
         {loadingSubmissions ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+            <MascotLoader kind="book" size={72} />
           </div>
         ) : submissions.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">{t('noSubmissionsYet')}</div>

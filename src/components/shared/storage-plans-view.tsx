@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface StoragePlan {
   id: string;
@@ -143,7 +144,7 @@ export default function StoragePlansView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+        <MascotLoader kind="ai" size={96} />
       </div>
     );
   }

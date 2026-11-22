@@ -31,6 +31,7 @@ import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 type RequestRow = {
   id: string; user_id: string; user_role: string; section_key: string;
@@ -211,7 +212,7 @@ export default function AdminPaidServicesSection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+        <MascotLoader kind="ai" size={96} />
       </div>
     );
   }

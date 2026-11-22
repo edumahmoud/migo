@@ -44,6 +44,7 @@ import {
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectVideo, VideoComment } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -969,7 +970,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       {/* Video cards */}
       {loading ? (
         <div className="flex items-center justify-center py-16 mt-6">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="video" size={96} />
         </div>
       ) : videos.length === 0 ? (
         <motion.div
@@ -1242,7 +1243,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             {/* Comments list */}
             {commentsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+                <MascotLoader kind="video" size={72} />
               </div>
             ) : comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">

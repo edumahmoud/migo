@@ -26,6 +26,7 @@ import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import DraggableStickyNote from './draggable-sticky-note';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -826,7 +827,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       {/* Notes content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : visibleNotes.length === 0 ? (
         <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-20">

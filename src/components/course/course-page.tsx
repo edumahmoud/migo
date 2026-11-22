@@ -44,6 +44,7 @@ import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectTeacher, CourseTab, Category } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import SubscriptionPlansSection from '@/components/teacher/subscription-plans-section';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Lazy-load tab components for performance
@@ -67,7 +68,7 @@ const QuestionBankTab = lazy(() => import('@/components/course/tabs/question-ban
 function TabLoader() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+      <MascotLoader kind="book" size={72} />
     </div>
   );
 }
@@ -719,7 +720,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="book" size={96} />
       </div>
     );
   }

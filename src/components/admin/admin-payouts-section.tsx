@@ -37,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300',
@@ -191,7 +192,7 @@ export default function AdminPayoutsSection() {
   if (loading && payouts.length === 0) {
     return (
       <div className="flex flex-col items-center py-20 gap-3" dir={direction}>
-        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+        <MascotLoader kind="ai" size={96} />
         <p className="text-sm text-muted-foreground">جارٍ تحميل المدفوعات...</p>
       </div>
     );

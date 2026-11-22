@@ -68,6 +68,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader, { type MascotKind } from '@/components/shared/mascot-loader';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -300,6 +301,7 @@ function StepProgress({
   color = 'sky',
   pleaseWaitText,
   title,
+  mascot = 'ai',
 }: {
   percent: number;
   phase: string;
@@ -307,6 +309,7 @@ function StepProgress({
   color?: 'sky' | 'teal' | 'rose' | 'violet';
   pleaseWaitText?: string;
   title?: string;
+  mascot?: MascotKind;
 }) {
   const { t } = useTranslations();
   // Determine active step based on percent and thresholds
@@ -372,6 +375,7 @@ function StepProgress({
 
   return (
     <div className="w-full max-w-xs mx-auto space-y-4 py-2">
+      {percent < 100 && <MascotLoader kind={mascot} size={104} />}
       {/* Operation title — distinguishes refine vs summarize vs translate */}
       {title && percent < 100 && (
         <div className="text-center">
@@ -1959,6 +1963,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   phase={summaryProgress.progress.phase}
                   steps={AI_PHASES_SUMMARY}
                   color="sky"
+                  mascot="book"
                   title={t('summary.opSummarize')}
                   pleaseWaitText={t('summary.pleaseWait')}
                 />

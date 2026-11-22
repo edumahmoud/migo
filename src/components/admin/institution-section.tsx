@@ -27,6 +27,7 @@ import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import { useInstitutionStore } from '@/stores/institution-store';
 import type { UserProfile } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Types ───
 
@@ -441,7 +442,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="ai" size={96} />
           <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
         </div>
       </div>

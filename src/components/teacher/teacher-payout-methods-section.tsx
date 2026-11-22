@@ -83,6 +83,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Types ───
 interface PayoutMethod {
@@ -482,7 +483,7 @@ export default function TeacherPayoutMethodsSection() {
   if (loading && methods.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3" dir={direction}>
-        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+        <MascotLoader kind="ai" size={96} />
         <p className="text-sm text-muted-foreground">{t('payoutMethods.loading')}</p>
       </div>
     );

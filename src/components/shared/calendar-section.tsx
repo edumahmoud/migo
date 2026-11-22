@@ -36,6 +36,7 @@ import type {
   TodoPriority,
   TodoCategory,
 } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Animation variants
@@ -1197,7 +1198,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       {/* ============================================ */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : (
         <motion.div variants={itemVariants} className="flex flex-col lg:flex-row gap-4">

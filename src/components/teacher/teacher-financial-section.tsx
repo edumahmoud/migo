@@ -65,6 +65,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { FinancialCharts, ChartViewToggle, ChartView } from '@/components/shared/financial-charts';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Types matching API response shape ───
 interface TransactionRow {
@@ -370,7 +371,7 @@ export default function TeacherFinancialSection() {
   if (loading && !data) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3" dir={direction}>
-        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+        <MascotLoader kind="ai" size={96} />
         <p className="text-sm text-muted-foreground">{t('financial.loading')}</p>
       </div>
     );
