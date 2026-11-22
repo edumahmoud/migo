@@ -1255,3 +1255,25 @@ body.quiz-capture-detected {
   min-height: unset;
   height: 100%;
 }
+
+/* Keep the existing login design, using tighter spacing only in short windows.
+   Do not lock viewport height or hide overflow: keyboard/zoom must remain usable. */
+@media (max-height: 740px) {
+  .auth-form-panel { padding-top: 12px; padding-bottom: 16px; }
+  .auth-mobile-intro { margin-bottom: 8px; }
+  .auth-mobile-intro [data-login-lottie] { width: 72px; height: 72px; }
+  .auth-login-card { padding-block: 12px; gap: 12px; }
+  .auth-login-card [data-slot="card-header"] { padding-top: 8px; padding-bottom: 4px; }
+  .auth-login-card [data-login-logo] { width: 40px; height: 40px; margin-bottom: 8px; }
+  .auth-login-card [data-slot="card-title"] { font-size: 20px; }
+  .auth-login-card [data-slot="card-content"] { padding-top: 8px; padding-bottom: 12px; }
+  .auth-login-card form { display: flex; flex-direction: column; gap: 12px; }
+  .auth-login-card form > * { margin-block: 0 !important; }
+  .auth-login-card [data-login-register] { margin-top: 12px; }
+}
+@media (max-height: 600px) and (max-width: 639px) {
+  .auth-login-card { padding-block: 8px; }
+  .auth-login-card [data-login-logo] { width: 32px; height: 32px; margin-bottom: 4px; }
+  .auth-login-card [data-slot="card-title"] { font-size: 18px; }
+  .auth-login-card [data-slot="card-content"] > .grid { font-size: 12px; line-height: 16px; }
+}

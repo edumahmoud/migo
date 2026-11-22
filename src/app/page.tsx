@@ -17,7 +17,9 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { useI18n } from '@/lib/i18n/context';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
+import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
+import FloatingLoginFeatures from '@/components/auth/floating-login-features';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
 import UpdatePasswordForm from '@/components/auth/update-password-form';
@@ -803,10 +805,9 @@ function HomeContent() {
           className="flex flex-col items-center gap-4"
         >
           <div className="relative">
-            <BrandLogo size="lg" />
-            <div className="absolute -bottom-1 -end-1 w-5 h-5 rounded-full bg-sky-600 animate-ping" />
+            <LearningLoader />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="status" aria-live="polite">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
@@ -836,9 +837,9 @@ function HomeContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <BrandLogo size="lg" />
+            <LearningLoader />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="status" aria-live="polite">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
@@ -902,9 +903,9 @@ function HomeContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <BrandLogo size="lg" />
+            <LearningLoader />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="status" aria-live="polite">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
@@ -918,9 +919,9 @@ function HomeContent() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <BrandLogo size="lg" />
+            <LearningLoader />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="status" aria-live="polite">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
@@ -1029,9 +1030,9 @@ onSignOut={async () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <BrandLogo size="lg" />
+            <LearningLoader />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="status" aria-live="polite">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
@@ -1277,42 +1278,31 @@ function AuthPageContent({
             </div>
 
             {/* Content */}
-            <div className="relative z-10 flex flex-col justify-center items-center px-12 xl:px-20 w-full">
+            <div className="relative z-10 flex flex-col justify-center items-center px-8 xl:px-12 py-8 w-full">
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, ease: 'easeOut' as const }}
-                className="text-center max-w-lg"
+                className="text-center w-full max-w-xl"
               >
-                <LoginLottie className="w-52 h-52 xl:w-64 xl:h-64 mx-auto mb-6 pointer-events-none select-none" />
-                <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
+                <div className="flex flex-col items-center gap-3 mb-7">
+                <LoginLottie className="w-48 h-48 xl:w-56 xl:h-56 shrink-0 select-none" />
+                <div className="min-w-0 w-full max-w-lg">
+                <h2 className="text-2xl xl:text-3xl font-bold text-white mb-4 leading-tight">
                   {t('common.smartPlatform')}
                 </h2>
-                <p className="text-lg text-sky-100/80 mb-10 leading-relaxed">
+                <p className="text-base text-sky-100/80 leading-relaxed">
                   {t('common.smartPlatformDesc')}
                 </p>
-
-                {/* Feature cards */}
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.ai'), desc: t('features.aiAnalysis') },
-                    { icon: <BookOpen className="h-5 w-5" />, title: t('features.smartSummary'), desc: t('features.fromAnySource') },
-                    { icon: <Users className="h-5 w-5" />, title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
-                    { icon: <Shield className="h-5 w-5" />, title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
-                  ].map((feature, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
-                      className="flex flex-col items-center gap-2 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 p-4 text-center"
-                    >
-                      <div className="text-teal-300">{feature.icon}</div>
-                      <span className="text-sm font-semibold text-white">{feature.title}</span>
-                      <span className="text-xs text-sky-200/70">{feature.desc}</span>
-                    </motion.div>
-                  ))}
                 </div>
+                </div>
+
+                <FloatingLoginFeatures items={[
+                  { title: t('features.ai'), desc: t('features.aiAnalysis') },
+                  { title: t('features.smartSummary'), desc: t('features.fromAnySource') },
+                  { title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
+                  { title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
+                ]} />
               </motion.div>
             </div>
           </>
@@ -1320,16 +1310,15 @@ function AuthPageContent({
       </div>
 
       {/* ── Auth Form Panel ── */}
-      <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      <div className="auth-form-panel flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
         {/* Mobile-only top branding/announcement */}
-        <div className="lg:hidden flex flex-col items-center mb-6">
+        <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mb-4">
           {hasFullscreenAnnouncement ? (
             /* On mobile, show the announcement in branding panel style (fullscreen mode) */
             <AnnouncementBrandingPanel />
           ) : (
             /* Default mobile feature badges */
-            <>
-              <LoginLottie className="w-24 h-24 mb-3 pointer-events-none select-none" />
+            <div className="flex items-center justify-center">
               <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BrainCircuit className="w-3 h-3" />
@@ -1348,7 +1337,7 @@ function AuthPageContent({
                 <span>{t('features.secureAndTrusted')}</span>
               </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -1417,9 +1406,9 @@ function LoadingFallback() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
       <div className="flex flex-col items-center gap-4">
         <div className="relative">
-          <BrandLogo size="lg" />
+          <LearningLoader />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" role="status" aria-live="polite">
           <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
           <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
         </div>

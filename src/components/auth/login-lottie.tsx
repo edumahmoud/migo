@@ -4,6 +4,11 @@ import { useEffect, useRef } from 'react';
 
 interface LottieAnimationHandle {
   destroy: () => void;
+  play: () => void;
+  pause: () => void;
+  goToAndStop: (frame: number, isFrame: boolean) => void;
+  addEventListener: (name: string, callback: () => void) => void;
+  loop: boolean;
 }
 
 declare global {
@@ -15,9 +20,7 @@ declare global {
   }
 }
 
-// Loads the vendored lottie-web player (/public/lottie.min.js) exactly once.
 function loadLottieScript(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
   if (window.lottie) return Promise.resolve();
   if (window.__attendoLottieLoading) return window.__attendoLottieLoading;
   window.__attendoLottieLoading = new Promise<void>((resolve, reject) => {
@@ -25,49 +28,87 @@ function loadLottieScript(): Promise<void> {
     script.src = '/lottie.min.js';
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load lottie player'));
+    script.onerror = () => {
+      window.__attendoLottieLoading = undefined;
+      script.remove();
+      reject(new Error('Failed to load lottie player'));
+    };
     document.head.appendChild(script);
   });
   return window.__attendoLottieLoading;
 }
 
-/**
- * Education-themed Lottie animation for the auth (login) page.
- * - Player is vendored at /lottie.min.js (lottie-web 5.13.0), so no new npm dependency.
- * - Animation JSON at /student-studying.json ("Girl studying on laptop", LottieFiles).
- * - Skips autoplay for users who prefer reduced motion.
+/** A compact education illustration with gentle pointer parallax.
+ * Touch users get the normal loop. Reduced-motion users get a still frame.
+ * No field contents or user data are read by this component.
  */
 export default function LoginLottie({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
+    const scene = sceneRef.current;
+    if (!container || !scene) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
     let animation: LottieAnimationHandle | undefined;
     let cancelled = false;
+    let frame = 0;
+    let latestX = 0;
+    let latestY = 0;
 
-    loadLottieScript()
-      .then(() => {
-        if (cancelled || !window.lottie) return;
-        animation = window.lottie.loadAnimation({
-          container,
-          renderer: 'svg',
-          loop: true,
-          autoplay: true,
-          path: '/student-studying.json',
-        });
-      })
-      .catch(() => {
-        // If the player or animation fails to load, the login page works without it.
+    const reset = () => { scene.style.transform = ''; };
+    const applyPreference = () => {
+      reset();
+      if (!animation) return;
+      animation.loop = !reduced.matches;
+      if (reduced.matches) animation.goToAndStop(0, true);
+      else animation.play();
+    };
+    const track = (event: PointerEvent) => {
+      if (reduced.matches || !finePointer.matches || event.pointerType !== 'mouse') return;
+      latestX = event.clientX;
+      latestY = event.clientY;
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const box = container.getBoundingClientRect();
+        if (!box.width || !box.height) return;
+        const x = Math.max(-1, Math.min(1, (latestX - box.left - box.width / 2) / 300));
+        const y = Math.max(-1, Math.min(1, (latestY - box.top - box.height / 2) / 250));
+        scene.style.transform = `perspective(600px) translate(${x * 5}px, ${y * 4}px) rotateX(${-y * 4}deg) rotateY(${x * 6}deg)`;
       });
+    };
 
+    loadLottieScript().then(() => {
+      if (cancelled || !window.lottie) return;
+      animation = window.lottie.loadAnimation({
+        container: scene,
+        renderer: 'svg',
+        loop: !reduced.matches,
+        autoplay: !reduced.matches,
+        path: '/student-studying.json',
+      });
+      animation.addEventListener('DOMLoaded', applyPreference);
+    }).catch(() => { /* Keep the form usable if the decorative asset fails. */ });
+
+    window.addEventListener('pointermove', track, { passive: true });
+    document.documentElement.addEventListener('pointerleave', reset);
+    reduced.addEventListener('change', applyPreference);
+    finePointer.addEventListener('change', reset);
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('pointermove', track);
+      document.documentElement.removeEventListener('pointerleave', reset);
+      reduced.removeEventListener('change', applyPreference);
+      finePointer.removeEventListener('change', reset);
       animation?.destroy();
     };
   }, []);
 
-  return <div ref={containerRef} className={className} aria-hidden="true" />;
+  return <div ref={containerRef} className={className} data-login-lottie aria-hidden="true">
+    <div ref={sceneRef} className="h-full w-full transition-transform duration-200 ease-out motion-reduce:transition-none" />
+  </div>;
 }

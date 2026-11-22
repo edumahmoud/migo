@@ -136,13 +136,14 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
       >
-        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
+        <Card className="auth-login-card border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
           <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
             {displayLogo && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                data-login-logo
                 className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
               >
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
@@ -329,6 +330,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.8 }}
+                data-login-register
                 className="mt-3 sm:mt-6 text-center"
               >
                 <p className="text-sm text-gray-500">
