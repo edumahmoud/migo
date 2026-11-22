@@ -82,7 +82,7 @@ export default function BrandingPointerZone({ children, className }: { children:
           <defs>
             <filter id="login-lens-magnify" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
               <feImage href={MAGNIFY_MAP} x="0" y="0" width="66" height="66" result="map" preserveAspectRatio="none" />
-              <feDisplacementMap in="SourceGraphic" in2="map" scale="20" xChannelSelector="R" yChannelSelector="G" result="mag" />
+              <feDisplacementMap in="SourceGraphic" in2="map" scale="12" xChannelSelector="R" yChannelSelector="G" result="mag" />
               <feGaussianBlur in="mag" stdDeviation="0.45" />
             </filter>
           </defs>
