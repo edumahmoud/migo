@@ -93,7 +93,8 @@ interface QuestionBankSectionProps {
 
 // -------------------------------------------------------
 // Animation variants
-// -------------------------------------------------------
+// -------------------------------------------------------import MascotLoader from '@/components/shared/mascot-loader';
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
@@ -1099,7 +1100,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="ai" />
       </div>
     );
   }

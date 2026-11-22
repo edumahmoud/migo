@@ -73,7 +73,8 @@ function formatDuration(seconds: number | undefined | null): string {
 
 // -------------------------------------------------------
 // Animation variants
-// -------------------------------------------------------
+// -------------------------------------------------------import MascotLoader from '@/components/shared/mascot-loader';
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
@@ -577,7 +578,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       {/* Video cards */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="video" />
         </div>
       ) : filteredVideos.length === 0 ? (
         <motion.div
