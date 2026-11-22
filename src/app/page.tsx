@@ -19,6 +19,7 @@ import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
+import BrandingPointerZone from '@/components/auth/branding-pointer-zone';
 import FloatingLoginFeatures from '@/components/auth/floating-login-features';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
@@ -1266,7 +1267,7 @@ function AuthPageContent({
           <AnnouncementBrandingPanel />
         ) : (
           /* Default branding panel */
-          <>
+          <BrandingPointerZone className="absolute inset-0 flex">
             {/* Background decoration */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute -top-40 -start-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
@@ -1305,7 +1306,7 @@ function AuthPageContent({
                 ]} />
               </motion.div>
             </div>
-          </>
+          </BrandingPointerZone>
         )}
       </div>
 

@@ -1277,3 +1277,11 @@ body.quiz-capture-detected {
   .auth-login-card [data-slot="card-title"] { font-size: 18px; }
   .auth-login-card [data-slot="card-content"] > .grid { font-size: 12px; line-height: 16px; }
 }
+
+/* Organic glass lens shape for the login branding half. */
+.login-glass-blob { border-radius: 58% 42% 55% 45% / 46% 56% 44% 54%; animation: login-glass-morph 5s ease-in-out infinite; }
+@keyframes login-glass-morph {
+  0%, 100% { border-radius: 58% 42% 55% 45% / 46% 56% 44% 54%; }
+  50% { border-radius: 43% 57% 41% 59% / 57% 43% 57% 43%; }
+}
+@media (prefers-reduced-motion: reduce) { .login-glass-blob { animation: none; display: none; } }

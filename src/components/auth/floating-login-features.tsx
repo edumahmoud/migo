@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion';
+import { useBrandingPointer } from '@/components/auth/branding-pointer-zone';
 import { BrainCircuit, BookOpen, Users, Shield } from 'lucide-react';
 
 const icons = [BrainCircuit, BookOpen, Users, Shield];
@@ -23,27 +24,25 @@ function FloatingFeature({ item, index }: { item: Feature; index: number }) {
   const springX = useSpring(x, { stiffness: 100, damping: 24 });
   const springY = useSpring(y, { stiffness: 100, damping: 24 });
   const lean = useSpring(0, { stiffness: 100, damping: 24 });
+  const trackRef = useRef<(p: { x: number; y: number } | null) => void>(() => {});
+  useBrandingPointer((p) => trackRef.current(p));
 
   useEffect(() => {
     const media = window.matchMedia('(hover: hover) and (pointer: fine)');
     const reset = () => { x.set(0); y.set(0); lean.set(0); };
-    const track = (event: PointerEvent) => {
+    trackRef.current = (p) => {
       const box = root.current?.getBoundingClientRect();
-      if (reduced || !media.matches || event.pointerType !== 'mouse' || !box?.width) return;
+      if (!p || reduced || !media.matches || !box?.width) { reset(); return; }
       // Each icon follows from its own center, rather than moving the row as one block.
-      const dx = Math.max(-1, Math.min(1, (event.clientX - box.left - box.width / 2) / 220));
-      const dy = Math.max(-1, Math.min(1, (event.clientY - box.top - box.height / 2) / 200));
+      const dx = Math.max(-1, Math.min(1, (p.x - box.left - box.width / 2) / 220));
+      const dy = Math.max(-1, Math.min(1, (p.y - box.top - box.height / 2) / 200));
       x.set(dx * 7);
       y.set(dy * 5);
       lean.set(dx * 6);
     };
     if (reduced) reset();
-    window.addEventListener('pointermove', track, { passive: true });
-    document.documentElement.addEventListener('pointerleave', reset);
     media.addEventListener('change', reset);
     return () => {
-      window.removeEventListener('pointermove', track);
-      document.documentElement.removeEventListener('pointerleave', reset);
       media.removeEventListener('change', reset);
     };
   }, [reduced, x, y, lean]);
