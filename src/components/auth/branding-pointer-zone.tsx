@@ -70,16 +70,15 @@ export default function BrandingPointerZone({ children, className }: { children:
     <ZoneContext.Provider value={subscribe}>
       <div ref={root} className={className} data-branding-zone>
         {children}
-        {/* Glass lens: frosted circle that follows the mouse above the text. Decorative, never intercepts input. */}
+        {/* Glass lens: clear glossy blob that follows the mouse above the text. Decorative, never intercepts input. */}
         <div ref={lens} aria-hidden="true" data-glass-lens
           className="pointer-events-none absolute left-0 top-0 z-20 h-[84px] w-[84px] opacity-0 login-glass-blob transition-opacity duration-200 motion-reduce:hidden"
           style={{
             willChange: 'transform',
-            backdropFilter: 'blur(2px) brightness(1.15) saturate(1.25)',
-            WebkitBackdropFilter: 'blur(2px) brightness(1.15) saturate(1.25)',
-            background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.32), rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.12))',
-            border: '1px solid rgba(255,255,255,0.45)',
-            boxShadow: 'inset 0 0 12px rgba(255,255,255,0.25), 0 6px 18px rgba(8,47,73,0.2)',
+            // Clear glossy glass: no blur, so the text underneath stays sharp.
+            background: 'radial-gradient(ellipse at 28% 22%, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.18) 18%, rgba(125,211,252,0.10) 55%, rgba(255,255,255,0.22) 100%)',
+            border: '1.5px solid rgba(255,255,255,0.85)',
+            boxShadow: 'inset 0 0 10px rgba(255,255,255,0.55), inset -6px -8px 14px rgba(56,189,248,0.25), 0 6px 16px rgba(8,47,73,0.25)',
           }} />
       </div>
     </ZoneContext.Provider>
