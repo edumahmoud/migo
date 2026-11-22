@@ -22,6 +22,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, SubjectVideo, VideoComment } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -73,7 +74,7 @@ function formatDuration(seconds: number | undefined | null): string {
 
 // -------------------------------------------------------
 // Animation variants
-// -------------------------------------------------------import MascotLoader from '@/components/shared/mascot-loader';
+// -------------------------------------------------------
 
 const containerVariants = {
   hidden: { opacity: 0 },

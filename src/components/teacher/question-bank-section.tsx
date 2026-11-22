@@ -39,6 +39,7 @@ import { stripFileExtension } from '@/lib/utils';
 import { useTranslations } from '@/i18n/use-translations';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ExportGoogleFormModal from '@/components/question-bank/export-google-form-modal';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -93,7 +94,7 @@ interface QuestionBankSectionProps {
 
 // -------------------------------------------------------
 // Animation variants
-// -------------------------------------------------------import MascotLoader from '@/components/shared/mascot-loader';
+// -------------------------------------------------------
 
 const containerVariants = {
   hidden: { opacity: 0 },
