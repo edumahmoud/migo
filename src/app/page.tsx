@@ -19,6 +19,7 @@ import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
+import FloatingLoginFeatures from '@/components/auth/floating-login-features';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
 import UpdatePasswordForm from '@/components/auth/update-password-form';
@@ -1284,9 +1285,9 @@ function AuthPageContent({
                 transition={{ duration: 0.7, ease: 'easeOut' as const }}
                 className="text-center w-full max-w-xl"
               >
-                <div className="flex items-center gap-4 xl:gap-6 mb-8">
+                <div className="flex flex-col items-center gap-3 mb-7">
                 <LoginLottie className="w-36 h-36 xl:w-44 xl:h-44 shrink-0 select-none" />
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 w-full max-w-lg">
                 <h2 className="text-2xl xl:text-3xl font-bold text-white mb-4 leading-tight">
                   {t('common.smartPlatform')}
                 </h2>
@@ -1296,27 +1297,12 @@ function AuthPageContent({
                 </div>
                 </div>
 
-                {/* Feature cards */}
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.ai'), desc: t('features.aiAnalysis') },
-                    { icon: <BookOpen className="h-5 w-5" />, title: t('features.smartSummary'), desc: t('features.fromAnySource') },
-                    { icon: <Users className="h-5 w-5" />, title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
-                    { icon: <Shield className="h-5 w-5" />, title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
-                  ].map((feature, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
-                      className="flex flex-col items-center gap-2 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 p-4 text-center"
-                    >
-                      <div className="text-teal-300">{feature.icon}</div>
-                      <span className="text-sm font-semibold text-white">{feature.title}</span>
-                      <span className="text-xs text-sky-200/70">{feature.desc}</span>
-                    </motion.div>
-                  ))}
-                </div>
+                <FloatingLoginFeatures items={[
+                  { title: t('features.ai'), desc: t('features.aiAnalysis') },
+                  { title: t('features.smartSummary'), desc: t('features.fromAnySource') },
+                  { title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
+                  { title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
+                ]} />
               </motion.div>
             </div>
           </>
@@ -1332,9 +1318,8 @@ function AuthPageContent({
             <AnnouncementBrandingPanel />
           ) : (
             /* Default mobile feature badges */
-            <div className="flex items-center justify-center gap-4">
-              <LoginLottie className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 select-none" />
-              <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-muted-foreground">
+            <div className="flex items-center justify-center">
+              <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BrainCircuit className="w-3 h-3" />
                 <span>{t('features.ai')}</span>
