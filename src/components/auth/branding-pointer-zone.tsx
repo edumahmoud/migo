@@ -45,7 +45,7 @@ export default function BrandingPointerZone({ children, className }: { children:
         frame = 0;
         if (!last) return;
         const box = el.getBoundingClientRect();
-        glass.style.transform = `translate(${last.x - box.left - 70}px, ${last.y - box.top - 70}px)`;
+        glass.style.transform = `translate(${last.x - box.left - 42}px, ${last.y - box.top - 42}px)`;
         glass.style.opacity = '1';
         emit(last);
       });
@@ -72,14 +72,14 @@ export default function BrandingPointerZone({ children, className }: { children:
         {children}
         {/* Glass lens: frosted circle that follows the mouse above the text. Decorative, never intercepts input. */}
         <div ref={lens} aria-hidden="true" data-glass-lens
-          className="pointer-events-none absolute left-0 top-0 z-20 h-[140px] w-[140px] rounded-full opacity-0 transition-opacity duration-200 motion-reduce:hidden"
+          className="pointer-events-none absolute left-0 top-0 z-20 h-[84px] w-[84px] opacity-0 login-glass-blob transition-opacity duration-200 motion-reduce:hidden"
           style={{
             willChange: 'transform',
-            backdropFilter: 'blur(2.5px) brightness(1.18) saturate(1.3)',
-            WebkitBackdropFilter: 'blur(2.5px) brightness(1.18) saturate(1.3)',
+            backdropFilter: 'blur(2px) brightness(1.15) saturate(1.25)',
+            WebkitBackdropFilter: 'blur(2px) brightness(1.15) saturate(1.25)',
             background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.32), rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.12))',
             border: '1px solid rgba(255,255,255,0.45)',
-            boxShadow: 'inset 0 0 18px rgba(255,255,255,0.25), 0 8px 28px rgba(8,47,73,0.25)',
+            boxShadow: 'inset 0 0 12px rgba(255,255,255,0.25), 0 6px 18px rgba(8,47,73,0.2)',
           }} />
       </div>
     </ZoneContext.Provider>
