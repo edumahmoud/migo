@@ -1286,7 +1286,7 @@ function AuthPageContent({
                 className="text-center w-full max-w-xl"
               >
                 <div className="flex flex-col items-center gap-3 mb-7">
-                <LoginLottie className="w-36 h-36 xl:w-44 xl:h-44 shrink-0 select-none" />
+                <LoginLottie className="w-48 h-48 xl:w-56 xl:h-56 shrink-0 select-none" />
                 <div className="min-w-0 w-full max-w-lg">
                 <h2 className="text-2xl xl:text-3xl font-bold text-white mb-4 leading-tight">
                   {t('common.smartPlatform')}
