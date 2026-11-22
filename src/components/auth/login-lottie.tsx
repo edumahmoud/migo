@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useBrandingPointer } from '@/components/auth/branding-pointer-zone';
 
 interface LottieAnimationHandle {
   destroy: () => void;
@@ -45,6 +46,8 @@ function loadLottieScript(): Promise<void> {
 export default function LoginLottie({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<(p: { x: number; y: number } | null) => void>(() => {});
+  useBrandingPointer((p) => trackRef.current(p));
 
   useEffect(() => {
     const container = containerRef.current;
@@ -54,9 +57,6 @@ export default function LoginLottie({ className }: { className?: string }) {
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
     let animation: LottieAnimationHandle | undefined;
     let cancelled = false;
-    let frame = 0;
-    let latestX = 0;
-    let latestY = 0;
 
     const reset = () => { scene.style.transform = ''; };
     const applyPreference = () => {
@@ -66,19 +66,13 @@ export default function LoginLottie({ className }: { className?: string }) {
       if (reduced.matches) animation.goToAndStop(0, true);
       else animation.play();
     };
-    const track = (event: PointerEvent) => {
-      if (reduced.matches || !finePointer.matches || event.pointerType !== 'mouse') return;
-      latestX = event.clientX;
-      latestY = event.clientY;
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        const box = container.getBoundingClientRect();
-        if (!box.width || !box.height) return;
-        const x = Math.max(-1, Math.min(1, (latestX - box.left - box.width / 2) / 300));
-        const y = Math.max(-1, Math.min(1, (latestY - box.top - box.height / 2) / 250));
-        scene.style.transform = `perspective(600px) translate(${x * 5}px, ${y * 4}px) rotateX(${-y * 4}deg) rotateY(${x * 6}deg)`;
-      });
+    trackRef.current = (p) => {
+      if (!p || reduced.matches || !finePointer.matches) { reset(); return; }
+      const box = container.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const x = Math.max(-1, Math.min(1, (p.x - box.left - box.width / 2) / 300));
+      const y = Math.max(-1, Math.min(1, (p.y - box.top - box.height / 2) / 250));
+      scene.style.transform = `perspective(600px) translate(${x * 5}px, ${y * 4}px) rotateX(${-y * 4}deg) rotateY(${x * 6}deg)`;
     };
 
     loadLottieScript().then(() => {
@@ -93,15 +87,10 @@ export default function LoginLottie({ className }: { className?: string }) {
       animation.addEventListener('DOMLoaded', applyPreference);
     }).catch(() => { /* Keep the form usable if the decorative asset fails. */ });
 
-    window.addEventListener('pointermove', track, { passive: true });
-    document.documentElement.addEventListener('pointerleave', reset);
     reduced.addEventListener('change', applyPreference);
     finePointer.addEventListener('change', reset);
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('pointermove', track);
-      document.documentElement.removeEventListener('pointerleave', reset);
       reduced.removeEventListener('change', applyPreference);
       finePointer.removeEventListener('change', reset);
       animation?.destroy();
