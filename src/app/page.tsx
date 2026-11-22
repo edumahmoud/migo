@@ -1285,24 +1285,25 @@ function AuthPageContent({
                 transition={{ duration: 0.7, ease: 'easeOut' as const }}
                 className="text-center w-full max-w-xl"
               >
-                <div className="flex flex-col items-center gap-3 mb-7">
-                <LoginLottie className="w-36 h-36 xl:w-44 xl:h-44 shrink-0 select-none" />
-                <div className="min-w-0 w-full max-w-lg">
-                <h2 className="text-2xl xl:text-3xl font-bold text-white mb-4 leading-tight">
-                  {t('common.smartPlatform')}
-                </h2>
-                <p className="text-base text-sky-100/80 leading-relaxed">
-                  {t('common.smartPlatformDesc')}
-                </p>
+                <div className="relative w-full max-w-lg mx-auto h-64 xl:h-72 mb-6">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <LoginLottie className="w-36 h-36 xl:w-44 xl:h-44 shrink-0 select-none" />
+                  </div>
+                  <FloatingLoginFeatures items={[
+                    { title: t('features.ai'), desc: t('features.aiAnalysis') },
+                    { title: t('features.smartSummary'), desc: t('features.fromAnySource') },
+                    { title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
+                    { title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
+                  ]} />
                 </div>
+                <div className="w-full mx-auto max-w-xl">
+                  <h2 className="text-2xl xl:text-3xl font-bold text-white mb-4 leading-tight">
+                    {t('common.smartPlatform')}
+                  </h2>
+                  <p className="text-base xl:text-lg text-sky-100/80 leading-relaxed">
+                    {t('common.smartPlatformDesc')}
+                  </p>
                 </div>
-
-                <FloatingLoginFeatures items={[
-                  { title: t('features.ai'), desc: t('features.aiAnalysis') },
-                  { title: t('features.smartSummary'), desc: t('features.fromAnySource') },
-                  { title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
-                  { title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
-                ]} />
               </motion.div>
             </div>
           </>

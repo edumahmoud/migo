@@ -31,10 +31,10 @@ export default function FloatingLoginFeatures({ items }: { items: { title: strin
     };
   }, [reduced, x, y]);
 
-  return <motion.div ref={root} style={{ x: springX, y: springY }} className="grid grid-cols-4 gap-3 px-2" data-floating-features>
+  return <motion.div ref={root} style={{ x: springX, y: springY }} className="absolute inset-0" data-floating-features>
     {items.map((item, i) => {
       const Icon = icons[i];
-      return <motion.div key={item.title} className="flex flex-col items-center gap-2 text-center"
+      return <motion.div key={item.title} className={`absolute flex w-24 xl:w-28 flex-col items-center gap-2 text-center ${['top-2 start-0', 'top-2 end-0', 'bottom-2 start-0', 'bottom-2 end-0'][i]}`}
         animate={reduced ? { y: 0, rotate: 0 } : { y: [0, i % 2 ? 5 : -5, 0], rotate: [0, i % 2 ? -2 : 2, 0] }}
         transition={{ duration: 3.5 + i * 0.4, repeat: Infinity, ease: 'easeInOut' }}>
         <div className="flex h-11 w-11 items-center justify-center text-teal-200" aria-hidden="true"><Icon className="h-8 w-8" strokeWidth={1.5} /></div>
