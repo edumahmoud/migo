@@ -35,6 +35,7 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 type Phase = 'loading' | 'setPassword' | 'locked' | 'unlocked';
 
@@ -191,7 +192,7 @@ export default function AdminDataManagementSection() {
   if (phase === 'loading') {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+        <MascotLoader kind="ai" size={96} />
       </div>
     );
   }
@@ -244,7 +245,7 @@ export default function AdminDataManagementSection() {
           {/* Preview */}
           {previewLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+              <MascotLoader kind="ai" size={72} />
             </div>
           ) : preview ? (
             <Card>

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import type { UserProfile } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface PendingOrder {
   id: string;
@@ -249,7 +250,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <MascotLoader kind="book" size={72} />
             </div>
           ) : orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">

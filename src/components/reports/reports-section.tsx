@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { Report, ReportResponse, ReportMessage, ReportStatus, ReportTargetType, ReportResponseAction, UserProfile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Animation variants
@@ -937,7 +938,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       {/* Reports list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="ai" size={96} />
         </div>
       ) : reports.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-16">
@@ -1696,7 +1697,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       {loadingInbox ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="ai" size={96} />
         </div>
       ) : inboxMessages.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-16">
@@ -1943,7 +1944,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       {loadingAgainst ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="ai" size={96} />
         </div>
       ) : againstReports.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-16">
@@ -2148,7 +2149,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <motion.div key="detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {loadingDetail ? (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+                <MascotLoader kind="ai" size={96} />
               </div>
             ) : (
               renderReportDetail()

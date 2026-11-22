@@ -50,6 +50,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface TeacherRow {
   id: string;
@@ -742,7 +743,7 @@ export default function AdminTeachersSection() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+              <MascotLoader kind="ai" size={96} />
             </div>
           ) : error ? (
             <div className="flex flex-col items-center py-20 gap-4">
@@ -1056,7 +1057,7 @@ export default function AdminTeachersSection() {
             >
               {detailLoading ? (
                 <div className="flex items-center justify-center py-20">
-                  <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+                  <MascotLoader kind="ai" size={96} />
                 </div>
               ) : teacherDetail ? (
                 <div className="p-6 space-y-4">
@@ -1292,7 +1293,7 @@ export default function AdminTeachersSection() {
               <div className="flex-1 overflow-y-auto p-5">
                 {transactionsLoading ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <MascotLoader kind="ai" size={72} />
                   </div>
                 ) : transactions.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">

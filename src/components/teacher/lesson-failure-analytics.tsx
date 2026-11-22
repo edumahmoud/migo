@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/select';
 import type { Subject, LessonProgress, LessonUnit } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface LessonFailureAnalyticsProps {
   subjects: Subject[];
@@ -311,7 +312,7 @@ export default function LessonFailureAnalytics({ subjects }: LessonFailureAnalyt
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <MascotLoader kind="ai" size={96} />
         </div>
       ) : progress.length === 0 ? (
         <Card className="border-dashed">

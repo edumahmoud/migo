@@ -61,6 +61,7 @@ import SummaryView from '@/components/shared/summary-view';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Summary, UserFile, Subject } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Types
@@ -1230,7 +1231,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       {/* Summaries grid */}
       {loadingSummaries ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 mb-4" />
+          <MascotLoader kind="book" size={96} />
           <p className="text-muted-foreground text-sm">{t('loadingSummaries')}</p>
         </div>
       ) : summaries.length === 0 && pendingSummaries.length === 0 ? (

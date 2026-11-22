@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface UpdatePasswordFormProps {
   onSuccess: () => void;
@@ -195,7 +196,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
       <div dir={direction} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
+            <MascotLoader kind="ai" size={96} />
             <p className="text-sm text-gray-500">{t('auth.verifyingLink')}</p>
           </CardContent>
         </Card>

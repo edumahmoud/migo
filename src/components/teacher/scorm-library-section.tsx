@@ -78,6 +78,7 @@ import {
 import type { UserProfile } from '@/lib/types';
 import type { ScormPackage } from '@/lib/scorm-types';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface ScormLibrarySectionProps {
   profile: UserProfile;
@@ -409,7 +410,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
       {/* Packages grid */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : filteredPackages.length === 0 ? (
         <Card className="border-dashed">

@@ -103,6 +103,7 @@ import UserLink from '@/components/shared/user-link';
 import SummaryView from '@/components/shared/summary-view';
 import StudentTrackingSection from '@/components/student/student-tracking-section';
 import StudentSubscriptionHistorySection from '@/components/student/student-subscription-history-section';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Summary background processing type
@@ -4723,7 +4724,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   </h4>
                   {loadingTeacherSubjects ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+                      <MascotLoader kind="ai" size={72} />
                     </div>
                   ) : teacherSubjects.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 p-4 text-center">
@@ -5011,7 +5012,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     if (loadingData) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400 mb-4" />
+          <MascotLoader kind="ai" size={96} />
           <p className="text-muted-foreground text-sm">{t('student.loadingData')}</p>
         </div>
       );

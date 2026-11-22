@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface BreakdownRow {
   period: string;
@@ -250,7 +251,7 @@ export default function AdminFinancialBreakdownSection() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <MascotLoader kind="ai" size={72} />
             </div>
           ) : breakdown.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
