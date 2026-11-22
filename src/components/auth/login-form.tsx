@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LoginCompanion from './login-companion';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<'identity' | 'password' | null>(null);
   const [mode, setMode] = useState<LoginMode>('email');
 
   const { signInWithEmail } = useAuthStore();
@@ -136,27 +138,32 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
       >
-        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
-          <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
+        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm gap-3 py-4 sm:py-5 flex-1 sm:flex-none flex flex-col sm:block">
+          <CardHeader className="pb-0 pt-0 px-4 sm:px-6">
+            <div className="flex items-center gap-3">
+            <LoginCompanion protecting={focusedField === 'password'} reading={focusedField === 'identity'} />
+            <div className="min-w-0 flex-1 text-start">
             {displayLogo && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
+                className="mb-2 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
               >
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
             )}
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+            <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">
               {displayName ? t('auth.welcomeTo', { name: displayName }) : t('auth.welcome')}
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
               {t('auth.loginToContinue')}
             </CardDescription>
+            </div>
+            </div>
           </CardHeader>
 
-          <CardContent className="pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
+          <CardContent className="pt-1 px-4 sm:px-6 pb-0">
             {/* Mode switcher — by email / by student code */}
             <div className="grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
               <button
@@ -200,6 +207,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   <div className="relative">
                     <Input
                       id="email"
+                      onFocus={() => setFocusedField('identity')}
+                      onBlur={() => setFocusedField(null)}
                       type="email"
                       placeholder={t('auth.enterEmail')}
                       value={email}
@@ -226,6 +235,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   <div className="relative">
                     <Input
                       id="student-code"
+                      onFocus={() => setFocusedField('identity')}
+                      onBlur={() => setFocusedField(null)}
                       type="text"
                       placeholder="مثال: A1B2C3D4"
                       value={studentCode}
@@ -257,6 +268,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 <div className="relative">
                   <Input
                     id="password"
+                      onFocus={() => setFocusedField('password')}
+                      onBlur={() => setFocusedField(null)}
                     type={showPassword ? 'text' : 'password'}
                     placeholder={t('auth.enterPassword')}
                     value={password}
