@@ -36,6 +36,7 @@ import { Progress } from '@/components/ui/progress';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, Quiz, Score } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -436,7 +437,7 @@ export default function QuestionBankTab({ profile, role, subjectId, subject, tea
   if (loading) {
     return (
       <div dir={direction} className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
+        <MascotLoader kind="book" size={104} />
         <p className="mt-4 text-sm text-muted-foreground">{t('noBanks') || 'Loading...'}</p>
       </div>
     );

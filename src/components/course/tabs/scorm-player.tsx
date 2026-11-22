@@ -5,6 +5,7 @@ import { Loader2, X, Maximize2, Minimize2, ChevronRight } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
 import { supabase } from '@/lib/supabase';
 import type { ScormVersion, ScormCompletionStatus, ScormSuccessStatus } from '@/lib/scorm-types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Props ───
 interface ScormPlayerProps {
@@ -489,7 +490,7 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
       {/* ── Loading Overlay ── */}
       {loading && (
         <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 mb-4" />
+          <MascotLoader kind="book" size={96} />
           <span className="text-muted-foreground">{t('scorm.loading') || 'Loading SCORM content...'}</span>
         </div>
       )}

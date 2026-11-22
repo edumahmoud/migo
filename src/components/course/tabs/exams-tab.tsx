@@ -57,6 +57,7 @@ import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, Ques
 import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
 import { DifficultySelector, DEFAULT_MIX_COUNTS, type DifficultyMode, type DifficultyMixCounts, type ContentScope } from '@/components/shared/difficulty-selector';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -2541,7 +2542,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       {/* Quiz list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : subTab === 'active' ? (
         // ─── Active tab ───

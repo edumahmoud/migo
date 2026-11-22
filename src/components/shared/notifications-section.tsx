@@ -28,6 +28,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string): string {
   const now = new Date();
@@ -346,7 +347,7 @@ export default function NotificationsSection() {
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (
-                  <Loader2 className="h-12 w-12 text-sky-600 animate-spin mb-4" />
+                  <MascotLoader kind="ai" size={104} />
                 ) : (
                   <>
                     <h3 className="text-lg font-bold text-foreground mb-1">{t('notifications.linkRequest')}</h3>

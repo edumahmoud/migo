@@ -54,6 +54,7 @@ import {
   getPaymentActionErrorMessage,
   type CheckoutSessionItem,
 } from '@/lib/student/payment-action';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Auth helpers
@@ -1909,7 +1910,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {/* ─── Loading State ─── */}
       {loadingSubjects && (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <MascotLoader kind="book" size={96} />
           <p className="mt-3 text-sm text-muted-foreground">{t('common.loading')}</p>
         </div>
       )}
@@ -3284,7 +3285,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <div className="overflow-y-auto p-4 space-y-2 flex-1">
                 {!availableCoursesData ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
+                    <MascotLoader kind="book" size={72} />
                     <span className="text-sm text-muted-foreground ms-2">جارٍ تحميل المقررات...</span>
                   </div>
                 ) : availableCoursesData.available_courses.length === 0 ? (

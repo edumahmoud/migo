@@ -40,6 +40,7 @@ import type { UserProfile, Subject, Lecture, AttendanceSession, LectureWithAtten
 import { stripFileExtension } from '@/lib/utils';
 import LectureModal from '@/components/course/tabs/lecture-modal';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -2852,7 +2853,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   </div>
                 ) : (
                   <div className="w-64 h-64 flex items-center justify-center rounded-2xl border bg-muted">
-                    <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+                    <MascotLoader kind="book" size={96} />
                   </div>
                 )}
               </div>

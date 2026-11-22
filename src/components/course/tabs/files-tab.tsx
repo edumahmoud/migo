@@ -46,6 +46,7 @@ import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectFile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import { stripFileExtension } from '@/lib/utils';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -708,7 +709,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       {/* Files list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : filteredFiles.length === 0 ? (
         <motion.div

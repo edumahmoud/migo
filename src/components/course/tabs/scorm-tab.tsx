@@ -15,6 +15,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, QuestionBank } from '@/lib/types';
 import type { ScormPackage, ScormResource, ScormVersion } from '@/lib/scorm-types';
 import ScormPlayer from './scorm-player';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Props ───
 interface ScormTabProps {
@@ -465,7 +466,7 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       {/* ── Loading State ── */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-sky-700 mb-3" />
+          <MascotLoader kind="book" size={72} />
           <span className="text-muted-foreground text-sm">{t('scorm.loadingPackages') || 'Loading SCORM packages...'}</span>
         </div>
       )}

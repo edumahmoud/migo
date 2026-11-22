@@ -25,6 +25,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Lecture, SubjectFile, SubjectTeacher } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -282,7 +283,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="book" size={96} />
       </div>
     );
   }

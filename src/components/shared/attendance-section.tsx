@@ -31,6 +31,7 @@ import type {
 } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -882,7 +883,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         {/* Active session check loading */}
         {checkingActiveSession ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+            <MascotLoader kind="book" size={96} />
           </div>
         ) : activeSession ? (
           // ─── Active Session Panel ───
@@ -973,7 +974,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
             </div>
             {loadingPastSessions ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+                <MascotLoader kind="book" size={72} />
               </div>
             ) : pastSessions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -1106,7 +1107,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           </div>
           {loadingRecords ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+              <MascotLoader kind="book" size={72} />
             </div>
           ) : enrolledStudents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -1221,7 +1222,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         </div>
         {loadingPastSessionRecords ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+            <MascotLoader kind="book" size={72} />
           </div>
         ) : pastSessionRecords.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
@@ -1267,7 +1268,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
       {/* Active session check loading */}
       {checkingStudentSession ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : studentActiveSession ? (
         // ─── Active session - Check in ───
@@ -1369,7 +1370,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           </div>
           {loadingStudentHistory ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+              <MascotLoader kind="book" size={72} />
             </div>
           ) : studentPastRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">

@@ -33,6 +33,7 @@ import StudentSuspendDialog from '@/components/course/tabs/student-suspend-dialo
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -825,7 +826,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
       {/* Students list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : students.length === 0 ? (
         <motion.div
@@ -1100,7 +1101,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
               <div className="p-5 space-y-5">
                 {loadingPerformance ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 text-sky-600 dark:text-sky-400 animate-spin" />
+                    <MascotLoader kind="book" size={96} />
                   </div>
                 ) : performanceData ? (
                   <>

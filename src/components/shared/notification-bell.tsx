@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Deeplink queue (global, survives before component mount) ───
 // When the SW or sw-registration dispatches a `notification-deeplink` event
@@ -501,7 +502,7 @@ export default function NotificationBell() {
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (
-                  <Loader2 className="h-12 w-12 text-sky-500 animate-spin mb-4" />
+                  <MascotLoader kind="ai" size={104} />
                 ) : (
                   <>
                     <UserAvatar name={linkRequestModal.teacher?.name || t('roles.teacher')} avatarUrl={linkRequestModal.teacher?.avatar_url} size="lg" />

@@ -36,6 +36,7 @@ import type {
   TodoSource,
   Subject,
 } from '@/lib/types';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Auto-generated item from quizzes/assignments
@@ -1752,7 +1753,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       {/* Todo list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : filteredTodos.length === 0 ? (
         renderEmptyState()

@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dialog';
 import type { Subject, LessonUnit } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 interface LessonUnitsSectionProps {
   subject: Subject;
@@ -226,7 +227,7 @@ export default function LessonUnitsSection({ subject, onUnitsChanged }: LessonUn
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <MascotLoader kind="book" size={72} />
         </div>
       ) : units.length === 0 ? (
         <div className="text-center py-8 border border-dashed rounded-lg">

@@ -80,6 +80,7 @@ import { useTranslations } from '@/i18n/use-translations';
 import UserAvatar, { getRoleLabel, getTitleLabel, formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 import { useFileUploadStore } from '@/stores/file-upload-store';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -2924,7 +2925,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Files grid (hidden when 'folders' tab is selected) */}
       {categoryFilter !== 'folders' && (loadingFiles ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : filteredFiles.length === 0 && visibleFolders.length === 0 ? (
         <motion.div
@@ -3137,7 +3138,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Shared files list */}
       {loadingShared ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+          <MascotLoader kind="book" size={96} />
         </div>
       ) : sharedWithMe.length === 0 ? (
         <motion.div

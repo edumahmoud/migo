@@ -26,6 +26,7 @@ import type { UserProfile, Subject, ChatMessage } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // -------------------------------------------------------
 // Props
@@ -1000,7 +1001,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="ai" size={96} />
         <p className="text-sm text-muted-foreground">{t('chat.loadingChat')}</p>
       </div>
     );

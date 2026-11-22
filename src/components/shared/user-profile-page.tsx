@@ -54,6 +54,7 @@ import type { UserProfile, UserFile, FileRequest, UserStatus, Subject } from '@/
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Props ───────────────────────────────────────────────
 interface UserProfilePageProps {
@@ -414,7 +415,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="h-10 w-10 text-sky-600 animate-spin" />
+        <MascotLoader kind="ai" size={104} />
         <p className="text-muted-foreground text-sm">{t("loadingProfile")}</p>
       </div>
     );
@@ -912,7 +913,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             <TabsContent value="courses">
               {loadingSubjects ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-sky-600" />
+                  <MascotLoader kind="ai" size={72} />
                 </div>
               ) : teacherSubjects.length === 0 ? (
                 <Card className="border-dashed border-2 bg-muted/20">
@@ -977,7 +978,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
               >
                 {loadingRequests ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-8 w-8 text-sky-600 animate-spin" />
+                    <MascotLoader kind="ai" size={96} />
                   </div>
                 ) : fileRequests.length === 0 ? (
                   <Card className="border-dashed border-2 bg-muted/20">

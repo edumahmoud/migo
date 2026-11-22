@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useTranslations } from '@/i18n/use-translations';
+import MascotLoader from '@/components/shared/mascot-loader';
 
 // =====================================================
 // Props
@@ -1798,7 +1799,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+        <MascotLoader kind="ai" size={96} />
         <p className="text-sm text-muted-foreground">{t('chat.loadingChat')}</p>
       </div>
     );
@@ -2360,7 +2361,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               >
                 {messagesLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
+                    <MascotLoader kind="ai" size={72} />
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center px-6">
