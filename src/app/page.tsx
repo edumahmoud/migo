@@ -18,6 +18,7 @@ import { useI18n } from '@/lib/i18n/context';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import LearningLoader from '@/components/shared/learning-loader';
+import LoginLottie from '@/components/auth/login-lottie';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
 import UpdatePasswordForm from '@/components/auth/update-password-form';
@@ -1276,22 +1277,27 @@ function AuthPageContent({
             </div>
 
             {/* Content */}
-            <div className="relative z-10 flex flex-col justify-center items-center px-8 xl:px-14 py-8 w-full">
+            <div className="relative z-10 flex flex-col justify-center items-center px-8 xl:px-12 py-8 w-full">
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, ease: 'easeOut' as const }}
-                className="text-center max-w-lg"
+                className="text-center w-full max-w-xl"
               >
-                <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
+                <div className="flex items-center gap-4 xl:gap-6 mb-8">
+                <LoginLottie className="w-36 h-36 xl:w-44 xl:h-44 shrink-0 select-none" />
+                <div className="min-w-0 flex-1">
+                <h2 className="text-2xl xl:text-3xl font-bold text-white mb-4 leading-tight">
                   {t('common.smartPlatform')}
                 </h2>
-                <p className="text-base text-sky-100/80 mb-6 leading-relaxed">
+                <p className="text-base text-sky-100/80 leading-relaxed">
                   {t('common.smartPlatformDesc')}
                 </p>
+                </div>
+                </div>
 
                 {/* Feature cards */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {[
                     { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.ai'), desc: t('features.aiAnalysis') },
                     { icon: <BookOpen className="h-5 w-5" />, title: t('features.smartSummary'), desc: t('features.fromAnySource') },
@@ -1318,16 +1324,17 @@ function AuthPageContent({
       </div>
 
       {/* ── Auth Form Panel ── */}
-      <div className="flex-1 flex flex-col justify-start pt-4 px-4 pb-20 lg:justify-center lg:items-center lg:px-8 lg:py-6 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      <div className="auth-form-panel flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
         {/* Mobile-only top branding/announcement */}
-        <div className="lg:hidden flex flex-col items-center mb-3">
+        <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mb-4">
           {hasFullscreenAnnouncement ? (
             /* On mobile, show the announcement in branding panel style (fullscreen mode) */
             <AnnouncementBrandingPanel />
           ) : (
             /* Default mobile feature badges */
-            <>
-              <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
+            <div className="flex items-center justify-center gap-4">
+              <LoginLottie className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 select-none" />
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-muted-foreground">
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BrainCircuit className="w-3 h-3" />
                 <span>{t('features.ai')}</span>
@@ -1345,7 +1352,7 @@ function AuthPageContent({
                 <span>{t('features.secureAndTrusted')}</span>
               </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
