@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 
 // Linear red (x) and green (y) gradients: displacement toward the lens center = magnification.
 const MAGNIFY_MAP = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="66" height="66"><defs>' +
+  '<svg xmlns="http://www.w3.org/2000/svg" width="264" height="264" viewBox="0 0 66 66"><defs>' +
   '<linearGradient id="h" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#f00"/><stop offset="1" stop-color="#000"/></linearGradient>' +
   '<linearGradient id="v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0f0"/><stop offset="1" stop-color="#000"/></linearGradient></defs>' +
   '<rect width="66" height="66" fill="#000"/><rect width="66" height="66" fill="url(#h)"/>' +
@@ -82,7 +82,8 @@ export default function BrandingPointerZone({ children, className }: { children:
           <defs>
             <filter id="login-lens-magnify" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
               <feImage href={MAGNIFY_MAP} x="0" y="0" width="66" height="66" result="map" preserveAspectRatio="none" />
-              <feDisplacementMap in="SourceGraphic" in2="map" scale="40" xChannelSelector="R" yChannelSelector="G" />
+              <feDisplacementMap in="SourceGraphic" in2="map" scale="20" xChannelSelector="R" yChannelSelector="G" result="mag" />
+              <feGaussianBlur in="mag" stdDeviation="0.45" />
             </filter>
           </defs>
         </svg>
