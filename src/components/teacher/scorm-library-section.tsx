@@ -26,6 +26,7 @@ import {
   FileBox,
 } from 'lucide-react';
 import { getCachedAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
+import { uploadScormZip } from '@/lib/scorm-upload-client';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -216,23 +217,20 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
     }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('title', uploadTitle.trim());
-      if (uploadDesc.trim()) formData.append('description', uploadDesc.trim());
-      formData.append('version', uploadVersion);
-      if (uploadLinkIds.length > 0) formData.append('link_subject_ids', uploadLinkIds.join(','));
-
-      const res = await fetch('/api/scorm/library/upload', {
-        method: 'POST',
-        headers: await getCachedAuthHeaders(),
-        body: formData,
+      const headers = await getCachedAuthHeaders();
+      const authHeader = (headers as Record<string, string>).Authorization || '';
+      const result = await uploadScormZip({
+        endpoint: '/api/scorm/library/upload',
+        file: uploadFile,
+        accessToken: authHeader.replace(/^Bearer\s+/i, ''),
+        fields: {
+          title: uploadTitle.trim(),
+          description: uploadDesc.trim(),
+          version: uploadVersion,
+          link_subject_ids: uploadLinkIds.length > 0 ? uploadLinkIds.join(',') : undefined,
+        },
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Upload failed');
-      }
+      if (!result.success) throw new Error(result.error || 'Upload failed');
 
       toast.success(t('uploadSuccess') || 'SCORM package uploaded successfully');
       setShowUploadDialog(false);

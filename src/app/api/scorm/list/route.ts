@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
+import { isEnrolled, isSubjectTeacher, UUID_REGEX } from '@/lib/scorm-access';
+import { buildResourceTree } from '@/lib/scorm-manifest';
 
-// ─── GET Handler: List SCORM packages for a subject ───
+// ─── GET: SCORM packages visible in a subject (own + linked library packages) ───
 
 export async function GET(request: NextRequest) {
   const authResult = await authenticateRequest(request);
@@ -11,178 +13,82 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const subjectId = searchParams.get('subjectId');
+    const userId = authResult.user.id;
 
     if (!subjectId) {
-      return NextResponse.json(
-        { success: false, error: 'subjectId is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'subjectId is required' }, { status: 400 });
     }
-
-    // P1-6 FIX: Validate subjectId is a UUID to prevent PostgREST injection
-    // via .or() template string interpolation.
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // Validate as UUID: the value is interpolated into a PostgREST .or() filter below
     if (!UUID_REGEX.test(subjectId)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid subjectId format' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Invalid subjectId format' }, { status: 400 });
     }
 
-    // ── Fetch all SCORM packages for the subject ──
-    // v63: include platform-level packages linked via scorm_package_subjects junction
+    // ── Who may see this subject's packages ──
+    const role = await getUserRole(userId);
+    const isAdmin = role === 'admin' || role === 'superadmin';
+    const isStudent = role === 'student';
+    if (!isAdmin) {
+      const allowed = isStudent
+        ? await isEnrolled(userId, subjectId)
+        : role === 'teacher'
+          ? await isSubjectTeacher(userId, subjectId)
+          : false;
+      if (!allowed) return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
+    }
+
     const { data: linkedPackageIds } = await supabaseServer
       .from('scorm_package_subjects')
       .select('package_id')
       .eq('subject_id', subjectId);
     const linkedIds = (linkedPackageIds || []).map((r: { package_id: string }) => r.package_id);
 
-    // Build query: packages where subject_id = X OR id IN (linkedIds)
     let pkgQuery = supabaseServer
       .from('scorm_packages')
-      .select(`
-        id,
-        title,
-        description,
-        version,
-        entry_point,
-        total_objects,
-        package_size,
-        storage_path,
-        status,
-        uploaded_by,
-        subject_id,
-        is_platform_library,
-        created_at,
-        updated_at
-      `);
-
-    if (linkedIds.length > 0) {
-      // Use OR filter: subject_id = X OR id IN linkedIds
-      pkgQuery = pkgQuery.or(`subject_id.eq.${subjectId},id.in.(${linkedIds.join(',')})`);
-    } else {
-      pkgQuery = pkgQuery.eq('subject_id', subjectId);
-    }
+      .select(
+        'id, title, description, version, entry_point, total_objects, package_size, status, uploaded_by, subject_id, is_platform_library, created_at, updated_at',
+      );
+    pkgQuery =
+      linkedIds.length > 0
+        ? pkgQuery.or(`subject_id.eq.${subjectId},id.in.(${linkedIds.join(',')})`)
+        : pkgQuery.eq('subject_id', subjectId);
+    // Students only see active packages
+    if (isStudent) pkgQuery = pkgQuery.eq('status', 'active');
 
     const { data: packages, error: packagesError } = await pkgQuery.order('created_at', { ascending: false });
-
     if (packagesError) {
       console.error('[SCORM List] Packages fetch error:', packagesError.message);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch SCORM packages' },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: 'Failed to fetch SCORM packages' }, { status: 500 });
     }
+    if (!packages || packages.length === 0) return NextResponse.json({ success: true, data: [] });
 
-    if (!packages || packages.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: [],
-      });
-    }
-
-    // ── Fetch resources for all packages ──
     const packageIds = packages.map((p: { id: string }) => p.id);
-
     const { data: resources, error: resourcesError } = await supabaseServer
       .from('scorm_resources')
-      .select(`
-        id,
-        package_id,
-        identifier,
-        title,
-        type,
-        href,
-        scorm_type,
-        parent_identifier,
-        order_index,
-        launch_url
-      `)
+      .select('id, package_id, identifier, title, type, href, scorm_type, parent_identifier, order_index, launch_url')
       .in('package_id', packageIds)
       .order('order_index', { ascending: true });
+    if (resourcesError) console.error('[SCORM List] Resources fetch error:', resourcesError.message);
 
-    if (resourcesError) {
-      console.error('[SCORM List] Resources fetch error:', resourcesError.message);
-      // Still return packages without resources
-    }
-
-    // ── Fetch uploader names ──
     const uploaderIds = [...new Set(packages.map((p: { uploaded_by: string }) => p.uploaded_by))];
+    const { data: uploaders } = await supabaseServer.from('users').select('id, name').in('id', uploaderIds);
+    const uploaderName = new Map((uploaders || []).map((u: { id: string; name: string }) => [u.id, u.name]));
 
-    const { data: uploaders } = await supabaseServer
-      .from('users')
-      .select('id, name')
-      .in('id', uploaderIds);
-
-    // ── Organize resources by package ──
-    const resourcesByPackage = new Map<string, Array<Record<string, unknown>>>();
-
-    if (resources) {
-      for (const resource of resources) {
-        const pkgId = resource.package_id;
-        if (!resourcesByPackage.has(pkgId)) {
-          resourcesByPackage.set(pkgId, []);
-        }
-        resourcesByPackage.get(pkgId)!.push(resource);
-      }
+    const byPackage = new Map<string, Array<Record<string, unknown> & { identifier: string; parent_identifier?: string | null }>>();
+    for (const r of resources || []) {
+      const list = byPackage.get(r.package_id) || [];
+      list.push(r);
+      byPackage.set(r.package_id, list);
     }
 
-    // ── Build organized response ──
-    // Build a tree structure for resources based on parent_identifier
-    const enrichedPackages = packages.map((pkg: Record<string, unknown>) => {
-      const packageResources = resourcesByPackage.get(pkg.id as string) || [];
-      const organizedResources = organizeResourceTree(packageResources);
-      const uploader = uploaders?.find((u: Record<string, unknown>) => u.id === pkg.uploaded_by);
+    const data = packages.map((pkg: Record<string, unknown>) => ({
+      ...pkg,
+      uploader_name: uploaderName.get(pkg.uploaded_by as string) || 'Unknown',
+      resources: buildResourceTree(byPackage.get(pkg.id as string) || []),
+    }));
 
-      return {
-        ...pkg,
-        uploader_name: uploader?.name || 'Unknown',
-        resources: organizedResources,
-      };
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: enrichedPackages,
-    });
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('[SCORM List] GET error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch SCORM packages' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Failed to fetch SCORM packages' }, { status: 500 });
   }
-}
-
-/**
- * Organize resources into a tree structure based on parent_identifier.
- * Root resources have no parent; child resources are nested under their parent.
- */
-function organizeResourceTree(
-  resources: Array<Record<string, unknown>>
-): Array<Record<string, unknown>> {
-  // Separate root items (no parent) and children
-  const rootItems: Array<Record<string, unknown>> = [];
-  const childrenByParent = new Map<string, Array<Record<string, unknown>>>();
-
-  for (const resource of resources) {
-    const parentIdentifier = resource.parent_identifier as string | null;
-    if (!parentIdentifier) {
-      rootItems.push({ ...resource, children: [] });
-    } else {
-      if (!childrenByParent.has(parentIdentifier)) {
-        childrenByParent.set(parentIdentifier, []);
-      }
-      childrenByParent.get(parentIdentifier)!.push(resource);
-    }
-  }
-
-  // Attach children to their parents
-  for (const rootItem of rootItems) {
-    const identifier = rootItem.identifier as string;
-    const children = childrenByParent.get(identifier) || [];
-    rootItem.children = organizeResourceTree(children);
-  }
-
-  return rootItems;
 }
