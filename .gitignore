@@ -57,3 +57,7 @@ server.log
 /skills/upload/
 upload/
 tool-results/
+
+# Next.js upload route source must be versioned.
+!src/app/api/scorm/upload/
+!src/app/api/scorm/library/upload/
