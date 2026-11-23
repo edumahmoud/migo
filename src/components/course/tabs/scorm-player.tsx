@@ -188,6 +188,20 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
     onClose();
   }, [sendTracking, onClose, isPreview, packageVersion]);
 
+  // ── Leaving the page without pressing close: still save the time spent ──
+  const sendTrackingRef = useRef(sendTracking);
+  useEffect(() => {
+    sendTrackingRef.current = sendTracking;
+  }, [sendTracking]);
+  useEffect(() => {
+    return () => {
+      if (!finalSentRef.current && lastSnapshotRef.current) {
+        finalSentRef.current = true;
+        void sendTrackingRef.current(lastSnapshotRef.current, true, true);
+      }
+    };
+  }, []);
+
   // ── Toggle fullscreen ──
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen(prev => !prev);
