@@ -916,6 +916,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   signOut: async () => {
+    const currentUser = get().user;
     // Attendance is a historical classroom event, not a login-state indicator.
 
     // Immediately clear user state for instant UI feedback
