@@ -1,5 +1,7 @@
 'use client';
 
+import { captureException } from '@sentry/nextjs';
+
 // P3-27 FIX: Removed framer-motion import. The error boundary is the
 // LAST RESORT UI — if framer-motion itself crashed, the error page
 // couldn't render. Now uses plain CSS animations via Tailwind.
@@ -20,6 +22,7 @@ export default function ErrorPage({
   const [hasActiveSession, setHasActiveSession] = useState(false);
 
   useEffect(() => {
+    captureException(error);
     console.error('[RootError] Unhandled error caught by error.tsx:', error);
 
     try {

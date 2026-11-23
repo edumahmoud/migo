@@ -10,6 +10,7 @@ export async function proxy(request: NextRequest) {
 
   // Skip static files, Next.js internals, auth callback, and socket.io
   if (
+    pathname === '/api/health' ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
     pathname.startsWith('/auth/callback') ||
