@@ -1,17 +1,16 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v9';
-const STATIC_CACHE = 'atendo-static-v9';
-const DYNAMIC_CACHE = 'atendo-dynamic-v9';
-const API_CACHE = 'atendo-api-v9';
+const CACHE_NAME = 'atendo-v10';
+const STATIC_CACHE = 'atendo-static-v10';
+const DYNAMIC_CACHE = 'atendo-dynamic-v10';
+const API_CACHE = 'atendo-api-v10';
 
 // Build version — update this comment to force SW cache bust
-// BUILD_VERSION: 2.3.0-v132c (dynamic push notification icons)
+// BUILD_VERSION: 2.3.1-v10 (network-first HTML, discard legacy app shells)
 
 // Static assets to precache
 // NOTE: /manifest.json is removed — the app uses the dynamic manifest at /api/manifest
 const PRECACHE_URLS = [
-  '/',
   '/offline',
   '/icon-192x192.png',
   '/icon-512x512.png',
@@ -168,40 +167,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ─── Strategy: Cache First with Network Update for HTML pages ───
-  // CRITICAL FIX: Previously used "Network First" which caused the post-login crash.
-  // After login, the app updates state in-memory without a page reload. But if the
-  // browser or PWA does a navigation (e.g., service worker update), the "Network First"
-  // strategy would try to fetch from network first. If the network is slow or the
-  // session isn't established yet, the SW would show the offline page instead of
-  // the cached SPA shell.
-  //
-  // "Cache First with Network Update" serves the cached HTML immediately (fast!)
-  // and updates the cache in the background. This is safe because:
-  // 1. The HTML is just a shell — all app logic is in JS
-  // 2. The JS/CSS assets use "Stale While Revalidate" which gets updated versions
-  // 3. The user sees the app immediately instead of an offline page
+  // HTML references deployment-specific chunks. Never serve an old shell online:
+  // Vercel may already have removed its chunks. Do not cache documents at all.
+  // Offline navigation uses the dedicated offline page, not a broken app shell.
   if (isHtmlPage(request)) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        // Serve cached version immediately if available
-        const fetchPromise = fetch(request)
-          .then((response) => {
-            if (response.ok) {
-              const cloned = response.clone();
-              caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, cloned));
-            }
-            return response;
-          })
-          .catch(() => {
-            // Network failed — if we had a cache, we already returned it.
-            // If no cache either, return offline page.
-            return cached || getOfflinePage();
-          });
-
-        // Return cache immediately, or wait for network if no cache
-        return cached || fetchPromise;
-      })
+      fetch(request, { cache: 'no-store' }).catch(() => getOfflinePage())
     );
     return;
   }
