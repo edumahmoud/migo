@@ -19,6 +19,7 @@ import {
   PartyPopper,
   Building2,
   Database,
+  Package,
   ShieldAlert,
 } from 'lucide-react';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
@@ -69,6 +70,7 @@ export const teacherNavItems: NavItem<TeacherSection>[] = [
 // Matches: admin-dashboard.tsx, page.tsx
 // -------------------------------------------------------
 export const adminNavItems: NavItem<AdminSection>[] = [
+  { id: 'scormLibrary', labelKey: 'nav.scormLibrary', icon: Package },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { id: 'users', labelKey: 'nav.users', icon: Users },
   { id: 'subjects', labelKey: 'nav.subjects', icon: BookOpen },

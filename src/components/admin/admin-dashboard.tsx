@@ -72,6 +72,7 @@ import {
 } from 'recharts';
 // Admin dashboard uses API routes with service role client — no direct Supabase data calls
 import { supabase } from '@/lib/supabase';
+import ScormLibrarySection from '@/components/teacher/scorm-library-section';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
@@ -136,6 +137,7 @@ const adminNavItemDefs = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'scormLibrary', labelKey: 'nav.scormLibrary', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'announcements', labelKey: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
   { id: 'platformAnnouncements', labelKey: 'nav.platformAnnouncements', icon: <PartyPopper className="h-5 w-5" /> },
   { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
@@ -4023,6 +4025,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'subjects' && (
                 <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderSubjects()}
+                </motion.div>
+              )}
+              {activeSection === 'scormLibrary' && (
+                <motion.div key="scormLibrary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <ScormLibrarySection profile={profile} />
                 </motion.div>
               )}
               {activeSection === 'announcements' && (
