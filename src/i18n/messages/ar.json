@@ -1180,7 +1180,7 @@
   },
   "scorm": {
     "uploadPackage": "استيراد حزمة SCORM خارجية",
-    "exportScorm": "تصدير الدروس كحزمة SCORM",
+    "exportScorm": "تصدير كحزمة SCORM",
     "uploading": "جارٍ الرفع...",
     "uploadSuccess": "تم استيراد حزمة SCORM بنجاح",
     "uploadError": "فشل في استيراد حزمة SCORM",
