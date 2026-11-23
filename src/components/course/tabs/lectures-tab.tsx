@@ -430,7 +430,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   // -------------------------------------------------------
   // Fetch lectures with attendance info
   // -------------------------------------------------------
+  const lecturesFetchVersion = useRef(0);
   const fetchLectures = useCallback(async (isInitial = false) => {
+    const fetchVersion = ++lecturesFetchVersion.current;
     if (isInitial) setLoading(true);
     try {
       const [lecturesResult, sessionsResult, studentCountResult] = await Promise.all([
@@ -505,7 +507,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           });
         }
       }
-      setLectures(enriched);
+      if (fetchVersion === lecturesFetchVersion.current) setLectures(enriched);
     } catch (err) {
       console.error('Fetch lectures error:', err);
       setLectures([]);
@@ -1614,7 +1616,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         insertData.teacher_location_captured_at = new Date(location.capturedAt).toISOString();
       }
 
-      const { error } = await supabase.from('attendance_sessions').insert(insertData);
+      const { data: createdSession, error } = await supabase.from('attendance_sessions').insert(insertData).select('*').single();
       if (error) {
         if (error.code === '23505') {
           toast.error(t('activeAttendanceSessionExists')); return;
@@ -1623,6 +1625,12 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         }
       }
 
+      ++lecturesFetchVersion.current;
+      if (createdSession) {
+        setLectures(prev => prev.map(l => l.id === lectureId ? { ...l, attendance_session: createdSession as AttendanceSession, attendance_count: 0 } : l));
+      }
+      setStartingAttendance(null);
+      fetchLectures();
       toast.success(location ? t('attendanceStartedWithLocation', { accuracy: Math.round(location.accuracy) }) : t('attendanceStartedQrOnly'));
       // Send notification to all students in the subject
       try {
@@ -1657,6 +1665,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       if (error) {
         toast.error(t('attendanceStopFailed'));
       } else {
+        ++lecturesFetchVersion.current;
         toast.success(t('attendanceStopped'));
 
         // Optimistic update: immediately reflect the closed session in local state

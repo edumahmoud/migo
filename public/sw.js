@@ -1,9 +1,9 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v8';
-const STATIC_CACHE = 'atendo-static-v8';
-const DYNAMIC_CACHE = 'atendo-dynamic-v8';
-const API_CACHE = 'atendo-api-v8';
+const CACHE_NAME = 'atendo-v9';
+const STATIC_CACHE = 'atendo-static-v9';
+const DYNAMIC_CACHE = 'atendo-dynamic-v9';
+const API_CACHE = 'atendo-api-v9';
 
 // Build version — update this comment to force SW cache bust
 // BUILD_VERSION: 2.3.0-v132c (dynamic push notification icons)
@@ -100,6 +100,13 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests
   if (request.method !== 'GET') return;
+
+  // Attendance state must never use a stale cached database response.
+  // Otherwise Start/Stop can be overwritten by an older session list.
+  if (isSupabaseRequest(url) && /^\/rest\/v1\/attendance_(sessions|records)(?:$|\/)/.test(url.pathname)) {
+    event.respondWith(fetch(request, { cache: 'no-store' }));
+    return;
+  }
 
   // Skip cross-origin except Supabase & fonts
   if (
