@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, requireTeacher, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
+import { requireTeacher, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 import { isSubjectTeacher, UUID_REGEX } from '@/lib/scorm-access';
 import { ScormIngestError, createUploadTicket, downloadUpload, inspectScormZip, isOwnUploadKey, removeUpload, storeScormPackage } from '@/lib/scorm-ingest';
 import type { ScormVersion } from '@/lib/scorm-types';
 
-/** Shared by course uploads and the admin-only platform library. */
+/** Shared by course uploads and the teacher-only platform library. */
 export async function handleScormUpload(request: NextRequest, library: boolean) {
-  const auth = library ? await requireAdmin(request) : await requireTeacher(request);
+  const auth = await requireTeacher(request);
   if (!auth.success) return authErrorResponse(auth);
   const userId = auth.user.id;
+  // The platform library is teacher-upload only; admins manage but do not upload.
+  if (library && (await getUserRole(userId)) !== 'teacher') {
+    return NextResponse.json({ success: false, error: 'رفع الحزم إلى المكتبة متاح للمعلمين فقط' }, { status: 403 });
+  }
   let ownedKey: string | undefined;
   try {
     let fields: Record<string, unknown>;

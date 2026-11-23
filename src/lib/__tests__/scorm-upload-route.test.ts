@@ -25,7 +25,9 @@ beforeEach(() => { role = 'teacher'; owns = true; calls = 0; storeInput = undefi
 describe('SCORM upload routes', () => {
  it('both route entry points are present', () => { expect(existsSync('src/app/api/scorm/upload/route.ts')).toBe(true); expect(existsSync('src/app/api/scorm/library/upload/route.ts')).toBe(true); });
  it('rejects students', async () => { role = 'student'; expect((await handleScormUpload(request({}), false)).status).toBe(403); });
- it('rejects teachers in admin library', async () => { expect((await handleScormUpload(request({}), true)).status).toBe(403); });
+ it('lets teachers upload to the platform library', async () => { expect((await (await handleScormUpload(request({ action: 'init', size: 40, filename: 'test.zip' }), true)).json()).success).toBe(true); });
+ it('rejects admins in the teacher library upload', async () => { role = 'admin'; expect((await handleScormUpload(request({ action: 'init', size: 40, filename: 'test.zip' }), true)).status).toBe(403); });
+ it('rejects students in the library upload', async () => { role = 'student'; expect((await handleScormUpload(request({ action: 'init', size: 40, filename: 'test.zip' }), true)).status).toBe(403); });
  it('rejects invalid subject IDs', async () => { expect((await handleScormUpload(request({ subjectId: 'wrong' }), false)).status).toBe(400); });
  it('rejects cross-course uploads before issuing a ticket', async () => { owns = false; expect((await handleScormUpload(request({ subjectId: sid, action: 'init', size: 40, filename: 'test.zip' }), false)).status).toBe(403); });
  it('returns a signed ticket for the course owner', async () => { expect((await (await handleScormUpload(request({ subjectId: sid, action: 'init', size: 40, filename: 'test.zip' }), false)).json()).success).toBe(true); });

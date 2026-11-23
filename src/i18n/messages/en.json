@@ -5289,7 +5289,8 @@
     "zipFile": "ZIP File",
     "titlePlaceholder": "e.g. Introduction to Physics",
     "scormVersion": "SCORM Version",
-    "linkToCourses": "Link to Courses (optional)",
+    "linkToCourses": "Course to upload the package to",
+    "selectCourseRequired": "Select the course to upload the package to",
     "linkHint": "Package will be available immediately in linked courses.",
     "upload": "Upload",
     "uploadSuccess": "SCORM package uploaded successfully",
@@ -5331,7 +5332,7 @@
     "deleteConfirm": "Are you sure you want to delete this SCORM package? This will remove all tracking data and unlink it from all courses. This action cannot be undone.",
     "deleteSuccess": "Package deleted",
     "coTeacher": "Co-teacher",
-    "teacherNotice": "As a teacher, you can link and unlink platform packages to your courses. Only admins can upload or delete packages."
+    "teacherNotice": "As a teacher, you can upload packages and link them to your courses. Only admins can delete packages."
   },
   "tracking": {
     "lessonFailuresTitle": "Student Lesson Failure Points",
