@@ -4,7 +4,7 @@ import { scrubErrorEvent } from './lib/error-monitoring';
 Sentry.init({
   dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
   enabled: !!(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN),
-  sendDefaultPii: false,
+  dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false, genAI: { inputs: false, outputs: false } },
   defaultIntegrations: false,
   integrations: [Sentry.dedupeIntegration()],
   tracesSampleRate: 0,
