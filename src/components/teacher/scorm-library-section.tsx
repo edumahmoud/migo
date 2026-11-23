@@ -143,7 +143,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDesc, setUploadDesc] = useState('');
   const [uploadVersion, setUploadVersion] = useState<'1.2' | '2004'>('1.2');
-  const [uploadLinkIds, setUploadLinkIds] = useState<string[]>([]);
+  const [uploadSubjectId, setUploadSubjectId] = useState('');
   const [uploading, setUploading] = useState(false);
 
   // Edit form state
@@ -153,6 +153,8 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
   const [saving, setSaving] = useState(false);
 
   const isAdmin = profile.role === 'admin' || profile.role === 'superadmin';
+  // Uploading to the platform library is teacher-only; admins manage but do not upload.
+  const canUpload = profile.role === 'teacher';
 
   const fetchPackages = useCallback(async () => {
     setLoading(true);
@@ -199,7 +201,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
     setUploadTitle('');
     setUploadDesc('');
     setUploadVersion('1.2');
-    setUploadLinkIds([]);
+    setUploadSubjectId('');
   };
 
   const handleUpload = async () => {
@@ -215,6 +217,10 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
       toast.error(t('onlyZip') || 'Only ZIP files are allowed');
       return;
     }
+    if (!uploadSubjectId) {
+      toast.error(t('selectCourseRequired') || 'Please select the course to upload to');
+      return;
+    }
     setUploading(true);
     try {
       const headers = await getCachedAuthHeaders();
@@ -227,24 +233,22 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
           title: uploadTitle.trim(),
           description: uploadDesc.trim(),
           version: uploadVersion,
-          link_subject_ids: uploadLinkIds.length > 0 ? uploadLinkIds.join(',') : undefined,
+          link_subject_ids: uploadSubjectId,
         },
       });
       if (!result.success) throw new Error(result.error || 'Upload failed');
 
-      // Upload and linking are separate authorized operations. Never report links
+      // Upload and linking are separate authorized operations. Never report the link
       // as successful just because storage registration succeeded.
-      let linkFailures = 0;
-      for (const subjectId of uploadLinkIds) {
-        try {
-          const response = await fetch('/api/scorm/library/link', {
-            method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ package_id: result.data.id, subject_id: subjectId }),
-          });
-          if (!response.ok || !(await response.json()).success) linkFailures++;
-        } catch { linkFailures++; }
-      }
-      if (linkFailures) toast.warning(t('uploadLinkPartial'));
+      let linkFailed = false;
+      try {
+        const response = await fetch('/api/scorm/library/link', {
+          method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package_id: result.data.id, subject_id: uploadSubjectId }),
+        });
+        if (!response.ok || !(await response.json()).success) linkFailed = true;
+      } catch { linkFailed = true; }
+      if (linkFailed) toast.warning(t('uploadLinkPartial'));
       else toast.success(t('uploadSuccess') || 'SCORM package uploaded successfully');
       setShowUploadDialog(false);
       resetUploadForm();
@@ -363,9 +367,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
     }
   };
 
-  const toggleLinkId = (id: string) => {
-    setUploadLinkIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
+
 
   return (
     <motion.div
@@ -385,7 +387,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
             {t('description') || 'Platform-level SCORM packages that can be linked to multiple courses. Upload once, use everywhere.'}
           </p>
         </div>
-        {isAdmin && (
+        {canUpload && (
           <Button onClick={() => setShowUploadDialog(true)}>
             <Upload className="h-4 w-4 me-1" />
             {t('uploadPackage') || 'Upload Package'}
@@ -435,7 +437,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                 ? (t('emptyHint') || 'Upload your first SCORM ZIP package to build a reusable library.')
                 : (t('adjustFilters') || 'Try adjusting your search or filters.')}
             </p>
-            {isAdmin && packages.length === 0 && (
+            {canUpload && packages.length === 0 && (
               <Button onClick={() => setShowUploadDialog(true)}>
                 <Upload className="h-4 w-4 me-1" />
                 {t('uploadFirst') || 'Upload First Package'}
@@ -668,10 +670,14 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
               </Select>
             </div>
 
-            {/* Link to subjects on upload */}
-            {subjects.length > 0 && (
-              <div className="space-y-2">
-                <Label>{t('linkToCourses') || 'Link to Courses (optional)'}</Label>
+            {/* Choose the courses to upload to (required) */}
+            <div className="space-y-2">
+              <Label>{t('linkToCourses') || 'Course to upload to'} *</Label>
+              {subjects.length === 0 ? (
+                <p className="text-xs text-muted-foreground border rounded-lg p-3">
+                  {t('noSubjectsAvailable') || 'No subjects available. Create a subject first.'}
+                </p>
+              ) : (
                 <div className="border rounded-lg max-h-[160px] overflow-y-auto p-2 space-y-1">
                   {subjects.map((s) => (
                     <label
@@ -679,11 +685,12 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                       className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
                     >
                       <input
-                        type="checkbox"
-                        checked={uploadLinkIds.includes(s.id)}
-                        onChange={() => toggleLinkId(s.id)}
+                        type="radio"
+                        name="upload-subject"
+                        checked={uploadSubjectId === s.id}
+                        onChange={() => setUploadSubjectId(s.id)}
                         disabled={uploading}
-                        className="rounded"
+                        className="rounded-full"
                       />
                       <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="truncate">{s.name}</span>
@@ -695,18 +702,20 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                     </label>
                   ))}
                 </div>
+              )}
+              {subjects.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                   {t('linkHint') || 'Package will be available immediately in linked courses.'}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowUploadDialog(false)} disabled={uploading}>
               {tCommon('cancel') || 'Cancel'}
             </Button>
-            <Button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadTitle.trim()}>
+            <Button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadTitle.trim() || !uploadSubjectId}>
               {uploading && <Loader2 className="h-4 w-4 me-1 animate-spin" />}
               <Upload className="h-4 w-4 me-1" />
               {t('upload') || 'Upload'}
