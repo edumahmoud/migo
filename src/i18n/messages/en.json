@@ -5318,6 +5318,7 @@
         "uploadFirst": "Upload First Package",
         "objects": "objects",
         "linkedCourses": "Linked Courses",
+        "primaryCourse": "Original course",
         "notLinked": "Not linked to any course",
         "manageLinks": "Manage Links",
         "manageLinksDesc": "Link this SCORM package to one or more courses. Students in linked courses will see this package in their course SCORM tab.",

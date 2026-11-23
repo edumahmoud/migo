@@ -137,6 +137,8 @@ export async function GET(request: NextRequest) {
 
       return {
         ...pkg,
+        // A linked teacher may not teach the package's original private course.
+        subject: isAdmin || teacherSubjectIds?.has(pkg.subject_id) ? pkg.subject : null,
         uploader_name: uploaderMap.get(pkg.uploaded_by) || 'Unknown',
         linked_subjects: visibleLinks,
         linked_subject_ids: visibleLinks.map((ls) => ls.id),
