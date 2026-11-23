@@ -1614,7 +1614,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         insertData.teacher_location_captured_at = new Date(location.capturedAt).toISOString();
       }
 
-      const { error } = await supabase.from('attendance_sessions').insert(insertData);
+      const { data: createdSession, error } = await supabase.from('attendance_sessions').insert(insertData).select('*').single();
       if (error) {
         if (error.code === '23505') {
           toast.error(t('activeAttendanceSessionExists')); return;
@@ -1623,6 +1623,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         }
       }
 
+      if (createdSession) {
+        setLectures(prev => prev.map(l => l.id === lectureId ? { ...l, attendance_session: createdSession as AttendanceSession, attendance_count: 0 } : l));
+      }
+      setStartingAttendance(null);
+      fetchLectures();
       toast.success(location ? t('attendanceStartedWithLocation', { accuracy: Math.round(location.accuracy) }) : t('attendanceStartedQrOnly'));
       // Send notification to all students in the subject
       try {
