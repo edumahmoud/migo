@@ -1653,7 +1653,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     e.stopPropagation();
     setStoppingAttendance(sessionId);
     try {
-      const { error } = await supabase.from('attendance_sessions').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', sessionId);
+      const { error } = await supabase.from('attendance_sessions').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', sessionId).select('id').single();
       if (error) {
         toast.error(t('attendanceStopFailed'));
       } else {
