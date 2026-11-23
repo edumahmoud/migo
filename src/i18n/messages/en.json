@@ -1180,7 +1180,7 @@
   },
   "scorm": {
     "uploadPackage": "Import External SCORM Package",
-    "exportScorm": "Export Lessons as SCORM",
+    "exportScorm": "Export as SCORM Package",
     "uploading": "Uploading...",
     "uploadSuccess": "SCORM package uploaded successfully",
     "uploadError": "Failed to upload SCORM package",
