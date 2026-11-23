@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "build:scorm-shim": "bun build src/lib/scorm-shim-entry.ts --target browser --minify --outfile public/scorm-shim.js",
     "lint": "eslint src next.config.ts scripts --no-warn-ignored",
     "test": "bun test",
     "typecheck": "tsc --noEmit"

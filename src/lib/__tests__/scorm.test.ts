@@ -138,3 +138,22 @@ describe('SCORM 2004 engine', () => {
     expect(api.Terminate('')).toBe('true');
   });
 });
+
+describe('sandbox shim bundle (public/scorm-shim.js)', () => {
+  test('installs a working SCORM 1.2 API and reports to the parent', async () => {
+    const { readFileSync } = await import('node:fs');
+    const code = readFileSync(new URL('../../../public/scorm-shim.js', import.meta.url), 'utf8');
+    const messages: Array<{ source: string; type: string; final: boolean; snapshot: { lesson_status?: string } }> = [];
+    const fakeWindow: Record<string, unknown> = {
+      __SCORM_BOOT: { version: '1.2', cmi: { cmi_core_lesson_status: 'incomplete' } },
+      parent: { postMessage: (m: (typeof messages)[number]) => messages.push(m) },
+    };
+    new Function('window', code)(fakeWindow);
+    const api = fakeWindow.API as Record<string, (...a: string[]) => string>;
+    expect(api.LMSInitialize('')).toBe('true');
+    expect(api.LMSGetValue('cmi.core.lesson_status')).toBe('incomplete');
+    api.LMSSetValue('cmi.core.lesson_status', 'passed');
+    api.LMSFinish('');
+    expect(messages.some(m => m.source === 'scorm-shim' && m.type === 'commit' && m.final && m.snapshot.lesson_status === 'passed')).toBe(true);
+  });
+});
