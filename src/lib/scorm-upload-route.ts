@@ -18,7 +18,25 @@ export async function handleScormUpload(request: NextRequest, library: boolean) 
       fields = await request.json();
       filename = String(fields.filename || '');
     } else {
-      const form = await request.formData();
+      // Bound consumption before formData allocates the multipart body. Larger
+      // packages must use the signed direct-to-storage flow.
+      const reader = request.body?.getReader();
+      if (!reader) throw new ScormIngestError('A ZIP file is required');
+      const chunks: Uint8Array[] = [];
+      let bytes = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 4 * 1024 * 1024) {
+          await reader.cancel();
+          throw new ScormIngestError('Use direct upload for files larger than 3.5MB', 413);
+        }
+        chunks.push(value);
+      }
+      const form = await new Response(Buffer.concat(chunks), {
+        headers: { 'content-type': request.headers.get('content-type') || '' },
+      }).formData();
       fields = Object.fromEntries(form.entries());
       const file = form.get('file');
       if (!(file instanceof File)) throw new ScormIngestError('A ZIP file is required');
@@ -48,13 +66,15 @@ export async function handleScormUpload(request: NextRequest, library: boolean) 
     if (!buffer) throw new ScormIngestError('A ZIP file is required');
     const inspected = await inspectScormZip(buffer);
     const version: ScormVersion | null = fields.version === '2004' ? '2004' : fields.version === '1.2' ? '1.2' : null;
-    const result = await storeScormPackage({ buffer, existingKey: ownedKey, inspected, userId, subjectId,
+    const result = await storeScormPackage({ buffer, inspected, userId, subjectId,
       title: String(fields.title || inspected.parsed.title || filename.replace(/\.zip$/i, '')),
       description: fields.description ? String(fields.description) : null, versionOverride: version });
+    // Commit to a new server-generated key, never adopt the staging key. Retrying
+    // completion cannot make failure cleanup delete an earlier committed ZIP.
+    if (ownedKey) await removeUpload(ownedKey).catch(() => {});
     ownedKey = undefined;
     return NextResponse.json({ success: true, data: { ...result.pkg, resources: result.resources, warnings: result.warnings } });
   } catch (error) {
-    if (ownedKey) await removeUpload(ownedKey).catch(() => {});
     if (error instanceof ScormIngestError) return NextResponse.json({ success: false, error: error.message }, { status: error.status });
     console.error('[SCORM Upload]', error);
     return NextResponse.json({ success: false, error: 'SCORM upload failed. Please try again.' }, { status: 500 });
