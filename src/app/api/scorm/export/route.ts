@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 import JSZip from 'jszip';
+import { attachmentDisposition } from '@/lib/download-headers';
 import type { ScormVersion } from '@/lib/scorm-types';
 
 // ─── POST Handler: Export content as a SCORM package ───
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': attachmentDisposition(fileName),
         'Content-Length': zipBuffer.byteLength.toString(),
       },
     });

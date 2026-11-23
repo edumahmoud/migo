@@ -5,7 +5,7 @@ import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-
 /**
  * GET /api/scorm/library
  *
- * List platform-level SCORM packages (subject_id IS NULL).
+ * List shared platform packages and authorized course uploads.
  * - Admins/superadmins: can see and manage all packages
  * - Teachers: can see packages (read-only) and link them to their subjects
  * - Students: 403 (they access via subject course pages)
@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
   try {
     const userId = authResult.user.id;
     const role = await getUserRole(userId);
-    const isStudent = role === 'student';
+    const isAdmin = role === 'admin' || role === 'superadmin';
+    const isStudent = !isAdmin && role !== 'teacher';
 
     if (isStudent) {
       return NextResponse.json(
@@ -28,8 +29,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch platform-level packages (subject_id IS NULL)
-    const { data: packages, error: pkgError } = await supabaseServer
+    // Include course uploads, but never expose another teacher's private packages.
+    let teacherSubjectIds: Set<string> | null = null;
+    let linkedPackageIds: string[] = [];
+    if (!isAdmin) {
+      const { data: owned, error: ownedError } = await supabaseServer.from('subjects').select('id').eq('teacher_id', userId);
+      const { data: co, error: coError } = await supabaseServer.from('subject_teachers').select('subject_id').eq('teacher_id', userId);
+      if (ownedError || coError) throw new Error('Could not resolve teacher subjects');
+      teacherSubjectIds = new Set([...(owned || []).map(s => s.id), ...(co || []).map(s => s.subject_id)]);
+      if (teacherSubjectIds.size) {
+        const { data: linked, error } = await supabaseServer.from('scorm_package_subjects').select('package_id').in('subject_id', [...teacherSubjectIds]);
+        if (error) throw new Error('Could not resolve linked packages');
+        linkedPackageIds = [...new Set((linked || []).map(l => l.package_id))];
+      }
+    }
+    let query = supabaseServer
       .from('scorm_packages')
       .select(`
         id,
@@ -44,10 +58,17 @@ export async function GET(request: NextRequest) {
         uploaded_by,
         subject_id,
         created_at,
-        updated_at
+        updated_at,
+        subject:subjects(id, name, color)
       `)
-      .is('subject_id', null)
       .order('created_at', { ascending: false });
+    if (!isAdmin) {
+      const filters = ['subject_id.is.null', `uploaded_by.eq.${userId}`];
+      if (teacherSubjectIds?.size) filters.push(`subject_id.in.(${[...teacherSubjectIds].join(',')})`);
+      if (linkedPackageIds.length) filters.push(`id.in.(${linkedPackageIds.join(',')})`);
+      query = query.or(filters.join(','));
+    }
+    const { data: packages, error: pkgError } = await query;
 
     if (pkgError) {
       console.error('[SCORM Library] Fetch error:', pkgError.message);
@@ -104,26 +125,11 @@ export async function GET(request: NextRequest) {
       uploaderMap.set((u as any).id, (u as any).name);
     }
 
-    // For teachers (non-admin), filter visible links to subjects they own
-    const isAdmin = role === 'admin' || role === 'superadmin';
-    let teacherSubjectIds: Set<string> | null = null;
-    if (!isAdmin) {
-      const { data: ownedSubjects } = await supabaseServer
-        .from('subjects')
-        .select('id')
-        .eq('teacher_id', userId);
-      const { data: coTaught } = await supabaseServer
-        .from('subject_teachers')
-        .select('subject_id')
-        .eq('teacher_id', userId);
-      teacherSubjectIds = new Set([
-        ...((ownedSubjects || []).map((s: any) => s.id)),
-        ...((coTaught || []).map((s: any) => s.subject_id)),
-      ]);
-    }
-
     const enrichedPackages = packages.map((pkg: any) => {
-      const linkedSubjects = linksByPackage.get(pkg.id) || [];
+      const linkedSubjects = [...(linksByPackage.get(pkg.id) || [])];
+      if (pkg.subject && !linkedSubjects.some(s => s.id === pkg.subject_id)) {
+        linkedSubjects.unshift({ ...pkg.subject, is_primary: true });
+      }
       // For teachers: only show their linked subjects (still see the package itself)
       const visibleLinks = isAdmin
         ? linkedSubjects
