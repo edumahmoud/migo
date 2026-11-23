@@ -88,8 +88,7 @@ export async function POST(request: NextRequest) {
         teacher_id: userId,
         name: subjectName.trim(),
         description: subjectDescription?.trim() || null,
-        educational_level: 'university',
-        code: `SCORM_${Date.now()}`,
+        level: 'university',
       })
       .select()
       .single();

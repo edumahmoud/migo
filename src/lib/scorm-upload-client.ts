@@ -30,7 +30,7 @@ export async function uploadScormZip(opts: {
       form.append('file', file);
       for (const [k, v] of Object.entries(cleanFields)) form.append(k, v as string);
       const res = await fetch(endpoint, { method: 'POST', headers: auth, body: form });
-      return await res.json();
+      return await readScormUploadResponse(res);
     }
 
     const initRes = await fetch(endpoint, {
@@ -38,7 +38,7 @@ export async function uploadScormZip(opts: {
       headers: { ...auth, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...cleanFields, action: 'init', filename: file.name, size: file.size }),
     });
-    const init = await initRes.json();
+    const init = await readScormUploadResponse(initRes);
     if (!init.success) return init;
 
     const { path, token } = init.data as { path: string; token: string };
@@ -52,8 +52,19 @@ export async function uploadScormZip(opts: {
       headers: { ...auth, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...cleanFields, action: 'complete', path }),
     });
-    return await doneRes.json();
+    return await readScormUploadResponse(doneRes);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Upload failed' };
+  }
+}
+
+export async function readScormUploadResponse(response: Response): Promise<ScormUploadResult> {
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    return { success: false, error: response.status === 404
+      ? 'SCORM upload is unavailable. Please refresh the page and contact the administrator if it continues.'
+      : `SCORM upload failed (HTTP ${response.status}). Please try again.` };
+  }
+  try { return await response.json(); } catch {
+    return { success: false, error: 'The upload server returned an invalid response. Please try again.' };
   }
 }

@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     let pkgQuery = supabaseServer
       .from('scorm_packages')
       .select(
-        'id, title, description, version, entry_point, total_objects, package_size, status, uploaded_by, subject_id, is_platform_library, created_at, updated_at',
+        'id, title, description, version, entry_point, total_objects, package_size, status, uploaded_by, subject_id, created_at, updated_at',
       );
     pkgQuery =
       linkedIds.length > 0

@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
         status,
         uploaded_by,
         subject_id,
-        is_platform_library,
         created_at,
         updated_at
       `)

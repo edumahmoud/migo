@@ -120,7 +120,7 @@ export async function storeScormPackage(input: StorePackageInput) {
       .from('scorm-packages')
       .upload(key, buffer, { contentType: 'application/zip', upsert: false });
     if (uploadError) {
-      throw new ScormIngestError('Failed to store the SCORM package: ' + uploadError.message, 500);
+      throw new ScormIngestError(storageErrorMessage(uploadError.message), 500);
     }
   }
 
@@ -137,7 +137,6 @@ export async function storeScormPackage(input: StorePackageInput) {
     package_size: buffer.byteLength,
     storage_path: key,
   };
-  if (subjectId === null) packageRow.is_platform_library = true;
 
   const { data: pkg, error: pkgError } = await supabaseServer
     .from('scorm_packages')
@@ -192,7 +191,7 @@ export async function createUploadTicket(userId: string, sizeBytes: number, file
   const path = newUploadKey(userId);
   const { data, error } = await supabaseServer.storage.from('scorm-packages').createSignedUploadUrl(path);
   if (error || !data) {
-    throw new ScormIngestError('Could not prepare the upload: ' + (error?.message || 'unknown error'), 500);
+    throw new ScormIngestError(storageErrorMessage(error?.message || 'unknown error'), 500);
   }
   return { path, token: data.token };
 }
@@ -205,4 +204,11 @@ export async function downloadUpload(key: string): Promise<Buffer> {
 
 export async function removeUpload(key: string) {
   await supabaseServer.storage.from('scorm-packages').remove([key]);
+}
+
+export function storageErrorMessage(message: string): string {
+  if (/bucket.*not found|bucket.*does not exist/i.test(message)) {
+    return 'SCORM storage is not set up. Ask the administrator to create the private scorm-packages bucket (50MB limit) in Supabase, then try again.';
+  }
+  return 'Could not store the SCORM package: ' + message;
 }
