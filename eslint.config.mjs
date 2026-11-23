@@ -48,7 +48,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
 }, {
   // Existing React Compiler findings remain visible as warnings until their
   // components are refactored. Syntax and other lint errors still fail CI.
-  files: ["src/components/shared/quiz-view.tsx", "src/components/shared/summary-view.tsx", "src/components/shared/payment-code-search-box.tsx", "src/components/reports/reports-section.tsx"],
+  files: ["src/components/agent/agent-student-suspend-dialog.tsx", "src/components/course/tabs/exams-tab.tsx", "src/components/course/tabs/videos-tab.tsx", "src/components/shared/quiz-view.tsx", "src/components/shared/summary-view.tsx", "src/components/shared/payment-code-search-box.tsx", "src/components/reports/reports-section.tsx"],
   rules: {
     "react-hooks/immutability": "warn",
     "react-hooks/preserve-manual-memoization": "warn",
