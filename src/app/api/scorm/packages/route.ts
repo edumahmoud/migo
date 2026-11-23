@@ -180,7 +180,7 @@ export async function PATCH(request: NextRequest) {
       .from('scorm_packages')
       .update(updateData)
       .eq('id', packageId)
-      .select('id, title, description, version, entry_point, total_objects, package_size, status, uploaded_by, subject_id, is_platform_library, created_at, updated_at')
+      .select('id, title, description, version, entry_point, total_objects, package_size, status, uploaded_by, subject_id, created_at, updated_at')
       .single();
     if (updateError) {
       console.error('[SCORM Package] Update error:', updateError.message);

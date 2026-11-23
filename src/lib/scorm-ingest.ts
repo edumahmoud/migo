@@ -137,7 +137,6 @@ export async function storeScormPackage(input: StorePackageInput) {
     package_size: buffer.byteLength,
     storage_path: key,
   };
-  if (subjectId === null) packageRow.is_platform_library = true;
 
   const { data: pkg, error: pkgError } = await supabaseServer
     .from('scorm_packages')

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Verify the package exists and is a platform-level package (subject_id IS NULL)
     const { data: pkg, error: pkgError } = await supabaseServer
       .from('scorm_packages')
-      .select('id, subject_id, is_platform_library')
+      .select('id, subject_id')
       .eq('id', package_id)
       .maybeSingle();
 
