@@ -1,5 +1,7 @@
 'use client';
 
+import { captureException } from '@sentry/nextjs';
+
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, X } from 'lucide-react';
@@ -24,6 +26,7 @@ export default function GlobalError({
   const direction = useLocaleStore((s) => s.direction);
 
   useEffect(() => {
+    captureException(error);
     console.error('[Global Error]', error);
   }, [error]);
 
