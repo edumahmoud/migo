@@ -7,8 +7,6 @@ import { supabase } from '@/lib/supabase';
 import type { ScormVersion } from '@/lib/scorm-types';
 import MascotLoader from '@/components/shared/mascot-loader';
 import {
-  createScorm12Api,
-  createScorm2004Api,
   type ScormSnapshot,
 } from '@/lib/scorm-api-adapter';
 import { formatClock } from '@/lib/scorm-runtime';
@@ -21,9 +19,9 @@ interface ScormPlayerProps {
   onProgressUpdate?: (trackingData: Record<string, unknown>) => void;
 }
 
-// The SCORM API objects are installed on this window before the iframe is created.
-// The content is served from the same origin (/api/scorm/content), so it finds them
-// through the standard window.parent search.
+// The package runs in a sandboxed iframe with an opaque origin (no allow-same-origin), so it
+// cannot reach this app's cookies, storage or window. /api/scorm/content injects the SCORM API
+// engine into each HTML page; the engine reports changes here with postMessage.
 
 // ─── Main Component ───
 
@@ -36,9 +34,7 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
   const [packageVersion, setPackageVersion] = useState<ScormVersion>('1.2');
   const [packageTitle, setPackageTitle] = useState<string>('');
   const [resourceTitle, setResourceTitle] = useState<string>('');
-  const [cmiData, setCmiData] = useState<Record<string, unknown>>({});
   const [isPreview, setIsPreview] = useState(false);
-  const [apiReady, setApiReady] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const sessionStartRef = useRef<number>(Date.now());
   const finalSentRef = useRef(false);
@@ -122,7 +118,6 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
       setPackageVersion(data.packageVersion === '2004' ? '2004' : '1.2');
       setPackageTitle(data.packageTitle);
       setResourceTitle(data.resourceTitle);
-      setCmiData(data.cmiData || {});
       setIsPreview(!!data.isPreview);
       sessionStartRef.current = Date.now();
       finalSentRef.current = false;
@@ -138,42 +133,36 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
     fetchLaunchData();
   }, [fetchLaunchData]);
 
-  // ── Install the SCORM API on this window, then allow the iframe to render ──
+  // ── The SCORM API runs inside the sandboxed frame; it reports to us with postMessage ──
   useEffect(() => {
     if (!launchUrl) return;
-    const win = window as unknown as Record<string, unknown>;
-
-    const hooks = {
-      onChange: (snap: ScormSnapshot) => {
-        lastSnapshotRef.current = snap;
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const data = event.data as { source?: string; type?: string; final?: boolean; snapshot?: ScormSnapshot } | null;
+      if (!data || data.source !== 'scorm-shim' || !data.snapshot || typeof data.snapshot !== 'object') return;
+      const snap = data.snapshot;
+      lastSnapshotRef.current = snap;
+      if (data.type === 'change') {
         // Status and score changes are saved shortly after, not on every call
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
           if (!finalSentRef.current) void sendTracking(snap, false);
         }, 1500);
-      },
-      onCommit: (snap: ScormSnapshot, final: boolean) => {
-        lastSnapshotRef.current = snap;
+      } else if (data.type === 'commit') {
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        if (final) {
+        if (data.final) {
           if (finalSentRef.current) return;
           finalSentRef.current = true;
         }
-        void sendTracking(snap, final);
-      },
+        void sendTracking(snap, !!data.final);
+      }
     };
-
-    if (packageVersion === '1.2') win.API = createScorm12Api(cmiData, hooks);
-    else win.API_1484_11 = createScorm2004Api(cmiData, hooks);
-    setApiReady(true);
-
+    window.addEventListener('message', onMessage);
     return () => {
+      window.removeEventListener('message', onMessage);
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      delete win.API;
-      delete win.API_1484_11;
-      setApiReady(false);
     };
-  }, [launchUrl, packageVersion, cmiData, sendTracking]);
+  }, [launchUrl, sendTracking]);
 
   // ── Close: make sure the final session time is saved exactly once ──
   const handleClose = useCallback(async () => {
@@ -260,14 +249,14 @@ export default function ScormPlayer({ packageId, resourceId, onClose, onProgress
       )}
 
       {/* ── SCORM Content iframe ── */}
-      {!loading && launchUrl && apiReady && (
+      {!loading && launchUrl && (
         <iframe
           ref={iframeRef}
           src={launchUrl}
           className={`flex-1 ${isFullscreen ? 'h-[calc(100vh-48px)]' : 'min-h-[500px]'} border-0 bg-white`}
           title={`${packageTitle} - ${resourceTitle}`}
           allow="fullscreen"
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+          sandbox="allow-scripts allow-popups allow-forms allow-modals allow-downloads"
         />
       )}
     </div>
