@@ -387,7 +387,7 @@ export default function LectureModal({
     try {
       const res = await fetch('/api/attendance/manual-register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({
           sessionId: lecture.attendance_session.id,
           studentId,

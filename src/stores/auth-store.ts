@@ -916,21 +916,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   signOut: async () => {
-    const currentUser = get().user;
-
-    // If the user is a student, remove their attendance records from active sessions
-    // so they are marked as absent if they log out during attendance
-    if (currentUser && currentUser.role === 'student') {
-      try {
-        await fetch('/api/attendance/mark-absent-on-logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentId: currentUser.id }),
-        });
-      } catch {
-        // Non-critical: don't block sign-out if this fails
-      }
-    }
+    // Attendance is a historical classroom event, not a login-state indicator.
 
     // Immediately clear user state for instant UI feedback
     set({ user: null, loading: false, sessionKickedMessage: null, banInfo: null });

@@ -1015,6 +1015,7 @@
         "activeAttendanceSessionExists": "لديك جلسة حضور نشطة بالفعل",
         "attendanceStartFailed": "حدث خطأ أثناء بدء الحضور",
         "attendanceStartedWithLocation": "تم بدء تسجيل الحضور مع تحديد الموقع (دقة {accuracy}م)",
+        "attendanceStartedQrOnly": "بدأ الحضور بوضع QR فقط. GPS غير متاح لعدم وجود موقع دقيق للمعلم.",
         "attendanceStarted": "تم بدء تسجيل الحضور",
         "attendanceStopFailed": "حدث خطأ أثناء إنهاء الحضور",
         "attendanceStopped": "تم إنهاء تسجيل الحضور",

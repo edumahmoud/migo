@@ -438,6 +438,8 @@ export interface AttendanceSession {
   ended_at?: string | null;
   teacher_latitude?: number | null;
   teacher_longitude?: number | null;
+  teacher_accuracy?: number | null;
+  teacher_location_captured_at?: string | null;
   created_at: string;
   updated_at: string;
 }
