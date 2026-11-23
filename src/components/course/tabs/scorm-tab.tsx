@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Package, Upload, Download, Trash2, Play, Eye, Loader2,
+  Package, Download, Trash2, Play, Eye, Loader2,
   ChevronDown, ChevronRight, AlertCircle, CheckCircle2,
   Clock, BarChart3, BookOpen, X,
-  Archive, ListChecks
+  ListChecks
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -15,7 +15,6 @@ import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, QuestionBank } from '@/lib/types';
 import type { ScormPackage, ScormResource, ScormVersion } from '@/lib/scorm-types';
 import ScormPlayer from './scorm-player';
-import { uploadScormZip } from '@/lib/scorm-upload-client';
 import { flattenResourceTree } from '@/lib/scorm-manifest';
 import MascotLoader from '@/components/shared/mascot-loader';
 
@@ -33,7 +32,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
 
   const [packages, setPackages] = useState<ScormPackage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [activePlayer, setActivePlayer] = useState<{ packageId: string; resourceId: string } | null>(null);
 
   // ── Export modal state ──
@@ -47,22 +45,11 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
   const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
 
-  // ── Platform-level SCORM import state ──
-  const [platformImportOpen, setPlatformImportOpen] = useState(false);
-  const [platformImporting, setPlatformImporting] = useState(false);
-  const [platformImportName, setPlatformImportName] = useState('');
-  const [platformImportDescription, setPlatformImportDescription] = useState('');
-  const [platformImportFile, setPlatformImportFile] = useState<File | null>(null);
-  const platformImportFileRef = useRef<HTMLInputElement>(null);
-
   // ── Delete confirmation state ──
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // ── Tracking data ──
   const [trackingData, setTrackingData] = useState<Record<string, Record<string, unknown>>>({});
-
-  // ── Upload ref ──
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch SCORM packages ──
   const fetchPackages = useCallback(async () => {
@@ -165,50 +152,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
   useEffect(() => {
     fetchQuestionBanks();
   }, [fetchQuestionBanks]);
-
-  // ── Upload SCORM package ──
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      toast.error(t('scorm.onlyZipAllowed') || 'Only .zip files are allowed');
-      return;
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error(t('scorm.maxSizeExceeded') || 'File size exceeds 50MB limit');
-      return;
-    }
-
-    try {
-      setUploading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const result = await uploadScormZip({
-        endpoint: '/api/scorm/upload',
-        file,
-        accessToken: token,
-        fields: { subjectId: subject.id },
-      });
-
-      if (result.success) {
-        toast.success(t('scorm.uploadSuccess') || 'SCORM package uploaded successfully');
-        fetchPackages();
-      } else {
-        toast.error(result.error || t('scorm.uploadError') || 'Failed to upload SCORM package');
-      }
-    } catch (err) {
-      console.error('[ScormTab] Upload error:', err);
-      toast.error(t('scorm.uploadError') || 'Failed to upload SCORM package');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
 
   // ── Delete SCORM package ──
   const handleDelete = async (packageId: string) => {
@@ -317,45 +260,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
     }
   };
 
-  // ── Platform-level SCORM import handler ──
-  const handlePlatformImport = async () => {
-    if (!platformImportFile || !platformImportName.trim()) {
-      toast.error(t('scorm.selectBankError') || 'Please fill in all required fields');
-      return;
-    }
-
-    try {
-      setPlatformImporting(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const result = await uploadScormZip({
-        endpoint: '/api/scorm/platform-import',
-        file: platformImportFile,
-        accessToken: token,
-        fields: { name: platformImportName.trim(), description: platformImportDescription.trim() },
-      });
-
-      if (result.success) {
-        toast.success(t('scorm.platformImportSuccess') || 'Course imported from SCORM package successfully');
-        setPlatformImportOpen(false);
-        setPlatformImportName('');
-        setPlatformImportDescription('');
-        setPlatformImportFile(null);
-        if (platformImportFileRef.current) {
-          platformImportFileRef.current.value = '';
-        }
-      } else {
-        toast.error(result.error || t('scorm.platformImportError') || 'Failed to import course from SCORM package');
-      }
-    } catch (err) {
-      console.error('[ScormTab] Platform import error:', err);
-      toast.error(t('scorm.platformImportError') || 'Failed to import course from SCORM package');
-    } finally {
-      setPlatformImporting(false);
-    }
-  };
-
   // ── Launch SCORM content ──
   const handleLaunch = (pkg: ScormPackage, resource: ScormResource) => {
     setActivePlayer({
@@ -413,23 +317,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       {/* ── Teacher Actions ── */}
       {role === 'teacher' && (
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Upload button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 px-4 py-2 bg-sky-700 text-white rounded-lg hover:bg-sky-800 transition-colors disabled:opacity-50"
-          >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {uploading ? (t('scorm.uploading') || 'Uploading...') : (t('scorm.uploadPackage') || 'Upload SCORM Package')}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            onChange={handleUpload}
-            className="hidden"
-          />
-
           {/* Export button */}
           <button
             onClick={() => setExportModalOpen(true)}
@@ -437,15 +324,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
           >
             <Download className="h-4 w-4" />
             {t('scorm.exportScorm') || 'Export as SCORM'}
-          </button>
-
-          {/* Platform Import button — Import external SCORM to create new course */}
-          <button
-            onClick={() => setPlatformImportOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-          >
-            <Archive className="h-4 w-4" />
-            {t('scorm.platformImportTitle') || 'Import Course from SCORM'}
           </button>
         </div>
       )}
@@ -471,15 +349,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
               : (t('scorm.noPackagesStudent') || 'No SCORM content is available yet')
             }
           </p>
-          {role === 'teacher' && (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 bg-sky-700 text-white rounded-lg hover:bg-sky-800 transition-colors"
-            >
-              <Upload className="h-4 w-4" />
-              {t('scorm.uploadPackage') || 'Upload SCORM Package'}
-            </button>
-          )}
         </div>
       )}
 
@@ -660,105 +529,6 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
         )}
       </AnimatePresence>
 
-      {/* ── Platform Import Modal ── */}
-      <AnimatePresence>
-        {platformImportOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-background rounded-xl shadow-xl max-w-md w-full p-6 border border-border"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">{t('scorm.platformImportTitle') || 'Import Course from SCORM'}</h3>
-                <button onClick={() => setPlatformImportOpen(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <p className="text-sm text-muted-foreground mb-4">
-                {t('scorm.platformImportDesc') || 'Upload an external SCORM package to create a new course on the platform'}
-              </p>
-
-              <div className="space-y-4">
-                {/* Course Name */}
-                <div>
-                  <label className="text-sm font-medium mb-1 block">{t('scorm.platformImportName') || 'Course Name'} *</label>
-                  <input
-                    type="text"
-                    value={platformImportName}
-                    onChange={(e) => setPlatformImportName(e.target.value)}
-                    placeholder={t('scorm.platformImportName') || 'Course Name'}
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-sky-700 text-sm"
-                  />
-                </div>
-
-                {/* Course Description */}
-                <div>
-                  <label className="text-sm font-medium mb-1 block">{t('scorm.platformImportDescription') || 'Course Description'}</label>
-                  <textarea
-                    value={platformImportDescription}
-                    onChange={(e) => setPlatformImportDescription(e.target.value)}
-                    placeholder={t('scorm.platformImportDescription') || 'Course Description'}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-sky-700 text-sm resize-none"
-                  />
-                </div>
-
-                {/* File Upload */}
-                <div>
-                  <label className="text-sm font-medium mb-1 block">{t('common.upload') || 'Upload'} (.zip) *</label>
-                  <div
-                    onClick={() => platformImportFileRef.current?.click()}
-                    className="flex items-center gap-3 p-3 border border-border rounded-lg cursor-pointer hover:border-sky-700/50 transition-colors"
-                  >
-                    <Upload className="h-5 w-5 text-muted-foreground" />
-                    <div className="flex-1 min-w-0">
-                      {platformImportFile ? (
-                        <span className="text-sm font-medium truncate block">{platformImportFile.name}</span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Click to select a SCORM ZIP file</span>
-                      )}
-                    </div>
-                  </div>
-                  <input
-                    ref={platformImportFileRef}
-                    type="file"
-                    accept=".zip"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (!file.name.toLowerCase().endsWith('.zip')) {
-                          toast.error(t('scorm.onlyZipAllowed') || 'Only .zip files are allowed');
-                          return;
-                        }
-                        setPlatformImportFile(file);
-                      }
-                    }}
-                    className="hidden"
-                  />
-                </div>
-
-                {/* Import Button */}
-                <button
-                  onClick={handlePlatformImport}
-                  disabled={platformImporting || !platformImportFile || !platformImportName.trim()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 font-medium"
-                >
-                  {platformImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
-                  {platformImporting ? (t('scorm.platformImporting') || 'Importing...') : (t('scorm.platformImportButton') || 'Import & Create Course')}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
