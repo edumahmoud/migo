@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Verify the teacher owns this attendance session
     const { data: session, error: sessionError } = await supabaseServer
       .from('attendance_sessions')
-      .select('id, teacher_id, status')
+      .select('id, teacher_id, status, subject_id')
       .eq('id', sessionId)
       .single();
 
@@ -53,6 +53,12 @@ export async function POST(request: NextRequest) {
 
     if (session.status !== 'active') {
       return NextResponse.json({ error: 'جلسة الحضور غير نشطة' }, { status: 400 });
+    }
+
+    const { data: enrollment } = await supabaseServer.from('subject_students')
+      .select('student_id').eq('student_id', studentId).eq('subject_id', session.subject_id).eq('status', 'approved').maybeSingle();
+    if (!enrollment || await getUserRole(studentId) !== 'student') {
+      return NextResponse.json({ error: 'الطالب غير مسجل في هذا المقرر' }, { status: 403 });
     }
 
     // Check if student is already registered

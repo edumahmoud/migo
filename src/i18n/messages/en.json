@@ -1014,6 +1014,7 @@
         "activeAttendanceSessionExists": "You already have an active attendance session",
         "attendanceStartFailed": "Error occurred while starting attendance",
         "attendanceStartedWithLocation": "Attendance started with location (accuracy {accuracy}m)",
+        "attendanceStartedQrOnly": "Attendance is QR-only. GPS is unavailable without an accurate teacher location.",
         "attendanceStarted": "Attendance started",
         "attendanceStopFailed": "Error occurred while stopping attendance",
         "attendanceStopped": "Attendance stopped",

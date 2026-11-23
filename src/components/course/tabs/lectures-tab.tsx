@@ -33,6 +33,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -110,39 +111,10 @@ function formatTimeArabic(time24: string, amLabel: string, pmLabel: string): str
   } catch { return time24; }
 }
 
-// GPS distance calculation — uses the Equirectangular approximation for short distances
-// which is more accurate than Haversine at < 1 km (avoids floating-point rounding errors).
-// For distances > 1 km, falls back to the Haversine formula.
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000; // Earth's mean radius in meters
-  const toRad = Math.PI / 180;
-  const dLat = (lat2 - lat1) * toRad;
-  const dLon = (lon2 - lon1) * toRad;
-  const meanLat = ((lat1 + lat2) / 2) * toRad;
-
-  // Equirectangular approximation — excellent for short distances (< 1 km)
-  const x = dLon * Math.cos(meanLat);
-  const y = dLat;
-  const equirectDist = R * Math.sqrt(x * x + y * y);
-
-  // For very short distances, use the equirectangular result directly
-  // (more numerically stable than Haversine at meter scale)
-  if (equirectDist < 1000) return equirectDist;
-
-  // For longer distances, use Haversine (more accurate for great-circle)
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-const GPS_MAX_DISTANCE_METERS = 20; // GPS check-in: strict 20m limit
-
 // Simple, reliable GPS position acquisition.
 // Uses getCurrentPosition with enableHighAccuracy: true.
 // This is the standard approach that works on mobile devices with GPS hardware.
-// Key: maximumAge: 0 ensures no cached positions, enableHighAccuracy forces GPS usage.
+// Key: maximumAge: 0 ensures no cached positions, enableHighAccuracy requests the best available fix.
 function getCurrentGpsPosition(timeoutMs: number = 30000): Promise<GeolocationPosition | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -152,13 +124,6 @@ function getCurrentGpsPosition(timeoutMs: number = 30000): Promise<GeolocationPo
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log('[GPS] Got position:', {
-          lat: pos.coords.latitude.toFixed(6),
-          lon: pos.coords.longitude.toFixed(6),
-          accuracy: Math.round(pos.coords.accuracy),
-          altitude: pos.coords.altitude,
-          speed: pos.coords.speed,
-        });
         resolve(pos);
       },
       (err) => {
@@ -194,7 +159,7 @@ async function getBestGpsPosition(): Promise<GeolocationPosition | null> {
 
   // If accuracy is very poor (> 500m), it's definitely IP-based.
   // Retry once to see if GPS kicks in.
-  if (pos.coords.accuracy > 500) {
+  if (pos.coords.accuracy > 50) {
     console.warn(`[GPS] Poor accuracy (${Math.round(pos.coords.accuracy)}m) - retrying for GPS...`);
     const retry = await getCurrentGpsPosition(20000);
     // Only use retry if it's not null island AND has better accuracy
@@ -470,7 +435,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     try {
       const [lecturesResult, sessionsResult, studentCountResult] = await Promise.all([
         supabase.from('lectures').select('*').eq('subject_id', subjectId).order('created_at', { ascending: false }),
-        supabase.from('attendance_sessions').select('*').eq('subject_id', subjectId),
+        supabase.from('attendance_sessions').select('*').eq('subject_id', subjectId).order('started_at', { ascending: true }),
         supabase.from('subject_students').select('*', { count: 'exact', head: true }).eq('subject_id', subjectId),
       ]);
 
@@ -479,7 +444,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       const lecturesList = ((lecturesResult.data as Lecture[]) || []).filter(l => !l.title.startsWith('__'));
       const sessionsList = (sessionsResult.data as AttendanceSession[]) || [];
       const sessionMap = new Map<string, AttendanceSession>();
-      sessionsList.forEach((s) => sessionMap.set(s.lecture_id, s));
+      sessionsList.forEach((s) => {
+        if (sessionMap.get(s.lecture_id)?.status !== 'active' || s.status === 'active') sessionMap.set(s.lecture_id, s);
+      });
 
       setTotalStudents(studentCountResult.count || 0);
 
@@ -1615,15 +1582,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     setStartingAttendance(lectureId);
     try {
       // Get teacher GPS location
-      let location: { lat: number; lon: number; accuracy: number } | null = null;
+      let location: { lat: number; lon: number; accuracy: number; capturedAt: number } | null = null;
       if (navigator.geolocation) {
         try {
           const pos = await getBestGpsPosition();
           if (pos && !(pos.coords.latitude === 0 && pos.coords.longitude === 0)) {
-            location = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy };
-            // Warn if accuracy is poor but still save the location
-            // Both teacher and student need to use similar location methods
-            if (pos.coords.accuracy > 100) {
+            location = pos.coords.accuracy <= 50 ? { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, capturedAt: pos.timestamp } : null;
+            // Poor fixes leave the session explicitly QR-only.
+            if (pos.coords.accuracy > 50) {
               toast(t('gpsAccuracyPoor', { accuracy: Math.round(pos.coords.accuracy) }), { duration: 6000 });
             }
           } else if (!pos) {
@@ -1644,27 +1610,20 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       if (location) {
         insertData.teacher_latitude = location.lat;
         insertData.teacher_longitude = location.lon;
+        insertData.teacher_accuracy = location.accuracy;
+        insertData.teacher_location_captured_at = new Date(location.capturedAt).toISOString();
       }
 
       const { error } = await supabase.from('attendance_sessions').insert(insertData);
       if (error) {
-        if (location && (error.message?.includes('teacher_latitude') || error.code === '42703')) {
-          const { error: retryError } = await supabase.from('attendance_sessions').insert({
-            lecture_id: lectureId, teacher_id: profile.id, subject_id: subjectId, status: 'active',
-          });
-          if (retryError) {
-            if (retryError.code === '23505') toast.error(t('activeAttendanceSessionExists'));
-            else toast.error(t('attendanceStartFailed'));
-            return;
-          }
-        } else if (error.code === '23505') {
+        if (error.code === '23505') {
           toast.error(t('activeAttendanceSessionExists')); return;
         } else {
           toast.error(t('attendanceStartFailed')); return;
         }
       }
 
-      toast.success(location ? t('attendanceStartedWithLocation', { accuracy: Math.round(location.accuracy) }) : t('attendanceStarted'));
+      toast.success(location ? t('attendanceStartedWithLocation', { accuracy: Math.round(location.accuracy) }) : t('attendanceStartedQrOnly'));
       // Send notification to all students in the subject
       try {
         const lectureTitle = lectures.find((l) => l.id === lectureId)?.title || '';
@@ -1724,14 +1683,17 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   };
 
   // ─── QR Code rotation state ───
-  const [qrRotationIndex, setQrRotationIndex] = useState(0);
+  const [qrRefreshVersion, setQrRefreshVersion] = useState(0);
 
   // -------------------------------------------------------
   // QR Code modal
   // -------------------------------------------------------
-  const generateQrData = (sessionId: string, rotationIndex: number) => {
-    // Include rotation index so QR changes every cycle
-    return `${sessionId}::${rotationIndex}::${Math.floor(Date.now() / 10000)}`;
+  const generateSecureQr = async (sessionId: string) => {
+    const headers = await getCachedAuthHeaders();
+    const response = await fetch('/api/attendance/qr-challenge', { method: 'POST', headers, body: JSON.stringify({ sessionId }), cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.token) throw new Error(data.error || t('checkInFailed'));
+    return QRCode.toDataURL(data.token, { width: 400, margin: 3, color: { dark: '#000000', light: '#ffffff' } });
   };
 
   const handleOpenQrModal = async (lecture: LectureWithAttendance, e: React.MouseEvent) => {
@@ -1742,17 +1704,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     }
     setQrLecture(lecture);
     setQrModalOpen(true);
-    const newIndex = Math.floor(Date.now() / 10000);
-    setQrRotationIndex(newIndex);
-    // Generate QR
+    setQrDataUrl('');
     try {
-      const url = await QRCode.toDataURL(generateQrData(lecture.attendance_session.id, newIndex), {
-        width: 400,
-        margin: 3,
-        color: { dark: '#000000', light: '#ffffff' },
-      });
-      setQrDataUrl(url);
-    } catch { setQrDataUrl(''); }
+      setQrDataUrl(await generateSecureQr(lecture.attendance_session.id));
+      setQrRefreshVersion(v => v + 1);
+    } catch (error) {
+      setQrDataUrl('');
+      toast.error(error instanceof Error ? error.message : t('checkInFailed'));
+    }
     // Fetch attendee count
     try {
       const { count } = await supabase.from('attendance_records').select('*', { count: 'exact', head: true }).eq('session_id', lecture.attendance_session.id);
@@ -1764,19 +1723,18 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   useEffect(() => {
     if (!qrModalOpen || !qrLecture?.attendance_session) return;
     const sessionId = qrLecture.attendance_session.id;
+    let cancelled = false;
+    let busy = false;
     const interval = setInterval(async () => {
-      const newIndex = Math.floor(Date.now() / 10000);
-      setQrRotationIndex(newIndex);
+      if (busy) return;
+      busy = true;
       try {
-        const url = await QRCode.toDataURL(generateQrData(sessionId, newIndex), {
-          width: 400,
-          margin: 3,
-          color: { dark: '#000000', light: '#ffffff' },
-        });
-        setQrDataUrl(url);
-      } catch { /* keep old QR */ }
+        const url = await generateSecureQr(sessionId);
+        if (!cancelled) { setQrDataUrl(url); setQrRefreshVersion(v => v + 1); }
+      } catch { if (!cancelled) setQrDataUrl(''); }
+      finally { busy = false; }
     }, 10000);
-    return () => { clearInterval(interval); };
+    return () => { cancelled = true; clearInterval(interval); };
   }, [qrModalOpen, qrLecture]);
 
   // Real-time update for QR modal attendee count
@@ -1825,11 +1783,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           { fps: 10, qrbox: { width: 250, height: 250 } },
           async (decodedText: string) => {
             // Accept QR if it starts with the session ID (handles rotated QR codes)
-            if (decodedText.startsWith(sessionId)) {
+            if (decodedText.startsWith('attendo:v1:')) {
               await html5QrCode.stop();
               html5QrCodeRef.current = null;
               setScanningSessionId(null);
-              await performCheckIn(sessionId, 'qr');
+              await performCheckIn(sessionId, 'qr', decodedText);
             } else {
               toast.error(t('invalidQrForLecture'));
             }
@@ -1895,138 +1853,33 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   // -------------------------------------------------------
   // Student: Perform check-in with GPS verification
   // -------------------------------------------------------
-  const performCheckIn = async (sessionId: string, method: 'qr' | 'gps') => {
+  const performCheckIn = async (sessionId: string, method: 'qr' | 'gps', token?: string) => {
     if (checkingIn) return;
     setCheckingIn(true);
     try {
-      let studentLat: number | null = null;
-      let studentLon: number | null = null;
-      let studentAccuracy: number | null = null;
-
-      if (navigator.geolocation) {
-        try {
-          const pos = await getBestGpsPosition();
-          if (pos) {
-            // Validate coordinates - reject null island (0,0)
-            if (!(pos.coords.latitude === 0 && pos.coords.longitude === 0)) {
-              studentLat = pos.coords.latitude;
-              studentLon = pos.coords.longitude;
-              studentAccuracy = pos.coords.accuracy;
-            }
-          }
-        } catch { /* continue without location */ }
-      }
-
-      // For GPS method: location is required
-      if (method === 'gps' && !studentLat) {
-        toast.error(t('gpsLocationUnavailableGps'));
-        setCheckingIn(false);
-        return;
-      }
-
-      const { data: session } = await supabase.from('attendance_sessions').select('*').eq('id', sessionId).single();
-
-      if (session && studentLat && studentLon) {
-        const teacherLat = (session as AttendanceSession).teacher_latitude;
-        const teacherLon = (session as AttendanceSession).teacher_longitude;
-
-        if (teacherLat && teacherLon) {
-          const distance = calculateDistance(teacherLat, teacherLon, studentLat, studentLon);
-          
-          // Log GPS data for debugging
-          console.log('[GPS Check]', {
-            method,
-            teacher: { lat: teacherLat.toFixed(6), lon: teacherLon.toFixed(6) },
-            student: { lat: studentLat.toFixed(6), lon: studentLon.toFixed(6), accuracy: studentAccuracy ? Math.round(studentAccuracy) : 'N/A' },
-            distance: Math.round(distance),
-          });
-          
-          // Detect GPS/IP mismatch: distance > 1km means one device used real GPS and the other used IP/cell tower location
-          // This is a common issue when GPS is weak or disabled on one device
-          const isLocationMismatch = distance > 1000;
-          
-          // Accuracy-aware threshold: GPS has inherent uncertainty, so if the student's
-          // reported accuracy circle overlaps with the allowed radius, we allow check-in.
-          // effectiveThreshold = GPS_MAX_DISTANCE_METERS + min(studentAccuracy, 80)
-          // Capped at 80m accuracy bonus to prevent very poor GPS from making check-in meaningless.
-          // (80m bonus + 20m base = 100m max effective threshold)
-          // This prevents false rejections when GPS is slightly off but the student is actually present.
-          const accuracyBonus = Math.min(studentAccuracy || 0, 80);
-          const effectiveThreshold = GPS_MAX_DISTANCE_METERS + accuracyBonus;
-          
-          if (method === 'qr') {
-            // QR check-in: The QR scan itself proves physical proximity (student scanned teacher's screen).
-            // GPS verification is informational only — a GPS/IP mismatch should NOT block QR check-in.
-            if (isLocationMismatch) {
-              console.warn('[GPS] QR check-in with GPS mismatch (distance:', Math.round(distance), 'm). QR scan proves proximity, allowing check-in.');
-              toast(t('qrVerifiedGpsMismatch', { distance: Math.round(distance) }), { duration: 6000 });
-              // Don't return — allow QR check-in to proceed
-            } else if (distance > GPS_MAX_DISTANCE_METERS) {
-              // Small distance mismatch (20m-1km): likely GPS inaccuracy, not IP mismatch
-              // For QR, still allow — the scan proves proximity
-              console.warn('[GPS] QR check-in, distance over GPS threshold:', Math.round(distance), 'm. Allowing via QR proof.');
-            }
-            // For QR: always proceed regardless of GPS distance
-          } else {
-            // GPS-only check-in: GPS is the ONLY proof of proximity — must be accurate
-            if (isLocationMismatch) {
-              console.error('[GPS] GPS check-in mismatch. Teacher:', teacherLat.toFixed(6), teacherLon.toFixed(6), 'Student:', studentLat.toFixed(6), studentLon.toFixed(6));
-              toast.error(t('gpsDistanceTooFar', { distance: Math.round(distance) }), { duration: 10000 });
-              return;
-            }
-            
-            // Use accuracy-aware threshold for GPS check-in
-            // If the student's accuracy circle overlaps the allowed zone, they're likely present
-            if (distance > effectiveThreshold) {
-              console.warn('[GPS] GPS check-in distance too far:', Math.round(distance), 'meters (threshold:', Math.round(effectiveThreshold), 'm with accuracy:', Math.round(studentAccuracy || 0), 'm)');
-              if (studentAccuracy && studentAccuracy > 100) {
-                toast.error(t('gpsPoorAccuracyAndDistance', { accuracy: Math.round(studentAccuracy), distance: Math.round(distance) }), { duration: 8000 });
-              } else {
-                toast.error(t('gpsTooFarFromTeacher', { distance: Math.round(distance), maxDistance: GPS_MAX_DISTANCE_METERS }), { duration: 6000 });
-              }
-              return;
-            }
-          }
+      let position: GeolocationPosition | null = null;
+      if (method === 'gps') {
+        position = await getBestGpsPosition();
+        if (!position || position.coords.accuracy > 50) {
+          toast.error(t('gpsLocationUnavailableGps'));
+          return;
         }
       }
-
-      const insertData: Record<string, unknown> = {
-        session_id: sessionId,
-        student_id: profile.id,
-        check_in_method: method,
-      };
-
-      if (studentLat) insertData.student_latitude = studentLat;
-      if (studentLon) insertData.student_longitude = studentLon;
-
-      const { error } = await supabase.from('attendance_records').insert(insertData);
-
-      if (error) {
-        if (error.code === '23505') {
-          toast.error(t('alreadyCheckedIn'));
-        } else if (error.message?.includes('check_in_method') || error.code === '42703') {
-          const { error: retryError } = await supabase.from('attendance_records').insert({
-            session_id: sessionId,
-            student_id: profile.id,
-          });
-          if (retryError) {
-            if (retryError.code === '23505') toast.error(t('alreadyCheckedIn'));
-            else toast.error(t('checkInFailed'));
-          } else {
-            toast.success(t('checkInSuccess'));
-          }
-        } else {
-          toast.error(t('checkInFailed'));
-        }
-      } else {
-        toast.success(t('checkInSuccessVerified'));
-      }
+      const headers = await getCachedAuthHeaders();
+      const response = await fetch('/api/attendance/check-in', {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          sessionId, method, token,
+          ...(position ? { latitude: position.coords.latitude, longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy, capturedAt: position.timestamp } : {}),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) { toast.error(data.error || t('checkInFailed')); return; }
+      toast.success(data.alreadyRegistered ? t('alreadyCheckedIn') : t('checkInSuccessVerified'));
       fetchLectures();
-    } catch {
-      toast.error(tc('unexpectedError'));
-    } finally {
-      setCheckingIn(false);
-    }
+    } catch { toast.error(tc('unexpectedError')); }
+    finally { setCheckingIn(false); }
   };
 
   // -------------------------------------------------------
@@ -2372,7 +2225,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleGpsCheckIn(lecture.attendance_session!.id); }}
-                                disabled={checkingIn || gpsCheckingIn === lecture.attendance_session!.id}
+                                disabled={checkingIn || gpsCheckingIn === lecture.attendance_session!.id || lecture.attendance_session!.teacher_accuracy == null}
                                 className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-100 disabled:opacity-60 transition-colors"
                               >
                                 {(gpsCheckingIn === lecture.attendance_session!.id || checkingIn) ? (
@@ -2840,6 +2693,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* Title */}
               <h3 className="text-xl font-bold text-foreground mb-1">{qrLecture.title}</h3>
               <p className="text-sm text-muted-foreground mb-6">{t('qrForAttendance')}</p>
+              {!qrLecture.attendance_session?.teacher_accuracy && <p className="text-xs text-amber-700 mb-4">{t('attendanceStartedQrOnly')}</p>}
 
               {/* QR Code with auto-refresh */}
               <div className="flex justify-center mb-4">
@@ -2848,7 +2702,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     <img src={qrDataUrl} alt="QR Code" className="w-64 h-64 rounded-lg" />
                     {/* Refresh countdown ring */}
                     <div className="absolute -top-2 -end-2 flex h-8 w-8 items-center justify-center rounded-full bg-sky-700 text-white text-xs font-bold shadow-lg">
-                      <QrRefreshTimer />
+                      <QrRefreshTimer key={qrRefreshVersion} />
                     </div>
                   </div>
                 ) : (
