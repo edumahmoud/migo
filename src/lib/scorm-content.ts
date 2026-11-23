@@ -79,6 +79,10 @@ export interface ScormContentTokenPayload {
   e: number;
   /** 1 when the user manages the package (may view drafts) */
   m: 0 | 1;
+  /** resource id the token was issued for (used to inject the learner's saved state) */
+  r?: string;
+  /** 1 when progress is tracked for this user (student), 0 for previews */
+  t?: 0 | 1;
 }
 
 function secret(): string {
@@ -115,7 +119,14 @@ export function verifyContentToken(
     const payload = JSON.parse(json) as ScormContentTokenPayload;
     if (typeof payload.p !== 'string' || typeof payload.u !== 'string' || typeof payload.e !== 'number') return null;
     if (payload.e < nowSeconds) return null;
-    return { p: payload.p, u: payload.u, e: payload.e, m: payload.m === 1 ? 1 : 0 };
+    return {
+      p: payload.p,
+      u: payload.u,
+      e: payload.e,
+      m: payload.m === 1 ? 1 : 0,
+      r: typeof payload.r === 'string' ? payload.r : undefined,
+      t: payload.t === 1 ? 1 : 0,
+    };
   } catch {
     return null;
   }
