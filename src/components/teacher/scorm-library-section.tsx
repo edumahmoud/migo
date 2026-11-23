@@ -95,7 +95,7 @@ interface SubjectOption {
 
 interface EnrichedPackage extends ScormPackage {
   uploader_name?: string;
-  linked_subjects?: { id: string; name: string; color?: string | null; linked_by?: string; linked_at?: string }[];
+  linked_subjects?: { id: string; name: string; color?: string | null; linked_by?: string; linked_at?: string; is_primary?: boolean }[];
 }
 
 const containerVariants = {
@@ -232,7 +232,20 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
       });
       if (!result.success) throw new Error(result.error || 'Upload failed');
 
-      toast.success(t('uploadSuccess') || 'SCORM package uploaded successfully');
+      // Upload and linking are separate authorized operations. Never report links
+      // as successful just because storage registration succeeded.
+      let linkFailures = 0;
+      for (const subjectId of uploadLinkIds) {
+        try {
+          const response = await fetch('/api/scorm/library/link', {
+            method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ package_id: result.data.id, subject_id: subjectId }),
+          });
+          if (!response.ok || !(await response.json()).success) linkFailures++;
+        } catch { linkFailures++; }
+      }
+      if (linkFailures) toast.warning(t('uploadLinkPartial'));
+      else toast.success(t('uploadSuccess') || 'SCORM package uploaded successfully');
       setShowUploadDialog(false);
       resetUploadForm();
       fetchPackages();
@@ -772,6 +785,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                 </div>
               ) : (
                 subjects.map((s) => {
+                  const primaryLink = (linkDialogPackage.linked_subjects || []).find((ls) => ls.id === s.id && ls.is_primary);
                   const isLinked = (linkDialogPackage.linked_subjects || []).some((ls) => ls.id === s.id);
                   return (
                     <div
@@ -789,7 +803,9 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                           )}
                         </div>
                       </div>
-                      {isLinked ? (
+                      {primaryLink ? (
+                        <Badge variant="secondary">{t('primaryCourse')}</Badge>
+                      ) : isLinked ? (
                         <Button
                           size="sm"
                           variant="outline"
