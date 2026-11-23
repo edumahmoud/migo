@@ -44,9 +44,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Allow linking both platform-level (subject_id NULL) and subject-scoped packages (cross-link)
-    // For platform-level packages, anyone with subject access can link.
-    // For subject-scoped packages, only the original subject's teacher OR admin can cross-link.
+    // Platform-level packages (subject_id NULL) can be linked by any teacher of the target subject.
+    // Subject-scoped packages can only be cross-linked by someone who manages the original subject.
+    if (!isAdmin && pkg.subject_id) {
+      const { isSubjectTeacher } = await import('@/lib/scorm-access');
+      if (!(await isSubjectTeacher(userId, pkg.subject_id))) {
+        return NextResponse.json(
+          { success: false, error: 'You do not have access to this package' },
+          { status: 403 },
+        );
+      }
+    }
 
     // Verify subject exists
     const { data: subject } = await supabaseServer

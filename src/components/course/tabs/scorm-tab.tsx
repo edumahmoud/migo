@@ -15,6 +15,8 @@ import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, QuestionBank } from '@/lib/types';
 import type { ScormPackage, ScormResource, ScormVersion } from '@/lib/scorm-types';
 import ScormPlayer from './scorm-player';
+import { uploadScormZip } from '@/lib/scorm-upload-client';
+import { flattenResourceTree } from '@/lib/scorm-manifest';
 import MascotLoader from '@/components/shared/mascot-loader';
 
 // ─── Props ───
@@ -184,19 +186,12 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('subjectId', subject.id);
-
-      const response = await fetch('/api/scorm/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+      const result = await uploadScormZip({
+        endpoint: '/api/scorm/upload',
+        file,
+        accessToken: token,
+        fields: { subjectId: subject.id },
       });
-
-      const result = await response.json();
 
       if (result.success) {
         toast.success(t('scorm.uploadSuccess') || 'SCORM package uploaded successfully');
@@ -334,20 +329,12 @@ export default function ScormTab({ profile, role, subject }: ScormTabProps) {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      const formData = new FormData();
-      formData.append('file', platformImportFile);
-      formData.append('name', platformImportName.trim());
-      formData.append('description', platformImportDescription.trim());
-
-      const response = await fetch('/api/scorm/platform-import', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+      const result = await uploadScormZip({
+        endpoint: '/api/scorm/platform-import',
+        file: platformImportFile,
+        accessToken: token,
+        fields: { name: platformImportName.trim(), description: platformImportDescription.trim() },
       });
-
-      const result = await response.json();
 
       if (result.success) {
         toast.success(t('scorm.platformImportSuccess') || 'Course imported from SCORM package successfully');
@@ -803,7 +790,7 @@ function ScormPackageCard({
 }: ScormPackageCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const resources = pkg.resources || [];
+  const resources = flattenResourceTree((pkg.resources || []) as Array<ScormResource & { children?: ScormResource[] }>);
   const sizeMB = (pkg.package_size / (1024 * 1024)).toFixed(1);
 
   return (
@@ -886,6 +873,7 @@ function ScormPackageCard({
                     const completionStatus = tracking?.completion_status as string || 'not_attempted';
                     const successStatus = tracking?.success_status as string || 'unknown';
                     const scoreRaw = tracking?.score_raw as number | null;
+                    const isFolder = resource.scorm_type === 'organization';
                     const displayStatus = role === 'student'
                       ? (successStatus === 'passed' || successStatus === 'failed' ? successStatus : completionStatus)
                       : completionStatus;
@@ -893,24 +881,27 @@ function ScormPackageCard({
                     return (
                       <div
                         key={resource.id}
-                        className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                        className={`flex items-center justify-between p-2.5 rounded-lg transition-colors ${isFolder ? 'bg-muted/60 font-semibold' : 'bg-muted/30 hover:bg-muted/50'}`}
+                        style={{ marginInlineStart: Math.min(resource.depth, 6) * 16 }}
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <div className={`flex-shrink-0 p-1 rounded ${resource.type === 'sco' ? 'bg-sky-100 dark:bg-sky-900/20' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                            {resource.type === 'sco'
+                          <div className={`flex-shrink-0 p-1 rounded ${isFolder ? 'bg-amber-100 dark:bg-amber-900/20' : resource.type === 'sco' ? 'bg-sky-100 dark:bg-sky-900/20' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                            {isFolder
+                              ? <ListChecks className="h-3.5 w-3.5 text-amber-600" />
+                              : resource.type === 'sco'
                               ? <Play className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
                               : <Eye className="h-3.5 w-3.5 text-gray-500" />
                             }
                           </div>
                           <div className="min-w-0">
                             <span className="text-sm font-medium truncate block">{resource.title}</span>
-                            <span className="text-xs text-muted-foreground">{resource.type === 'sco' ? 'SCO' : 'Asset'}</span>
+                            {!isFolder && <span className="text-xs text-muted-foreground">{resource.type === 'sco' ? 'SCO' : 'Asset'}</span>}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {/* Status badge (for students) */}
-                          {role === 'student' && (
+                          {role === 'student' && !isFolder && (
                             <div className="flex items-center gap-2">
                               {renderStatusBadge(displayStatus)}
                               {scoreRaw !== null && scoreRaw !== undefined && (
@@ -920,7 +911,7 @@ function ScormPackageCard({
                           )}
 
                           {/* Launch button */}
-                          {resource.type === 'sco' && pkg.status === 'active' && (
+                          {resource.type === 'sco' && !isFolder && (pkg.status === 'active' || role === 'teacher') && (
                             <button
                               onClick={() => onLaunch(pkg, resource)}
                               className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-700 text-white text-xs font-medium hover:bg-sky-800 transition-colors"

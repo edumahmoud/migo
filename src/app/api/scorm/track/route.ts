@@ -1,134 +1,156 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
-import type {
-  ScormCompletionStatus,
-  ScormSuccessStatus,
-  ScormTrackingUpsertRequest,
-} from '@/lib/scorm-types';
+import { loadPackageWithAccess, studentIdsOfTeacher, UUID_REGEX } from '@/lib/scorm-access';
+import {
+  MAX_SUSPEND_DATA,
+  addTimes,
+  cleanScaled,
+  cleanScore,
+  mapLessonStatus12,
+  normalizeCompletion2004,
+  normalizeSessionTime,
+  normalizeSuccess2004,
+} from '@/lib/scorm-runtime';
+import type { ScormCompletionStatus, ScormSuccessStatus } from '@/lib/scorm-types';
 
-// ─── POST Handler: Upsert tracking data ───
+const COMPLETION_RANK: Record<string, number> = { unknown: 0, not_attempted: 0, incomplete: 1, completed: 2 };
+
+const LEGACY_12_VALUES = new Set(['passed', 'failed', 'browsed', 'not attempted']);
+
+interface TrackBody {
+  student_id?: string;
+  package_id?: string;
+  resource_id?: string;
+  /** Raw SCORM 1.2 cmi.core.lesson_status */
+  lesson_status?: string;
+  completion_status?: string;
+  success_status?: string;
+  score_raw?: unknown;
+  score_min?: unknown;
+  score_max?: unknown;
+  score_scaled?: unknown;
+  session_time?: string;
+  suspend_data?: string | null;
+  /** true on LMSFinish / Terminate / close: add session_time to total_time once */
+  final?: boolean;
+}
+
+// ─── POST: save a student's progress ───
 
 export async function POST(request: NextRequest) {
   const authResult = await authenticateRequest(request);
   if (!authResult.success) return authErrorResponse(authResult);
 
   try {
-    const body: ScormTrackingUpsertRequest = await request.json();
+    const body: TrackBody = await request.json();
+    const userId = authResult.user.id;
+    const { package_id, resource_id } = body;
 
-    // Validate required fields
-    const { student_id, package_id, resource_id } = body;
-    if (!student_id || !package_id || !resource_id) {
-      return NextResponse.json(
-        { success: false, error: 'studentId, packageId, and resourceId are required' },
-        { status: 400 }
-      );
+    if (!package_id || !resource_id || !UUID_REGEX.test(package_id) || !UUID_REGEX.test(resource_id)) {
+      return NextResponse.json({ success: false, error: 'packageId and resourceId are required' }, { status: 400 });
     }
-
-    // Verify that the authenticated user is the student (students can only update their own tracking)
-    if (authResult.user.id !== student_id) {
+    // Old clients send student_id: it must be the caller, tracking is never written for someone else
+    if (body.student_id && body.student_id !== userId) {
       return NextResponse.json(
         { success: false, error: 'Students can only update their own tracking data' },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
-    // Validate completion_status and success_status values
-    const validCompletionStatuses: ScormCompletionStatus[] = ['not_attempted', 'incomplete', 'completed', 'unknown'];
-    const validSuccessStatuses: ScormSuccessStatus[] = ['passed', 'failed', 'unknown'];
+    const role = await getUserRole(userId);
+    const { pkg, access } = await loadPackageWithAccess(package_id, userId, role);
+    if (!pkg) return NextResponse.json({ success: false, error: 'Package not found' }, { status: 404 });
+    if (!access.canView) return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
 
-    const completionStatus = body.completion_status || 'not_attempted';
-    const successStatus = body.success_status || 'unknown';
+    // Teachers and admins previewing content do not create tracking rows
+    if (!access.isStudent) return NextResponse.json({ success: true, data: null, preview: true });
 
-    if (!validCompletionStatuses.includes(completionStatus)) {
-      return NextResponse.json(
-        { success: false, error: `Invalid completion_status: ${completionStatus}` },
-        { status: 400 }
-      );
-    }
-
-    if (!validSuccessStatuses.includes(successStatus)) {
-      return NextResponse.json(
-        { success: false, error: `Invalid success_status: ${successStatus}` },
-        { status: 400 }
-      );
-    }
-
-    // Verify the resource exists
-    const { data: resourceData, error: resourceError } = await supabaseServer
+    const { data: resource } = await supabaseServer
       .from('scorm_resources')
-      .select('id, package_id')
+      .select('id')
       .eq('id', resource_id)
-      .single();
+      .eq('package_id', package_id)
+      .maybeSingle();
+    if (!resource) return NextResponse.json({ success: false, error: 'Resource not found in this package' }, { status: 404 });
 
-    if (resourceError || !resourceData) {
-      return NextResponse.json(
-        { success: false, error: 'Resource not found' },
-        { status: 404 }
-      );
+    // ── Status ──
+    let completion: ScormCompletionStatus;
+    let success: ScormSuccessStatus;
+    const rawCompletion = String(body.completion_status ?? '').trim().toLowerCase();
+    if (body.lesson_status !== undefined) {
+      ({ completion, success } = mapLessonStatus12(body.lesson_status));
+    } else if (LEGACY_12_VALUES.has(rawCompletion)) {
+      ({ completion, success } = mapLessonStatus12(rawCompletion));
+    } else {
+      completion = normalizeCompletion2004(body.completion_status);
+      success = normalizeSuccess2004(body.success_status);
     }
 
-    // Verify the package exists
-    const { data: packageData, error: packageError } = await supabaseServer
-      .from('scorm_packages')
-      .select('id, subject_id')
-      .eq('id', package_id)
-      .single();
+    const { data: existing } = await supabaseServer
+      .from('scorm_tracking')
+      .select('completion_status, success_status, score_raw, score_min, score_max, score_scaled, total_time, suspend_data, launch_count')
+      .eq('student_id', userId)
+      .eq('resource_id', resource_id)
+      .maybeSingle();
 
-    if (packageError || !packageData) {
-      return NextResponse.json(
-        { success: false, error: 'Package not found' },
-        { status: 404 }
-      );
+    // Keep the best result: never fall back from completed, never lose a known pass/fail to "unknown"
+    if (existing) {
+      const prev = existing.completion_status as ScormCompletionStatus;
+      if ((COMPLETION_RANK[prev] ?? 0) > (COMPLETION_RANK[completion] ?? 0)) completion = prev;
+      if (success === 'unknown' && existing.success_status && existing.success_status !== 'unknown') {
+        success = existing.success_status as ScormSuccessStatus;
+      }
     }
 
-    // Upsert tracking data
-    const upsertData = {
-      student_id,
+    const sessionTime = normalizeSessionTime(body.session_time);
+    let suspend: string | null | undefined = undefined;
+    if (body.suspend_data !== undefined) {
+      suspend = body.suspend_data === null ? null : String(body.suspend_data);
+      if (suspend !== null && suspend.length > MAX_SUSPEND_DATA) {
+        return NextResponse.json({ success: false, error: 'suspend_data is too large' }, { status: 413 });
+      }
+    }
+
+    const row: Record<string, unknown> = {
+      student_id: userId,
       package_id,
       resource_id,
-      completion_status: completionStatus,
-      success_status: successStatus,
-      score_raw: body.score_raw ?? null,
-      score_min: body.score_min ?? null,
-      score_max: body.score_max ?? null,
-      score_scaled: body.score_scaled ?? null,
-      session_time: body.session_time || '00:00:00',
-      suspend_data: body.suspend_data ?? null,
-      launch_count: body.launch_count ?? undefined,
+      completion_status: completion,
+      success_status: success,
+      session_time: sessionTime,
       last_accessed: new Date().toISOString(),
     };
+    const scoreRaw = cleanScore(body.score_raw);
+    const scoreMin = cleanScore(body.score_min);
+    const scoreMax = cleanScore(body.score_max);
+    const scoreScaled = cleanScaled(body.score_scaled);
+    if (scoreRaw !== null) row.score_raw = scoreRaw;
+    if (scoreMin !== null) row.score_min = scoreMin;
+    if (scoreMax !== null) row.score_max = scoreMax;
+    if (scoreScaled !== null) row.score_scaled = scoreScaled;
+    if (suspend !== undefined) row.suspend_data = suspend;
+    if (body.final === true) row.total_time = addTimes(existing?.total_time, sessionTime);
 
-    const { data: trackingData, error: upsertError } = await supabaseServer
+    const { data: tracking, error: upsertError } = await supabaseServer
       .from('scorm_tracking')
-      .upsert(upsertData, {
-        onConflict: 'student_id,resource_id',
-      })
+      .upsert(row, { onConflict: 'student_id,resource_id' })
       .select()
       .single();
 
     if (upsertError) {
       console.error('[SCORM Track] Upsert error:', upsertError.message);
-      return NextResponse.json(
-        { success: false, error: 'Failed to save tracking data' },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: 'Failed to save tracking data' }, { status: 500 });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: trackingData,
-    });
+    return NextResponse.json({ success: true, data: tracking });
   } catch (error) {
     console.error('[SCORM Track] POST error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to process tracking data' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Failed to process tracking data' }, { status: 500 });
   }
 }
 
-// ─── GET Handler: Fetch tracking data ───
+// ─── GET: read tracking ───
 
 export async function GET(request: NextRequest) {
   const authResult = await authenticateRequest(request);
@@ -139,119 +161,77 @@ export async function GET(request: NextRequest) {
     const packageId = searchParams.get('packageId');
     const resourceId = searchParams.get('resourceId');
     const studentId = searchParams.get('studentId');
+    const userId = authResult.user.id;
 
-    if (!packageId) {
-      return NextResponse.json(
-        { success: false, error: 'packageId is required' },
-        { status: 400 }
-      );
+    if (!packageId || !UUID_REGEX.test(packageId)) {
+      return NextResponse.json({ success: false, error: 'packageId is required' }, { status: 400 });
+    }
+    if ((resourceId && !UUID_REGEX.test(resourceId)) || (studentId && !UUID_REGEX.test(studentId))) {
+      return NextResponse.json({ success: false, error: 'Invalid id format' }, { status: 400 });
     }
 
-    const role = await getUserRole(authResult.user.id);
-    const isAdminOrTeacher = role === 'admin' || role === 'superadmin' || role === 'teacher';
+    const role = await getUserRole(userId);
+    const { pkg, access } = await loadPackageWithAccess(packageId, userId, role);
+    if (!pkg) return NextResponse.json({ success: false, error: 'Package not found' }, { status: 404 });
+    if (!access.canView) return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 });
 
     let query = supabaseServer
       .from('scorm_tracking')
-      .select(`
-        id,
-        student_id,
-        package_id,
-        resource_id,
-        completion_status,
-        success_status,
-        score_raw,
-        score_min,
-        score_max,
-        score_scaled,
-        total_time,
-        session_time,
-        suspend_data,
-        launch_count,
-        last_accessed,
-        created_at,
-        updated_at
-      `)
+      .select(
+        'id, student_id, package_id, resource_id, completion_status, success_status, score_raw, score_min, score_max, score_scaled, total_time, session_time, suspend_data, launch_count, last_accessed, created_at, updated_at',
+      )
       .eq('package_id', packageId);
+    if (resourceId) query = query.eq('resource_id', resourceId);
 
-    // ── Teachers/admins: can view any student's tracking data ──
-    if (isAdminOrTeacher) {
-      // Optionally filter by a specific student
-      if (studentId) {
-        query = query.eq('student_id', studentId);
+    if (access.isStudent) {
+      if (studentId && studentId !== userId) {
+        return NextResponse.json({ success: false, error: 'You can only view your own tracking' }, { status: 403 });
       }
-      // Optionally filter by a specific resource
-      if (resourceId) {
-        query = query.eq('resource_id', resourceId);
-      }
+      query = query.eq('student_id', userId);
     } else {
-      // ── Students: can only view their own tracking data ──
-      if (!resourceId) {
-        return NextResponse.json(
-          { success: false, error: 'Students must specify resourceId to view their tracking' },
-          { status: 400 }
-        );
+      if (studentId) query = query.eq('student_id', studentId);
+      if (!access.canManage) {
+        // Teacher using a platform library package: only their own students
+        const allowed = await studentIdsOfTeacher(userId);
+        if (allowed.length === 0) return NextResponse.json({ success: true, data: [] });
+        query = query.in('student_id', allowed);
       }
-      query = query
-        .eq('student_id', authResult.user.id)
-        .eq('resource_id', resourceId);
     }
 
     const { data: trackingData, error: fetchError } = await query;
-
     if (fetchError) {
       console.error('[SCORM Track] GET error:', fetchError.message);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch tracking data' },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: 'Failed to fetch tracking data' }, { status: 500 });
     }
+    if (!trackingData || trackingData.length === 0) return NextResponse.json({ success: true, data: [] });
 
-    // Enrich with student names (join with users table)
-    if (trackingData && trackingData.length > 0) {
-      const studentIds = [...new Set(trackingData.map((t: { student_id: string }) => t.student_id))];
+    // Student names are only shown to teachers/admins
+    if (access.isStudent) return NextResponse.json({ success: true, data: trackingData });
 
-      const { data: students } = await supabaseServer
-        .from('users')
-        .select('id, name, email, avatar_url')
-        .in('id', studentIds);
+    const studentIds = [...new Set(trackingData.map((t: { student_id: string }) => t.student_id))];
+    const resourceIds = [...new Set(trackingData.map((t: { resource_id: string }) => t.resource_id))];
+    const [{ data: students }, { data: resources }] = await Promise.all([
+      supabaseServer.from('users').select('id, name, email, avatar_url').in('id', studentIds),
+      supabaseServer.from('scorm_resources').select('id, title, identifier').in('id', resourceIds),
+    ]);
 
-      // Enrich with resource titles
-      const resourceIds = [...new Set(trackingData.map((t: { resource_id: string }) => t.resource_id))];
-
-      const { data: resources } = await supabaseServer
-        .from('scorm_resources')
-        .select('id, title, identifier')
-        .in('id', resourceIds);
-
-      // Merge student names and resource titles into tracking data
-      const enrichedData = trackingData.map((t: Record<string, unknown>) => {
-        const student = students?.find((s: Record<string, unknown>) => s.id === t.student_id);
-        const resource = resources?.find((r: Record<string, unknown>) => r.id === t.resource_id);
-
-        return {
-          ...t,
-          student_name: student?.name || 'Unknown',
-          student_email: student?.email || '',
-          student_avatar_url: student?.avatar_url || null,
-          resource_title: resource?.title || '',
-        };
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: enrichedData,
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: trackingData || [],
+    const studentById = new Map((students || []).map((s: { id: string }) => [s.id, s as Record<string, unknown>]));
+    const resourceById = new Map((resources || []).map((r: { id: string }) => [r.id, r as Record<string, unknown>]));
+    const enriched = trackingData.map((t: Record<string, unknown>) => {
+      const s = studentById.get(t.student_id as string);
+      const r = resourceById.get(t.resource_id as string);
+      return {
+        ...t,
+        student_name: (s?.name as string) || 'Unknown',
+        student_email: (s?.email as string) || '',
+        student_avatar_url: (s?.avatar_url as string) || null,
+        resource_title: (r?.title as string) || '',
+      };
     });
+
+    return NextResponse.json({ success: true, data: enriched });
   } catch (error) {
     console.error('[SCORM Track] GET error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch tracking data' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Failed to fetch tracking data' }, { status: 500 });
   }
 }

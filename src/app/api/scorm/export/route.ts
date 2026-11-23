@@ -391,11 +391,7 @@ function generateQuizHtml(
 
   const quizDataJson = JSON.stringify(quizData);
 
-  const apiInitCode = version === '1.2'
-    ? `var scormApi = window.API || parent.API || opener.API || null;`
-    : `var scormApi = window.API_1484_11 || parent.API_1484_11 || opener.API_1484_11 || null;`;
-
-  const scormSetPrefix = version === '1.2' ? 'cmi.core' : 'cmi';
+  const apiInitCode = scormHelperJs(version);
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -485,9 +481,9 @@ function generateQuizHtml(
 
     // Initialize SCORM
     if (scormApi) {
-      scormApi.LMSInitialize("");
-      scormApi.LMSSetValue("${scormSetPrefix}.lesson_status", "incomplete");
-      scormApi.LMSCommit("");
+      scormInit();
+      scormSet('${version}' === '1.2' ? "cmi.core.lesson_status" : "cmi.completion_status", "incomplete");
+      scormCommit();
     }
 
     var questions = ${quizDataJson};
@@ -671,20 +667,20 @@ function generateQuizHtml(
       // Report to SCORM
       if (scormApi) {
         if ('${version}' === '1.2') {
-          scormApi.LMSSetValue("cmi.core.score.raw", String(result.percentage));
-          scormApi.LMSSetValue("cmi.core.score.min", "0");
-          scormApi.LMSSetValue("cmi.core.score.max", "100");
-          scormApi.LMSSetValue("cmi.core.lesson_status", passed ? "passed" : "failed");
+          scormSet("cmi.core.score.raw", String(result.percentage));
+          scormSet("cmi.core.score.min", "0");
+          scormSet("cmi.core.score.max", "100");
+          scormSet("cmi.core.lesson_status", passed ? "passed" : "failed");
         } else {
-          scormApi.LMSSetValue("cmi.score.raw", String(result.percentage));
-          scormApi.LMSSetValue("cmi.score.min", "0");
-          scormApi.LMSSetValue("cmi.score.max", "100");
-          scormApi.LMSSetValue("cmi.score.scaled", String(result.percentage / 100));
-          scormApi.LMSSetValue("cmi.completion_status", "completed");
-          scormApi.LMSSetValue("cmi.success_status", passed ? "passed" : "failed");
+          scormSet("cmi.score.raw", String(result.percentage));
+          scormSet("cmi.score.min", "0");
+          scormSet("cmi.score.max", "100");
+          scormSet("cmi.score.scaled", String(result.percentage / 100));
+          scormSet("cmi.completion_status", "completed");
+          scormSet("cmi.success_status", passed ? "passed" : "failed");
         }
-        scormApi.LMSCommit("");
-        scormApi.LMSFinish("");
+        scormCommit();
+        scormFinish();
       }
     }
 
@@ -744,9 +740,7 @@ function generateLessonHtml(lesson: Record<string, unknown>, version: ScormVersi
     contentHtml = '<p>No content available for this lesson.</p>';
   }
 
-  const apiInitCode = version === '1.2'
-    ? `var scormApi = window.API || parent.API || opener.API || null;`
-    : `var scormApi = window.API_1484_11 || parent.API_1484_11 || opener.API_1484_11 || null;`;
+  const apiInitCode = scormHelperJs(version);
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -788,13 +782,13 @@ function generateLessonHtml(lesson: Record<string, unknown>, version: ScormVersi
 
     // Initialize SCORM
     if (scormApi) {
-      scormApi.LMSInitialize("");
+      scormInit();
       if ('${version}' === '1.2') {
-        scormApi.LMSSetValue("cmi.core.lesson_status", "incomplete");
+        scormSet("cmi.core.lesson_status", "incomplete");
       } else {
-        scormApi.LMSSetValue("cmi.completion_status", "incomplete");
+        scormSet("cmi.completion_status", "incomplete");
       }
-      scormApi.LMSCommit("");
+      scormCommit();
     }
 
     function markComplete() {
@@ -805,16 +799,16 @@ function generateLessonHtml(lesson: Record<string, unknown>, version: ScormVersi
 
       if (scormApi) {
         if ('${version}' === '1.2') {
-          scormApi.LMSSetValue("cmi.core.lesson_status", "completed");
-          scormApi.LMSSetValue("cmi.core.score.raw", "100");
+          scormSet("cmi.core.lesson_status", "completed");
+          scormSet("cmi.core.score.raw", "100");
         } else {
-          scormApi.LMSSetValue("cmi.completion_status", "completed");
-          scormApi.LMSSetValue("cmi.success_status", "passed");
-          scormApi.LMSSetValue("cmi.score.raw", "100");
-          scormApi.LMSSetValue("cmi.score.scaled", "1");
+          scormSet("cmi.completion_status", "completed");
+          scormSet("cmi.success_status", "passed");
+          scormSet("cmi.score.raw", "100");
+          scormSet("cmi.score.scaled", "1");
         }
-        scormApi.LMSCommit("");
-        scormApi.LMSFinish("");
+        scormCommit();
+        scormFinish();
       }
     }
   </script>
@@ -962,6 +956,19 @@ ${itemsXml}
 ${resourcesXml}
   </resources>
 </manifest>`;
+}
+
+/**
+ * Small JS prelude for generated pages: finds the right API object for the SCORM version
+ * (without throwing when there is no opener) and wraps the version-specific method names.
+ */
+function scormHelperJs(version: ScormVersion): string {
+  const is12 = version === '1.2';
+  return `var scormApi = ${is12 ? 'window.API' : 'window.API_1484_11'} || null;
+    function scormInit() { try { if (scormApi) ${is12 ? 'scormApi.LMSInitialize("")' : 'scormApi.Initialize("")'}; } catch (e) {} }
+    function scormSet(k, v) { try { if (scormApi) ${is12 ? 'scormApi.LMSSetValue(k, v)' : 'scormApi.SetValue(k, v)'}; } catch (e) {} }
+    function scormCommit() { try { if (scormApi) ${is12 ? 'scormApi.LMSCommit("")' : 'scormApi.Commit("")'}; } catch (e) {} }
+    function scormFinish() { try { if (scormApi) ${is12 ? 'scormApi.LMSFinish("")' : 'scormApi.Terminate("")'}; } catch (e) {} }`;
 }
 
 // ─── SCORM API Wrapper JS ───
