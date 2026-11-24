@@ -494,14 +494,14 @@ export default function TeacherFinancialSection() {
               <Receipt className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-violet-700/70 dark:text-violet-300/60">نسبة العمولة</p>
+              <p className="text-xs text-violet-700/70 dark:text-violet-300/60">{t('financial.commissionRate')}</p>
               <p className="text-2xl font-bold font-mono text-violet-900 dark:text-violet-100">
                 {Number(summary.resolved_commission_rate ?? 0).toFixed(2)}%
               </p>
             </div>
             <div className="text-end shrink-0">
-              <p className="text-[10px] text-muted-foreground">عمولة المنصة</p>
-              <p className="text-[10px] text-muted-foreground">لكل معاملة جديدة</p>
+              <p className="text-[10px] text-muted-foreground">{t('financial.platformCommission')}</p>
+              <p className="text-[10px] text-muted-foreground">{t('financial.perTransaction')}</p>
             </div>
           </div>
         </div>
@@ -646,13 +646,13 @@ export default function TeacherFinancialSection() {
                 onValueChange={(v) => setPeriodFilter(v as 'all' | 'day' | 'month' | 'year')}
               >
                 <SelectTrigger className="w-32 h-9">
-                  <SelectValue placeholder="الكل" />
+                  <SelectValue placeholder={t('financial.filters.all')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">الكل</SelectItem>
-                  <SelectItem value="day">اليوم</SelectItem>
-                  <SelectItem value="month">هذا الشهر</SelectItem>
-                  <SelectItem value="year">هذا العام</SelectItem>
+                  <SelectItem value="all">{t('financial.filters.all')}</SelectItem>
+                  <SelectItem value="day">{t('financial.filters.day')}</SelectItem>
+                  <SelectItem value="month">{t('financial.filters.month')}</SelectItem>
+                  <SelectItem value="year">{t('financial.filters.year')}</SelectItem>
                 </SelectContent>
               </Select>
               {/* v112: sort toggle (asc / desc) */}
@@ -711,7 +711,7 @@ export default function TeacherFinancialSection() {
                 className="h-7 text-xs"
                 onClick={() => { setSearchQuery(''); setPeriodFilter('all'); }}
               >
-                مسح البحث
+                {t('financial.clearSearch')}
               </Button>
             </div>
           )}
@@ -729,7 +729,7 @@ export default function TeacherFinancialSection() {
                           orders.provider_order_ref. Shows the gateway's
                           Order ID (Paymob, Fawry, etc.) next to the
                           student's operation code. */}
-                      <TableHead>رقم الطلب</TableHead>
+                      <TableHead>{t('financial.table.orderId')}</TableHead>
                       {/* v112: date column with time included */}
                       <TableHead>
                         <button
@@ -768,7 +768,7 @@ export default function TeacherFinancialSection() {
                               const shortCode = formatOpCode(tx.id);
                               try {
                                 navigator.clipboard?.writeText(shortCode);
-                                toast.success(`تم نسخ كود العملية: ${shortCode}`);
+                                toast.success(t('financial.opCodeCopied', { code: shortCode }));
                               } catch { /* ignore — clipboard may not be available */ }
                             }}
                           >
@@ -791,11 +791,11 @@ export default function TeacherFinancialSection() {
                                     e.stopPropagation();
                                     try {
                                       navigator.clipboard?.writeText(orderId);
-                                      toast.success(`تم نسخ رقم الطلب: ${orderId}`);
+                                      toast.success(t('financial.orderIdCopied', { id: orderId }));
                                     } catch { /* ignore */ }
                                   }}
                                   className="text-sky-700 dark:text-sky-300 hover:underline cursor-pointer"
-                                  title="اضغط للنسخ"
+                                  title={t('financial.copyTitle')}
                                 >
                                   {orderId}
                                 </button>

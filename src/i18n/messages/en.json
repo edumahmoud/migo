@@ -1576,7 +1576,9 @@
     "assignConfirm": "Assign Lesson",
     "assignLessonSuccess": "Summary assigned as a lesson successfully",
     "assignLessonError": "Failed to assign the summary as a lesson",
-    "quizTitle": "Quiz: {title}"
+    "quizTitle": "Quiz: {title}",
+    "usageLimitReached": "You have reached the maximum ({limit} operations). Enable the section to continue.",
+    "usageLimitReachedNoCount": "Cannot create new summaries. Enable the section to continue."
   },
   "settings": {
     "settings": "Settings",
@@ -3802,7 +3804,11 @@
       "allStatuses": "All Statuses",
       "apply": "Apply",
       "clear": "Clear Filters",
-      "noFilters": "No filters applied"
+      "noFilters": "No filters applied",
+      "all": "All",
+      "day": "Today",
+      "month": "This month",
+      "year": "This year"
     },
     "status": {
       "paid": "Paid",
@@ -3824,7 +3830,8 @@
       "empty": "No financial transactions yet. They will appear here once the first payment completes.",
       "opCode": "Op Code",
       "time": "Time",
-      "totalFiltered": "Total transactions (filtered): {count}"
+      "totalFiltered": "Total transactions (filtered): {count}",
+      "orderId": "Order ID"
     },
     "errors": {
       "loadFailed": "Failed to load financial data. Please try again.",
@@ -3848,7 +3855,14 @@
       "asc": "Ascending",
       "desc": "Descending",
       "byDate": "By date"
-    }
+    },
+    "commissionRate": "Commission rate",
+    "platformCommission": "Platform commission",
+    "perTransaction": "Per new transaction",
+    "clearSearch": "Clear search",
+    "opCodeCopied": "Operation code copied: {code}",
+    "orderIdCopied": "Order ID copied: {id}",
+    "copyTitle": "Click to copy"
   },
   "payoutMethods": {
     "title": "Payout Methods",
@@ -3890,7 +3904,10 @@
       "reenable": "Re-enable",
       "setDefault": "Set as default",
       "showInactive": "Show disabled",
-      "hideInactive": "Hide disabled"
+      "hideInactive": "Hide disabled",
+      "hide": "Hide",
+      "show": "Show",
+      "delete": "Delete"
     },
     "dialog": {
       "createTitle": "Add a new payout method",
@@ -3915,14 +3932,20 @@
       "saveChanges": "Save changes"
     },
     "confirm": {
-      "disable": "Are you sure you want to disable this method? Data will not be deleted, and you can re-enable it later."
+      "disable": "Are you sure you want to disable this method? Data will not be deleted, and you can re-enable it later.",
+      "disableTitle": "Disable method",
+      "deleteTitle": "Delete payout method",
+      "deleteDesc": "Are you sure you want to permanently delete this method? This cannot be undone.",
+      "deleteConfirm": "Delete permanently",
+      "back": "Back"
     },
     "toast": {
       "created": "Method added successfully",
       "updated": "Method updated successfully",
       "disabled": "Method disabled",
       "reenabled": "Method re-enabled",
-      "defaultSet": "Method set as default"
+      "defaultSet": "Method set as default",
+      "deleted": "Method permanently deleted"
     },
     "errors": {
       "loadFailed": "Failed to load payout methods. Please try again.",
@@ -3932,8 +3955,11 @@
       "reenableFailed": "Failed to re-enable method",
       "setDefaultFailed": "Failed to set as default",
       "missingDetails": "Required details are missing",
-      "retry": "Retry"
-    }
+      "retry": "Retry",
+      "deleteFailed": "Delete failed",
+      "detailsFailed": "Could not load details"
+    },
+    "detailsLoading": "Loading details..."
   },
   "student": {
     "mySubjects": "My Subjects",
@@ -5825,5 +5851,18 @@
     "daysAndPrice": "{days, plural, one {# day} other {# days}} — {price} {currency}",
     "deactivate": "Deactivate",
     "activate": "Activate"
+  },
+  "teacherPayouts": {
+    "statusPending": "Pending",
+    "statusProcessing": "Processing",
+    "statusCompleted": "Completed",
+    "statusFailed": "Failed",
+    "statusCancelled": "Cancelled",
+    "refCopied": "Reference copied"
+  },
+  "teacherFinancial": {
+    "tabRevenue": "Revenue",
+    "tabMethods": "Payout methods",
+    "tabHistory": "Payout history"
   }
 }

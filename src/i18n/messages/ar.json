@@ -1576,7 +1576,9 @@
     "assignConfirm": "تعيين الدرس",
     "assignLessonSuccess": "تم تعيين الملخص كدرس بنجاح",
     "assignLessonError": "فشل تعيين الملخص كدرس",
-    "quizTitle": "اختبار {title}"
+    "quizTitle": "اختبار {title}",
+    "usageLimitReached": "لقد وصلت إلى الحد الأقصى ({limit} عملية). فعّل القسم للمتابعة.",
+    "usageLimitReachedNoCount": "لا يمكن إنشاء ملخصات جديدة. فعّل القسم للمتابعة."
   },
   "settings": {
     "settings": "الإعدادات",
@@ -3802,7 +3804,11 @@
       "allStatuses": "كل الحالات",
       "apply": "تطبيق",
       "clear": "مسح الفلاتر",
-      "noFilters": "لا توجد فلاتر مطبقة"
+      "noFilters": "لا توجد فلاتر مطبقة",
+      "all": "الكل",
+      "day": "اليوم",
+      "month": "هذا الشهر",
+      "year": "هذا العام"
     },
     "status": {
       "paid": "مدفوع",
@@ -3824,7 +3830,8 @@
       "empty": "لا توجد معاملات مالية بعد. ستظهر هنا فور أول عملية دفع مكتملة.",
       "opCode": "كود العملية",
       "time": "الوقت",
-      "totalFiltered": "إجمالي العملات (مصفى): {count}"
+      "totalFiltered": "إجمالي العملات (مصفى): {count}",
+      "orderId": "رقم الطلب"
     },
     "errors": {
       "loadFailed": "تعذر تحميل البيانات المالية. حاول مرة أخرى.",
@@ -3848,7 +3855,14 @@
       "asc": "تصاعدي",
       "desc": "تنازلي",
       "byDate": "حسب التاريخ"
-    }
+    },
+    "commissionRate": "نسبة العمولة",
+    "platformCommission": "عمولة المنصة",
+    "perTransaction": "لكل معاملة جديدة",
+    "clearSearch": "مسح البحث",
+    "opCodeCopied": "تم نسخ كود العملية: {code}",
+    "orderIdCopied": "تم نسخ رقم الطلب: {id}",
+    "copyTitle": "اضغط للنسخ"
   },
   "payoutMethods": {
     "title": "وسائل استلام المستحقات",
@@ -3890,7 +3904,10 @@
       "reenable": "إعادة تفعيل",
       "setDefault": "اجعلها افتراضية",
       "showInactive": "إظهار المعطّلة",
-      "hideInactive": "إخفاء المعطّلة"
+      "hideInactive": "إخفاء المعطّلة",
+      "hide": "إخفاء",
+      "show": "عرض",
+      "delete": "حذف"
     },
     "dialog": {
       "createTitle": "إضافة وسيلة استلام جديدة",
@@ -3915,14 +3932,20 @@
       "saveChanges": "حفظ التغييرات"
     },
     "confirm": {
-      "disable": "هل أنت متأكد من تعطيل هذه الوسيلة؟ لن تُحذف البيانات، ويمكنك إعادة التفعيل لاحقًا."
+      "disable": "هل أنت متأكد من تعطيل هذه الوسيلة؟ لن تُحذف البيانات، ويمكنك إعادة التفعيل لاحقًا.",
+      "disableTitle": "تعطيل الوسيلة",
+      "deleteTitle": "حذف وسيلة الاستلام",
+      "deleteDesc": "هل أنت متأكد من حذف هذه الوسيلة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.",
+      "deleteConfirm": "حذف نهائي",
+      "back": "تراجع"
     },
     "toast": {
       "created": "تمت إضافة الوسيلة بنجاح",
       "updated": "تم تحديث الوسيلة بنجاح",
       "disabled": "تم تعطيل الوسيلة",
       "reenabled": "تمت إعادة تفعيل الوسيلة",
-      "defaultSet": "تم ضبط الوسيلة كافتراضية"
+      "defaultSet": "تم ضبط الوسيلة كافتراضية",
+      "deleted": "تم حذف الوسيلة نهائيًا"
     },
     "errors": {
       "loadFailed": "تعذر تحميل وسائل الاستلام. حاول مرة أخرى.",
@@ -3932,8 +3955,11 @@
       "reenableFailed": "فشلت إعادة التفعيل",
       "setDefaultFailed": "فشل ضبط الوسيلة كافتراضية",
       "missingDetails": "البيانات المطلوبة ناقصة",
-      "retry": "إعادة المحاولة"
-    }
+      "retry": "إعادة المحاولة",
+      "deleteFailed": "فشل الحذف",
+      "detailsFailed": "تعذّر تحميل التفاصيل"
+    },
+    "detailsLoading": "جارٍ تحميل التفاصيل..."
   },
   "student": {
     "mySubjects": "مقرراتي",
@@ -5825,5 +5851,18 @@
     "daysAndPrice": "{days, plural, one {يوم واحد} two {يومان} few {# أيام} many {# يومًا} other {# يوم}} — {price} {currency}",
     "deactivate": "تعطيل",
     "activate": "تفعيل"
+  },
+  "teacherPayouts": {
+    "statusPending": "معلّق",
+    "statusProcessing": "قيد المعالجة",
+    "statusCompleted": "مكتمل",
+    "statusFailed": "فشل",
+    "statusCancelled": "ملغى",
+    "refCopied": "تم نسخ المرجع"
+  },
+  "teacherFinancial": {
+    "tabRevenue": "الإيرادات",
+    "tabMethods": "طرق الاستلام",
+    "tabHistory": "سجل المدفوعات"
   }
 }

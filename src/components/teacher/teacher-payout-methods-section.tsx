@@ -330,7 +330,7 @@ export default function TeacherPayoutMethodsSection() {
   };
 
   const handleDisable = async (id: string) => {
-    const okDisable = await confirm({ title: 'تعطيل الوسيلة', description: 'هل تريد تعطيل هذه الوسيلة؟', confirmLabel: 'تعطيل', cancelLabel: 'تراجع', variant: 'destructive' });
+    const okDisable = await confirm({ title: t('payoutMethods.confirm.disableTitle'), description: t('payoutMethods.confirm.disable'), confirmLabel: t('payoutMethods.actions.disable'), cancelLabel: t('payoutMethods.confirm.back'), variant: 'destructive' });
     if (!okDisable) return;
     try {
       const res = await fetch(`/api/teacher/payout-methods/${id}`, {
@@ -369,7 +369,7 @@ export default function TeacherPayoutMethodsSection() {
 
   // Hard-delete payout method (permanently remove)
   const handleDelete = async (id: string) => {
-    const okDelete = await confirm({ title: 'حذف وسيلة الاستلام', description: 'هل أنت متأكد من حذف هذه الوسيلة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.', confirmLabel: 'حذف نهائي', cancelLabel: 'تراجع', variant: 'destructive' });
+    const okDelete = await confirm({ title: t('payoutMethods.confirm.deleteTitle'), description: t('payoutMethods.confirm.deleteDesc'), confirmLabel: t('payoutMethods.confirm.deleteConfirm'), cancelLabel: t('payoutMethods.confirm.back'), variant: 'destructive' });
     if (!okDelete) return;
     try {
       const res = await fetch(`/api/teacher/payout-methods/${id}`, {
@@ -378,13 +378,13 @@ export default function TeacherPayoutMethodsSection() {
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل الحذف');
+        toast.error(json.error || t('payoutMethods.errors.deleteFailed'));
         return;
       }
-      toast.success('تم حذف الوسيلة نهائيًا');
+      toast.success(t('payoutMethods.toast.deleted'));
       await fetchMethods();
     } catch {
-      toast.error('فشل الحذف');
+      toast.error(t('payoutMethods.errors.deleteFailed'));
     }
   };
 
@@ -413,31 +413,19 @@ export default function TeacherPayoutMethodsSection() {
       if (json.success) {
         setDetailData(json.details);
       } else {
-        toast.error(json.error || 'تعذّر تحميل التفاصيل');
+        toast.error(json.error || t('payoutMethods.errors.detailsFailed'));
         setShowDetailsId(null);
       }
     } catch {
-      toast.error('تعذّر تحميل التفاصيل');
+      toast.error(t('payoutMethods.errors.detailsFailed'));
       setShowDetailsId(null);
     } finally {
       setDetailLoading(false);
     }
   };
 
-  // Arabic labels for payout detail fields
-  const FIELD_LABELS_AR: Record<string, string> = {
-    wallet_number: 'رقم المحفظة',
-    bank_name: 'اسم البنك',
-    account_number: 'رقم الحساب',
-    iban: 'IBAN',
-    holder_name: 'اسم صاحب الحساب',
-    last4: 'آخر 4 أرقام',
-    card_brand: 'نوع البطاقة',
-    card_number: 'رقم البطاقة',
-    expiry_month: 'شهر الانتهاء',
-    expiry_year: 'سنة الانتهاء',
-    recipient_identifier: 'معرّف المستلم',
-  };
+  // Localized labels for payout detail fields (keys under payoutMethods.fields.*)
+  const fieldLabel = (key: string) => t(`payoutMethods.fields.${key}`) || key;
 
   const handleSetDefault = async (id: string) => {
     try {
@@ -655,9 +643,9 @@ export default function TeacherPayoutMethodsSection() {
                       className="h-8 text-xs"
                     >
                       {showDetailsId === method.id ? (
-                        <><EyeOff className="h-3.5 w-3.5 me-1" />إخفاء</>
+                        <><EyeOff className="h-3.5 w-3.5 me-1" />{t('payoutMethods.actions.hide')}</>
                       ) : (
-                        <><Eye className="h-3.5 w-3.5 me-1" />عرض</>
+                        <><Eye className="h-3.5 w-3.5 me-1" />{t('payoutMethods.actions.show')}</>
                       )}
                     </Button>
                     {/* Hard-delete button */}
@@ -668,7 +656,7 @@ export default function TeacherPayoutMethodsSection() {
                       className="h-8 text-xs text-rose-600 hover:text-rose-700"
                     >
                       <Trash2 className="h-3.5 w-3.5 me-1" />
-                      حذف
+                      {t('payoutMethods.actions.delete')}
                     </Button>
                     {method.is_active ? (
                       <Button
@@ -697,19 +685,19 @@ export default function TeacherPayoutMethodsSection() {
                     <div className="mt-2 rounded-md border bg-muted/30 p-2 space-y-1">
                       {detailLoading ? (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Loader2 className="h-3 w-3 animate-spin" /> جارٍ تحميل التفاصيل...
+                          <Loader2 className="h-3 w-3 animate-spin" /> {t('payoutMethods.detailsLoading')}
                         </div>
                       ) : detailData ? (
                         Object.entries(detailData)
                           .filter(([k]) => k !== 'method_type')
                           .map(([key, val]) => (
                             <div key={key} className="flex justify-between text-xs gap-2">
-                              <span className="text-muted-foreground">{FIELD_LABELS_AR[key] ?? key}:</span>
+                              <span className="text-muted-foreground">{fieldLabel(key)}:</span>
                               <span className="font-semibold text-end" dir="ltr">{String(val)}</span>
                             </div>
                           ))
                       ) : (
-                        <div className="text-xs text-muted-foreground">تعذّر تحميل التفاصيل</div>
+                        <div className="text-xs text-muted-foreground">{t('payoutMethods.errors.detailsFailed')}</div>
                       )}
                     </div>
                   )}

@@ -522,8 +522,8 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     if (!usageCheck.canUse) {
       toast.error(
         usageCheck.limit !== null
-          ? `لقد وصلت إلى الحد الأقصى (${usageCheck.limit} عملية). فعّل القسم للمتابعة.`
-          : 'لا يمكن إنشاء ملخصات جديدة. فعّل القسم للمتابعة.'
+          ? t('usageLimitReached', { limit: usageCheck.limit })
+          : t('usageLimitReachedNoCount')
       );
       return;
     }

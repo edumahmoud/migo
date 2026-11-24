@@ -48,12 +48,12 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: 'bg-muted text-muted-foreground',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'معلّق',
-  processing: 'قيد المعالجة',
-  completed: 'مكتمل',
-  failed: 'فشل',
-  cancelled: 'ملغى',
+const STATUS_KEYS: Record<string, string> = {
+  pending: 'teacherPayouts.statusPending',
+  processing: 'teacherPayouts.statusProcessing',
+  completed: 'teacherPayouts.statusCompleted',
+  failed: 'teacherPayouts.statusFailed',
+  cancelled: 'teacherPayouts.statusCancelled',
 };
 
 interface PayoutItem {
@@ -113,7 +113,7 @@ export default function TeacherPayoutsSection() {
       const masked = (p.payout_method_masked || '').toLowerCase();
       const label = (p.payout_method_display_label || '').toLowerCase();
       const amount = (p.amount || '').toLowerCase();
-      const status = (STATUS_LABELS[p.status] || p.status || '').toLowerCase();
+      const status = ((STATUS_KEYS[p.status] ? t(STATUS_KEYS[p.status]) : '') || p.status || '').toLowerCase();
       return (
         ref.includes(q) ||
         method.includes(q) ||
@@ -146,7 +146,7 @@ export default function TeacherPayoutsSection() {
   const copyRef = (text: string) => {
     try {
       navigator.clipboard?.writeText(text);
-      toast.success('تم نسخ المرجع');
+      toast.success(t('teacherPayouts.refCopied'));
     } catch { /* ignore */ }
   };
 
@@ -201,7 +201,7 @@ export default function TeacherPayoutsSection() {
                 <SelectContent>
                   <SelectItem value="all">{t('financial.filters.allStatuses') || 'الكل'}</SelectItem>
                   {['pending', 'processing', 'completed', 'failed', 'cancelled'].map(s => (
-                    <SelectItem key={s} value={s}>{STATUS_LABELS[s] ?? s}</SelectItem>
+                    <SelectItem key={s} value={s}>{(STATUS_KEYS[s] ? t(STATUS_KEYS[s]) : '') || s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -301,7 +301,7 @@ export default function TeacherPayoutsSection() {
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="secondary" className={`whitespace-nowrap ${STATUS_COLOR[p.status] ?? ''}`}>
-                            {STATUS_LABELS[p.status] ?? p.status}
+                            {(STATUS_KEYS[p.status] ? t(STATUS_KEYS[p.status]) : '') || p.status}
                           </Badge>
                         </TableCell>
                       </TableRow>
