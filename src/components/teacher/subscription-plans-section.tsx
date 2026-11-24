@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
@@ -45,11 +46,11 @@ interface Props {
   currency: string;
 }
 
-const PERIOD_LABELS: Record<string, string> = {
-  monthly: 'شهري',
-  term: 'ترم',
-  yearly: 'سنوي',
-  custom: 'مخصص',
+const PERIOD_KEYS: Record<string, string> = {
+  monthly: 'subscriptionPlans.periodMonthly',
+  term: 'subscriptionPlans.periodTerm',
+  yearly: 'subscriptionPlans.periodYearly',
+  custom: 'subscriptionPlans.periodCustom',
 };
 
 const PERIOD_DURATIONS: Record<string, number> = {
@@ -60,6 +61,7 @@ const PERIOD_DURATIONS: Record<string, number> = {
 };
 
 export default function SubscriptionPlansSection({ subjectId, subjectName, defaultPrice, currency }: Props) {
+  const { t } = useTranslations();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -82,10 +84,10 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
       if (json.success) {
         setPlans(json.data ?? []);
       } else {
-        toast.error(json.error || 'فشل تحميل الخطط');
+        toast.error(json.error || t('subscriptionPlans.loadFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setLoading(false);
     }
@@ -102,14 +104,14 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم إضافة خطة الاشتراك');
+        toast.success(t('subscriptionPlans.addSuccess'));
         setShowAddForm(false);
         await fetchPlans();
       } else {
-        toast.error(json.error || 'فشل الإضافة');
+        toast.error(json.error || t('subscriptionPlans.addFailed'));
       }
     } catch {
-      toast.error('حدث خطأ');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -122,22 +124,22 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(currentActive ? 'تم تعطيل الخطة' : 'تم تفعيل الخطة');
+        toast.success(currentActive ? t('subscriptionPlans.deactivated') : t('subscriptionPlans.activated'));
         await fetchPlans();
       } else {
-        toast.error(json.error || 'فشل');
+        toast.error(json.error || t('subscriptionPlans.toggleFailed'));
       }
     } catch {
-      toast.error('حدث خطأ');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
   const deletePlan = async (id: string) => {
     const ok = await confirm({
-      title: 'حذف خطة الاشتراك',
-      description: 'هل تريد حذف هذه الخطة نهائيًا؟ لا يمكن التراجع.',
-      confirmLabel: 'حذف',
-      cancelLabel: 'تراجع',
+      title: t('subscriptionPlans.deleteTitle'),
+      description: t('subscriptionPlans.deleteDesc'),
+      confirmLabel: t('subscriptionPlans.deleteConfirm'),
+      cancelLabel: t('subscriptionPlans.back'),
       variant: 'destructive',
     });
     if (!ok) return;
@@ -148,13 +150,13 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم حذف الخطة');
+        toast.success(t('subscriptionPlans.deleteSuccess'));
         await fetchPlans();
       } else {
-        toast.error(json.error || 'فشل الحذف');
+        toast.error(json.error || t('subscriptionPlans.deleteFailed'));
       }
     } catch {
-      toast.error('حدث خطأ');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -164,7 +166,7 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Calendar className="h-4 w-4 text-sky-600" />
-            خطط الاشتراك — {subjectName}
+            {t('subscriptionPlans.title', { subject: subjectName })}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" className="h-8" onClick={fetchPlans} disabled={loading}>
@@ -172,7 +174,7 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
             </Button>
             <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setShowAddForm(!showAddForm)}>
               <Plus className="h-4 w-4" />
-              إضافة خطة
+              {t('subscriptionPlans.addPlan')}
             </Button>
           </div>
         </div>
@@ -182,7 +184,7 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
           <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div>
-                <label className="text-xs text-muted-foreground">نوع الفترة</label>
+                <label className="text-xs text-muted-foreground">{t('subscriptionPlans.periodType')}</label>
                 <Select
                   value={newPlan.period_type}
                   onValueChange={(v) => {
@@ -196,15 +198,15 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="monthly">شهري</SelectItem>
-                    <SelectItem value="term">ترم</SelectItem>
-                    <SelectItem value="yearly">سنوي</SelectItem>
-                    <SelectItem value="custom">مخصص</SelectItem>
+                    <SelectItem value="monthly">{t('subscriptionPlans.periodMonthly')}</SelectItem>
+                    <SelectItem value="term">{t('subscriptionPlans.periodTerm')}</SelectItem>
+                    <SelectItem value="yearly">{t('subscriptionPlans.periodYearly')}</SelectItem>
+                    <SelectItem value="custom">{t('subscriptionPlans.periodCustom')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">المدة (أيام)</label>
+                <label className="text-xs text-muted-foreground">{t('subscriptionPlans.durationDays')}</label>
                 <Input
                   type="number"
                   value={newPlan.duration_days}
@@ -213,7 +215,7 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">السعر</label>
+                <label className="text-xs text-muted-foreground">{t('subscriptionPlans.price')}</label>
                 <Input
                   type="number"
                   step="0.01"
@@ -223,7 +225,7 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">العملة</label>
+                <label className="text-xs text-muted-foreground">{t('subscriptionPlans.currency')}</label>
                 <Input
                   value={newPlan.currency}
                   onChange={(e) => setNewPlan({ ...newPlan, currency: e.target.value })}
@@ -233,25 +235,25 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
             </div>
             {newPlan.period_type === 'custom' && (
               <div>
-                <label className="text-xs text-muted-foreground">تسمية مخصصة</label>
+                <label className="text-xs text-muted-foreground">{t('subscriptionPlans.customLabel')}</label>
                 <Input
                   value={newPlan.period_label}
                   onChange={(e) => setNewPlan({ ...newPlan, period_label: e.target.value })}
-                  placeholder="مثال: ترم أول 2025"
+                  placeholder={t('subscriptionPlans.customPlaceholder')}
                   className="h-9"
                 />
               </div>
             )}
             <div className="flex gap-2">
-              <Button size="sm" onClick={addPlan}>حفظ الخطة</Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>إلغاء</Button>
+              <Button size="sm" onClick={addPlan}>{t('subscriptionPlans.savePlan')}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>{t('subscriptionPlans.cancel')}</Button>
             </div>
           </div>
         )}
 
         {plans.length === 0 && !showAddForm ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            لا توجد خطط اشتراك بعد. اضغط "إضافة خطة" لإنشاء خطة جديدة.
+            {t('subscriptionPlans.emptyPlans')}
           </div>
         ) : (
           <div className="space-y-2">
@@ -264,17 +266,17 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">
-                        {PERIOD_LABELS[plan.period_type] || plan.period_type}
+                        {(PERIOD_KEYS[plan.period_type] ? t(PERIOD_KEYS[plan.period_type]) : '') || plan.period_type}
                       </span>
                       {plan.period_label && (
                         <span className="text-xs text-muted-foreground">— {plan.period_label}</span>
                       )}
                       <Badge variant={plan.is_active ? 'default' : 'secondary'} className="text-xs">
-                        {plan.is_active ? 'مفعّل' : 'معطّل'}
+                        {plan.is_active ? t('subscriptionPlans.activeBadge') : t('subscriptionPlans.inactiveBadge')}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {plan.duration_days} يوم — {Number(plan.price).toFixed(2)} {plan.currency}
+                      {t('subscriptionPlans.daysAndPrice', { days: plan.duration_days, price: Number(plan.price).toFixed(2), currency: plan.currency })}
                     </div>
                   </div>
                 </div>
@@ -284,7 +286,7 @@ export default function SubscriptionPlansSection({ subjectId, subjectName, defau
                     variant="ghost"
                     className="h-7"
                     onClick={() => togglePlan(plan.id, plan.is_active)}
-                    title={plan.is_active ? 'تعطيل' : 'تفعيل'}
+                    title={plan.is_active ? t('subscriptionPlans.deactivate') : t('subscriptionPlans.activate')}
                   >
                     {plan.is_active
                       ? <Power className="h-3.5 w-3.5 text-emerald-600" />
