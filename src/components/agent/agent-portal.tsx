@@ -133,15 +133,15 @@ const AGENT_SECTION_DEFS: Array<{
   label: string;
   icon: React.ReactNode;
 }> = [
-  { id: 'search',               label: 'البحث عن طالب',  icon: <Search className="h-5 w-5" /> },
-  { id: 'pendingOrders',         label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-  { id: 'dashboard',            label: 'الرئيسية',        icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects',             label: 'المقررات',       icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'students',             label: 'الطلاب',         icon: <Users className="h-5 w-5" /> },
-  { id: 'tracking',             label: 'تتبع الأداء',    icon: <Activity className="h-5 w-5" /> },
-  { id: 'financialManagement',  label: 'الإدارة المالية', icon: <DollarSign className="h-5 w-5" /> },
-  { id: 'calendar',             label: 'التقويم',        icon: <CalendarIcon className="h-5 w-5" /> },
-  { id: 'reports',              label: 'البلاغات',       icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'search',               label: 'regAgents.section.search.label',  icon: <Search className="h-5 w-5" /> },
+  { id: 'pendingOrders',         label: 'regAgents.section.pendingOrders.label', icon: <Clock className="h-5 w-5" /> },
+  { id: 'dashboard',            label: 'regAgents.section.dashboard.label',        icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects',             label: 'regAgents.section.subjects.label',       icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'students',             label: 'regAgents.section.students.label',         icon: <Users className="h-5 w-5" /> },
+  { id: 'tracking',             label: 'regAgents.section.tracking.label',    icon: <Activity className="h-5 w-5" /> },
+  { id: 'financialManagement',  label: 'regAgents.section.financialManagement.label', icon: <DollarSign className="h-5 w-5" /> },
+  { id: 'calendar',             label: 'regAgents.section.calendar.label',        icon: <CalendarIcon className="h-5 w-5" /> },
+  { id: 'reports',              label: 'regAgents.section.reports.label',       icon: <ShieldAlert className="h-5 w-5" /> },
 ];
 
 // v132: all sections are top-level now — no more "teacherView" wrapper.
@@ -166,7 +166,7 @@ export default function AgentPortal({
   activeSection?: string;
   onSectionChange?: (s: string) => void;
 }) {
-  const { direction, isRTL } = useTranslations();
+  const { t, direction, isRTL } = useTranslations();
   const { signOut } = useAuthStore();
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
@@ -223,7 +223,7 @@ export default function AgentPortal({
         setSelf(json.agent as AgentSelf);
         setTeacher(json.teacher as TeacherInfo | null);
       } else {
-        const err = json.error || 'تعذّر تحميل بيانات الوكيل';
+        const err = json.error || t('agentPortal.loadAgentFailed');
         setSelfError(err);
         setSelf(null);
         setTeacher(null);
@@ -232,8 +232,8 @@ export default function AgentPortal({
       }
     } catch (err) {
       const msg = err instanceof Error
-        ? `تعذّر الاتصال بالخادم: ${err.message}`
-        : 'تعذّر الاتصال بالخادم';
+        ? t('agentPortal.serverUnreachableWithError', { message: err.message })
+        : t('agentPortal.serverUnreachable');
       setSelfError(msg);
       setSelf(null);
       toast.error(msg);
@@ -264,11 +264,11 @@ export default function AgentPortal({
         const json = await res.json();
         if (cancelled) return;
         if (json.success && json.teacher) {
-          const t = json.teacher as TeacherInfo;
-          if (t.is_banned) {
+          const teacherInfo = json.teacher as TeacherInfo;
+          if (teacherInfo.is_banned) {
             setTeacherSuspended(true);
-            setSuspendedTeacherName(t.name || 'المعلم');
-            setSuspendedReason(t.ban_reason || null);
+            setSuspendedTeacherName(teacherInfo.name || t('agentPortal.teacherFallback'));
+            setSuspendedReason(teacherInfo.ban_reason || null);
           }
         }
       } catch {
@@ -283,7 +283,7 @@ export default function AgentPortal({
 
   // ─── Search student by code ───
   const searchStudent = async () => {
-    if (!searchCode.trim()) { toast.error('أدخل كود الطالب'); return; }
+    if (!searchCode.trim()) { toast.error(t('agentPortal.enterStudentCode')); return; }
     setSearching(true);
     setStudentResult(null);
     try {
@@ -299,8 +299,8 @@ export default function AgentPortal({
         // collapsible card shows real-time data after each search.
         if (json.student?.id) fetchStudentSuspensions(json.student.id);
       }
-      else { toast.error(json.error || 'لم يتم العثور على الطالب'); }
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+      else { toast.error(json.error || t('agentPortal.studentNotFound')); }
+    } catch { toast.error(t('agentPortal.unexpectedError')); }
     finally { setSearching(false); }
   };
 
@@ -343,9 +343,9 @@ export default function AgentPortal({
   const reactivateSubject = async (subjectId: string, subjectName: string) => {
     if (!studentResult?.student?.id || reactivatingSubjectId) return;
     const ok = await confirm({
-      title: 'إعادة تفعيل المقرر',
-      description: `سيتم رفع الإيقاف عن المقرر: ${subjectName}`,
-      confirmLabel: 'إعادة التفعيل', cancelLabel: 'تراجع',
+      title: t('agentPortal.reactivateTitle'),
+      description: t('agentPortal.reactivateDesc', { name: subjectName }),
+      confirmLabel: t('agentPortal.reactivateLabel'), cancelLabel: t('agentPortal.cancelLabel'),
     });
     if (!ok) return;
     setReactivatingSubjectId(subjectId);
@@ -360,13 +360,13 @@ export default function AgentPortal({
       );
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل رفع الإيقاف');
+        toast.error(json.error || t('agentPortal.liftFailed'));
         return;
       }
-      toast.success(`تم رفع الإيقاف عن المقرر: ${subjectName}`);
+      toast.success(t('agentPortal.liftSuccess', { name: subjectName }));
       await fetchStudentSuspensions(studentResult.student.id);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('agentPortal.unexpectedError'));
     } finally {
       setReactivatingSubjectId(null);
     }
@@ -376,9 +376,9 @@ export default function AgentPortal({
   const activateOrder = async (orderId: string) => {
     if (actioningOrderId) return;
     const ok = await confirm({
-      title: 'تأكيد التفعيل',
-      description: 'سيتم تفعيل الاشتراك لهذا الطالب.',
-      confirmLabel: 'تفعيل', cancelLabel: 'تراجع',
+      title: t('agentPortal.activateTitle'),
+      description: t('agentPortal.activateDesc'),
+      confirmLabel: t('agentPortal.activateLabel'), cancelLabel: t('agentPortal.cancelLabel'),
     });
     if (!ok) return;
     setActioningOrderId(orderId);
@@ -390,11 +390,11 @@ export default function AgentPortal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم تفعيل الاشتراك');
+        toast.success(json.message || t('agentPortal.activateSuccess'));
         if (searchCode.trim()) searchStudent();
         fetchPendingOrders();
-      } else { toast.error(json.error || 'فشل التفعيل'); }
-    } catch { toast.error('حدث خطأ'); }
+      } else { toast.error(json.error || t('agentPortal.activateFailed')); }
+    } catch { toast.error(t('agentPortal.genericError')); }
     finally { setActioningOrderId(null); }
   };
 
@@ -402,9 +402,9 @@ export default function AgentPortal({
   const cancelOrder = async (orderId: string) => {
     if (actioningOrderId) return;
     const ok = await confirm({
-      title: 'تأكيد الإلغاء',
-      description: 'إلغاء هذا الطلب؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.',
-      confirmLabel: 'إلغاء', cancelLabel: 'تراجع', variant: 'destructive',
+      title: t('agentPortal.cancelOrderTitle'),
+      description: t('agentPortal.cancelOrderDesc'),
+      confirmLabel: t('agentPortal.cancelOrderLabel'), cancelLabel: t('agentPortal.cancelLabel'), variant: 'destructive',
     });
     if (!ok) return;
     setActioningOrderId(orderId);
@@ -414,11 +414,11 @@ export default function AgentPortal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم إلغاء الطلب');
+        toast.success(json.message || t('agentPortal.cancelSuccess'));
         if (searchCode.trim()) searchStudent();
         fetchPendingOrders();
-      } else { toast.error(json.error || 'فشل الإلغاء'); }
-    } catch { toast.error('حدث خطأ'); }
+      } else { toast.error(json.error || t('agentPortal.cancelFailed')); }
+    } catch { toast.error(t('agentPortal.genericError')); }
     finally { setActioningOrderId(null); }
   };
 
@@ -433,11 +433,11 @@ export default function AgentPortal({
       if (json.success) { setPendingOrders(json.orders ?? []); }
       else {
         // Surface real errors instead of silently swallowing.
-        toast.error(json.error || 'تعذّر جلب الطلبات المعلّقة');
+        toast.error(json.error || t('agentPortal.fetchOrdersFailed'));
         setPendingOrders([]);
       }
     } catch {
-      toast.error('تعذّر الاتصال بالخادم لجلب الطلبات');
+      toast.error(t('agentPortal.fetchOrdersServerError'));
       setPendingOrders([]);
     } finally { setPendingLoading(false); }
   }, []);
@@ -513,7 +513,7 @@ export default function AgentPortal({
       return (
         <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
           <Gift className="h-3 w-3 me-1" />
-          مجاني
+          {t('agentPortal.free')}
         </Badge>
       );
     }
@@ -527,7 +527,7 @@ export default function AgentPortal({
       return (
         <div className="flex flex-col items-end gap-0.5">
           <span className="text-[9px] text-muted-foreground font-mono">
-            أصل: {base.toFixed(2)} + رسوم: {fees.toFixed(2)}
+            {t('agentPortal.basePlusFees', { base: base.toFixed(2), fees: fees.toFixed(2) })}
           </span>
           <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 font-mono">
             {grand.toFixed(2)} {currency}
@@ -571,16 +571,16 @@ export default function AgentPortal({
       });
       // v127: use actual days for custom durations (e.g., 3 days ≠ شهري)
       const durationDays = order.plan_duration_days ?? 30;
-      const durationLabel = durationDays >= 365 ? 'سنوي' :
-        durationDays >= 120 ? 'ترم' :
-        durationDays >= 60 ? 'فصلين' :
-        durationDays === 30 ? 'شهري' :
-        `${durationDays} يوم`;
+      const durationLabel = durationDays >= 365 ? t('agentPortal.durYearly') :
+        durationDays >= 120 ? t('agentPortal.durTerm') :
+        durationDays >= 60 ? t('agentPortal.durTwoTerms') :
+        durationDays === 30 ? t('agentPortal.durMonthly') :
+        t('agentPortal.durDays', { count: durationDays });
       return (
         <div className="flex flex-col items-end gap-0.5">
           <Badge variant="outline" className="text-[9px] border-sky-400 text-sky-700 bg-sky-50">
             <Gift className="h-2.5 w-2.5 me-0.5" />
-            مجاني ({durationLabel})
+            {t('agentPortal.freeWithDuration', { duration: durationLabel })}
           </Badge>
           <span className="text-[9px] text-muted-foreground">{timestamp}</span>
         </div>
@@ -606,7 +606,7 @@ export default function AgentPortal({
     if (paymentInitiated) {
       // Student paid on Paymob — show payment ref + timestamp
       const ref = hasOwnRef ? order.provider_order_ref! : sessionFirstOrderRef!;
-      const refLabel = hasOwnRef ? 'رقم العملية' : 'رقم العملية (جلسة)';
+      const refLabel = hasOwnRef ? t('agentPortal.txRef') : t('agentPortal.txRefSession');
       const timestamp = new Date(order.created_at).toLocaleString('ar-EG', {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
       });
@@ -614,7 +614,7 @@ export default function AgentPortal({
         <div className="flex flex-col items-end gap-0.5">
           <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 bg-emerald-50">
             <CheckCircle2 className="h-2.5 w-2.5 me-0.5" />
-            تم الدفع
+            {t('agentPortal.paid')}
           </Badge>
           <span className="text-[9px] text-muted-foreground font-mono" dir="ltr" title={ref}>
             {refLabel}: {ref.length > 18 ? ref.slice(0, 18) + '…' : ref}
@@ -628,7 +628,7 @@ export default function AgentPortal({
     return (
       <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 bg-amber-50">
         <Clock className="h-2.5 w-2.5 me-0.5" />
-        بانتظار الدفع
+        {t('agentPortal.awaitingPayment')}
       </Badge>
     );
   };
@@ -661,9 +661,9 @@ export default function AgentPortal({
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 mb-4">
                 <Ban className="h-10 w-10 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white">حساب المعلم موقوف</h2>
+              <h2 className="text-2xl font-bold text-white">{t('agentPortal.suspendedTitle')}</h2>
               <p className="text-rose-100 mt-2 text-sm">
-                المعلم: {suspendedTeacherName}
+                {t('agentPortal.teacherLine', { name: suspendedTeacherName })}
               </p>
             </div>
 
@@ -672,7 +672,7 @@ export default function AgentPortal({
               {/* Ban reason */}
               {suspendedReason && (
                 <div className="rounded-lg bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-900/40 p-4">
-                  <p className="text-sm font-medium text-rose-700 dark:text-rose-400 mb-1">سبب الإيقاف</p>
+                  <p className="text-sm font-medium text-rose-700 dark:text-rose-400 mb-1">{t('agentPortal.suspensionReason')}</p>
                   <p className="text-sm text-rose-600 dark:text-rose-500">{suspendedReason}</p>
                 </div>
               )}
@@ -682,10 +682,9 @@ export default function AgentPortal({
                 <div className="flex items-center gap-3">
                   <ShieldAlert className="h-5 w-5 text-rose-500 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-foreground">لا يمكنك استخدام البوابة</p>
+                    <p className="text-sm font-medium text-foreground">{t('agentPortal.portalBlocked')}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      تم إيقاف حساب المعلم المرتبط بك. لا يمكنك تسجيل الطلاب أو تفعيل الاشتراكات
-                      أو استخدام أي ميزة في البوابة حتى يتم رفع الإيقاف عن المعلم.
+                      {t('agentPortal.portalBlockedDesc')}
                     </p>
                   </div>
                 </div>
@@ -693,23 +692,23 @@ export default function AgentPortal({
 
               {/* Restrictions list */}
               <div className="rounded-lg bg-muted/30 dark:bg-muted/10 border p-4">
-                <p className="text-sm font-medium text-foreground mb-2">القيود المفروضة:</p>
+                <p className="text-sm font-medium text-foreground mb-2">{t('agentPortal.restrictionsTitle')}</p>
                 <ul className="space-y-1.5">
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يمكن تسجيل طلاب جدد
+                    {t('agentPortal.restriction1')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يمكن تفعيل أو إلغاء الاشتراكات
+                    {t('agentPortal.restriction2')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يمكن تصفح بيانات المعلم أو المقررات
+                    {t('agentPortal.restriction3')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    تواصل مع إدارة المنصة للاستفسار عن رفع الإيقاف
+                    {t('agentPortal.restriction4')}
                   </li>
                 </ul>
               </div>
@@ -720,7 +719,7 @@ export default function AgentPortal({
                 className="flex items-center justify-center gap-2 w-full rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 text-sm font-medium text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
-                تسجيل الخروج
+                {t('agentPortal.signOut')}
               </button>
             </div>
           </div>
@@ -747,8 +746,8 @@ export default function AgentPortal({
               <Search className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">بوابة الوكيل</h1>
-              <p className="text-sm text-muted-foreground">بحث عن الطلاب + تفعيل/إلغاء الاشتراكات</p>
+              <h1 className="text-xl font-bold">{t('agentPortal.portalTitle')}</h1>
+              <p className="text-sm text-muted-foreground">{t('agentPortal.portalSubtitle')}</p>
             </div>
           </header>
 
@@ -761,13 +760,13 @@ export default function AgentPortal({
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !searching) searchStudent(); }}
-                  placeholder="كود الطالب..."
+                  placeholder={t('agentPortal.studentCodePlaceholder')}
                   className="flex-1"
                   dir="ltr"
                 />
                 <Button onClick={searchStudent} disabled={searching || !searchCode.trim()}>
                   {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  بحث
+                  {t('agentPortal.search')}
                 </Button>
               </div>
             </CardContent>
@@ -792,7 +791,7 @@ export default function AgentPortal({
                     </div>
                     <div className="flex items-center gap-2 shrink-0 flex-wrap">
                       <Badge variant={studentResult.student.account_status === 'active' ? 'default' : 'secondary'}>
-                        {studentResult.student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                        {studentResult.student.account_status === 'active' ? t('agentPortal.statusActive') : t('agentPortal.statusPendingActivation')}
                       </Badge>
                       {/* v116 (C7): hide the suspend/activate button entirely when
                           the student has NO subjects (no enrollments + no pending
@@ -826,7 +825,7 @@ export default function AgentPortal({
                             }}
                           >
                             <PauseCircle className="h-3.5 w-3.5 me-1" />
-                            إيقاف / تنشيط
+                            {t('agentPortal.suspendActivate')}
                           </Button>
                         );
                       })()}
@@ -843,7 +842,7 @@ export default function AgentPortal({
                         }}
                       >
                         <Activity className="h-3.5 w-3.5 me-1" />
-                        عرض الأداء
+                        {t('agentPortal.viewPerformance')}
                       </Button>
                     </div>
                   </div>
@@ -860,11 +859,11 @@ export default function AgentPortal({
                     <TabsList className="grid w-full grid-cols-2 mb-3">
                       <TabsTrigger value="subscriptions" className="text-xs gap-1">
                         <BookOpen className="h-3.5 w-3.5" />
-                        الاشتراكات ({studentResult.subscriptions.length})
+                        {t('agentPortal.subscriptionsCount', { count: studentResult.subscriptions.length })}
                       </TabsTrigger>
                       <TabsTrigger value="suspensions" className="text-xs gap-1">
                         <Ban className="h-3.5 w-3.5" />
-                        الإيقافات ({studentSuspendedSubjects.length})
+                        {t('agentPortal.suspensionsCount', { count: studentSuspendedSubjects.length })}
                       </TabsTrigger>
                     </TabsList>
 
@@ -873,7 +872,7 @@ export default function AgentPortal({
                       {studentResult.subscriptions.length === 0 ? (
                         <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
                           <CheckCircle2 className="h-4 w-4 text-muted-foreground/40" />
-                          لا توجد اشتراكات نشطة
+                          {t('agentPortal.noActiveSubscriptions')}
                         </div>
                       ) : (
                         <div className="divide-y rounded-md border border-border/60">
@@ -907,11 +906,11 @@ export default function AgentPortal({
                               planLabel = sub.period_label;
                             } else if (sub.plan_duration_days) {
                               const d = sub.plan_duration_days;
-                              planLabel = d >= 365 ? 'سنوي' :
-                                d >= 120 ? 'ترم' :
-                                d >= 60 ? 'فصلين' :
-                                d === 30 ? 'شهري' :
-                                `${d} يوم`;
+                              planLabel = d >= 365 ? t('agentPortal.durYearly') :
+                                d >= 120 ? t('agentPortal.durTerm') :
+                                d >= 60 ? t('agentPortal.durTwoTerms') :
+                                d === 30 ? t('agentPortal.durMonthly') :
+                                t('agentPortal.durDays', { count: d });
                             }
 
                             // Determine the badge to show.
@@ -929,7 +928,7 @@ export default function AgentPortal({
                               planBadge = (
                                 <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
                                   <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
-                                  مدفوع
+                                  {t('agentPortal.paid')}
                                 </Badge>
                               );
                             } else if (isFreeEnrollment) {
@@ -937,7 +936,7 @@ export default function AgentPortal({
                               planBadge = (
                                 <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200 shrink-0">
                                   <Gift className="h-2.5 w-2.5 me-0.5" />
-                                  مجاني
+                                  {t('agentPortal.free')}
                                 </Badge>
                               );
                             } else {
@@ -947,12 +946,12 @@ export default function AgentPortal({
                               planBadge = isFreeByPrice ? (
                                 <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200 shrink-0">
                                   <Gift className="h-2.5 w-2.5 me-0.5" />
-                                  مجاني
+                                  {t('agentPortal.free')}
                                 </Badge>
                               ) : (
                                 <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
                                   <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
-                                  مدفوع
+                                  {t('agentPortal.paid')}
                                 </Badge>
                               );
                             }
@@ -965,12 +964,12 @@ export default function AgentPortal({
                                   {isPaused && (
                                     <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200 shrink-0">
                                       <Ban className="h-2.5 w-2.5 me-0.5" />
-                                      موقوف
+                                      {t('agentPortal.suspendedBadge')}
                                     </Badge>
                                   )}
                                 </div>
                                 <Badge variant={sub.status === 'approved' ? 'default' : 'secondary'} className="text-xs shrink-0">
-                                  {sub.status === 'approved' ? 'نشط' : sub.status}
+                                  {sub.status === 'approved' ? t('agentPortal.statusActive') : sub.status}
                                 </Badge>
                               </div>
                             );
@@ -984,7 +983,7 @@ export default function AgentPortal({
                       {studentSuspendedSubjects.length === 0 ? (
                         <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
                           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                          لا توجد مقررات موقوفة
+                          {t('agentPortal.noSuspendedSubjects')}
                         </div>
                       ) : (
                         <div className="divide-y rounded-md border border-border/60">
@@ -993,16 +992,16 @@ export default function AgentPortal({
                               <div className="min-w-0 flex-1">
                                 <span className="text-sm font-medium truncate block">{s.subject_name}</span>
                                 {s.reason && (
-                                  <p className="text-[10px] text-muted-foreground mt-0.5">السبب: {s.reason}</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">{t('agentPortal.reasonLine', { reason: s.reason })}</p>
                                 )}
                                 <p className="text-[10px] text-muted-foreground">
-                                  {s.expires_at ? `ينتهي: ${new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}` : 'غير محدد المدة'}
+                                  {s.expires_at ? t('agentPortal.expiresAt', { date: new Date(s.expires_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) }) : t('agentPortal.indefinite')}
                                 </p>
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
                                   <Ban className="h-2.5 w-2.5 me-0.5" />
-                                  موقوف
+                                  {t('agentPortal.suspendedBadge')}
                                 </Badge>
                                 <Button
                                   size="sm"
@@ -1014,7 +1013,7 @@ export default function AgentPortal({
                                   {reactivatingSubjectId === s.subject_id
                                     ? <Loader2 className="h-3 w-3 me-1 animate-spin" />
                                     : <Power className="h-3 w-3 me-1" />}
-                                  إعادة تفعيل
+                                  {t('agentPortal.reactivate')}
                                 </Button>
                               </div>
                             </div>
@@ -1032,7 +1031,7 @@ export default function AgentPortal({
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Clock className="h-4 w-4 text-amber-600" />
-                      الطلبات المعلّقة ({studentResult.pending_orders.length})
+                      {t('agentPortal.pendingOrdersCount', { count: studentResult.pending_orders.length })}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1053,7 +1052,7 @@ export default function AgentPortal({
                               <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
                                 disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
                                 {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
-                                تفعيل
+                                {t('agentPortal.activate')}
                               </Button>
                               <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
                                 disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
@@ -1080,7 +1079,7 @@ export default function AgentPortal({
       {(activeSection === 'pendingOrders' || activeSection === 'pending') && (
         <>
           <header className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">الطلبات المعلّقة</h1>
+            <h1 className="text-xl font-bold">{t('agentPortal.pendingOrdersTitle')}</h1>
             <Button size="sm" variant="ghost" onClick={fetchPendingOrders} disabled={pendingLoading}>
               {pendingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
@@ -1094,7 +1093,7 @@ export default function AgentPortal({
             <Card>
               <CardContent className="py-8 text-center">
                 <Inbox className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">لا توجد طلبات معلّقة حالياً.</p>
+                <p className="text-sm text-muted-foreground">{t('agentPortal.noPendingOrders')}</p>
               </CardContent>
             </Card>
           ) : (
@@ -1120,7 +1119,7 @@ export default function AgentPortal({
                           <Button size="sm" variant="outline" className="h-7 text-xs border-emerald-300 text-emerald-700"
                             disabled={actioningOrderId === o.id} onClick={() => activateOrder(o.id)}>
                             {actioningOrderId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
-                            تفعيل
+                            {t('agentPortal.activate')}
                           </Button>
                           <Button size="sm" variant="outline" className="h-7 text-xs text-rose-600"
                             disabled={actioningOrderId === o.id} onClick={() => cancelOrder(o.id)}>
@@ -1198,6 +1197,7 @@ function TopLevelSection({
   onRetry: () => void;
   isRTL: boolean;
 }) {
+  const { t } = useTranslations();
   const sectionDef = AGENT_SECTION_DEFS.find(s => s.id === sectionId);
 
   // Loading state OR error state (before we have a profile).
@@ -1209,8 +1209,8 @@ function TopLevelSection({
             {sectionDef?.icon ?? <LayoutDashboard className="h-5 w-5 text-white" />}
           </div>
           <div>
-            <h1 className="text-xl font-bold">{sectionDef?.label ?? '—'}</h1>
-            <p className="text-sm text-muted-foreground">جاري التحميل…</p>
+            <h1 className="text-xl font-bold">{sectionDef ? t(sectionDef.label) : '—'}</h1>
+            <p className="text-sm text-muted-foreground">{t('agentPortal.loading')}</p>
           </div>
         </header>
         {selfError ? (
@@ -1220,19 +1220,18 @@ function TopLevelSection({
                 <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="font-semibold text-rose-700 dark:text-rose-300">
-                    تعذّر تحميل بيانات الوكيل
+                    {t('agentPortal.loadAgentFailed')}
                   </p>
                   <p className="text-xs text-muted-foreground">{selfError}</p>
                   <p className="text-xs text-muted-foreground mt-2">
-                    قد يكون سبب ذلك أن المعلم أوقف حساب الوكيل أو حذفه. تواصل
-                    مع المعلم للتأكد من حالة الوكيل، أو حاول مرة أخرى:
+                    {t('agentPortal.loadAgentFailedHint')}
                   </p>
                 </div>
               </div>
               <div className="flex justify-end">
                 <Button onClick={onRetry} variant="outline" size="sm">
                   <RefreshCw className="h-4 w-4 me-1" />
-                  إعادة المحاولة
+                  {t('agentPortal.retry')}
                 </Button>
               </div>
             </CardContent>
@@ -1254,9 +1253,9 @@ function TopLevelSection({
           {sectionDef?.icon ?? <LayoutDashboard className="h-5 w-5 text-white" />}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold truncate">{sectionDef?.label ?? '—'}</h1>
+          <h1 className="text-xl font-bold truncate">{sectionDef ? t(sectionDef.label) : '—'}</h1>
           <p className="text-sm text-muted-foreground truncate">
-            المعلم: {teacher?.name ?? '—'}
+            {t('agentPortal.teacherLine', { name: teacher?.name ?? '—' })}
           </p>
         </div>
       </header>
@@ -1305,19 +1304,19 @@ function TopLevelSection({
 // ──────────────────────────────────────────────────────────────
 // v132: reduced to the 9 active sections. Old labels removed.
 const SECTION_LABELS: Record<string, string> = {
-  search: 'البحث عن طالب',
-  pendingOrders: 'الطلبات المعلّقة',
-  dashboard: 'الرئيسية',
-  subjects: 'المقررات',
-  students: 'الطلاب',
-  tracking: 'تتبع الأداء',
-  financialManagement: 'الإدارة المالية',
-  calendar: 'التقويم',
-  reports: 'البلاغات',
+  search: 'regAgents.section.search.label',
+  pendingOrders: 'regAgents.section.pendingOrders.label',
+  dashboard: 'regAgents.section.dashboard.label',
+  subjects: 'regAgents.section.subjects.label',
+  students: 'regAgents.section.students.label',
+  tracking: 'regAgents.section.tracking.label',
+  financialManagement: 'regAgents.section.financialManagement.label',
+  calendar: 'regAgents.section.calendar.label',
+  reports: 'regAgents.section.reports.label',
 };
 
 function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
-  const { direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1356,10 +1355,10 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
           setTotalCount(Number(json.total_count ?? (Array.isArray(json.items) ? json.items.length : 0)));
           setOffset(LIMIT);
         } else {
-          setError(json.error || 'تعذّر تحميل البيانات');
+          setError(json.error || t('agentPortal.loadDataFailed'));
         }
       } catch {
-        if (!cancelled) setError('تعذّر الاتصال بالخادم');
+        if (!cancelled) setError(t('agentPortal.serverUnreachable'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1399,10 +1398,10 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
             setTotalCount(Number(json.total_count ?? (Array.isArray(json.items) ? json.items.length : 0)));
             setOffset(LIMIT);
           } else {
-            setError(json.error || 'تعذّر تحميل البيانات');
+            setError(json.error || t('agentPortal.loadDataFailed'));
           }
         } catch {
-          if (!cancelled) setError('تعذّر الاتصال بالخادم');
+          if (!cancelled) setError(t('agentPortal.serverUnreachable'));
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -1427,10 +1426,10 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
         setHasMore(!!json.has_more);
         setOffset(prev => prev + LIMIT);
       } else {
-        toast.error(json.error || 'تعذّر تحميل المزيد');
+        toast.error(json.error || t('agentPortal.loadMoreFailed'));
       }
     } catch {
-      toast.error('تعذّر الاتصال بالخادم');
+      toast.error(t('agentPortal.serverUnreachable'));
     } finally {
       setLoadingMore(false);
     }
@@ -1461,15 +1460,15 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
     <div dir={direction} className="space-y-2">
       {totalCount > 0 && (
         <div className="text-[10px] text-muted-foreground text-end">
-          عُرض {items.length} من {totalCount}
+          {t('agentPortal.showingOf', { shown: items.length, total: totalCount })}
         </div>
       )}
-      {renderSectionContent(sectionId, mergedData)}
+      {renderSectionContent(sectionId, mergedData, t)}
       {hasMore && (
         <div className="flex justify-center pt-2">
           <Button size="sm" variant="outline" onClick={loadMore} disabled={loadingMore}>
             {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin me-1" /> : <ChevronDown className="h-3.5 w-3.5 me-1" />}
-            عرض المزيد
+            {t('agentPortal.loadMore')}
           </Button>
         </div>
       )}
@@ -1477,7 +1476,7 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
   );
 }
 
-function renderSectionContent(sectionId: string, data: Record<string, unknown> | null) {
+function renderSectionContent(sectionId: string, data: Record<string, unknown> | null, t: (key: string, params?: Record<string, unknown>) => string) {
   if (!data) return null;
   const note = data.note as string | undefined;
   if (note) {
@@ -1503,7 +1502,7 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
     case 'summaries':
     case 'questionBank':
     case 'scormLibrary':
-      return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد عناصر" />;
+      return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="agentPortal.empty.items" />;
     case 'financialManagement':
       return <FinancialView data={data} />;
     case 'calendar':
@@ -1513,9 +1512,9 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
       // v132 Phase 7: moderation reports.
       return <ReportsView data={data} />;
     case 'videos':
-      return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="لا توجد فيديوهات" />;
+      return <ItemsListView data={data} idField="id" titleField="title" subtitleField="subject.name" emptyMsg="agentPortal.empty.videos" />;
     case 'files':
-      return <ItemsListView data={data} idField="id" titleField="name" subtitleField="subject.name" emptyMsg="لا توجد ملفات" />;
+      return <ItemsListView data={data} idField="id" titleField="name" subtitleField="subject.name" emptyMsg="agentPortal.empty.files" />;
     case 'todos':
       return <TodosView data={data} />;
     case 'notifications':
@@ -1528,9 +1527,9 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
     default:
       return (
         <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-muted-foreground">
-          القسم المحدد: <span className="font-medium">{SECTION_LABELS[sectionId] ?? sectionId}</span>
+          {t('agentPortal.selectedSection')}: <span className="font-medium">{SECTION_LABELS[sectionId] ? t(SECTION_LABELS[sectionId]) : sectionId}</span>
           <br />
-          معاينة لهذا القسم غير متاحة للوكيل حالياً — يجب على المعلم الدخول لحسابه لرؤية المحتوى الكامل.
+          {t('agentPortal.previewUnavailable')}
         </div>
       );
   }
@@ -1541,29 +1540,30 @@ function renderSectionContent(sectionId: string, data: Record<string, unknown> |
 // ──────────────────────────────────────────────────────────────
 
 function TodosView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string; title: string; completed: boolean;
     due_date: string | null; created_at: string;
   }>;
-  if (items.length === 0) return <EmptyState label="لا توجد مهام" />;
+  if (items.length === 0) return <EmptyState label="agentPortal.empty.todos" />;
   return (
     <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
-      {items.map((t) => (
-        <div key={t.id} className="flex items-center justify-between gap-2 p-2.5 text-xs">
+      {items.map((todo) => (
+        <div key={todo.id} className="flex items-center justify-between gap-2 p-2.5 text-xs">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className={`font-medium truncate ${t.completed ? 'line-through text-muted-foreground' : ''}`}>
-                {t.title}
+              <span className={`font-medium truncate ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
+                {todo.title}
               </span>
-              {t.completed && (
+              {todo.completed && (
                 <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                  مكتمل
+                  {t('agentPortal.completedBadge')}
                 </Badge>
               )}
             </div>
-            {t.due_date && (
+            {todo.due_date && (
               <div className="text-[10px] text-muted-foreground mt-0.5">
-                ينتهي: {new Date(t.due_date).toLocaleDateString('ar-EG')}
+                {t('agentPortal.dueDate', { date: new Date(todo.due_date).toLocaleDateString('ar-EG') })}
               </div>
             )}
           </div>
@@ -1574,11 +1574,12 @@ function TodosView({ data }: { data: Record<string, unknown> }) {
 }
 
 function NotificationsView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string; title: string; body: string | null;
     type: string | null; is_read: boolean; created_at: string;
   }>;
-  if (items.length === 0) return <EmptyState label="لا توجد إشعارات" />;
+  if (items.length === 0) return <EmptyState label="agentPortal.empty.notifications" />;
   return (
     <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
       {items.map((n) => (
@@ -1586,7 +1587,7 @@ function NotificationsView({ data }: { data: Record<string, unknown> }) {
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium truncate">{n.title || '—'}</span>
             {!n.is_read && (
-              <Badge variant="default" className="text-[9px] bg-sky-100 text-sky-700 border-sky-200">جديد</Badge>
+              <Badge variant="default" className="text-[9px] bg-sky-100 text-sky-700 border-sky-200">{t('agentPortal.newBadge')}</Badge>
             )}
           </div>
           {n.body && (
@@ -1610,10 +1611,10 @@ function AnalyticsView({ data }: { data: Record<string, unknown> }) {
   };
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      <StatTile label="إجمالي التسجيلات" value={stats.total_enrollments ?? 0} color="sky" icon={<Users className="h-3.5 w-3.5" />} />
-      <StatTile label="اشتراكات نشطة" value={stats.active_subscriptions ?? 0} color="teal" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
-      <StatTile label="طلبات معلّقة" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
-      <StatTile label="طلبات مدفوعة" value={stats.paid_orders ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.totalEnrollments" value={stats.total_enrollments ?? 0} color="sky" icon={<Users className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.activeSubscriptions" value={stats.active_subscriptions ?? 0} color="teal" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.pendingOrders" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.paidOrders" value={stats.paid_orders ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
     </div>
   );
 }
@@ -1632,6 +1633,7 @@ function AnalyticsView({ data }: { data: Record<string, unknown> }) {
 //     - null (no data) → muted
 // ──────────────────────────────────────────────────────────────
 function TrackingView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string;
     name: string | null;
@@ -1652,7 +1654,7 @@ function TrackingView({ data }: { data: Record<string, unknown> }) {
   }>;
   const totalCount = (data.total_count as number) ?? 0;
 
-  if (items.length === 0) return <EmptyState label="لا يوجد طلاب مسجلون في مقرراتك بعد" />;
+  if (items.length === 0) return <EmptyState label="agentPortal.empty.trackingStudents" />;
 
   // Helper: color a percentage value.
   const rateColor = (rate: number | null): string => {
@@ -1681,7 +1683,7 @@ function TrackingView({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="space-y-2">
       <div className="text-[10px] text-muted-foreground">
-        إجمالي الطلاب: {totalCount}
+        {t('agentPortal.totalStudents', { count: totalCount })}
       </div>
       <div className="rounded-md border border-border/60 divide-y max-h-[500px] overflow-y-auto">
         {items.map((s) => (
@@ -1694,12 +1696,12 @@ function TrackingView({ data }: { data: Record<string, unknown> }) {
                   {s.student_code && (
                     <span className="font-mono text-[10px] text-muted-foreground">({s.student_code})</span>
                   )}
-                  <Badge variant="outline" className="text-[9px]">{s.enrolled_subjects} مقرر</Badge>
+                  <Badge variant="outline" className="text-[9px]">{t('agentPortal.subjectCount', { count: s.enrolled_subjects })}</Badge>
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate mt-0.5" dir="ltr">{s.email}</div>
               </div>
               <div className="text-[10px] text-muted-foreground shrink-0 text-end">
-                <div>آخر نشاط</div>
+                <div>{t('agentPortal.lastActivity')}</div>
                 <div className="font-medium">{formatActivity(s.last_activity)}</div>
               </div>
             </div>
@@ -1707,50 +1709,50 @@ function TrackingView({ data }: { data: Record<string, unknown> }) {
             <div className="grid grid-cols-4 gap-1.5">
               {/* Attendance */}
               <div className={`rounded px-2 py-1.5 ${rateBg(s.attendance_rate)}`}>
-                <div className="text-[9px] text-muted-foreground">الحضور</div>
+                <div className="text-[9px] text-muted-foreground">{t('agentPortal.attendance')}</div>
                 <div className={`font-bold text-sm ${rateColor(s.attendance_rate)}`}>
                   {s.attendance_rate !== null ? `${s.attendance_rate}%` : '—'}
                 </div>
                 <div className="text-[8px] text-muted-foreground mt-0.5">
                   {s.attendance_detail.total > 0
-                    ? `${s.attendance_detail.present}ح/${s.attendance_detail.late}م/${s.attendance_detail.absent}غ`
-                    : 'لا جلسات'}
+                    ? t('agentPortal.attendanceDetail', { present: s.attendance_detail.present, late: s.attendance_detail.late, absent: s.attendance_detail.absent })
+                    : t('agentPortal.noSessions')}
                 </div>
               </div>
               {/* Quiz avg */}
               <div className={`rounded px-2 py-1.5 ${rateBg(s.quiz_avg_score)}`}>
-                <div className="text-[9px] text-muted-foreground">متوسط الاختبارات</div>
+                <div className="text-[9px] text-muted-foreground">{t('agentPortal.quizAvg')}</div>
                 <div className={`font-bold text-sm ${rateColor(s.quiz_avg_score)}`}>
                   {s.quiz_avg_score !== null ? `${s.quiz_avg_score}%` : '—'}
                 </div>
                 <div className="text-[8px] text-muted-foreground mt-0.5">
                   {s.quiz_detail.completed > 0
-                    ? `${s.quiz_detail.completed}/${s.quiz_detail.total} مكتمل`
-                    : 'لم يختبر'}
+                    ? t('agentPortal.completedOf', { completed: s.quiz_detail.completed, total: s.quiz_detail.total })
+                    : t('agentPortal.notTested')}
                 </div>
               </div>
               {/* Assignment submission */}
               <div className={`rounded px-2 py-1.5 ${rateBg(s.assignment_rate)}`}>
-                <div className="text-[9px] text-muted-foreground">الواجبات</div>
+                <div className="text-[9px] text-muted-foreground">{t('agentPortal.assignments')}</div>
                 <div className={`font-bold text-sm ${rateColor(s.assignment_rate)}`}>
                   {s.assignment_rate !== null ? `${s.assignment_rate}%` : '—'}
                 </div>
                 <div className="text-[8px] text-muted-foreground mt-0.5">
                   {s.assignment_detail.total > 0
-                    ? `${s.assignment_detail.submitted}/${s.assignment_detail.total} مُسلَّم`
-                    : 'لا واجبات'}
+                    ? t('agentPortal.submittedOf', { submitted: s.assignment_detail.submitted, total: s.assignment_detail.total })
+                    : t('agentPortal.noAssignments')}
                 </div>
               </div>
               {/* Lesson progress */}
               <div className={`rounded px-2 py-1.5 ${rateBg(s.lesson_progress)}`}>
-                <div className="text-[9px] text-muted-foreground">تقدم الدروس</div>
+                <div className="text-[9px] text-muted-foreground">{t('agentPortal.lessonProgress')}</div>
                 <div className={`font-bold text-sm ${rateColor(s.lesson_progress)}`}>
                   {s.lesson_progress !== null ? `${s.lesson_progress}%` : '—'}
                 </div>
                 <div className="text-[8px] text-muted-foreground mt-0.5">
                   {s.lesson_detail.total > 0
-                    ? `${s.lesson_detail.completed}/${s.lesson_detail.total} درس`
-                    : 'لا دروس'}
+                    ? t('agentPortal.lessonsOf', { completed: s.lesson_detail.completed, total: s.lesson_detail.total })
+                    : t('agentPortal.noLessons')}
                 </div>
               </div>
             </div>
@@ -1778,10 +1780,10 @@ function DashboardView({ data }: { data: Record<string, unknown> }) {
   // number of currently-active enrollments.
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      <StatTile label="المقررات" value={stats.total_subjects ?? 0} color="sky" icon={<BookOpen className="h-3.5 w-3.5" />} />
-      <StatTile label="الطلاب" value={stats.total_students ?? 0} color="teal" icon={<Users className="h-3.5 w-3.5" />} />
-      <StatTile label="طلبات معلّقة" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
-      <StatTile label="اشتراكات نشطة" value={stats.active_subscriptions ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.subjects" value={stats.total_subjects ?? 0} color="sky" icon={<BookOpen className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.students" value={stats.total_students ?? 0} color="teal" icon={<Users className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.pendingOrders" value={stats.pending_orders ?? 0} color="amber" icon={<Clock className="h-3.5 w-3.5" />} />
+      <StatTile label="agentPortal.stat.activeSubscriptions" value={stats.active_subscriptions ?? 0} color="emerald" icon={<BadgeCheck className="h-3.5 w-3.5" />} />
     </div>
   );
 }
@@ -1796,10 +1798,11 @@ function StatTile({ label, value, color, icon }: {
     amber: 'border-amber-200 bg-amber-50/60 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
     emerald: 'border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
   };
+  const { t } = useTranslations();
   return (
     <div className={`rounded-md border px-3 py-2 ${colorMap[color]}`}>
       <div className="flex items-center justify-between">
-        <span className="text-[10px] opacity-80">{label}</span>
+        <span className="text-[10px] opacity-80">{t(label)}</span>
         <span className="opacity-80">{icon}</span>
       </div>
       <div className="text-xl font-bold mt-1">{value}</div>
@@ -1808,6 +1811,7 @@ function StatTile({ label, value, color, icon }: {
 }
 
 function SubjectsView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string; name: string; level: string | null; sub_level: string | null;
     price: number | null; is_paused: boolean; students_count: number;
@@ -1817,17 +1821,17 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
       duration_days: number; price: number; currency: string;
     }>;
   }>;
-  if (items.length === 0) return <EmptyState label="لا توجد مقررات" />;
+  if (items.length === 0) return <EmptyState label="agentPortal.empty.subjects" />;
 
   // v132: helper to render a human-readable plan label.
   // Uses period_label if set, otherwise derives from period_type.
   const planLabel = (p: { period_type: string; period_label: string; duration_days: number }) => {
     if (p.period_label && p.period_label.trim()) return p.period_label;
     switch (p.period_type) {
-      case 'monthly': return 'شهري';
-      case 'term': return 'ترم';
-      case 'yearly': return 'سنوي';
-      case 'custom': return `${p.duration_days} يوم`;
+      case 'monthly': return t('agentPortal.durMonthly');
+      case 'term': return t('agentPortal.durTerm');
+      case 'yearly': return t('agentPortal.durYearly');
+      case 'custom': return t('agentPortal.durDays', { count: p.duration_days });
       default: return p.period_type;
     }
   };
@@ -1842,7 +1846,7 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
               {s.is_paused && (
                 <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
                   <Ban className="h-2.5 w-2.5 me-0.5" />
-                  موقوف
+                  {t('agentPortal.suspendedBadge')}
                 </Badge>
               )}
               {s.level && (
@@ -1850,7 +1854,7 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
               )}
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {s.students_count} طالب
+              {t('agentPortal.studentCount', { count: s.students_count })}
             </div>
             {/* v132: show all active plans instead of a single default price. */}
             {s.plans.length > 0 ? (
@@ -1860,14 +1864,14 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
                     {planLabel(p)}: {' '}
                     {p.price > 0
                       ? <span className="font-medium text-emerald-700 dark:text-emerald-300">{p.price.toFixed(0)} {p.currency}</span>
-                      : <span className="text-sky-600">مجاني</span>}
+                      : <span className="text-sky-600">{t('agentPortal.free')}</span>}
                   </Badge>
                 ))}
               </div>
             ) : (
               <div className="mt-1">
                 <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">
-                  لا توجد خطط مفعّلة
+                  {t('agentPortal.noActivePlans')}
                 </Badge>
               </div>
             )}
@@ -1879,6 +1883,7 @@ function SubjectsView({ data }: { data: Record<string, unknown> }) {
 }
 
 function StudentsView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string; name: string | null; email: string;
     student_code: string | null; account_status: string | null;
@@ -1923,14 +1928,14 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم قبول الطلب (${json.affected} طالب)`);
+        toast.success(t('agentPortal.approveSuccess', { count: json.affected }));
         // Reload the section data — the parent TeacherSectionPreview will refetch.
         window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
       } else {
-        toast.error(json.error || 'فشل قبول الطلب');
+        toast.error(json.error || t('agentPortal.approveFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('agentPortal.unexpectedError'));
     } finally {
       setActioningId(null);
     }
@@ -1946,13 +1951,13 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم رفض الطلب`);
+        toast.success(t('agentPortal.rejectSuccess'));
         window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
       } else {
-        toast.error(json.error || 'فشل رفض الطلب');
+        toast.error(json.error || t('agentPortal.rejectFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('agentPortal.unexpectedError'));
     } finally {
       setActioningId(null);
     }
@@ -1963,7 +1968,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
       {/* ─── Search box (replaces stats card) ─── */}
       <div className="flex items-center gap-2">
         <Input
-          placeholder="بحث بالاسم أو البريد أو الكود..."
+          placeholder={t('agentPortal.searchStudentsPlaceholder')}
           value={studentSearch}
           onChange={(e) => setStudentSearch(e.target.value)}
           className="text-xs h-8"
@@ -1977,7 +1982,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Clock className="h-4 w-4 text-amber-600" />
-              طلبات الانضمام المعلّقة ({pendingEnrollments.length})
+              {t('agentPortal.pendingEnrollmentsCount', { count: pendingEnrollments.length })}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -2003,7 +2008,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                       {actioningId === req.enrollment_id
                         ? <Loader2 className="h-3 w-3 animate-spin" />
                         : <BadgeCheck className="h-3 w-3" />}
-                      قبول
+                      {t('agentPortal.accept')}
                     </Button>
                     <Button
                       size="sm" variant="outline"
@@ -2014,7 +2019,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                       {actioningId === req.enrollment_id
                         ? <Loader2 className="h-3 w-3 animate-spin" />
                         : <XCircle className="h-3 w-3" />}
-                      رفض
+                      {t('agentPortal.reject')}
                     </Button>
                   </div>
                 </div>
@@ -2026,13 +2031,13 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
 
       {/* ─── Student list with search filter ─── */}
       {items.length === 0 && pendingEnrollments.length === 0 ? (
-        <EmptyState label="لا يوجد طلاب" />
+        <EmptyState label="agentPortal.empty.students" />
       ) : (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4 text-teal-600" />
-              قائمة الطلاب ({studentSearch ? filteredItems.length : totalCount})
+              {t('agentPortal.studentListCount', { count: studentSearch ? filteredItems.length : totalCount })}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -2054,7 +2059,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                         variant={s.account_status === 'active' ? 'default' : 'secondary'}
                         className="text-[9px] px-1.5 py-0"
                       >
-                        {s.account_status === 'active' ? 'نشط' : 'قيد'}
+                        {s.account_status === 'active' ? t('agentPortal.statusActive') : t('agentPortal.statusPendingShort')}
                       </Badge>
                       {/* v132: replaced 'إدارة' (which opened the suspend
                           dialog) with 'عرض' — a read-only info modal.
@@ -2067,7 +2072,7 @@ function StudentsView({ data }: { data: Record<string, unknown> }) {
                         onClick={() => setViewTarget(s)}
                       >
                         <Eye className="h-3 w-3 me-1" />
-                        عرض
+                        {t('agentPortal.view')}
                       </Button>
                     </div>
                   </div>
@@ -2110,7 +2115,7 @@ function StudentInfoModal({
   };
   onClose: () => void;
 }) {
-  const { direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const formatDate = (iso: string | null) => {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
@@ -2122,31 +2127,31 @@ function StudentInfoModal({
         <DialogHeader className="shrink-0 p-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
             <Eye className="h-5 w-5 text-sky-600" />
-            معلومات الطالب
+            {t('agentPortal.studentInfo')}
           </DialogTitle>
           <DialogDescription>
-            عرض بيانات الطالب وتسجيلاته (للقراءة فقط)
+            {t('agentPortal.studentInfoDesc')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
           {/* Student details */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <p className="text-xs text-muted-foreground">الاسم</p>
+              <p className="text-xs text-muted-foreground">{t('agentPortal.nameLabel')}</p>
               <p className="font-medium truncate">{student.name ?? '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">كود الطالب</p>
+              <p className="text-xs text-muted-foreground">{t('agentPortal.studentCodeLabel')}</p>
               <p className="font-mono text-xs" dir="ltr">{student.student_code ?? '—'}</p>
             </div>
             <div className="col-span-2">
-              <p className="text-xs text-muted-foreground">البريد الإلكتروني</p>
+              <p className="text-xs text-muted-foreground">{t('agentPortal.emailLabel')}</p>
               <p className="font-medium truncate text-xs" dir="ltr">{student.email}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">حالة الحساب</p>
+              <p className="text-xs text-muted-foreground">{t('agentPortal.accountStatus')}</p>
               <Badge variant={student.account_status === 'active' ? 'default' : 'secondary'} className="text-[10px]">
-                {student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+                {student.account_status === 'active' ? t('agentPortal.statusActive') : t('agentPortal.statusPendingActivation')}
               </Badge>
             </div>
           </div>
@@ -2154,11 +2159,11 @@ function StudentInfoModal({
           {/* Enrollments */}
           <div className="border-t pt-3">
             <p className="text-xs font-medium text-muted-foreground mb-2">
-              الاشتراكات ({student.enrollments.length})
+              {t('agentPortal.subscriptionsCount', { count: student.enrollments.length })}
             </p>
             {student.enrollments.length === 0 ? (
               <div className="text-xs text-muted-foreground text-center py-4">
-                لا توجد اشتراكات
+                {t('agentPortal.noSubscriptions')}
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
@@ -2168,7 +2173,7 @@ function StudentInfoModal({
                       <span className="font-medium truncate block">{e.subject_name}</span>
                       {e.enrolled_at && (
                         <span className="text-[10px] text-muted-foreground">
-                          سجّل في: {formatDate(e.enrolled_at)}
+                          {t('agentPortal.enrolledAt', { date: formatDate(e.enrolled_at) })}
                         </span>
                       )}
                     </div>
@@ -2176,19 +2181,19 @@ function StudentInfoModal({
                       {e.is_free ? (
                         <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
                           <Gift className="h-2.5 w-2.5 me-0.5" />
-                          مجاني
+                          {t('agentPortal.free')}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
                           <BadgeCheck className="h-2.5 w-2.5 me-0.5" />
-                          مدفوع
+                          {t('agentPortal.paid')}
                         </Badge>
                       )}
                       <Badge
                         variant={e.status === 'approved' ? 'default' : 'secondary'}
                         className="text-[9px]"
                       >
-                        {e.status === 'approved' ? 'نشط' : e.status}
+                        {e.status === 'approved' ? t('agentPortal.statusActive') : e.status}
                       </Badge>
                     </div>
                   </div>
@@ -2199,7 +2204,7 @@ function StudentInfoModal({
         </div>
         <div className="shrink-0 border-t px-6 py-3 flex justify-end bg-card">
           <Button variant="ghost" size="sm" onClick={onClose}>
-            إغلاق
+            {t('common.close')}
           </Button>
         </div>
       </DialogContent>
@@ -2208,6 +2213,7 @@ function StudentInfoModal({
 }
 
 function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string; amount: number; currency: string; status: string; created_at: string;
     provider_order_ref: string | null;
@@ -2223,7 +2229,7 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
   // don't work.
   const { confirmDialog: pendingConfirmDialog, confirm } = useConfirmDialog();
 
-  if (items.length === 0) return <>{pendingConfirmDialog}<EmptyState label="لا توجد طلبات معلّقة" /></>;
+  if (items.length === 0) return <>{pendingConfirmDialog}<EmptyState label="agentPortal.empty.pendingOrders" /></>;
   const formatDate = (iso: string) => {
     try { return new Date(iso).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' }); }
     catch { return '—'; }
@@ -2231,9 +2237,9 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
 
   const handleActivate = async (orderId: string) => {
     const ok = await confirm({
-      title: 'تأكيد التفعيل',
-      description: 'سيتم تفعيل الاشتراك لهذا الطالب.',
-      confirmLabel: 'تفعيل', cancelLabel: 'تراجع',
+      title: t('agentPortal.activateTitle'),
+      description: t('agentPortal.activateDesc'),
+      confirmLabel: t('agentPortal.activateLabel'), cancelLabel: t('agentPortal.cancelLabel'),
     });
     if (!ok) return;
     setActioningId(orderId);
@@ -2245,13 +2251,13 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم تفعيل الاشتراك');
+        toast.success(json.message || t('agentPortal.activateSuccess'));
         window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
       } else {
-        toast.error(json.error || 'فشل التفعيل');
+        toast.error(json.error || t('agentPortal.activateFailed'));
       }
     } catch {
-      toast.error('حدث خطأ');
+      toast.error(t('agentPortal.genericError'));
     } finally {
       setActioningId(null);
     }
@@ -2259,9 +2265,9 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
 
   const handleCancel = async (orderId: string) => {
     const ok = await confirm({
-      title: 'تأكيد الإلغاء',
-      description: 'إلغاء هذا الطلب؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.',
-      confirmLabel: 'إلغاء', cancelLabel: 'تراجع', variant: 'destructive',
+      title: t('agentPortal.cancelOrderTitle'),
+      description: t('agentPortal.cancelOrderDesc'),
+      confirmLabel: t('agentPortal.cancelOrderLabel'), cancelLabel: t('agentPortal.cancelLabel'), variant: 'destructive',
     });
     if (!ok) return;
     setActioningId(orderId);
@@ -2271,13 +2277,13 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم إلغاء الطلب');
+        toast.success(json.message || t('agentPortal.cancelSuccess'));
         window.dispatchEvent(new CustomEvent('agent-teacher-view-refresh'));
       } else {
-        toast.error(json.error || 'فشل الإلغاء');
+        toast.error(json.error || t('agentPortal.cancelFailed'));
       }
     } catch {
-      toast.error('حدث خطأ');
+      toast.error(t('agentPortal.genericError'));
     } finally {
       setActioningId(null);
     }
@@ -2302,14 +2308,14 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
                 {isFree ? (
                   (() => {
                     const dDays = o.plan_duration_days ?? 30;
-                    const dLabel = dDays >= 365 ? 'سنوي' :
-                      dDays >= 120 ? 'ترم' :
-                      dDays >= 60 ? 'فصلين' :
-                      dDays === 30 ? 'شهري' :
-                      `${dDays} يوم`;
+                    const dLabel = dDays >= 365 ? t('agentPortal.durYearly') :
+                      dDays >= 120 ? t('agentPortal.durTerm') :
+                      dDays >= 60 ? t('agentPortal.durTwoTerms') :
+                      dDays === 30 ? t('agentPortal.durMonthly') :
+                      t('agentPortal.durDays', { count: dDays });
                     return (
                       <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
-                        <Gift className="h-2.5 w-2.5 me-0.5" />مجاني ({dLabel})
+                        <Gift className="h-2.5 w-2.5 me-0.5" />{t('agentPortal.freeWithDuration', { duration: dLabel })}
                       </Badge>
                     );
                   })()
@@ -2332,7 +2338,7 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
                 onClick={() => handleActivate(o.id)}
               >
                 {actioningId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />}
-                تفعيل
+                {t('agentPortal.activate')}
               </Button>
               <Button
                 size="sm" variant="outline"
@@ -2341,7 +2347,7 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
                 onClick={() => handleCancel(o.id)}
               >
                 {actioningId === o.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                إلغاء
+                {t('agentPortal.cancelOrderLabel')}
               </Button>
             </div>
           </div>
@@ -2356,12 +2362,13 @@ function PendingOrdersView({ data }: { data: Record<string, unknown> }) {
 }
 
 function RegistrationView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string; display_name: string | null; kind: string | null;
     is_active: boolean; created_at: string;
     user: { id: string; email: string; name: string | null } | null;
   }>;
-  if (items.length === 0) return <EmptyState label="لا يوجد وكلاء آخرون" />;
+  if (items.length === 0) return <EmptyState label="agentPortal.empty.otherAgents" />;
   return (
     <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
       {items.map((a) => (
@@ -2370,9 +2377,9 @@ function RegistrationView({ data }: { data: Record<string, unknown> }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium truncate">{a.display_name ?? a.user?.name ?? '—'}</span>
               {a.is_active ? (
-                <Badge variant="default" className="text-[9px]">نشط</Badge>
+                <Badge variant="default" className="text-[9px]">{t('agentPortal.statusActive')}</Badge>
               ) : (
-                <Badge variant="destructive" className="text-[9px]">معطّل</Badge>
+                <Badge variant="destructive" className="text-[9px]">{t('agentPortal.statusDisabled')}</Badge>
               )}
               {a.kind && (
                 <Badge variant="secondary" className="text-[9px]">{a.kind}</Badge>
@@ -2434,6 +2441,7 @@ function ItemsListView({ data, idField, titleField, subtitleField, emptyMsg }: {
 }
 
 function FinancialView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   // v132 Phase 6: expanded to show BOTH a per-currency summary (lifetime)
   // AND a paginated list of individual transactions. Payout methods are
   // excluded per the user's instruction — those stay with the teacher.
@@ -2472,18 +2480,18 @@ function FinancialView({ data }: { data: Record<string, unknown> }) {
   };
   const statusLabel = (status: string): string => {
     switch (status) {
-      case 'paid': return 'مدفوع';
-      case 'settled': return 'مُسوّى';
-      case 'pending': return 'معلّق';
-      case 'failed': return 'فشل';
-      case 'refunded': return 'مسترجع';
-      case 'reversed': return 'معكوس';
+      case 'paid': return t('agentPortal.finStatus.paid');
+      case 'settled': return t('agentPortal.finStatus.settled');
+      case 'pending': return t('agentPortal.finStatus.pending');
+      case 'failed': return t('agentPortal.finStatus.failed');
+      case 'refunded': return t('agentPortal.finStatus.refunded');
+      case 'reversed': return t('agentPortal.finStatus.reversed');
       default: return status;
     }
   };
 
   if (summary.length === 0 && items.length === 0) {
-    return <EmptyState label="لا توجد معاملات مالية بعد" />;
+    return <EmptyState label="agentPortal.empty.financial" />;
   }
 
   return (
@@ -2491,29 +2499,29 @@ function FinancialView({ data }: { data: Record<string, unknown> }) {
       {/* ─── Summary: per-currency lifetime aggregates ─── */}
       {summary.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted-foreground mb-1.5">الملخص المالي الإجمالي</p>
+          <p className="text-[10px] text-muted-foreground mb-1.5">{t('agentPortal.financialSummary')}</p>
           <div className="rounded-md border border-border/60 divide-y">
             {summary.map((row) => (
               <div key={row.currency} className="p-2.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{row.currency}</span>
-                  <span className="text-[10px] text-muted-foreground">{row.count} معاملة</span>
+                  <span className="text-[10px] text-muted-foreground">{t('agentPortal.txCount', { count: row.count })}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-1 mt-1.5 text-[10px]">
                   <div>
-                    <p className="text-muted-foreground">الإجمالي</p>
+                    <p className="text-muted-foreground">{t('agentPortal.totalLabel')}</p>
                     <p className="font-medium text-sky-700 dark:text-sky-300">{row.gross.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">نص المعلم</p>
+                    <p className="text-muted-foreground">{t('agentPortal.teacherShare')}</p>
                     <p className="font-medium text-emerald-700 dark:text-emerald-300">{row.teacher.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">نص المنصة</p>
+                    <p className="text-muted-foreground">{t('agentPortal.platformShare')}</p>
                     <p className="font-medium text-amber-700 dark:text-amber-300">{row.platform.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">الرسوم</p>
+                    <p className="text-muted-foreground">{t('agentPortal.feesLabel')}</p>
                     <p className="font-medium text-muted-foreground">{row.fees.toFixed(2)}</p>
                   </div>
                 </div>
@@ -2526,41 +2534,41 @@ function FinancialView({ data }: { data: Record<string, unknown> }) {
       {/* ─── Transactions list ─── */}
       <div>
         <p className="text-[10px] text-muted-foreground mb-1.5">
-          المعاملات ({totalCount})
+          {t('agentPortal.transactionsCount', { count: totalCount })}
         </p>
         {items.length === 0 ? (
-          <EmptyState label="لا توجد معاملات" />
+          <EmptyState label="agentPortal.empty.transactions" />
         ) : (
           <div className="rounded-md border border-border/60 divide-y max-h-[400px] overflow-y-auto">
-            {items.map((t) => (
-              <div key={t.id} className="p-2.5 text-xs space-y-1">
+            {items.map((tx) => (
+              <div key={tx.id} className="p-2.5 text-xs space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-medium truncate">{t.student?.name ?? '—'}</span>
-                      {t.student?.student_code && (
-                        <span className="font-mono text-[10px] text-muted-foreground">({t.student.student_code})</span>
+                      <span className="font-medium truncate">{tx.student?.name ?? '—'}</span>
+                      {tx.student?.student_code && (
+                        <span className="font-mono text-[10px] text-muted-foreground">({tx.student.student_code})</span>
                       )}
                     </div>
                     <div className="text-[10px] text-muted-foreground truncate mt-0.5">
-                      {t.subject?.name ?? '—'}
-                      {t.plan?.period_label && <span className="me-1"> · {t.plan.period_label}</span>}
+                      {tx.subject?.name ?? '—'}
+                      {tx.plan?.period_label && <span className="me-1"> · {tx.plan.period_label}</span>}
                     </div>
                   </div>
                   <div className="text-end shrink-0">
                     <div className="font-medium text-emerald-700 dark:text-emerald-300">
-                      {t.teacher_share.toFixed(2)} {t.currency}
+                      {tx.teacher_share.toFixed(2)} {tx.currency}
                     </div>
                     <div className="text-[9px] text-muted-foreground">
-                      من {t.gross_amount.toFixed(2)}
+                      {t('agentPortal.ofGross', { amount: tx.gross_amount.toFixed(2) })}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-                  <Badge variant="outline" className={`text-[9px] ${statusColor(t.status)}`}>
-                    {statusLabel(t.status)}
+                  <Badge variant="outline" className={`text-[9px] ${statusColor(tx.status)}`}>
+                    {statusLabel(tx.status)}
                   </Badge>
-                  <span className="text-[9px] text-muted-foreground">{formatDate(t.created_at)}</span>
+                  <span className="text-[9px] text-muted-foreground">{formatDate(tx.created_at)}</span>
                 </div>
               </div>
             ))}
@@ -2578,6 +2586,7 @@ function FinancialView({ data }: { data: Record<string, unknown> }) {
 //   by date ascending. Each event is grouped by date.
 // ──────────────────────────────────────────────────────────────
 function CalendarView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string;
     type: 'quiz' | 'assignment' | 'lecture';
@@ -2589,7 +2598,7 @@ function CalendarView({ data }: { data: Record<string, unknown> }) {
   const totalCount = (data.total_count as number) ?? 0;
 
   if (items.length === 0) {
-    return <EmptyState label="لا توجد أحداث مجدولة قادمة" />;
+    return <EmptyState label="agentPortal.empty.calendar" />;
   }
 
   // Group events by date (YYYY-MM-DD).
@@ -2610,9 +2619,9 @@ function CalendarView({ data }: { data: Record<string, unknown> }) {
   };
   const typeLabel = (type: string) => {
     switch (type) {
-      case 'quiz': return 'اختبار';
-      case 'assignment': return 'واجب';
-      case 'lecture': return 'محاضرة';
+      case 'quiz': return t('agentPortal.eventQuiz');
+      case 'assignment': return t('agentPortal.eventAssignment');
+      case 'lecture': return t('agentPortal.eventLecture');
       default: return type;
     }
   };
@@ -2641,7 +2650,7 @@ function CalendarView({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="space-y-2">
       <div className="text-[10px] text-muted-foreground">
-        الأحداث القادمة: {totalCount}
+        {t('agentPortal.upcomingEvents', { count: totalCount })}
       </div>
       <div className="space-y-2 max-h-[500px] overflow-y-auto">
         {Array.from(eventsByDate.entries()).map(([dateKey, dayEvents]) => (
@@ -2683,6 +2692,7 @@ function CalendarView({ data }: { data: Record<string, unknown> }) {
 //   (that's an admin/teacher action).
 // ──────────────────────────────────────────────────────────────
 function ReportsView({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslations();
   const items = (data.items ?? []) as Array<{
     id: string;
     report_number: string | null;
@@ -2697,7 +2707,7 @@ function ReportsView({ data }: { data: Record<string, unknown> }) {
   const totalCount = (data.total_count as number) ?? 0;
 
   if (items.length === 0) {
-    return <EmptyState label="لا توجد بلاغات من طلابك" />;
+    return <EmptyState label="agentPortal.empty.reports" />;
   }
 
   const statusColor = (status: string): string => {
@@ -2711,19 +2721,19 @@ function ReportsView({ data }: { data: Record<string, unknown> }) {
   };
   const statusLabel = (status: string): string => {
     switch (status) {
-      case 'pending': return 'بانتظار المراجعة';
-      case 'in_progress': return 'قيد المعالجة';
-      case 'resolved': return 'تم الحل';
-      case 'dismissed': return 'تم الرفض';
+      case 'pending': return t('agentPortal.reportStatus.pending');
+      case 'in_progress': return t('agentPortal.reportStatus.inProgress');
+      case 'resolved': return t('agentPortal.reportStatus.resolved');
+      case 'dismissed': return t('agentPortal.reportStatus.dismissed');
       default: return status;
     }
   };
   const targetTypeLabel = (type: string): string => {
     switch (type) {
-      case 'comment': return 'تعليق';
-      case 'message': return 'رسالة';
-      case 'user': return 'مستخدم';
-      case 'other': return 'أخرى';
+      case 'comment': return t('agentPortal.targetType.comment');
+      case 'message': return t('agentPortal.targetType.message');
+      case 'user': return t('agentPortal.targetType.user');
+      case 'other': return t('agentPortal.targetType.other');
       default: return type;
     }
   };
@@ -2736,7 +2746,7 @@ function ReportsView({ data }: { data: Record<string, unknown> }) {
   return (
     <div className="space-y-2">
       <div className="text-[10px] text-muted-foreground">
-        إجمالي البلاغات: {totalCount}
+        {t('agentPortal.totalReports', { count: totalCount })}
       </div>
       <div className="rounded-md border border-border/60 divide-y max-h-[500px] overflow-y-auto">
         {items.map(r => (
@@ -2754,7 +2764,7 @@ function ReportsView({ data }: { data: Record<string, unknown> }) {
                   {r.reporter?.student_code && <span className="ms-1">({r.reporter.student_code})</span>}
                   {' · '}
                   {targetTypeLabel(r.target_type)}
-                  {r.reporter_count > 1 && <span className="ms-1">· {r.reporter_count} مُبلِّغ</span>}
+                  {r.reporter_count > 1 && <span className="ms-1">· {t('agentPortal.reportersCount', { count: r.reporter_count })}</span>}
                 </div>
               </div>
               <Badge variant="outline" className={`text-[9px] shrink-0 ${statusColor(r.status)}`}>
@@ -2777,9 +2787,10 @@ function ReportsView({ data }: { data: Record<string, unknown> }) {
 }
 
 function EmptyState({ label }: { label: string }) {
+  const { t } = useTranslations();
   return (
     <div className="rounded-md border border-dashed border-border/60 p-6 text-center text-xs text-muted-foreground">
-      {label}
+      {t(label)}
     </div>
   );
 }
@@ -2796,7 +2807,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
   studentName: string;
   onBack: () => void;
 }) {
-  const { direction, isRTL } = useTranslations();
+  const { t, direction, isRTL } = useTranslations();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
@@ -2816,10 +2827,10 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
         if (json.success) {
           setData(json);
         } else {
-          setError(json.error || 'تعذّر تحميل البيانات');
+          setError(json.error || t('agentPortal.loadDataFailed'));
         }
       } catch {
-        if (!cancelled) setError('تعذّر الاتصال بالخادم');
+        if (!cancelled) setError(t('agentPortal.serverUnreachable'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2848,13 +2859,13 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
           <div className="flex items-start gap-2">
             <AlertCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-rose-700 dark:text-rose-300">تعذّر تحميل الأداء</p>
+              <p className="font-semibold text-rose-700 dark:text-rose-300">{t('agentPortal.loadPerformanceFailed')}</p>
               <p className="text-xs text-muted-foreground mt-1">{error}</p>
             </div>
           </div>
           <Button onClick={onBack} variant="outline" size="sm">
             <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
-            رجوع
+            {t('agentPortal.back')}
           </Button>
         </CardContent>
       </Card>
@@ -2882,7 +2893,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
         <button
           onClick={onBack}
           className="shrink-0 flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs hover:bg-muted transition-colors"
-          title="رجوع"
+          title={t('agentPortal.back')}
         >
           <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
         </button>
@@ -2891,10 +2902,10 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold truncate">{studentName}</h1>
-          <p className="text-sm text-muted-foreground truncate">أداء الطالب — متابعة شاملة</p>
+          <p className="text-sm text-muted-foreground truncate">{t('agentPortal.performanceSubtitle')}</p>
         </div>
         <Badge variant={student.account_status === 'active' ? 'default' : 'secondary'} className="text-xs shrink-0">
-          {student.account_status === 'active' ? 'نشط' : 'قيد التفعيل'}
+          {student.account_status === 'active' ? t('agentPortal.statusActive') : t('agentPortal.statusPendingActivation')}
         </Badge>
       </header>
 
@@ -2903,23 +2914,23 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
         <TabsList className="w-full flex-wrap h-auto gap-1">
           <TabsTrigger value="enrollments" className="text-xs gap-1">
             <BookOpen className="h-3 w-3" />
-            الاشتراكات
+            {t('agentPortal.tabSubscriptions')}
           </TabsTrigger>
           <TabsTrigger value="assignments" className="text-xs gap-1">
             <FileText className="h-3 w-3" />
-            التكليفات
+            {t('agentPortal.tabAssignments')}
           </TabsTrigger>
           <TabsTrigger value="quizzes" className="text-xs gap-1">
             <Database className="h-3 w-3" />
-            الاختبارات
+            {t('agentPortal.tabQuizzes')}
           </TabsTrigger>
           <TabsTrigger value="attendance" className="text-xs gap-1">
             <CalendarIcon className="h-3 w-3" />
-            الحضور
+            {t('agentPortal.tabAttendance')}
           </TabsTrigger>
           <TabsTrigger value="progress" className="text-xs gap-1">
             <TrendingUp className="h-3 w-3" />
-            تقدم الدروس
+            {t('agentPortal.tabLessonProgress')}
           </TabsTrigger>
         </TabsList>
 
@@ -2929,12 +2940,12 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-sky-600" />
-                الاشتراكات ({enrollments.length})
+                {t('agentPortal.subscriptionsCount', { count: enrollments.length })}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {enrollments.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اشتراكات</div>
+                <div className="py-4 text-center text-xs text-muted-foreground">{t('agentPortal.noSubscriptions')}</div>
               ) : (
                 <div className="divide-y">
                   {enrollments.map((e, i) => {
@@ -2946,27 +2957,27 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                         <div className="min-w-0 flex-1">
                           <p className="font-medium truncate">{e.subject_name}</p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">
-                            {e.current_period_end ? `ينتهي: ${formatDate(e.current_period_end)}` : 'دائم'}
+                            {e.current_period_end ? t('agentPortal.expiresAt', { date: formatDate(e.current_period_end) }) : t('agentPortal.permanent')}
                           </p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {isPaused && (
                             <Badge variant="outline" className="text-[9px] bg-rose-50 text-rose-700 border-rose-200">
                               <Ban className="h-2.5 w-2.5 me-0.5" />
-                              موقوف
+                              {t('agentPortal.suspendedBadge')}
                             </Badge>
                           )}
                           {isFree ? (
                             <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
-                              مجاني
+                              {t('agentPortal.free')}
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                              مدفوع
+                              {t('agentPortal.paid')}
                             </Badge>
                           )}
                           <Badge variant={e.status === 'approved' && !isPaused ? 'default' : 'secondary'} className="text-[9px]">
-                            {e.status === 'approved' ? 'نشط' : e.status}
+                            {e.status === 'approved' ? t('agentPortal.statusActive') : e.status}
                           </Badge>
                         </div>
                       </div>
@@ -2984,12 +2995,12 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <FileText className="h-4 w-4 text-amber-600" />
-                التكليفات (مسلّمة: {assignmentsSubmitted.length} — غير مسلّمة: {assignmentsNotSubmitted.length})
+                {t('agentPortal.assignmentsHeader', { submitted: assignmentsSubmitted.length, notSubmitted: assignmentsNotSubmitted.length })}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {assignmentsSubmitted.length === 0 && assignmentsNotSubmitted.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد تكليفات</div>
+                <div className="py-4 text-center text-xs text-muted-foreground">{t('agentPortal.noAssignmentsEmpty')}</div>
               ) : (
                 <div className="divide-y max-h-[400px] overflow-y-auto">
                   {assignmentsSubmitted.map((a, i) => (
@@ -3003,7 +3014,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                           {Number(a.score ?? 0).toFixed(0)}/{Number(a.max_score ?? 0)}
                         </span>
                         <Badge variant="outline" className="text-[9px] ms-1 bg-emerald-50 text-emerald-700 border-emerald-200">
-                          مسلّمة
+                          {t('agentPortal.submittedBadge')}
                         </Badge>
                       </div>
                     </div>
@@ -3014,11 +3025,11 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                         <p className="font-medium truncate">{String(a.title ?? "—")}</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           {String(a.subject_name ?? "—")}
-                          {a.due_date ? ` · يستحق تسليم: ${formatDate(a.due_date as string)}` : ''}
+                          {a.due_date ? t('agentPortal.dueSuffix', { date: formatDate(a.due_date as string) }) : ''}
                         </p>
                       </div>
                       <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
-                        غير مسلّمة
+                        {t('agentPortal.notSubmittedBadge')}
                       </Badge>
                     </div>
                   ))}
@@ -3034,12 +3045,12 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Database className="h-4 w-4 text-purple-600" />
-                الاختبارات (مكتملة: {quizzesCompleted.length} — غير مكتملة: {quizzesNotCompleted.length})
+                {t('agentPortal.quizzesHeader', { completed: quizzesCompleted.length, notCompleted: quizzesNotCompleted.length })}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {quizzesCompleted.length === 0 && quizzesNotCompleted.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد اختبارات</div>
+                <div className="py-4 text-center text-xs text-muted-foreground">{t('agentPortal.noQuizzes')}</div>
               ) : (
                 <div className="divide-y max-h-[400px] overflow-y-auto">
                   {quizzesCompleted.map((q, i) => (
@@ -3062,7 +3073,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                         <p className="text-[10px] text-muted-foreground mt-0.5">{String(q.subject_name ?? "—")}</p>
                       </div>
                       <Badge variant="outline" className="text-[9px] shrink-0 bg-rose-50 text-rose-700 border-rose-200">
-                        لم يؤدها
+                        {t('agentPortal.notTaken')}
                       </Badge>
                     </div>
                   ))}
@@ -3078,12 +3089,12 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-teal-600" />
-                الحضور ({attendance.length} مقرر)
+                {t('agentPortal.attendanceHeader', { count: attendance.length })}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {attendance.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات حضور</div>
+                <div className="py-4 text-center text-xs text-muted-foreground">{t('agentPortal.noAttendanceData')}</div>
               ) : (
                 <div className="divide-y">
                   {attendance.map((a, i) => (
@@ -3091,7 +3102,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate">{String(a.subject_name ?? "—")}</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
-                          حاضر: {Number(a.present ?? 0)} · متأخر: {Number(a.late ?? 0)} · غائب: {Number(a.absent ?? 0)}
+                          {t('agentPortal.attendanceLine', { present: Number(a.present ?? 0), late: Number(a.late ?? 0), absent: Number(a.absent ?? 0) })}
                         </p>
                       </div>
                       <Badge
@@ -3114,12 +3125,12 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-indigo-600" />
-                تقدم الدروس ({lessonProgress.length} مقرر)
+                {t('agentPortal.progressHeader', { count: lessonProgress.length })}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {lessonProgress.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">لا توجد بيانات تقدم</div>
+                <div className="py-4 text-center text-xs text-muted-foreground">{t('agentPortal.noProgressData')}</div>
               ) : (
                 <div className="divide-y">
                   {lessonProgress.map((lp, i) => (
@@ -3127,7 +3138,7 @@ function StudentPerformanceView({ studentId, studentName, onBack }: {
                       <div className="min-w-0 flex-1">
                         <p className="font-medium truncate">{String(lp.subject_name ?? "—")}</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
-                          أكمل: {Number(lp.completed_lessons ?? 0)} من {Number(lp.total_lessons ?? 0)} درس
+                          {t('agentPortal.completedOfLessons', { completed: Number(lp.completed_lessons ?? 0), total: Number(lp.total_lessons ?? 0) })}
                         </p>
                       </div>
                       <Badge variant="outline" className="text-[9px] shrink-0">
