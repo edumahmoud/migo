@@ -6078,5 +6078,28 @@
     "deactivateTitle": "تعطيل",
     "activateTitle": "تفعيل",
     "deleteTitle": "حذف"
+  },
+  "adminPayouts": {
+    "status": {
+      "pending": "معلّق",
+      "processing": "قيد المعالجة",
+      "completed": "مكتمل",
+      "failed": "فشل",
+      "cancelled": "ملغى"
+    },
+    "executeFailed": "فشل التنفيذ",
+    "executeSuccess": "تم تنفيذ الدفعة",
+    "cancelConfirmTitle": "تأكيد الإلغاء",
+    "cancelConfirmDesc": "هل تريد إلغاء هذه الدفعة؟",
+    "cancelFailed": "فشل الإلغاء",
+    "cancelSuccess": "تم إلغاء الدفعة",
+    "retryFailed": "فشلت الإعادة",
+    "retrySuccess": "تمت إعادة المحاولة",
+    "unexpected": "حدث خطأ غير متوقع",
+    "refCopied": "تم نسخ المرجع",
+    "loading": "جارٍ تحميل المدفوعات...",
+    "loadFailed": "تعذّر التحميل",
+    "searchPlaceholder": "ابحث بالمرجع أو الوسيلة أو المبلغ أو الحالة...",
+    "searchLabel": "بحث"
   }
 }

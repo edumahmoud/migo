@@ -6078,5 +6078,28 @@
     "deactivateTitle": "Deactivate",
     "activateTitle": "Activate",
     "deleteTitle": "Delete"
+  },
+  "adminPayouts": {
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "executeFailed": "Execution failed",
+    "executeSuccess": "Payout executed",
+    "cancelConfirmTitle": "Confirm cancellation",
+    "cancelConfirmDesc": "Do you want to cancel this payout?",
+    "cancelFailed": "Cancellation failed",
+    "cancelSuccess": "Payout cancelled",
+    "retryFailed": "Retry failed",
+    "retrySuccess": "Retried successfully",
+    "unexpected": "An unexpected error occurred",
+    "refCopied": "Reference copied",
+    "loading": "Loading payouts...",
+    "loadFailed": "Could not load",
+    "searchPlaceholder": "Search by reference, method, amount, or status...",
+    "searchLabel": "Search"
   }
 }
