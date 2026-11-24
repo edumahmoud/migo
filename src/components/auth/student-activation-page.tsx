@@ -57,7 +57,7 @@ interface ActivationData {
 
 
 export default function StudentActivationPage() {
-  const { t, direction } = useTranslations();
+  const { t, direction, locale } = useTranslations();
   const router = useRouter();
   const { signOut, user } = useAuthStore();
   const { reset: resetAppStore } = useAppStore();
@@ -102,7 +102,7 @@ export default function StudentActivationPage() {
       if (json.success) {
         setData(json as ActivationData);
         if ((json as ActivationData).student.account_status === 'active') {
-          toast.success('تم تفعيل حسابك! جارٍ فتح المنصة...');
+          toast.success(t('activation.accountActivatedOpening'));
           setTimeout(() => router.push('/'), 1500);
         }
       }
@@ -152,7 +152,7 @@ export default function StudentActivationPage() {
           setSubjectPlans(plansMap);
         }
         if ((json as ActivationData).student.account_status === 'active') {
-          toast.success('تم تفعيل حسابك! جارٍ فتح المنصة...');
+          toast.success(t('activation.accountActivatedOpening'));
           setTimeout(() => router.push('/'), 1500);
         }
       } else toast.error(json.error || t('common.unexpectedError'));
@@ -229,7 +229,7 @@ export default function StudentActivationPage() {
   }, [studentId, silentReload]);
 
   const handleLinkTeacher = async () => {
-    if (!teacherCode.trim()) { toast.error('أدخل كود المعلم'); return; }
+    if (!teacherCode.trim()) { toast.error(t('activation.enterTeacherCode')); return; }
     setLinking(true);
     try {
       const res = await fetch('/api/student/activation/link-teacher', {
@@ -237,7 +237,7 @@ export default function StudentActivationPage() {
         body: JSON.stringify({ teacherCode: teacherCode.trim() }),
       });
       const json = await res.json();
-      if (json.success) { toast.success(`تم الربط بـ ${json.teacher?.name ?? 'المعلم'}`); setTeacherCode(''); await silentReload(); }
+      if (json.success) { toast.success(t('activation.linkedToTeacher', { name: json.teacher?.name ?? t('activation.theTeacher') })); setTeacherCode(''); await silentReload(); }
       else toast.error(json.error || t('common.unexpectedError'));
     } catch { toast.error(t('common.unexpectedError')); }
     finally { setLinking(false); }
@@ -252,7 +252,7 @@ export default function StudentActivationPage() {
   };
 
   const handleSubmitOrders = async () => {
-    if (selectedCourses.size === 0) { toast.error('اختر مقرراً واحداً على الأقل'); return; }
+    if (selectedCourses.size === 0) { toast.error(t('activation.selectAtLeastOneCourse')); return; }
     setSubmitting(true);
     try {
       // v116 fix: send per-subject planIds so each subject uses its own
@@ -309,14 +309,14 @@ export default function StudentActivationPage() {
           if (notAvailable.length > 0) {
             // Some orders failed to create — show error
             const reasons = notAvailable.map(n => n.reason).filter(Boolean).join(' • ');
-            toast.error(reasons || 'تعذّر إنشاء بعض الطلبات — حاول مرة أخرى');
+            toast.error(reasons || t('activation.someOrdersFailed'));
           } else if (skippedSubjectIds.length > 0) {
             // Orders already exist for these subjects — show a message
             // telling the user to complete payment from the pending list
-            toast.info('لديك طلبات معلّقة. استكمل الدفع من قائمة "قيد الدفع" أدناه.');
+            toast.info(t('activation.pendingOrdersExist'));
           } else {
             // All free courses — show the existing success toast
-            toast.success(json.message || 'تم إنشاء الطلبات');
+            toast.success(json.message || t('activation.ordersCreated'));
           }
         } else if (paidOrders.length === 1) {
           // Single paid order — open the single-order Payment Summary
@@ -373,7 +373,7 @@ export default function StudentActivationPage() {
             toast.error(message);
             // Fall back to showing the success toast (orders were created,
             // the student can pay them individually from the pending list)
-            toast.success(json.message || 'تم إنشاء الطلبات');
+            toast.success(json.message || t('activation.ordersCreated'));
           }
         }
       } else toast.error(json.error || t('common.unexpectedError'));
@@ -382,8 +382,8 @@ export default function StudentActivationPage() {
   };
 
   const copy = async (text: string, label: string) => {
-    try { await navigator.clipboard.writeText(text); toast.success(`تم نسخ ${label}`); }
-    catch { toast.error('تعذّر النسخ'); }
+    try { await navigator.clipboard.writeText(text); toast.success(t('activation.copiedLabel', { label })); }
+    catch { toast.error(t('activation.copyFailed')); }
   };
 
   const handleSignOut = () => { resetAppStore(); try { signOut(); } catch {} router.push('/'); };
@@ -407,7 +407,7 @@ export default function StudentActivationPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50">
         <div className="flex items-center gap-2 text-sky-700">
-          <Loader2 className="h-5 w-5 animate-spin" /><span>جارٍ تحميل صفحة التفعيل...</span>
+          <Loader2 className="h-5 w-5 animate-spin" /><span>{t('activation.loadingPage')}</span>
         </div>
       </div>
     );
@@ -444,12 +444,12 @@ export default function StudentActivationPage() {
               <KeyRound className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">تفعيل الحساب</h1>
+              <h1 className="text-xl font-bold">{t('activation.pageTitle')}</h1>
               <p className="text-sm text-muted-foreground">{data.student.name ?? data.student.email}</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 me-1" />تسجيل الخروج
+            <LogOut className="h-4 w-4 me-1" />{t('auth.logout')}
           </Button>
         </motion.div>
 
@@ -458,8 +458,8 @@ export default function StudentActivationPage() {
           <CardContent className="p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-sm text-amber-900">
-              <p className="font-semibold mb-1">حسابك قيد التفعيل</p>
-              <p className="text-xs">اربط نفسك بمعلم ← اختر مقررات ← حول رسومها ← سيقوم المركز بتفعيل اشتراكك بعد إثبات الدفع.</p>
+              <p className="font-semibold mb-1">{t('activation.pendingTitle')}</p>
+              <p className="text-xs">{t('activation.pendingDesc')}</p>
             </div>
           </CardContent>
         </Card>
@@ -467,12 +467,12 @@ export default function StudentActivationPage() {
         {/* Student Code */}
         <Card className="border-sky-200 bg-sky-50/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><KeyRound className="h-4 w-4 text-sky-600" />كود الطالب</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><KeyRound className="h-4 w-4 text-sky-600" />{t('activation.studentCode')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <code className="flex-1 font-mono text-2xl tracking-widest bg-white border border-sky-200 px-3 py-2 rounded text-center">{studentCode}</code>
-              <Button size="icon" variant="outline" onClick={() => copy(studentCode, 'كود الطالب')} title="نسخ"><Copy className="h-4 w-4" /></Button>
+              <Button size="icon" variant="outline" onClick={() => copy(studentCode, t('activation.studentCode'))} title={t('common.copy')}><Copy className="h-4 w-4" /></Button>
             </div>
           </CardContent>
         </Card>
@@ -480,13 +480,13 @@ export default function StudentActivationPage() {
         {/* Teacher linking */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2"><LinkIcon className="h-4 w-4 text-sky-600" />الربط مع المعلم</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><LinkIcon className="h-4 w-4 text-sky-600" />{t('activation.linkWithTeacher')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
-              <Input value={teacherCode} onChange={e => setTeacherCode(e.target.value.toUpperCase())} placeholder="مثال: A1B2C3" dir="ltr" maxLength={40} className="font-mono tracking-widest" disabled={linking} />
+              <Input value={teacherCode} onChange={e => setTeacherCode(e.target.value.toUpperCase())} placeholder={t('activation.teacherCodeExample')} dir="ltr" maxLength={40} className="font-mono tracking-widest" disabled={linking} />
               <Button onClick={handleLinkTeacher} disabled={linking || !teacherCode.trim()}>
-                {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}ربط
+                {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LinkIcon className="h-4 w-4" />}{t('activation.link')}
               </Button>
             </div>
             {linkedTeachers.length > 0 && (
@@ -507,16 +507,16 @@ export default function StudentActivationPage() {
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-4 w-4 text-sky-600" />المقررات المتاحة</CardTitle>
-              <CardDescription className="text-xs">الاشتراك شهري — اختر المقررات ثم اضغط متابعة الدفع.</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-4 w-4 text-sky-600" />{t('activation.availableCourses')}</CardTitle>
+              <CardDescription className="text-xs">{t('activation.availableCoursesDesc')}</CardDescription>
             </div>
-            <Button variant="ghost" size="icon" onClick={load} title="تحديث"><RefreshCw className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={load} title={t('common.refresh')}><RefreshCw className="h-4 w-4" /></Button>
           </CardHeader>
           <CardContent className="space-y-2">
             {linkedTeachers.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-6">اربط نفسك بمعلم أولاً لرؤية المقررات المتاحة.</div>
+              <div className="text-center text-sm text-muted-foreground py-6">{t('activation.linkTeacherFirst')}</div>
             ) : data.available_courses.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-6">لا توجد مقررات متاحة للاشتراك حالياً.</div>
+              <div className="text-center text-sm text-muted-foreground py-6">{t('activation.noCoursesAvailable')}</div>
             ) : (
               <>
                 {data.available_courses.map(c => {
@@ -534,8 +534,8 @@ export default function StudentActivationPage() {
                     ? selectedPlan.price
                     : (fallbackPlan ? fallbackPlan.price : c.price);
                   const periodLabel = selectedPlan
-                    ? (selectedPlan.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: selectedPlan.duration_days + ' يوم' }[selectedPlan.period_type] || selectedPlan.period_type))
-                    : 'شهر';
+                    ? (selectedPlan.period_label || ({ monthly: t('activation.periodMonthly'), term: t('activation.periodTerm'), yearly: t('activation.periodYearly'), custom: `${selectedPlan.duration_days} ${t('activation.periodDay')}` }[selectedPlan.period_type] || selectedPlan.period_type))
+                    : t('activation.periodMonthSingular');
                   return (
                     <div key={c.id}
                       className={`flex items-start gap-3 border rounded-md p-3 cursor-pointer transition-colors ${isSelected ? 'border-sky-400 bg-sky-50/40' : 'hover:bg-muted/30'}`}
@@ -549,7 +549,7 @@ export default function StudentActivationPage() {
                           {c.teacher_name && <span>· {c.teacher_name}</span>}
                           {(c.level || c.sub_level) && <span>· {[c.level, c.sub_level].filter(Boolean).join(' / ')}</span>}
                           {isSubActive && sub?.current_period_end && (
-                            <Badge variant="default" className="text-[10px] bg-emerald-600">نشط حتى {new Date(sub.current_period_end).toLocaleDateString('ar-EG')}</Badge>
+                            <Badge variant="default" className="text-[10px] bg-emerald-600">{t('activation.activeUntil')} {new Date(sub.current_period_end).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-GB')}</Badge>
                           )}
                         </div>
                         {/* v117: plan selector — shows whenever the course has at
@@ -577,10 +577,10 @@ export default function StudentActivationPage() {
                               {/* v117: don't show "افتراضي (شهري)" if there's only
                                   one real plan — the student shouldn't be able to
                                   pick "default" when there is no other option. */}
-                              {realPlans.length > 1 && <option value="">افتراضي (شهري)</option>}
+                              {realPlans.length > 1 && <option value="">{t('activation.defaultMonthly')}</option>}
                               {realPlans.map(p => (
                                 <option key={p.id} value={p.id}>
-                                  {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
+                                  {p.period_label || ({ monthly: t('activation.periodMonthly'), term: t('activation.periodTerm'), yearly: t('activation.periodYearly'), custom: t('activation.periodCustom') }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
                                 </option>
                               ))}
                             </select>
@@ -588,14 +588,14 @@ export default function StudentActivationPage() {
                         })()}
                       </div>
                       <div className="text-end shrink-0 font-bold text-emerald-700">
-                        {displayPrice === 0 ? 'مجاناً' : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}
+                        {displayPrice === 0 ? t('activation.free') : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}
                       </div>
                     </div>
                   );
                 })}
                 <Button onClick={handleSubmitOrders} disabled={submitting || selectedCourses.size === 0} className="w-full h-11 bg-gradient-to-l from-sky-700 to-teal-600">
                   {submitting ? <Loader2 className="h-5 w-5 animate-spin me-2" /> : <CreditCard className="h-5 w-5 me-2" />}
-                  متابعة الدفع ({selectedCourses.size} مقرر)
+                  {t('activation.continueToPayment', { count: selectedCourses.size })}
                 </Button>
               </>
             )}
@@ -606,8 +606,8 @@ export default function StudentActivationPage() {
         {pendingOrders.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4 text-amber-600" />المقررات قيد الدفع</CardTitle>
-              <CardDescription className="text-xs">بانتظار تفعيل المركز بعد إثبات الدفع.</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4 text-amber-600" />{t('activation.pendingPaymentCourses')}</CardTitle>
+              <CardDescription className="text-xs">{t('activation.pendingPaymentDesc')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1">
               {/* ─── Phase 14: Session-grouped pending orders ─── */}
@@ -652,7 +652,7 @@ export default function StudentActivationPage() {
                         // Payment was initiated → show "تم الدفع — جارٍ التفعيل"
                         <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
                           <Loader2 className="h-3 w-3 me-1 animate-spin" />
-                          تم الدفع — جارٍ التفعيل
+                          {t('activation.paidActivating')}
                         </Badge>
                       ) : (
                         // Payment NOT initiated → show "Complete Payment for All"
@@ -723,7 +723,7 @@ export default function StudentActivationPage() {
                       {anyPaymentInitiated ? (
                         <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
                           <Loader2 className="h-3 w-3 me-1 animate-spin" />
-                          تم الدفع — جارٍ التفعيل
+                          {t('activation.paidActivating')}
                         </Badge>
                       ) : (
                         <Button
@@ -768,11 +768,11 @@ export default function StudentActivationPage() {
                 const isFreeOrder = Number(o.amount) === 0 || o.provider === 'free';
                 // v127: compute plan duration label — use actual days for custom durations
                 const planDurationDays = (o as any).plan_duration_days ?? 30;
-                const durationLabel = planDurationDays >= 365 ? 'سنوي' :
-                  planDurationDays >= 120 ? 'ترم' :
-                  planDurationDays >= 60 ? 'فصلين' :
-                  planDurationDays === 30 ? 'شهري' :
-                  `${planDurationDays} يوم`;
+                const durationLabel = planDurationDays >= 365 ? t('activation.periodYearly') :
+                  planDurationDays >= 120 ? t('activation.periodTerm') :
+                  planDurationDays >= 60 ? t('activation.periodTwoTerms') :
+                  planDurationDays === 30 ? t('activation.periodMonthly') :
+                  t('activation.periodDays', { count: planDurationDays });
                 // v128: get the official subject price directly from the API
                 const officialPrice = (o as any).subject_price != null ? Number((o as any).subject_price) : null;
                 return (
@@ -780,9 +780,9 @@ export default function StudentActivationPage() {
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">{courseNameById.get(o.subject_id) ?? (o as any).subject_name ?? '—'}</div>
                     <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
-                      <span>{new Date(o.created_at).toLocaleString('ar-EG')}</span>
+                      <span>{new Date(o.created_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB')}</span>
                       {officialPrice != null && officialPrice > 0 && (
-                        <span className="text-[10px] text-muted-foreground/70">· سعر المقرر: {officialPrice.toFixed(2)} {o.currency}</span>
+                        <span className="text-[10px] text-muted-foreground/70">{t('activation.coursePrice')} {officialPrice.toFixed(2)} {o.currency}</span>
                       )}
                     </div>
                   </div>
@@ -792,11 +792,11 @@ export default function StudentActivationPage() {
                       <>
                         <Badge variant="outline" className="text-xs border-sky-300 text-sky-700 bg-sky-50">
                           <Gift className="h-3 w-3 me-1" />
-                          مجاني ({durationLabel})
+                          {t('activation.freeWithDuration', { duration: durationLabel })}
                         </Badge>
                         <Badge variant="secondary" className="text-xs">
                           <Clock className="h-3 w-3 me-1" />
-                          بانتظار تفعيل الوكيل/المعلم
+                          {t('activation.waitingAgentActivation')}
                         </Badge>
                       </>
                     ) : (
@@ -809,12 +809,12 @@ export default function StudentActivationPage() {
                           // (NOT "بانتظار التأكيد" which implies uncertainty).
                           <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 bg-emerald-50">
                             <Loader2 className="h-3 w-3 me-1 animate-spin" />
-                            تم الدفع — جارٍ التفعيل
+                            {t('activation.paidActivating')}
                           </Badge>
                         ) : (
                           // Payment NOT initiated → show "استكمال الدفع" button
                           <>
-                            <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />قيد الدفع</Badge>
+                            <Badge variant="secondary" className="text-xs"><Clock className="h-3 w-3 me-1" />{t('activation.pendingPayment')}</Badge>
                             <Button
                               size="sm"
                               variant="outline"
