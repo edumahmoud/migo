@@ -30,17 +30,17 @@ import {
 } from 'lucide-react';
 
 // Arabic labels for payout method detail fields
-const FIELD_LABELS_AR: Record<string, string> = {
-  wallet_number: 'رقم المحفظة',
-  bank_name: 'اسم البنك',
-  account_number: 'رقم الحساب',
-  iban: 'IBAN',
-  holder_name: 'اسم صاحب الحساب',
-  last4: 'آخر 4 أرقام',
-  card_brand: 'نوع البطاقة',
-  expiry_month: 'شهر الانتهاء',
-  expiry_year: 'سنة الانتهاء',
-  recipient_identifier: 'معرّف المستلم',
+const FIELD_LABELS: Record<string, string> = {
+  wallet_number: 'adminTeachers.field.walletNumber',
+  bank_name: 'adminTeachers.field.bankName',
+  account_number: 'adminTeachers.field.accountNumber',
+  iban: 'adminTeachers.field.iban',
+  holder_name: 'adminTeachers.field.holderName',
+  last4: 'adminTeachers.field.last4',
+  card_brand: 'adminTeachers.field.cardBrand',
+  expiry_month: 'adminTeachers.field.expiryMonth',
+  expiry_year: 'adminTeachers.field.expiryYear',
+  recipient_identifier: 'adminTeachers.field.recipientIdentifier',
 };
 import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -163,7 +163,7 @@ export default function AdminTeachersSection() {
   // ── Settlement handler (manual — admin records money sent outside system) ──
   const handleSettle = async (teacherId: string, amount: number) => {
     if (settlingTeacherId) return;
-    const okSettle = await confirm({ title: 'تأكيد التسوية', description: `تأكيد التسوية: ${amount.toFixed(2)} EGP لهذا المعلم؟`, confirmLabel: 'تسوية', cancelLabel: 'تراجع' });
+    const okSettle = await confirm({ title: t('adminTeachers.confirmSettleTitle'), description: t('adminTeachers.confirmSettleDesc', { amount: amount.toFixed(2) }), confirmLabel: t('adminTeachers.settleLabel'), cancelLabel: t('adminTeachers.cancelLabel') });
     if (!okSettle) return;
     setSettlingTeacherId(teacherId);
     try {
@@ -174,14 +174,14 @@ export default function AdminTeachersSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تمت التسوية بنجاح');
+        toast.success(json.message || t('adminTeachers.settleSuccess'));
         await fetchTeachers(); // refresh list
         if (selectedTeacherId === teacherId) await fetchTeacherDetail(teacherId);
       } else {
-        toast.error(json.error || 'فشلت التسوية');
+        toast.error(json.error || t('adminTeachers.settleFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminTeachers.unexpectedError'));
     } finally {
       setSettlingTeacherId(null);
     }
@@ -190,7 +190,7 @@ export default function AdminTeachersSection() {
   // ── Deliver payment handler (through the payout system) ──
   const handleDeliverPayment = async (teacherId: string, amount: number, payoutMethodId: string) => {
     if (deliveringTeacherId) return;
-    const okDeliver = await confirm({ title: 'تأكيد تسليم الدفعة', description: `تأكيد تسليم الدفعة: ${amount.toFixed(2)} EGP عبر وسيلة الاستلام؟`, confirmLabel: 'تسليم', cancelLabel: 'تراجع' });
+    const okDeliver = await confirm({ title: t('adminTeachers.confirmDeliverTitle'), description: t('adminTeachers.confirmDeliverDesc', { amount: amount.toFixed(2) }), confirmLabel: t('adminTeachers.deliverLabel'), cancelLabel: t('adminTeachers.cancelLabel') });
     if (!okDeliver) return;
     setDeliveringTeacherId(teacherId);
     try {
@@ -201,13 +201,13 @@ export default function AdminTeachersSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم إنشاء أمر التسليم');
+        toast.success(json.message || t('adminTeachers.deliverSuccess'));
         await fetchTeachers();
       } else {
-        toast.error(json.error || 'فشل تسليم الدفعة');
+        toast.error(json.error || t('adminTeachers.deliverFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminTeachers.unexpectedError'));
     } finally {
       setDeliveringTeacherId(null);
     }
@@ -226,10 +226,10 @@ export default function AdminTeachersSection() {
       if (json.success) {
         setTransactions(json.transactions ?? []);
       } else {
-        toast.error(json.error || 'تعذّر جلب المعاملات');
+        toast.error(json.error || t('adminTeachers.fetchTxFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminTeachers.unexpectedError'));
     } finally {
       setTransactionsLoading(false);
     }
@@ -297,7 +297,7 @@ export default function AdminTeachersSection() {
     } else {
       const parsed = Number(draft);
       if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
-        toast.error('النسبة يجب أن تكون رقمًا بين 0 و100');
+        toast.error(t('adminTeachers.commissionInvalid'));
         return;
       }
       // Round to 2 decimals (matches NUMERIC(5,2) precision)
@@ -313,7 +313,7 @@ export default function AdminTeachersSection() {
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل تحديث النسبة');
+        toast.error(json.error || t('adminTeachers.commissionUpdateFailed'));
         return;
       }
       // Optimistically update the local teachers list
@@ -331,12 +331,12 @@ export default function AdminTeachersSection() {
       // Inform the admin of the historical-safety guarantee.
       toast.success(
         json.source === 'unchanged'
-          ? 'لم تتغير النسبة'
-          : `تم تحديث نسبة العمولة. المعاملات السابقة محفوظة بسعرها الأصلي.`,
+          ? t('adminTeachers.commissionUnchanged')
+          : t('adminTeachers.commissionUpdated'),
       );
     } catch (err) {
       console.error('[commission-patch] failed', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminTeachers.unexpectedError'));
     } finally {
       setSavingCommission((prev) => {
         const next = { ...prev };
@@ -372,15 +372,15 @@ export default function AdminTeachersSection() {
             return next;
           });
           toast.success(newEnabled
-            ? 'تم تفعيل الدفع التلقائي للمعلم'
-            : 'تم تعطيل الدفع التلقائي للمعلم');
+            ? t('adminTeachers.autopayEnabled')
+            : t('adminTeachers.autopayDisabled'));
         }
       } else {
-        toast.error(json.error || 'فشل التبديل');
+        toast.error(json.error || t('adminTeachers.toggleFailed'));
       }
     } catch (err) {
       console.error('[auto-payout-toggle] failed', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminTeachers.unexpectedError'));
     } finally {
       setTogglingTeacherId(null);
     }
@@ -390,14 +390,14 @@ export default function AdminTeachersSection() {
     if (bulkToggling) return;
     const eligible = teachers.filter((t) => Number(t.total_pending ?? 0) > 0);
     if (eligible.length === 0) {
-      toast.error('لا يوجد معلمون لهم مستحقات');
+      toast.error(t('adminTeachers.noEligibleTeachers'));
       return;
     }
     const confirmed = await confirm({
-      title: 'تأكيد',
-      description: `تأكيد ${enabled ? 'تفعيل' : 'تعطيل'} الدفع التلقائي لـ ${eligible.length} معلم (الذين لديهم مستحقات)؟`,
-      confirmLabel: 'تأكيد',
-      cancelLabel: 'تراجع',
+      title: t('adminTeachers.confirmTitle'),
+      description: enabled ? t('adminTeachers.bulkEnableDesc', { count: eligible.length }) : t('adminTeachers.bulkDisableDesc', { count: eligible.length }),
+      confirmLabel: t('adminTeachers.confirmLabel'),
+      cancelLabel: t('adminTeachers.cancelLabel'),
     });
     if (!confirmed) return;
     setBulkToggling(true);
@@ -409,14 +409,14 @@ export default function AdminTeachersSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم ${enabled ? 'تفعيل' : 'تعطيل'} الدفع التلقائي لـ ${json.updated_count} معلم`);
+        toast.success(enabled ? t('adminTeachers.bulkEnableSuccess', { count: json.updated_count }) : t('adminTeachers.bulkDisableSuccess', { count: json.updated_count }));
         await fetchTeachers(); // refresh
       } else {
-        toast.error(json.error || 'فشل التبديل الجماعي');
+        toast.error(json.error || t('adminTeachers.bulkToggleFailed'));
       }
     } catch (err) {
       console.error('[bulk-toggle-auto-payout] failed', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminTeachers.unexpectedError'));
     } finally {
       setBulkToggling(false);
     }
@@ -455,7 +455,7 @@ export default function AdminTeachersSection() {
   const handleBulkSettle = async () => {
     if (bulkSettling) return;
     if (selectedTeacherIds.size === 0) {
-      toast.error('لم يتم اختيار أي معلم');
+      toast.error(t('adminTeachers.noneSelected'));
       return;
     }
 
@@ -469,15 +469,15 @@ export default function AdminTeachersSection() {
       }));
 
     if (settlements.length === 0) {
-      toast.error('لا توجد مبالغ متاحة للتسوية للمعلمين المحددين');
+      toast.error(t('adminTeachers.noAmounts'));
       return;
     }
 
     const confirmed = await confirm({
-      title: 'تأكيد التسوية الجماعية',
-      description: `تأكيد التسوية الجماعية لـ ${settlements.length} معلم بإجمالي ${settlements.reduce((s, x) => s + x.amount, 0).toFixed(2)} EGP؟`,
-      confirmLabel: 'تسوية',
-      cancelLabel: 'تراجع',
+      title: t('adminTeachers.bulkSettleTitle'),
+      description: t('adminTeachers.bulkSettleDesc', { count: settlements.length, total: settlements.reduce((s, x) => s + x.amount, 0).toFixed(2) }),
+      confirmLabel: t('adminTeachers.settleLabel'),
+      cancelLabel: t('adminTeachers.cancelLabel'),
     });
     if (!confirmed) return;
 
@@ -492,16 +492,16 @@ export default function AdminTeachersSection() {
       if (json.success) {
         const { succeeded, failed, total_settled } = json.summary;
         toast.success(
-          `تمت تسوية ${succeeded}/${succeeded + failed} معلم بإجمالي ${Number(total_settled).toFixed(2)} EGP`
+          t('adminTeachers.bulkSettleResult', { succeeded: succeeded, total: succeeded + failed, amount: Number(total_settled).toFixed(2) })
         );
         setSelectedTeacherIds(new Set()); // clear selection
         await fetchTeachers(); // refresh list
       } else {
-        toast.error(json.error || 'فشلت التسوية الجماعية');
+        toast.error(json.error || t('adminTeachers.bulkSettleFailed'));
       }
     } catch (err) {
       console.error('[bulk-settle] failed', err);
-      toast.error('حدث خطأ غير متوقع أثناء التسوية الجماعية');
+      toast.error(t('adminTeachers.bulkSettleUnexpected'));
     } finally {
       setBulkSettling(false);
     }
@@ -520,7 +520,7 @@ export default function AdminTeachersSection() {
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'تعذّر جلب بيانات المعلم');
+        toast.error(json.error || t('adminTeachers.fetchTeacherFailed'));
         return;
       }
 
@@ -529,32 +529,32 @@ export default function AdminTeachersSection() {
 
       // Sheet 1: Teacher summary
       const summaryData = [
-        ['الحقل', 'القيمة'],
-        ['الاسم', teacher.name],
-        ['البريد الإلكتروني', teacher.email],
-        ['الهاتف', teacher.phone ?? '—'],
-        ['الحالة', formatAccountStatus(teacher.account_status)],
-        ['تاريخ التسجيل', new Date(teacher.created_at).toLocaleDateString('ar-EG')],
-        ['عدد المقررات', teacher.subject_count],
-        ['عدد الطلاب', teacher.student_count],
+        [t('adminTeachers.exField'), t('adminTeachers.exValue')],
+        [t('adminTeachers.exName'), teacher.name],
+        [t('adminTeachers.exEmail'), teacher.email],
+        [t('adminTeachers.exPhone'), teacher.phone ?? '—'],
+        [t('adminTeachers.exStatus'), formatAccountStatus(teacher.account_status)],
+        [t('adminTeachers.exRegDate'), new Date(teacher.created_at).toLocaleDateString('ar-EG')],
+        [t('adminTeachers.exSubjectCount'), teacher.subject_count],
+        [t('adminTeachers.exStudentCount'), teacher.student_count],
         // v111: per-teacher commission (null = uses global rate)
-        ['نسبة العمولة (خاصة بالمعلم)', teacher.commission_rate === null || teacher.commission_rate === undefined
-          ? 'عام (يستخدم النسبة العامة)'
+        [t('adminTeachers.exCommission'), teacher.commission_rate === null || teacher.commission_rate === undefined
+          ? t('adminTeachers.exCommissionGlobal')
           : `${Number(teacher.commission_rate).toFixed(2)}%`],
-        ['الإيراد الكلي (مدفوع + مُسوّى)', Number(teacher.total_earned ?? 0).toFixed(2)],
-        ['المُسوّى (تم تسليمه)', Number(teacher.total_settled ?? 0).toFixed(2)],
-        ['المتاح للصرف', Number(teacher.total_pending ?? 0).toFixed(2)],
-        ['عدد العمليات (من السجل)', json.summary?.transaction_count ?? json.data?.length ?? 0],
+        [t('adminTeachers.exTotalRevenue'), Number(teacher.total_earned ?? 0).toFixed(2)],
+        [t('adminTeachers.exSettled'), Number(teacher.total_settled ?? 0).toFixed(2)],
+        [t('adminTeachers.exAvailable'), Number(teacher.total_pending ?? 0).toFixed(2)],
+        [t('adminTeachers.exTxCount'), json.summary?.transaction_count ?? json.data?.length ?? 0],
       ];
       const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
       // Set column widths
       ws1['!cols'] = [{ wch: 30 }, { wch: 35 }];
-      XLSX.utils.book_append_sheet(wb, ws1, 'ملخص المعلم');
+      XLSX.utils.book_append_sheet(wb, ws1, t('adminTeachers.sheetSummary'));
 
       // Sheet 2: Transactions (financial_ledger rows)
       const ledgerRows = (json.data ?? []) as Array<Record<string, unknown>>;
       if (ledgerRows.length > 0) {
-        const headers = ['التاريخ', 'الطالب', 'المقرر', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'العملة', 'الحالة', 'العمولة %'];
+        const headers = [t('adminTeachers.exDate'), t('adminTeachers.exStudent'), t('adminTeachers.exSubject'), t('adminTeachers.exTotal'), t('adminTeachers.exPlatformShare'), t('adminTeachers.exTeacherShare'), t('adminTeachers.exCurrency'), t('adminTeachers.exStatus'), t('adminTeachers.colCommission')];
         const rows = ledgerRows.map((r) => [
           new Date(r.created_at as string).toLocaleDateString('ar-EG'),
           r.student_name ?? '—',
@@ -570,20 +570,20 @@ export default function AdminTeachersSection() {
         txSheet['!cols'] = [
           { wch: 14 }, { wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 10 }
         ];
-        XLSX.utils.book_append_sheet(wb, txSheet, 'المعاملات');
+        XLSX.utils.book_append_sheet(wb, txSheet, t('adminTeachers.sheetTransactions'));
       } else {
         // Empty sheet so user gets visual confirmation
-        const emptySheet = XLSX.utils.aoa_to_sheet([['لا توجد معاملات لهذا المعلم']]);
-        XLSX.utils.book_append_sheet(wb, emptySheet, 'المعاملات');
+        const emptySheet = XLSX.utils.aoa_to_sheet([[t('adminTeachers.exNoTx')]]);
+        XLSX.utils.book_append_sheet(wb, emptySheet, t('adminTeachers.sheetTransactions'));
       }
 
       const safeName = (teacher.name || 'teacher').replace(/[\\\/:*?"<>|]/g, '_').slice(0, 50);
       const fileName = `teacher_${safeName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      toast.success(`تم تصدير ${ledgerRows.length} معاملة إلى ${fileName}`);
+      toast.success(t('adminTeachers.exportTxSuccess', { count: ledgerRows.length, fileName }));
     } catch (err) {
       console.error('[export-teacher] failed', err);
-      toast.error('تعذّر تصدير Excel للمعلم');
+      toast.error(t('adminTeachers.exportTeacherFailed'));
     } finally {
       setExportingTeacherId(null);
     }
@@ -594,7 +594,7 @@ export default function AdminTeachersSection() {
   // Sheet 2: Totals row (sum of all teachers on this page)
   const handleExportAllTeachers = async () => {
     if (teachers.length === 0) {
-      toast.error('لا يوجد معلمون للتصدير');
+      toast.error(t('adminTeachers.noTeachersExport'));
       return;
     }
     setExportingAll(true);
@@ -604,17 +604,17 @@ export default function AdminTeachersSection() {
 
       // Sheet 1: Teachers list
       const headers = [
-        'الاسم', 'البريد', 'الهاتف', 'الحالة',
-        'المقررات', 'الطلاب',
-        'العمولة %', // v111
-        'الإيراد الكلي', 'المُسوّى', 'المتاح', 'تاريخ التسجيل',
+        t('adminTeachers.exName'), t('adminTeachers.exEmailShort'), t('adminTeachers.exPhone'), t('adminTeachers.exStatus'),
+        t('adminTeachers.exSubjects'), t('adminTeachers.exStudents'),
+        t('adminTeachers.colCommission'), // v111
+        t('adminTeachers.exTotalEarned'), t('adminTeachers.exSettledShort'), t('adminTeachers.exAvailableShort'), t('adminTeachers.exRegDate'),
       ];
       const rows = teachers.map((t) => [
         t.name, t.email, t.phone ?? '—', formatAccountStatus(t.account_status),
         t.subject_count, t.student_count,
         // v111: per-teacher commission (null = uses global rate)
         t.commission_rate === null || t.commission_rate === undefined
-          ? 'عام'
+          ? t('adminTeachers.generalShort')
           : `${Number(t.commission_rate).toFixed(2)}%`,
         Number(t.total_earned ?? 0).toFixed(2),
         Number(t.total_settled ?? 0).toFixed(2),
@@ -623,7 +623,7 @@ export default function AdminTeachersSection() {
       ]);
       // Totals row
       const totalsRow = [
-        'الإجمالي', '', '', '',
+        t('adminTeachers.exTotalRow'), '', '', '',
         teachers.reduce((s, t) => s + t.subject_count, 0),
         teachers.reduce((s, t) => s + t.student_count, 0),
         '', // commission % has no total (per-teacher value)
@@ -637,14 +637,14 @@ export default function AdminTeachersSection() {
         { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 12 },
         { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
       ];
-      XLSX.utils.book_append_sheet(wb, ws1, `المعلمون (صفحة ${page})`);
+      XLSX.utils.book_append_sheet(wb, ws1, t('adminTeachers.sheetTeachers', { page: page }));
 
       const fileName = `teachers_page${page}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      toast.success(`تم تصدير ${teachers.length} معلم إلى ${fileName}`);
+      toast.success(t('adminTeachers.exportTeachersSuccess', { count: teachers.length, fileName }));
     } catch (err) {
       console.error('[export-all-teachers] failed', err);
-      toast.error('تعذّر تصدير قائمة المعلمين');
+      toast.error(t('adminTeachers.exportTeachersFailed'));
     } finally {
       setExportingAll(false);
     }
@@ -681,14 +681,14 @@ export default function AdminTeachersSection() {
           className="h-9 gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
           onClick={handleExportAllTeachers}
           disabled={exportingAll || teachers.length === 0}
-          title="تصدير معلمي الصفحة الحالية إلى Excel"
+          title={t('adminTeachers.exportAllTitle')}
         >
           {exportingAll ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <FileSpreadsheet className="h-4 w-4" />
           )}
-          تصدير الكل (Excel)
+          {t('adminTeachers.exportAll')}
         </Button>
         {/* G3 — bulk settle */}
         <Button
@@ -697,14 +697,14 @@ export default function AdminTeachersSection() {
           className="h-9 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
           onClick={handleBulkSettle}
           disabled={bulkSettling || selectedTeacherIds.size === 0}
-          title="تسوية المبالغ المتاحة لكل المعلمين المحددين"
+          title={t('adminTeachers.settleSelectedTitle')}
         >
           {bulkSettling ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <HandCoins className="h-4 w-4" />
           )}
-          تسوية المحدد ({selectedTeacherIds.size})
+          {t('adminTeachers.settleSelected', { count: selectedTeacherIds.size })}
         </Button>
         {/* Auto-payout bulk toggles */}
         <Button
@@ -713,10 +713,10 @@ export default function AdminTeachersSection() {
           className="h-9 gap-1 border-sky-300 text-sky-700 hover:bg-sky-50"
           onClick={() => handleBulkToggleAutoPayout(true)}
           disabled={bulkToggling}
-          title="تفعيل الدفع التلقائي عبر Paymob لكل المعلمين الذين لديهم مستحقات"
+          title={t('adminTeachers.enableAllTitle')}
         >
           {bulkToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          تفعيل تلقائي للكل
+          {t('adminTeachers.enableAll')}
         </Button>
         <Button
           size="sm"
@@ -724,9 +724,9 @@ export default function AdminTeachersSection() {
           className="h-9 gap-1 border-rose-300 text-rose-700 hover:bg-rose-50"
           onClick={() => handleBulkToggleAutoPayout(false)}
           disabled={bulkToggling}
-          title="تعطيل الدفع التلقائي لكل المعلمين الذين لديهم مستحقات (الرجوع للوضع اليدوي)"
+          title={t('adminTeachers.disableAllTitle')}
         >
-          تعطيل تلقائي للكل
+          {t('adminTeachers.disableAll')}
         </Button>
       </div>
 
@@ -748,7 +748,7 @@ export default function AdminTeachersSection() {
           ) : error ? (
             <div className="flex flex-col items-center py-20 gap-4">
               <p className="text-sm text-rose-600">{error}</p>
-              <Button onClick={fetchTeachers} variant="outline" size="sm">إعادة</Button>
+              <Button onClick={fetchTeachers} variant="outline" size="sm">{t('adminTeachers.retry')}</Button>
             </div>
           ) : teachers.length === 0 ? (
             <div className="flex flex-col items-center py-16 gap-3">
@@ -765,7 +765,7 @@ export default function AdminTeachersSection() {
                         {/* G3 — select-all checkbox */}
                         <input
                           type="checkbox"
-                          aria-label="تحديد كل معلمي الصفحة"
+                          aria-label={t('adminTeachers.selectAllAria')}
                           checked={
                             teachers.length > 0 &&
                             teachers.every((t) => selectedTeacherIds.has(t.id))
@@ -780,11 +780,11 @@ export default function AdminTeachersSection() {
                       <th className="p-3 text-start font-medium">{t('common.status')}</th>
                       <th className="p-3 text-center font-medium">{t('subjects.subjects') || 'المقررات'}</th>
                       <th className="p-3 text-center font-medium">{t('admin.students') || 'الطلاب'}</th>
-                      <th className="p-3 text-center font-medium text-violet-600">العمولة %</th>
-                      <th className="p-3 text-end font-medium text-emerald-600">مُسوّى</th>
-                      <th className="p-3 text-end font-medium text-amber-600">متاح</th>
-                      <th className="p-3 text-end font-medium">الإجمالي</th>
-                      <th className="p-3 text-center font-medium text-sky-600">دفع تلقائي</th>
+                      <th className="p-3 text-center font-medium text-violet-600">{t('adminTeachers.colCommission')}</th>
+                      <th className="p-3 text-end font-medium text-emerald-600">{t('adminTeachers.colSettled')}</th>
+                      <th className="p-3 text-end font-medium text-amber-600">{t('adminTeachers.colAvailable')}</th>
+                      <th className="p-3 text-end font-medium">{t('adminTeachers.colTotal')}</th>
+                      <th className="p-3 text-center font-medium text-sky-600">{t('adminTeachers.colAutopay')}</th>
                       <th className="p-3 text-center font-medium"></th>
                     </tr>
                   </thead>
@@ -799,7 +799,7 @@ export default function AdminTeachersSection() {
                           {/* G3 — per-row checkbox */}
                           <input
                             type="checkbox"
-                            aria-label={`تحديد ${teacher.name}`}
+                            aria-label={t('adminTeachers.selectTeacherAria', { name: teacher.name })}
                             checked={selectedTeacherIds.has(teacher.id)}
                             onChange={() => toggleTeacherSelection(teacher.id)}
                             className="h-4 w-4 cursor-pointer accent-emerald-600"
@@ -829,7 +829,7 @@ export default function AdminTeachersSection() {
                                 step="0.01"
                                 min="0"
                                 max="100"
-                                aria-label={`نسبة العمولة لـ ${teacher.name}`}
+                                aria-label={t('adminTeachers.commissionAria', { name: teacher.name })}
                                 value={editingCommission[teacher.id]}
                                 onChange={(e) =>
                                   setEditingCommission((prev) => ({
@@ -846,7 +846,7 @@ export default function AdminTeachersSection() {
                                     cancelEditCommission(teacher.id);
                                   }
                                 }}
-                                placeholder="عام"
+                                placeholder={t('adminTeachers.generalShort')}
                                 disabled={savingCommission[teacher.id]}
                                 className="h-7 w-20 text-center text-xs"
                               />
@@ -857,11 +857,11 @@ export default function AdminTeachersSection() {
                                   className="h-6 px-2 text-[10px]"
                                   onClick={() => saveCommission(teacher.id)}
                                   disabled={savingCommission[teacher.id]}
-                                  title="حفظ"
+                                  title={t('adminTeachers.saveLabel')}
                                 >
                                   {savingCommission[teacher.id]
                                     ? <Loader2 className="h-3 w-3 animate-spin" />
-                                    : 'حفظ'}
+                                    : t('adminTeachers.saveLabel')}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -869,13 +869,13 @@ export default function AdminTeachersSection() {
                                   className="h-6 px-2 text-[10px]"
                                   onClick={() => cancelEditCommission(teacher.id)}
                                   disabled={savingCommission[teacher.id]}
-                                  title="إلغاء"
+                                  title={t('adminTeachers.cancelTitle')}
                                 >
-                                  إلغاء
+                                  {t('adminTeachers.cancelLabel')}
                                 </Button>
                               </div>
                               <p className="text-[9px] text-muted-foreground text-center max-w-[150px]">
-                                اتركه فارغًا لاستخدام النسبة العامة
+                                {t('adminTeachers.emptyForGlobal')}
                               </p>
                             </div>
                           ) : (
@@ -883,10 +883,10 @@ export default function AdminTeachersSection() {
                               type="button"
                               onClick={() => startEditCommission(teacher.id, teacher.commission_rate)}
                               className="inline-flex items-center gap-1 rounded-md border border-transparent hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/10 px-2 py-1 text-xs font-mono font-medium text-violet-700 dark:text-violet-300 transition-colors"
-                              title="انقر لتعديل نسبة العمولة لهذا المعلم"
+                              title={t('adminTeachers.clickToEditCommission')}
                             >
                               {teacher.commission_rate === null || teacher.commission_rate === undefined
-                                ? <span className="text-muted-foreground">عام</span>
+                                ? <span className="text-muted-foreground">{t('adminTeachers.generalShort')}</span>
                                 : `${Number(teacher.commission_rate).toFixed(2)}%`}
                             </button>
                           )}
@@ -906,13 +906,13 @@ export default function AdminTeachersSection() {
                             type="button"
                             role="switch"
                             aria-checked={teacher.auto_payout_enabled}
-                            aria-label={`تفعيل الدفع التلقائي لـ ${teacher.name}`}
+                            aria-label={t('adminTeachers.autopayAria', { name: teacher.name })}
                             disabled={togglingTeacherId === teacher.id}
                             onClick={() => toggleAutoPayout(teacher.id, teacher.auto_payout_enabled)}
                             title={
                               teacher.auto_payout_enabled
-                                ? 'مفعّل — التسوية هتحول فلوس حقيقية عبر Paymob'
-                                : 'معطّل — التسوية هتبقى تسجيل يدوي فقط'
+                                ? t('adminTeachers.autopayEnabledTitle')
+                                : t('adminTeachers.autopayDisabledTitle')
                             }
                             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 ${
                               teacher.auto_payout_enabled
@@ -932,7 +932,7 @@ export default function AdminTeachersSection() {
                           </button>
                           {autoPayoutWarnings[teacher.id] && (
                             <div className="text-[10px] text-amber-600 mt-1 max-w-[120px]">
-                              ⚠️ يحتاج إعداد
+                              {t('adminTeachers.needsSetup')}
                             </div>
                           )}
                         </td>
@@ -957,14 +957,14 @@ export default function AdminTeachersSection() {
                                   e.stopPropagation();
                                   handleSettle(teacher.id, Number(teacher.total_pending ?? 0));
                                 }}
-                                title="تسوية — تسجيل يدوي أن المعلم استلم"
+                                title={t('adminTeachers.settleManualTitle')}
                               >
                                 {settlingTeacherId === teacher.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <HandCoins className="h-3 w-3" />
                                 )}
-                                تسوية
+                                {t('adminTeachers.settleLabel')}
                               </Button>
                             )}
                             {/* سجل المعاملات */}
@@ -976,7 +976,7 @@ export default function AdminTeachersSection() {
                                 e.stopPropagation();
                                 fetchTransactions(teacher.id, teacher.name);
                               }}
-                              title="سجل المعاملات"
+                              title={t('adminTeachers.txLogTitle')}
                             >
                               <History className="h-3 w-3" />
                             </Button>
@@ -990,7 +990,7 @@ export default function AdminTeachersSection() {
                                 handleExportTeacher(teacher);
                               }}
                               disabled={exportingTeacherId === teacher.id}
-                              title="تصدير معاملات هذا المعلم إلى Excel"
+                              title={t('adminTeachers.exportTeacherTitle')}
                             >
                               {exportingTeacherId === teacher.id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -1166,7 +1166,7 @@ export default function AdminTeachersSection() {
                           }}
                         >
                           {teacherDetail.show_full_details ? (
-                            <><EyeOff className="h-3 w-3 me-1" />إخفاء التفاصيل</>
+                            <><EyeOff className="h-3 w-3 me-1" />{t('adminTeachers.hideDetails')}</>
                           ) : (
                             <><Eye className="h-3 w-3 me-1" />{t('admin.showTransferDetails') || 'عرض تفاصيل التحويل'}</>
                           )}
@@ -1189,7 +1189,7 @@ export default function AdminTeachersSection() {
                                     .filter(([k]) => k !== 'method_type')
                                     .map(([key, val]) => (
                                       <div key={key} className="flex justify-between gap-2">
-                                        <span className="text-muted-foreground">{FIELD_LABELS_AR[key] ?? key}:</span>
+                                        <span className="text-muted-foreground">{FIELD_LABELS[key] ? t(FIELD_LABELS[key]) : key}:</span>
                                         <span className="font-semibold break-all text-end" dir="ltr">{String(val)}</span>
                                       </div>
                                     ))}
@@ -1276,7 +1276,7 @@ export default function AdminTeachersSection() {
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold flex items-center gap-2">
                   <History className="h-5 w-5 text-sky-600" />
-                  سجل المعاملات
+                  {t('adminTeachers.txLogTitle')}
                   {transactionsModal.teacherName && (
                     <span className="text-sm text-muted-foreground">— {transactionsModal.teacherName}</span>
                   )}
@@ -1298,7 +1298,7 @@ export default function AdminTeachersSection() {
                 ) : transactions.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <History className="h-12 w-12 text-muted-foreground/40 mb-2" />
-                    <p className="text-sm text-muted-foreground">لا توجد معاملات لهذا المعلم.</p>
+                    <p className="text-sm text-muted-foreground">{t('adminTeachers.noTxForTeacher')}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1309,7 +1309,7 @@ export default function AdminTeachersSection() {
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(tx.transaction_code);
-                              toast.success(`تم نسخ الكود: ${tx.transaction_code}`);
+                              toast.success(t('adminTeachers.codeCopied', { code: tx.transaction_code }));
                             }}
                             className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1"
                           >
@@ -1331,17 +1331,17 @@ export default function AdminTeachersSection() {
                             <Wallet className="h-3 w-3" />
                             {tx.method_label} ({tx.method_masked})
                           </span>
-                          <span>أُنشئ: {new Date(tx.created_at).toLocaleString('ar-EG')}</span>
+                          <span>{t('adminTeachers.createdAt', { date: new Date(tx.created_at).toLocaleString('ar-EG') })}</span>
                           {tx.executed_at && (
                             <span className="text-emerald-600">
-                              نُفّذ: {new Date(tx.executed_at).toLocaleString('ar-EG')}
+                              {t('adminTeachers.executedAt', { date: new Date(tx.executed_at).toLocaleString('ar-EG') })}
                             </span>
                           )}
                         </div>
                         {/* Linked entries */}
                         {tx.linked_entries && tx.linked_entries.length > 0 && (
                           <div className="text-xs text-muted-foreground border-t pt-2">
-                            <span className="font-medium">العمليات المرتبطة ({tx.linked_entries.length}):</span>
+                            <span className="font-medium">{t('adminTeachers.linkedOps', { count: tx.linked_entries.length })}</span>
                             <div className="mt-1 space-y-0.5">
                               {tx.linked_entries.map((le: any, i: number) => (
                                 <div key={i} className="flex justify-between">

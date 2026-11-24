@@ -397,7 +397,7 @@ describe('Fix #3: PATCH commission API + editable UI', () => {
 
   test('Teacher Accounts list renders the commission column (header + cell)', () => {
     const src = readSrc('src/components/admin/admin-teachers-section.tsx');
-    expect(src).toContain('العمولة %');
+    expect(src).toContain('adminTeachers.colCommission');
     expect(src).toContain('startEditCommission');
     expect(src).toContain('saveCommission');
     expect(src).toContain('cancelEditCommission');
