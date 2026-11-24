@@ -10,6 +10,7 @@
  * as before.
  */
 
+import { useTranslations } from '@/i18n/use-translations';
 import { useState, useEffect } from 'react';
 import {
   Loader2, AlertCircle, HardDrive, Zap, ArrowUpCircle,
@@ -44,12 +45,14 @@ interface CountData {
   canUse: boolean;
 }
 
-function formatSize(mb: number): string {
-  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} جيجابايت`;
-  return `${mb} ميجابايت`;
+function formatSize(mb: number, units: { gb: string; mb: string }): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} ${units.gb}`;
+  return `${mb} ${units.mb}`;
 }
 
 export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClick }: Props) {
+  const { t } = useTranslations();
+  const sizeUnits = { gb: t('usageCounter.unitGb'), mb: t('usageCounter.unitMb') };
   const [collapsed, setCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -136,7 +139,7 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
           <div className="flex items-center gap-1.5">
             <HardDrive className="h-3.5 w-3.5 text-sky-600" />
             <span className="text-muted-foreground">
-              {used_mb} / {total_quota} ميجابايت · {pct}%
+              {used_mb} / {total_quota} {t('usageCounter.unitMb')} · {pct}%
             </span>
           </div>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -158,7 +161,7 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
               }`}>
                 <HardDrive className="h-4 w-4" />
               </div>
-              <span className="text-xs font-medium">مساحة التخزين</span>
+              <span className="text-xs font-medium">{t('usageCounter.storageLabel')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Badge variant="outline" className={`text-[9px] ${
@@ -166,7 +169,7 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
                 isWarning ? 'bg-amber-50 text-amber-700 border-amber-200' :
                 'bg-emerald-50 text-emerald-700 border-emerald-200'
               }`}>
-                {used_mb} / {total_quota} ميجابايت
+                {used_mb} / {total_quota} {t('usageCounter.unitMb')}
               </Badge>
               {!isCritical && (
                 <button onClick={() => setCollapsed(true)} className="text-muted-foreground hover:text-foreground">
@@ -189,14 +192,14 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
           {/* Footer */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">{pct}% مستخدم</span>
+              <span className="text-[10px] text-muted-foreground">{t('usageCounter.pctUsed', { pct })}</span>
               <Badge variant="outline" className="text-[8px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                مجاني: {formatSize(free_quota)}
+                {t('usageCounter.freeLabel', { size: formatSize(free_quota, sizeUnits) })}
               </Badge>
               {upgrade_size > 0 && (
                 <Badge variant="outline" className="text-[8px] bg-sky-50 text-sky-700 border-sky-200">
                   <Sparkles className="h-2 w-2 me-0.5" />
-                  +{formatSize(upgrade_size)}
+                  +{formatSize(upgrade_size, sizeUnits)}
                 </Badge>
               )}
             </div>
@@ -204,7 +207,7 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-rose-600 font-medium flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
-                  ممتلئة
+                  {t('usageCounter.full')}
                 </span>
                 {onUpgradeClick && (
                   <Button
@@ -214,13 +217,13 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
                     onClick={onUpgradeClick}
                   >
                     <ArrowUpCircle className="h-3 w-3 me-1" />
-                    تزويد
+                    {t('usageCounter.upgrade')}
                   </Button>
                 )}
               </div>
             ) : (
               <span className={`text-[10px] ${isWarning ? 'text-amber-600' : 'text-emerald-600'}`}>
-                تبقى {formatSize(remaining_mb)}
+                {t('usageCounter.remaining', { size: formatSize(remaining_mb, sizeUnits) })}
               </span>
             )}
           </div>
@@ -242,7 +245,7 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
       <div className="flex items-center gap-2 py-1">
         <Zap className="h-3.5 w-3.5 text-rose-500 shrink-0" />
         <span className="text-[11px] text-rose-600 font-medium">
-          لقد وصلت إلى الحد الأقصى ({limit} عملية)
+          {t('usageCounter.maxReached', { limit })}
         </span>
       </div>
     );
@@ -251,7 +254,7 @@ export default function UsageCounter({ sectionKey, mode = 'count', onUpgradeClic
   return (
     <div className="flex items-center gap-2 py-1">
       <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-      <span className="text-[11px] text-muted-foreground">المحاولات المتبقية:</span>
+      <span className="text-[11px] text-muted-foreground">{t('usageCounter.attemptsRemaining')}</span>
       <Badge
         variant="outline"
         className={`text-[9px] ${

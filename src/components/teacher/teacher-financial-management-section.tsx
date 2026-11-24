@@ -41,9 +41,9 @@ export default function TeacherFinancialManagementSection({ profile }: Props) {
   }, []);
 
   const tabs: Array<{ id: FinancialTab; label: string; icon: typeof DollarSign }> = [
-    { id: 'revenue', label: 'الإيرادات', icon: DollarSign },
-    { id: 'methods', label: 'طرق الاستلام', icon: Wallet },
-    { id: 'history', label: 'سجل المدفوعات', icon: Receipt },
+    { id: 'revenue', label: t('teacherFinancial.tabRevenue'), icon: DollarSign },
+    { id: 'methods', label: t('teacherFinancial.tabMethods'), icon: Wallet },
+    { id: 'history', label: t('teacherFinancial.tabHistory'), icon: Receipt },
   ];
 
   return (

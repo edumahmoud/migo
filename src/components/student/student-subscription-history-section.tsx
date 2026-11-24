@@ -44,7 +44,7 @@ interface StudentSubscriptionHistorySectionProps {
  * "Pending Subscriptions" section which only shows pending ones.
  */
 export default function StudentSubscriptionHistorySection({ profile }: StudentSubscriptionHistorySectionProps) {
-  const { t } = useTranslations();
+  const { t, locale } = useTranslations();
   const [orders, setOrders] = useState<OrderHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,7 +64,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
       const json = await res.json();
 
       if (!json.success) {
-        toast.error(json.error || 'تعذّر جلب سجل الاشتراكات');
+        toast.error(json.error || t('subscriptionHistory.fetchFailed'));
         return;
       }
 
@@ -77,7 +77,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
       setOrders(ordersData as OrderHistory[]);
     } catch (err) {
       console.error('[sub-history] fetch failed:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setLoading(false);
     }
@@ -105,9 +105,9 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
   const copyCode = async (code: string) => {
     try {
       await navigator.clipboard.writeText(code);
-      toast.success(`تم نسخ الكود: ${code}`);
+      toast.success(t('subscriptionHistory.codeCopied', { code }));
     } catch {
-      toast.error('تعذّر نسخ الكود');
+      toast.error(t('subscriptionHistory.copyFailed'));
     }
   };
 
@@ -124,11 +124,11 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
 
   const statusLabel = (status: string) => {
     switch (status) {
-      case 'paid': return 'مدفوع';
-      case 'pending': return 'معلّق';
-      case 'cancelled': return 'ملغي';
-      case 'failed': return 'فشل';
-      case 'refunded': return 'مسترجع';
+      case 'paid': return t('subscriptionHistory.statusPaid');
+      case 'pending': return t('subscriptionHistory.statusPending');
+      case 'cancelled': return t('subscriptionHistory.statusCancelled');
+      case 'failed': return t('subscriptionHistory.statusFailed');
+      case 'refunded': return t('subscriptionHistory.statusRefunded');
       default: return status;
     }
   };
@@ -141,9 +141,9 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
           <History className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold">سجل الاشتراكات</h1>
+          <h1 className="text-xl font-bold">{t('subscriptionHistory.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            كل عمليات الاشتراك اللي عملتها — لكل عملية كود مميز تقدر تستخدمه للبحث والمتابعة.
+            {t('subscriptionHistory.subtitle')}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
@@ -152,7 +152,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          تحديث
+          {t('subscriptionHistory.refresh')}
         </Button>
       </header>
 
@@ -165,7 +165,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث برقم العملية أو اسم المقرر..."
+                placeholder={t('subscriptionHistory.searchPlaceholder')}
                 className="ps-8"
               />
             </div>
@@ -179,13 +179,13 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                   className="h-8 px-2 text-xs"
                   onClick={() => setStatusFilter(s)}
                 >
-                  {s === 'all' ? 'الكل' : statusLabel(s)}
+                  {s === 'all' ? t('subscriptionHistory.filterAll') : statusLabel(s)}
                 </Button>
               ))}
             </div>
           </div>
           <div className="text-xs text-muted-foreground">
-            عدد النتائج: {filteredOrders.length} من {orders.length}
+            {t('subscriptionHistory.resultCount', { shown: filteredOrders.length, total: orders.length })}
           </div>
         </CardContent>
       </Card>
@@ -193,7 +193,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
       {/* Orders list */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">العمليات</CardTitle>
+          <CardTitle className="text-base">{t('subscriptionHistory.ordersTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -205,8 +205,8 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
               <History className="h-12 w-12 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">
                 {orders.length === 0
-                  ? 'لا يوجد عمليات اشتراك في سجلك حتى الآن.'
-                  : 'لا توجد نتائج تطابق بحثك.'}
+                  ? t('subscriptionHistory.emptyHistory')
+                  : t('subscriptionHistory.emptySearch')}
               </p>
             </div>
           ) : (
@@ -221,11 +221,11 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                 const totalPaid = Number(o.amount ?? 0);
                 // v127: compute plan duration label
                 const durationDays = o.plan_duration_days ?? 30;
-                const durationLabel = durationDays >= 365 ? 'سنوي' :
-                  durationDays >= 120 ? 'ترم' :
-                  durationDays >= 60 ? 'فصلين' :
-                  durationDays === 30 ? 'شهري' :
-                  `${durationDays} يوم`;
+                const durationLabel = durationDays >= 365 ? t('subscriptionHistory.durYearly') :
+                  durationDays >= 120 ? t('subscriptionHistory.durTerm') :
+                  durationDays >= 60 ? t('subscriptionHistory.durTwoTerms') :
+                  durationDays === 30 ? t('subscriptionHistory.durMonthly') :
+                  t('subscriptionHistory.durDays', { days: durationDays });
                 return (
                   <div
                     key={o.id}
@@ -237,7 +237,7 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                       <div className="flex items-center gap-2">
                         <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span className="font-medium truncate">
-                          {o.subject?.name ?? 'مقرر غير معروف'}
+                          {o.subject?.name ?? t('subscriptionHistory.unknownCourse')}
                         </span>
                       </div>
                       <Badge variant={statusBadgeVariant(o.status)} className="text-xs">
@@ -247,27 +247,27 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                       {/* Date + Time */}
                       <div>
-                        <span className="text-muted-foreground">التاريخ</span>
+                        <span className="text-muted-foreground">{t('subscriptionHistory.dateLabel')}</span>
                         <p className="font-medium" dir="ltr">
-                          {new Date(o.created_at).toLocaleDateString('ar-EG')}
+                          {new Date(o.created_at).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-GB')}
                           {' '}
                           <span className="text-muted-foreground">
-                            {new Date(o.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                            {new Date(o.created_at).toLocaleTimeString(locale === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                           </span>
                         </p>
                       </div>
                       {/* Payment gateway + Order ID */}
                       <div>
-                        <span className="text-muted-foreground">بوابة الدفع</span>
+                        <span className="text-muted-foreground">{t('subscriptionHistory.gatewayLabel')}</span>
                         <p className="font-medium">Paymob</p>
                       </div>
                       <div>
-                        <span className="text-muted-foreground">رقم العملية</span>
+                        <span className="text-muted-foreground">{t('subscriptionHistory.orderIdLabel')}</span>
                         <button
                           type="button"
                           onClick={() => copyCode(displayOrderId)}
                           className="font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1"
-                          title="اضغط للنسخ"
+                          title={t('subscriptionHistory.copyTitle')}
                         >
                           {displayOrderId}
                           <Copy className="h-2.5 w-2.5" />
@@ -275,25 +275,25 @@ export default function StudentSubscriptionHistorySection({ profile }: StudentSu
                       </div>
                       {/* Subject base price */}
                       <div>
-                        <span className="text-muted-foreground">ثمن المقرر</span>
+                        <span className="text-muted-foreground">{t('subscriptionHistory.coursePriceLabel')}</span>
                         <p className="font-medium font-mono">{subjectPrice.toFixed(2)} {o.currency}</p>
                       </div>
                       {/* Total paid */}
                       <div>
-                        <span className="text-muted-foreground">إجمالي المدفوع</span>
+                        <span className="text-muted-foreground">{t('subscriptionHistory.totalPaidLabel')}</span>
                         <p className="font-bold font-mono text-emerald-700 dark:text-emerald-400">
                           {totalPaid.toFixed(2)} {o.currency}
                         </p>
                       </div>
                       {o.checkout_session_id && (
                         <div>
-                          <span className="text-muted-foreground">نوع الدفعة</span>
-                          <p className="font-medium">دفعة موحدة</p>
+                          <span className="text-muted-foreground">{t('subscriptionHistory.paymentTypeLabel')}</span>
+                          <p className="font-medium">{t('subscriptionHistory.unifiedPayment')}</p>
                         </div>
                       )}
                       {/* v127: Plan duration */}
                       <div>
-                        <span className="text-muted-foreground">مدة الاشتراك</span>
+                        <span className="text-muted-foreground">{t('subscriptionHistory.durationLabel')}</span>
                         <p className="font-medium">{durationLabel}</p>
                       </div>
                     </div>

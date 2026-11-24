@@ -33,6 +33,7 @@
 import { useState, useEffect } from 'react';
 import { GraduationCap } from 'lucide-react';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useTranslations } from '@/i18n/use-translations';
 
 // Cache key for localStorage — must match the key used in
 // institution-store.ts / institution-head.tsx.
@@ -60,6 +61,7 @@ export function BrandLogo({
   withShadow?: boolean;
   className?: string;
 }) {
+  const { t } = useTranslations();
   // Read the logo URL from the institution store (reactive — updates
   // when the store is populated).
   const storeLogo = useInstitutionStore((s) => s.institution?.logo_url);
@@ -103,7 +105,7 @@ export function BrandLogo({
       >
         <img
           src={logoUrl}
-          alt="شعار المؤسسة"
+          alt={t('brand.logoAlt')}
           className="w-full h-full object-contain"
           onError={(e) => {
             // If the logo fails to load (e.g., 404, broken URL),
