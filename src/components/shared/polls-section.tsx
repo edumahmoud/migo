@@ -406,7 +406,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
 
       // Notify students about the new poll
       try {
-        const teacherName = profile.name || 'المعلم';
+        const teacherName = profile.name || t('defaultTeacher');
         await fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

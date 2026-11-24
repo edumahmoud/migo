@@ -54,6 +54,7 @@ export default function GlobalError({
       exitApp: 'الخروج من التطبيق',
       brandTagline: 'أتيندو — منصة تعليمية ذكية',
       referenceCode: 'كود المرجع: {code}',
+      logoAlt: 'شعار المؤسسة',
     },
     en: {
       critical: 'Critical Application Error',
@@ -63,6 +64,7 @@ export default function GlobalError({
       exitApp: 'Exit App',
       brandTagline: 'Attendo — Smart Educational Platform',
       referenceCode: 'Reference code: {code}',
+      logoAlt: 'Organization logo',
     },
   };
 
@@ -120,7 +122,7 @@ export default function GlobalError({
               {cachedLogo ? (
                 <img
                   src={cachedLogo}
-                  alt="شعار المؤسسة"
+                  alt={s.logoAlt}
                   className="w-full h-full object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                 />

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from '@/i18n/use-translations';
 import { useState } from 'react';
 import { Search, Loader2, X, BookOpen, User, Calendar, Wallet, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import { generatePaymentCode } from '@/lib/payment/utils';
  * shows an error message in the card.
  */
 export default function PaymentCodeSearchBox() {
+  const { t, locale } = useTranslations('paymentCodeSearch');
   const [code, setCode] = useState('');
   const [searching, setSearching] = useState(false);
   const [result, setResult] = useState<{
@@ -55,7 +57,7 @@ export default function PaymentCodeSearchBox() {
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!code.trim()) {
-      toast.error('اكتب كود العملية أولاً');
+      toast.error(t('enterCodeFirst'));
       return;
     }
     setSearching(true);
@@ -68,13 +70,13 @@ export default function PaymentCodeSearchBox() {
       const json = await res.json();
       setResult(json);
       if (!json.success) {
-        toast.error(json.error || 'لم يتم العثور على العملية');
+        toast.error(json.error || t('notFound'));
       } else {
-        toast.success('تم العثور على العملية');
+        toast.success(t('found'));
       }
     } catch (err) {
       console.error('[search-box] failed:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('unexpectedError'));
     } finally {
       setSearching(false);
     }
@@ -106,7 +108,7 @@ export default function PaymentCodeSearchBox() {
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="ابحث برقم العملية أو اسم الطالب..."
+              placeholder={t('placeholder')}
               className="ps-8"
               disabled={searching}
               dir="ltr"
@@ -123,7 +125,7 @@ export default function PaymentCodeSearchBox() {
           </div>
           <Button type="submit" disabled={searching || !code.trim()}>
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            بحث
+            {t('search')}
           </Button>
         </form>
 
@@ -137,15 +139,15 @@ export default function PaymentCodeSearchBox() {
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(result.order!.payment_code);
-                    toast.success(`تم نسخ الكود: ${result.order!.payment_code}`);
+                    toast.success(t('copied', { code: result.order!.payment_code }));
                   } catch {
-                    toast.error('تعذّر نسخ الكود');
+                    toast.error(t('copyFailed'));
                   }
                 }}
                 className="text-sm font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1"
-                title="اضغط للنسخ"
+                title={t('copyTitle')}
               >
-                <span className="font-bold">كود العملية:</span>
+                <span className="font-bold">{t('codeLabel')}</span>
                 <span className="bg-sky-50 dark:bg-sky-900/20 px-2 py-0.5 rounded">
                   {result.order.payment_code}
                 </span>
@@ -161,14 +163,14 @@ export default function PaymentCodeSearchBox() {
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground">المقرر</div>
+                  <div className="text-xs text-muted-foreground">{t('course')}</div>
                   <div className="font-medium truncate">{result.order.subject?.name ?? '—'}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground">الطالب</div>
+                  <div className="text-xs text-muted-foreground">{t('student')}</div>
                   <div className="font-medium truncate">
                     {result.order.student?.name ?? result.order.student?.email ?? '—'}
                     {result.order.student?.student_code && (
@@ -182,7 +184,7 @@ export default function PaymentCodeSearchBox() {
               <div className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div>
-                  <div className="text-xs text-muted-foreground">المبلغ</div>
+                  <div className="text-xs text-muted-foreground">{t('amount')}</div>
                   <div className="font-mono font-semibold">
                     {Number(result.order.amount).toFixed(2)} {result.order.currency}
                   </div>
@@ -191,8 +193,8 @@ export default function PaymentCodeSearchBox() {
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-xs text-muted-foreground">تاريخ الإنشاء</div>
-                  <div className="text-xs">{new Date(result.order.created_at).toLocaleString('ar-EG')}</div>
+                  <div className="text-xs text-muted-foreground">{t('createdAt')}</div>
+                  <div className="text-xs">{new Date(result.order.created_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB')}</div>
                 </div>
               </div>
             </div>
@@ -201,10 +203,10 @@ export default function PaymentCodeSearchBox() {
             {(result.order.paid_at || result.order.activated_at) && (
               <div className="flex flex-wrap gap-3 text-xs text-emerald-700 dark:text-emerald-400">
                 {result.order.paid_at && (
-                  <span>✓ دُفع: {new Date(result.order.paid_at).toLocaleString('ar-EG')}</span>
+                  <span>✓ {t('paidAt', { date: new Date(result.order.paid_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB') })}</span>
                 )}
                 {result.order.activated_at && (
-                  <span>✓ فُعّل: {new Date(result.order.activated_at).toLocaleString('ar-EG')}</span>
+                  <span>✓ {t('activatedAt', { date: new Date(result.order.activated_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB') })}</span>
                 )}
               </div>
             )}
@@ -229,7 +231,7 @@ export default function PaymentCodeSearchBox() {
         {/* Hint when empty */}
         {!result && (
           <p className="mt-3 text-xs text-muted-foreground">
-            💡 اكتب رقم العملية لتبحث عن تفاصيلها وحالتها.
+            💡 {t('hint')}
           </p>
         )}
       </CardContent>

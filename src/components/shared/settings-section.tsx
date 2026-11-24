@@ -200,7 +200,7 @@ export default function SettingsSection({
   useEffect(() => { setPhone(profile.phone || ''); }, [profile.phone]);
 
   const handlePhoneUpdate = async () => {
-    if (!phone.trim()) { toast.error('الرجاء إدخال رقم الهاتف'); return; }
+    if (!phone.trim()) { toast.error(t('settings.enterPhone')); return; }
     setIsVerifyingPhone(true);
     try {
       const headers = await getCachedAuthHeaders();
@@ -215,19 +215,19 @@ export default function SettingsSection({
         // v110: if a deep_link is returned, open it automatically (redirect to Telegram bot)
         if (json.deep_link) {
           window.open(json.deep_link, '_blank');
-          toast.success('تم فتح تليجرام — ستصلك رسالة برمز التحقق. أدخل الرمز أدناه.');
+          toast.success(t('settings.telegramOpened'));
         } else {
-          toast.success(json.message || 'تم إرسال رمز التحقق عبر تليجرام');
+          toast.success(json.message || t('settings.otpSentTelegram'));
         }
       } else {
-        toast.error(json.error || 'فشل إرسال رمز التحقق');
+        toast.error(json.error || t('settings.otpSendFailed'));
       }
-    } catch { toast.error('فشل إرسال رمز التحقق'); }
+    } catch { toast.error(t('settings.otpSendFailed')); }
     finally { setIsVerifyingPhone(false); }
   };
 
   const handlePhoneOtpVerify = async () => {
-    if (!phoneOtp.trim()) { toast.error('الرجاء إدخال رمز التحقق'); return; }
+    if (!phoneOtp.trim()) { toast.error(t('settings.pleaseEnterOtp')); return; }
     setIsVerifyingPhone(true);
     try {
       const headers = await getCachedAuthHeaders();
@@ -238,14 +238,14 @@ export default function SettingsSection({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم تحديث رقم الهاتف بنجاح');
+        toast.success(json.message || t('settings.phoneUpdatedSuccess'));
         setPhoneVerifyStep('idle');
         setPhoneOtp('');
         window.location.reload();
       } else {
-        toast.error(json.error || 'رمز التحقق غير صحيح');
+        toast.error(json.error || t('settings.otpInvalid'));
       }
-    } catch { toast.error('فشل التحقق من الرمز'); }
+    } catch { toast.error(t('settings.otpVerifyFailed')); }
     finally { setIsVerifyingPhone(false); }
   };
 
@@ -1011,23 +1011,23 @@ export default function SettingsSection({
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1">
                   <KeyRound className="h-3 w-3" />
-                  كود الدخول
+                  {t('settings.loginCode')}
                 </Label>
                 <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
                   <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="text-xs text-foreground font-mono tracking-widest select-all">
                     {profile.student_code || '—'}
                   </span>
-                  <Badge variant="outline" className="ms-auto text-[9px] px-1.5 py-0 shrink-0">للدخول</Badge>
+                  <Badge variant="outline" className="ms-auto text-[9px] px-1.5 py-0 shrink-0">{t('settings.forLogin')}</Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground">استخدم هذا الكود لتسجيل الدخول بدلاً من البريد الإلكتروني</p>
+                <p className="text-[10px] text-muted-foreground">{t('settings.loginCodeHint')}</p>
               </div>
 
               {/* v110: Phone number (with Telegram verification) */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1">
                   <Phone className="h-3 w-3" />
-                  رقم الهاتف
+                  {t('settings.phone')}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Input
@@ -1056,8 +1056,8 @@ export default function SettingsSection({
                     <Phone className="h-3 w-3" />
                   )}
                   {isVerifyingPhone
-                    ? 'جاري التحقق...'
-                    : 'تحديث الرقم — تحويل تلقائي لتليجرام'}
+                    ? t('settings.verifyingPhone')
+                    : t('settings.updatePhoneAuto')}
                 </Button>
                 {phoneVerifyStep === 'otp' && (
                   <div className="space-y-1.5 mt-1.5">
@@ -1065,7 +1065,7 @@ export default function SettingsSection({
                       type="text"
                       value={phoneOtp}
                       onChange={(e) => setPhoneOtp(e.target.value)}
-                      placeholder="أدخل رمز التحقق"
+                      placeholder={t('settings.enterOtp')}
                       className="text-center font-mono tracking-widest h-8 text-xs"
                       disabled={isVerifyingPhone}
                       maxLength={6}
@@ -1077,11 +1077,11 @@ export default function SettingsSection({
                       onClick={handlePhoneOtpVerify}
                       disabled={isVerifyingPhone || !phoneOtp.trim()}
                     >
-                      تأكيد الرمز
+                      {t('settings.verifyOtp')}
                     </Button>
                   </div>
                 )}
-                <p className="text-[10px] text-muted-foreground">سيتم إرسال رمز التحقق عبر تليجرام لتأكيد رقم الهاتف</p>
+                <p className="text-[10px] text-muted-foreground">{t('settings.phoneTelegramHint')}</p>
               </div>
 
               {/* Academic title (teacher only - always shown, includes معلم/معلمة as default) */}

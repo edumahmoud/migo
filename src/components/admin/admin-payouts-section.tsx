@@ -47,14 +47,6 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: 'bg-muted text-muted-foreground',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'معلّق',
-  processing: 'قيد المعالجة',
-  completed: 'مكتمل',
-  failed: 'فشل',
-  cancelled: 'ملغى',
-};
-
 interface PayoutItem {
   id: string;
   teacher_id: string;
@@ -78,6 +70,13 @@ interface PayoutItem {
 
 export default function AdminPayoutsSection() {
   const { t, direction } = useTranslations();
+  const STATUS_LABELS: Record<string, string> = {
+    pending: t('adminPayouts.status.pending'),
+    processing: t('adminPayouts.status.processing'),
+    completed: t('adminPayouts.status.completed'),
+    failed: t('adminPayouts.status.failed'),
+    cancelled: t('adminPayouts.status.cancelled'),
+  };
   const isRTL = direction === 'rtl';
   const [payouts, setPayouts] = useState<PayoutItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,32 +110,32 @@ export default function AdminPayoutsSection() {
     try {
       const res = await fetch(`/api/admin/payouts/${id}/execute`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (!json.success) { toast.error(json.error || 'فشل التنفيذ'); return; }
-      toast.success('تم تنفيذ الدفعة');
+      if (!json.success) { toast.error(json.error || t('adminPayouts.executeFailed')); return; }
+      toast.success(t('adminPayouts.executeSuccess'));
       await fetchPayouts();
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+    } catch { toast.error(t('adminPayouts.unexpected')); }
   };
 
   const cancelPayout = async (id: string) => {
-    const ok = await confirm({ title: 'تأكيد الإلغاء', description: 'هل تريد إلغاء هذه الدفعة؟', confirmLabel: 'إلغاء', cancelLabel: 'تراجع', variant: 'destructive' });
+    const ok = await confirm({ title: t('adminPayouts.cancelConfirmTitle'), description: t('adminPayouts.cancelConfirmDesc'), confirmLabel: t('common.cancel'), cancelLabel: t('common.back'), variant: 'destructive' });
   if (!ok) return;
     try {
       const res = await fetch(`/api/admin/payouts/${id}/cancel`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (!json.success) { toast.error(json.error || 'فشل الإلغاء'); return; }
-      toast.success('تم إلغاء الدفعة');
+      if (!json.success) { toast.error(json.error || t('adminPayouts.cancelFailed')); return; }
+      toast.success(t('adminPayouts.cancelSuccess'));
       await fetchPayouts();
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+    } catch { toast.error(t('adminPayouts.unexpected')); }
   };
 
   const retryPayout = async (id: string) => {
     try {
       const res = await fetch(`/api/admin/payouts/${id}/retry`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (!json.success) { toast.error(json.error || 'فشلت الإعادة'); return; }
-      toast.success('تمت إعادة المحاولة');
+      if (!json.success) { toast.error(json.error || t('adminPayouts.retryFailed')); return; }
+      toast.success(t('adminPayouts.retrySuccess'));
       await fetchPayouts();
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+    } catch { toast.error(t('adminPayouts.unexpected')); }
   };
 
   // v112: client-side search filter — matches reference (provider OR
@@ -185,7 +184,7 @@ export default function AdminPayoutsSection() {
   const copyRef = (text: string) => {
     try {
       navigator.clipboard?.writeText(text);
-      toast.success('تم نسخ المرجع');
+      toast.success(t('adminPayouts.refCopied'));
     } catch { /* ignore */ }
   };
 
@@ -193,7 +192,7 @@ export default function AdminPayoutsSection() {
     return (
       <div className="flex flex-col items-center py-20 gap-3" dir={direction}>
         <MascotLoader kind="ai" size={96} />
-        <p className="text-sm text-muted-foreground">جارٍ تحميل المدفوعات...</p>
+        <p className="text-sm text-muted-foreground">{t('adminPayouts.loading')}</p>
       </div>
     );
   }
@@ -201,7 +200,7 @@ export default function AdminPayoutsSection() {
     return (
       <div className="flex flex-col items-center py-20 gap-4" dir={direction}>
         <AlertCircle className="h-6 w-6 text-red-600" />
-        <p className="font-semibold">تعذّر التحميل</p>
+        <p className="font-semibold">{t('adminPayouts.loadFailed')}</p>
         <Button onClick={fetchPayouts} variant="outline" size="sm">
           <RefreshCw className="h-4 w-4 me-2" />
           {t('common.retry') || 'إعادة'}
@@ -257,11 +256,9 @@ export default function AdminPayoutsSection() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={isRTL
-                  ? 'ابحث بالمرجع أو الوسيلة أو المبلغ أو الحالة...'
-                  : 'Search by reference, method, amount, or status...'}
+                placeholder={t('adminPayouts.searchPlaceholder')}
                 className="h-9 ps-8"
-                aria-label={isRTL ? 'بحث' : 'Search'}
+                aria-label={t('adminPayouts.searchLabel')}
               />
             </div>
           </div>

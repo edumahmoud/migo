@@ -536,7 +536,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             {profile.role === 'student' && profile.student_code && (
               <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 px-3 py-1.5">
                 <Hash className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400 shrink-0" />
-                <span className="text-xs text-muted-foreground">كود الطالب:</span>
+                <span className="text-xs text-muted-foreground">{t('studentCode')}</span>
                 <code className="font-mono font-bold text-sm text-sky-800 dark:text-sky-300" dir="ltr">
                   {profile.student_code}
                 </code>
@@ -545,11 +545,11 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                   onClick={() => {
                     if (profile.student_code) {
                       navigator.clipboard?.writeText(profile.student_code);
-                      toast.success('تم نسخ الكود');
+                      toast.success(t('codeCopied'));
                     }
                   }}
                   className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 shrink-0"
-                  title="نسخ الكود"
+                  title={t('copyCode')}
                 >
                   <Copy className="h-3 w-3" />
                 </button>
@@ -558,7 +558,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             {profile.role === 'teacher' && profile.teacher_code && (
               <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 px-3 py-1.5">
                 <Hash className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400 shrink-0" />
-                <span className="text-xs text-muted-foreground">كود المعلم:</span>
+                <span className="text-xs text-muted-foreground">{t('teacherCode')}</span>
                 <code className="font-mono font-bold text-sm text-teal-800 dark:text-teal-300" dir="ltr">
                   {profile.teacher_code}
                 </code>
@@ -567,11 +567,11 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                   onClick={() => {
                     if (profile.teacher_code) {
                       navigator.clipboard?.writeText(profile.teacher_code);
-                      toast.success('تم نسخ الكود');
+                      toast.success(t('codeCopied'));
                     }
                   }}
                   className="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 shrink-0"
-                  title="نسخ الكود"
+                  title={t('copyCode')}
                 >
                   <Copy className="h-3 w-3" />
                 </button>

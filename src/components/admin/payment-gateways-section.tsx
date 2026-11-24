@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import MascotLoader from '@/components/shared/mascot-loader';
 
@@ -83,6 +84,7 @@ interface GatewayDetail {
 }
 
 export default function PaymentGatewaysSection() {
+  const { t } = useTranslations();
   const [gateways, setGateways] = useState<GatewayMetadata[]>([]);
   const [providers, setProviders] = useState<ProviderSchema[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,7 @@ export default function PaymentGatewaysSection() {
       if (gwJson.success) setGateways(gwJson.gateways ?? []);
       if (provJson.success) setProviders(provJson.providers ?? []);
     } catch {
-      toast.error('تعذّر تحميل بوابات الدفع');
+      toast.error(t('paymentGateways.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -118,9 +120,9 @@ export default function PaymentGatewaysSection() {
     try {
       const res = await fetch(`/api/admin/payment-gateways/${id}/enable`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (json.success) { toast.success('تم تفعيل البوابة'); await load(); }
-      else toast.error(json.error || 'فشل التفعيل');
-    } catch { toast.error('تعذّر الاتصال'); }
+      if (json.success) { toast.success(t('paymentGateways.enableSuccess')); await load(); }
+      else toast.error(json.error || t('paymentGateways.enableFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
     finally { setActioningId(null); }
   };
 
@@ -129,9 +131,9 @@ export default function PaymentGatewaysSection() {
     try {
       const res = await fetch(`/api/admin/payment-gateways/${id}/disable`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (json.success) { toast.success('تم تعطيل البوابة'); await load(); }
-      else toast.error(json.error || 'فشل التعطيل');
-    } catch { toast.error('تعذّر الاتصال'); }
+      if (json.success) { toast.success(t('paymentGateways.disableSuccess')); await load(); }
+      else toast.error(json.error || t('paymentGateways.disableFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
     finally { setActioningId(null); }
   };
 
@@ -140,9 +142,9 @@ export default function PaymentGatewaysSection() {
     try {
       const res = await fetch(`/api/admin/payment-gateways/${id}/set-default`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (json.success) { toast.success('تم تعيين البوابة كافتراضية'); await load(); }
-      else toast.error(json.error || 'فشل التعيين');
-    } catch { toast.error('تعذّر الاتصال'); }
+      if (json.success) { toast.success(t('paymentGateways.setDefaultSuccess')); await load(); }
+      else toast.error(json.error || t('paymentGateways.setDefaultFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
     finally { setActioningId(null); }
   };
 
@@ -151,9 +153,9 @@ export default function PaymentGatewaysSection() {
     try {
       const res = await fetch(`/api/admin/payment-gateways/${id}/test-connection`, { method: 'POST', headers: await getCachedAuthHeaders() });
       const json = await res.json();
-      if (json.success) toast.success(json.message || 'الاتصال ناجح');
-      else toast.error(json.error || json.message || 'فشل الاتصال');
-    } catch { toast.error('تعذّر الاتصال'); }
+      if (json.success) toast.success(json.message || t('paymentGateways.testSuccess'));
+      else toast.error(json.error || json.message || t('paymentGateways.testFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
     finally { setTestingId(null); }
   };
 
@@ -164,8 +166,8 @@ export default function PaymentGatewaysSection() {
       if (json.success) {
         setEditingGateway(json.gateway);
         setShowEditDialog(true);
-      } else toast.error(json.error || 'تعذّر تحميل البيانات');
-    } catch { toast.error('تعذّر الاتصال'); }
+      } else toast.error(json.error || t('paymentGateways.loadDataFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
   };
 
   if (loading) {
@@ -182,10 +184,10 @@ export default function PaymentGatewaysSection() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-sky-600" />
-          <h2 className="text-lg font-bold">بوابات الدفع</h2>
+          <h2 className="text-lg font-bold">{t('paymentGateways.title')}</h2>
         </div>
         <Button onClick={() => setShowAddDialog(true)} size="sm" className="bg-sky-600 hover:bg-sky-700">
-          <Plus className="h-4 w-4 me-1" /> إضافة بوابة
+          <Plus className="h-4 w-4 me-1" /> {t('paymentGateways.addGateway')}
         </Button>
       </div>
 
@@ -194,8 +196,8 @@ export default function PaymentGatewaysSection() {
         <Card className="border-dashed">
           <CardContent className="py-10 text-center text-muted-foreground">
             <Wallet className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p>لا توجد بوابات دفع مُعدّة.</p>
-            <p className="text-xs mt-1">اضغط "إضافة بوابة" لإنشاء بوابة دفع جديدة.</p>
+            <p>{t('paymentGateways.empty')}</p>
+            <p className="text-xs mt-1">{t('paymentGateways.emptyHint')}</p>
           </CardContent>
         </Card>
       ) : (
@@ -249,6 +251,7 @@ function GatewayCard({
   testingId: string | null;
   actioningId: string | null;
 }) {
+  const { t } = useTranslations();
   // Use the gateway's DB UUID for all API calls
   const key = gateway.id;
 
@@ -263,17 +266,17 @@ function GatewayCard({
                 {gateway.displayName}
                 {gateway.isDefault && (
                   <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-200 text-[10px] ms-1">
-                    <Star className="h-2.5 w-2.5 me-1" /> افتراضية
+                    <Star className="h-2.5 w-2.5 me-1" /> {t('paymentGateways.default')}
                   </Badge>
                 )}
               </CardTitle>
               <CardDescription className="text-xs mt-1">
-                {gateway.provider} · {gateway.environment === 'sandbox' ? 'تجريبي' : 'إنتاجي'}
+                {gateway.provider} · {gateway.environment === 'sandbox' ? t('paymentGateways.sandbox') : t('paymentGateways.live')}
               </CardDescription>
             </div>
           </div>
           <Badge variant={gateway.isEnabled ? 'default' : 'secondary'} className="text-[10px]">
-            {gateway.isEnabled ? 'مفعّلة' : 'معطّلة'}
+            {gateway.isEnabled ? t('paymentGateways.enabled') : t('paymentGateways.disabled')}
           </Badge>
         </div>
       </CardHeader>
@@ -289,26 +292,26 @@ function GatewayCard({
         {/* Actions */}
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" variant="outline" onClick={() => onEdit(key)} className="h-7 text-xs">
-            <Edit className="h-3 w-3 me-1" /> تعديل
+            <Edit className="h-3 w-3 me-1" /> {t('paymentGateways.edit')}
           </Button>
           {gateway.isEnabled ? (
             <Button size="sm" variant="ghost" onClick={() => onDisable(key)} disabled={actioningId === key || gateway.isDefault} className="h-7 text-xs text-amber-600 hover:bg-amber-50">
-              <Power className="h-3 w-3 me-1" /> تعطيل
+              <Power className="h-3 w-3 me-1" /> {t('paymentGateways.disable')}
             </Button>
           ) : (
             <Button size="sm" variant="ghost" onClick={() => onEnable(key)} disabled={actioningId === key} className="h-7 text-xs text-emerald-600 hover:bg-emerald-50">
-              <Power className="h-3 w-3 me-1" /> تفعيل
+              <Power className="h-3 w-3 me-1" /> {t('paymentGateways.enable')}
             </Button>
           )}
           {!gateway.isDefault && gateway.isEnabled && (
             <Button size="sm" variant="ghost" onClick={() => onSetDefault(key)} disabled={actioningId === key} className="h-7 text-xs text-sky-600 hover:bg-sky-50">
-              <Star className="h-3 w-3 me-1" /> افتراضية
+              <Star className="h-3 w-3 me-1" /> {t('paymentGateways.default')}
             </Button>
           )}
           {gateway.capabilities.supportsTestConnection && (
             <Button size="sm" variant="ghost" onClick={() => onTestConnection(key)} disabled={testingId === key} className="h-7 text-xs">
               {testingId === key ? <Loader2 className="h-3 w-3 me-1 animate-spin" /> : <Zap className="h-3 w-3 me-1" />}
-              اختبار
+              {t('paymentGateways.test')}
             </Button>
           )}
         </div>
@@ -326,6 +329,7 @@ function AddGatewayDialog({
   providers: ProviderSchema[];
   onCreated: () => void;
 }) {
+  const { t } = useTranslations();
   const [selectedProvider, setSelectedProvider] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [environment, setEnvironment] = useState<'sandbox' | 'live'>('sandbox');
@@ -337,7 +341,7 @@ function AddGatewayDialog({
 
   const handleSubmit = async () => {
     if (!selectedProvider || !displayName) {
-      toast.error('الرجاء اختيار المزود وإدخال الاسم');
+      toast.error(t('paymentGateways.providerAndNameRequired'));
       return;
     }
     setSubmitting(true);
@@ -379,11 +383,11 @@ function AddGatewayDialog({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم إنشاء البوابة بنجاح');
+        toast.success(t('paymentGateways.createSuccess'));
         setSelectedProvider(''); setDisplayName(''); setCredentials({}); setConfiguration({});
         onCreated();
-      } else toast.error(json.error || 'فشل الإنشاء');
-    } catch { toast.error('تعذّر الاتصال'); }
+      } else toast.error(json.error || t('paymentGateways.createFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
     finally { setSubmitting(false); }
   };
 
@@ -391,13 +395,13 @@ function AddGatewayDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Plus className="h-5 w-5 text-sky-600" /> إضافة بوابة دفع</DialogTitle>
-          <DialogDescription>أدخل بيانات البوابة الجديدة. تُشفَّر البيانات الحساسة تلقائياً.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2"><Plus className="h-5 w-5 text-sky-600" /> {t('paymentGateways.addTitle')}</DialogTitle>
+          <DialogDescription>{t('paymentGateways.addDesc')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {/* Provider selection */}
           <div className="space-y-2">
-            <Label>المزود</Label>
+            <Label>{t('paymentGateways.provider')}</Label>
             <div className="grid grid-cols-2 gap-2">
               {providers.map(p => (
                 <button
@@ -415,21 +419,21 @@ function AddGatewayDialog({
           {selectedSchema && (
             <>
               <div className="space-y-2">
-                <Label>الاسم المعروض</Label>
-                <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="مثال: Paymob Sandbox" />
+                <Label>{t('paymentGateways.displayName')}</Label>
+                <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder={t('paymentGateways.displayNamePlaceholder')} />
               </div>
 
               <div className="space-y-2">
-                <Label>البيئة</Label>
+                <Label>{t('paymentGateways.environment')}</Label>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setEnvironment('sandbox')} className={`rounded-lg border px-3 py-1.5 text-sm ${environment === 'sandbox' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200'}`}>تجريبي</button>
-                  <button type="button" onClick={() => setEnvironment('live')} className={`rounded-lg border px-3 py-1.5 text-sm ${environment === 'live' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-gray-200'}`}>إنتاجي</button>
+                  <button type="button" onClick={() => setEnvironment('sandbox')} className={`rounded-lg border px-3 py-1.5 text-sm ${environment === 'sandbox' ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-gray-200'}`}>{t('paymentGateways.sandbox')}</button>
+                  <button type="button" onClick={() => setEnvironment('live')} className={`rounded-lg border px-3 py-1.5 text-sm ${environment === 'live' ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-gray-200'}`}>{t('paymentGateways.live')}</button>
                 </div>
               </div>
 
               {/* Credentials fields */}
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">بيانات الدخول (Credentials)</Label>
+                <Label className="text-sm font-semibold">{t('paymentGateways.credentialsLabel')}</Label>
                 {selectedSchema.credentialFields.map(field => (
                   <div key={field.name} className="space-y-1">
                     <Label className="text-xs">{field.label} {field.required && <span className="text-rose-500">*</span>}</Label>
@@ -448,7 +452,7 @@ function AddGatewayDialog({
 
               {/* Configuration fields */}
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">الإعدادات (Configuration)</Label>
+                <Label className="text-sm font-semibold">{t('paymentGateways.configurationLabel')}</Label>
                 {selectedSchema.configurationFields.map(field => (
                   <div key={field.name} className="space-y-1">
                     <Label className="text-xs">{field.label} {field.required && <span className="text-rose-500">*</span>}</Label>
@@ -468,10 +472,10 @@ function AddGatewayDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button onClick={handleSubmit} disabled={submitting || !selectedProvider || !displayName} className="bg-sky-600 hover:bg-sky-700">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Plus className="h-4 w-4 me-1" />}
-            إنشاء
+            {t('paymentGateways.create')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -489,6 +493,7 @@ function EditGatewayDialog({
   providers: ProviderSchema[];
   onUpdated: () => void;
 }) {
+  const { t } = useTranslations();
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [configuration, setConfiguration] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -549,10 +554,10 @@ function EditGatewayDialog({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تحديث البوابة');
+        toast.success(t('paymentGateways.updateSuccess'));
         onUpdated();
-      } else toast.error(json.error || 'فشل التحديث');
-    } catch { toast.error('تعذّر الاتصال'); }
+      } else toast.error(json.error || t('paymentGateways.updateFailed'));
+    } catch { toast.error(t('paymentGateways.connectionFailed')); }
     finally { setSubmitting(false); }
   };
 
@@ -560,9 +565,9 @@ function EditGatewayDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Edit className="h-5 w-5 text-sky-600" /> تعديل بوابة: {gateway.displayName}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Edit className="h-5 w-5 text-sky-600" /> {t('paymentGateways.editTitle', { name: gateway.displayName })}</DialogTitle>
           <DialogDescription>
-            المزود: {gateway.provider} · البيئة: {gateway.environment === 'sandbox' ? 'تجريبي' : 'إنتاجي'}
+            {t('paymentGateways.providerEnv', { provider: gateway.provider, env: gateway.environment === 'sandbox' ? t('paymentGateways.sandbox') : t('paymentGateways.live') })}
           </DialogDescription>
         </DialogHeader>
 
@@ -572,7 +577,7 @@ function EditGatewayDialog({
             <div className="space-y-2">
               <div className="flex items-center gap-1.5">
                 <Shield className="h-3.5 w-3.5 text-slate-500" />
-                <Label className="text-sm font-semibold">بيانات الدخول (اتركها فارغة للإبقاء على الحالي)</Label>
+                <Label className="text-sm font-semibold">{t('paymentGateways.credentialsEditLabel')}</Label>
               </div>
               {schema.credentialFields.map(field => (
                 <div key={field.name} className="space-y-1">
@@ -591,7 +596,7 @@ function EditGatewayDialog({
 
             {/* Configuration — pre-filled */}
             <div className="space-y-2">
-              <Label className="text-sm font-semibold">الإعدادات</Label>
+              <Label className="text-sm font-semibold">{t('paymentGateways.settingsLabel')}</Label>
               {schema.configurationFields.map(field => (
                 <div key={field.name} className="space-y-1">
                   <Label className="text-xs">{field.label}</Label>
@@ -610,10 +615,10 @@ function EditGatewayDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
           <Button onClick={handleSubmit} disabled={submitting} className="bg-sky-600 hover:bg-sky-700">
             {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Check className="h-4 w-4 me-1" />}
-            حفظ
+            {t('paymentGateways.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

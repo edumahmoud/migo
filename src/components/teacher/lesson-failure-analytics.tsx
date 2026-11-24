@@ -72,7 +72,7 @@ const STATUS_LABELS_EN: Record<string, string> = {
 };
 
 export default function LessonFailureAnalytics({ subjects }: LessonFailureAnalyticsProps) {
-  const { t } = useTranslations('tracking');
+  const { t, locale } = useTranslations('tracking');
   const { t: tCommon } = useTranslations('common');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || '');
   const [progress, setProgress] = useState<LessonProgress[]>([]);
@@ -410,7 +410,7 @@ export default function LessonFailureAnalytics({ subjects }: LessonFailureAnalyt
                     <Tooltip />
                     <Legend
                       formatter={(value: string) => {
-                        const map = STATUS_LABELS_AR[value] || value;
+                        const map = (locale === 'ar' ? STATUS_LABELS_AR : STATUS_LABELS_EN)[value] || value;
                         return <span className="text-xs">{map}</span>;
                       }}
                     />

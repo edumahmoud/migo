@@ -24,6 +24,10 @@ import {
   cleanupOldTasks,
   type PersistedUploadTask,
 } from '@/lib/upload-persistence';
+import { useLocaleStore } from '@/i18n/locale-store';
+
+const msg = (ar: string, en: string): string =>
+  useLocaleStore.getState().locale === 'ar' ? ar : en;
 
 // ─── Types ───
 
@@ -243,7 +247,7 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
         // No file data available — mark as error
         get().updateTask(id, {
           status: 'error',
-          error: 'لا يمكن إعادة المحاولة — بيانات الملف غير متوفرة. يرجى رفع الملف مرة أخرى.',
+          error: msg('لا يمكن إعادة المحاولة — بيانات الملف غير متوفرة. يرجى رفع الملف مرة أخرى.', 'Cannot retry — file data is unavailable. Please upload the file again.'),
         });
       }
     });
@@ -337,7 +341,7 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
           extension: meta.extension,
           progress: meta.progress,
           status: wasActive ? 'interrupted' : (meta.status as FileUploadStatus),
-          error: wasActive ? 'تمت مقاطعة الرفع بسبب إعادة تحميل الصفحة' : meta.error,
+          error: wasActive ? msg('تمت مقاطعة الرفع بسبب إعادة تحميل الصفحة', 'Upload interrupted by page reload') : meta.error,
           profileId: meta.profileId,
           subjectIds: meta.subjectIds,
         };
@@ -350,7 +354,7 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
       // If there are interrupted uploads, notify the user
       const interruptedCount = restoredTasks.filter((t) => t.status === 'interrupted').length;
       if (interruptedCount > 0) {
-        toast.info(`تم العثور على ${interruptedCount} رفع(ات) متقطع(ة). يمكنك إعادة المحاولة.`, {
+        toast.info(msg(`تم العثور على ${interruptedCount} رفع(ات) متقطع(ة). يمكنك إعادة المحاولة.`, `Found ${interruptedCount} interrupted upload(s). You can retry.`), {
           duration: 6000,
         });
       }
@@ -417,7 +421,7 @@ async function startUpload(taskId: string) {
             if (t?.status === 'cancelled' || t?.status === 'paused') return;
             store.updateTask(taskId, {
               status: 'error',
-              error: `المساحة ممتلئة (${usedMb}/${totalQuotaMb} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`,
+              error: msg(`المساحة ممتلئة (${usedMb}/${totalQuotaMb} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`, `Storage full (${usedMb}/${totalQuotaMb} MB). Please free up space to continue uploading.`),
             });
             return;
           }
@@ -429,7 +433,7 @@ async function startUpload(taskId: string) {
             if (t?.status === 'cancelled' || t?.status === 'paused') return;
             store.updateTask(taskId, {
               status: 'error',
-              error: `حجم الملف (${fileSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). يرجى تزويد المساحة أو حذف بعض الملفات.`,
+              error: msg(`حجم الملف (${fileSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). يرجى تزويد المساحة أو حذف بعض الملفات.`, `File size (${fileSizeMb.toFixed(1)} MB) is larger than the remaining space (${remainingMb} MB). Please free up space or delete some files.`),
             });
             return;
           }
@@ -444,7 +448,7 @@ async function startUpload(taskId: string) {
     if (!token) {
       const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
       if (t?.status === 'cancelled' || t?.status === 'paused' || t?.status === 'interrupted') return;
-      store.updateTask(taskId, { status: 'error', error: 'يرجى تسجيل الدخول أولاً' });
+      store.updateTask(taskId, { status: 'error', error: msg('يرجى تسجيل الدخول أولاً', 'Please sign in first') });
       return;
     }
 
@@ -453,7 +457,7 @@ async function startUpload(taskId: string) {
 
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     if (!supabaseUrl || !supabaseAnonKey) {
-      store.updateTask(taskId, { status: 'error', error: 'إعدادات التخزين غير مكتملة' });
+      store.updateTask(taskId, { status: 'error', error: msg('إعدادات التخزين غير مكتملة', 'Storage settings are incomplete') });
       return;
     }
 
@@ -479,7 +483,7 @@ async function startUpload(taskId: string) {
           // Also update the task's fileData for future use
           store.updateTask(taskId, { fileData: persistedData });
         } else {
-          store.updateTask(taskId, { status: 'error', error: `فشل قراءة الملف "${fileName}"` });
+          store.updateTask(taskId, { status: 'error', error: msg(`فشل قراءة الملف "${fileName}"`, `Failed to read file "${fileName}"`) });
           return;
         }
       }
@@ -492,7 +496,7 @@ async function startUpload(taskId: string) {
       } else {
         store.updateTask(taskId, {
           status: 'error',
-          error: 'بيانات الملف غير متوفرة. يرجى رفع الملف مرة أخرى.',
+          error: msg('بيانات الملف غير متوفرة. يرجى رفع الملف مرة أخرى.', 'File data is unavailable. Please upload the file again.'),
         });
         return;
       }
@@ -557,11 +561,11 @@ async function startUpload(taskId: string) {
         let result: { success: boolean; data?: Record<string, unknown>; error?: string };
         if (res.ok) {
           try { result = await res.json(); }
-          catch { result = { success: false, error: 'استجابة الخادم غير متوقعة' }; }
+          catch { result = { success: false, error: msg('استجابة الخادم غير متوقعة', 'Unexpected server response') }; }
         } else {
           const errorText = await res.text();
           try { result = JSON.parse(errorText); }
-          catch { result = { success: false, error: `خطأ HTTP ${res.status}` }; }
+          catch { result = { success: false, error: msg(`خطأ HTTP ${res.status}`, `HTTP error ${res.status}`) }; }
         }
 
         if (result.success && result.data?.id) {
@@ -624,7 +628,7 @@ async function startUpload(taskId: string) {
           });
           xhr.addEventListener('timeout', () => {
             activeXHRs.delete(taskId);
-            reject(new Error('انتهت مهلة الرفع'));
+            reject(new Error(msg('انتهت مهلة الرفع', 'Upload timed out')));
           });
 
           const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
@@ -694,7 +698,7 @@ async function startUpload(taskId: string) {
       if (!storageUploadSuccess) {
         const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
         if (t?.status === 'paused' || t?.status === 'cancelled' || t?.status === 'interrupted') return;
-        store.updateTask(taskId, { status: 'error', error: 'فشل رفع الملف' });
+        store.updateTask(taskId, { status: 'error', error: msg('فشل رفع الملف', 'File upload failed') });
         return;
       }
 
@@ -732,11 +736,11 @@ async function startUpload(taskId: string) {
         let result: { success: boolean; data?: Record<string, unknown>; error?: string };
         if (res.ok) {
           try { result = await res.json(); }
-          catch { result = { success: false, error: 'استجابة الخادم غير متوقعة' }; }
+          catch { result = { success: false, error: msg('استجابة الخادم غير متوقعة', 'Unexpected server response') }; }
         } else {
           const errorText = await res.text();
           try { result = JSON.parse(errorText); }
-          catch { result = { success: false, error: `خطأ HTTP ${res.status}` }; }
+          catch { result = { success: false, error: msg(`خطأ HTTP ${res.status}`, `HTTP error ${res.status}`) }; }
         }
         clearTimeout(timeoutId2);
         abortControllers.delete(taskId);
@@ -748,7 +752,7 @@ async function startUpload(taskId: string) {
         } else {
           console.error('[File Upload] Create record error:', result.error);
           await supabase.storage.from('user-files').remove([storagePath]);
-          store.updateTask(taskId, { status: 'error', error: result.error || 'فشل حفظ بيانات الملف' });
+          store.updateTask(taskId, { status: 'error', error: result.error || msg('فشل حفظ بيانات الملف', 'Failed to save file data') });
           return;
         }
       } finally {
@@ -807,14 +811,14 @@ async function startUpload(taskId: string) {
       store.updateTask(taskId, { status: 'success', progress: 100 });
       // Clean up persisted data for completed upload (no need to keep it)
       cleanupTask(taskId);
-      toast.success(`تم رفع "${displayName}" بنجاح`);
+      toast.success(msg(`تم رفع "${displayName}" بنجاح`, `"${displayName}" uploaded successfully`));
     }
   } catch (err: unknown) {
     const taskNow = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
     // Don't show error for cancelled/paused/interrupted tasks
     if (!taskNow || taskNow.status === 'cancelled' || taskNow.status === 'paused' || taskNow.status === 'interrupted') return;
 
-    const message = err instanceof Error ? err.message : 'حدث خطأ أثناء رفع الملف';
+    const message = err instanceof Error ? err.message : msg('حدث خطأ أثناء رفع الملف', 'An error occurred while uploading the file');
     useFileUploadStore.getState().updateTask(taskId, { status: 'error', error: message });
     toast.error(message);
   }
