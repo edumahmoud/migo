@@ -1261,7 +1261,7 @@ function AuthPageContent({
   return (
     <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
       {/* ── Left Panel: Announcement OR Branding ── */}
-      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden ${hasFullscreenAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
+      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden lg:sticky lg:top-0 lg:h-screen lg:self-start ${hasFullscreenAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
         {hasFullscreenAnnouncement ? (
           /* Show announcement in the branding panel area (fullscreen mode) */
           <AnnouncementBrandingPanel />

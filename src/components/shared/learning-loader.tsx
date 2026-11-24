@@ -43,7 +43,7 @@ export default function LearningLoader() {
         const landed = -(1 - i * 0.025);
         const pageStyle = { animationDelay: `${i * 0.42}s`, '--ll-landed': `${landed}` } as CSSProperties;
         return (
-          <path key={i} d="M80 47Q101 23 119 37V90Q100 80 80 99Z" className="ll-flip-page" style={pageStyle}
+          <path key={i} d="M80 48Q104 34 128 39V94Q104 86 80 99Z" className="ll-flip-page" style={pageStyle}
             fill={i % 2 ? '#f0fdfa' : '#ffffff'} stroke="#99f6e4" strokeWidth="1.5" />
         );
       })}
