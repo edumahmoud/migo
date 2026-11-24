@@ -1312,9 +1312,9 @@ function AuthPageContent({
       </div>
 
       {/* ── Auth Form Panel ── */}
-      <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-3 px-4 pb-4 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
         {/* Language toggle (login / register) */}
-        <div className="absolute top-3 end-3 z-20">
+        <div className="relative z-20 mx-auto mb-3 flex w-full max-w-md justify-end lg:absolute lg:end-3 lg:top-3 lg:m-0 lg:w-auto lg:max-w-none">
           <AuthLanguageToggle />
         </div>
         {/* Mobile-only top branding/announcement */}
