@@ -530,15 +530,15 @@ function HomeContent() {
   // added only when the user is on the profile/settings variant.
   const agentNavItems = useMemo(() => {
     const ALL_AGENT_SECTIONS: Array<{ id: string; label: string; icon: React.ReactNode }> = [
-      { id: 'search', label: 'البحث عن طالب', icon: <Search className="h-5 w-5" /> },
-      { id: 'pendingOrders', label: 'الطلبات المعلّقة', icon: <Clock className="h-5 w-5" /> },
-      { id: 'dashboard', label: 'الرئيسية', icon: <LayoutDashboard className="h-5 w-5" /> },
-      { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-      { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
-      { id: 'tracking', label: 'تتبع الأداء', icon: <Activity className="h-5 w-5" /> },
-      { id: 'financialManagement', label: 'الإدارة المالية', icon: <DollarSign className="h-5 w-5" /> },
-      { id: 'calendar', label: 'التقويم', icon: <Clock className="h-5 w-5" /> },
-      { id: 'reports', label: 'البلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
+      { id: 'search', label: t('nav.searchStudent'), icon: <Search className="h-5 w-5" /> },
+      { id: 'pendingOrders', label: t('nav.pendingOrders'), icon: <Clock className="h-5 w-5" /> },
+      { id: 'dashboard', label: t('nav.home'), icon: <LayoutDashboard className="h-5 w-5" /> },
+      { id: 'subjects', label: t('nav.subjects'), icon: <BookOpen className="h-5 w-5" /> },
+      { id: 'students', label: t('nav.students'), icon: <Users className="h-5 w-5" /> },
+      { id: 'tracking', label: t('nav.tracking'), icon: <Activity className="h-5 w-5" /> },
+      { id: 'financialManagement', label: t('nav.financialManagement'), icon: <DollarSign className="h-5 w-5" /> },
+      { id: 'calendar', label: t('nav.calendar'), icon: <Clock className="h-5 w-5" /> },
+      { id: 'reports', label: t('nav.reports'), icon: <ShieldAlert className="h-5 w-5" /> },
     ];
     const filtered = agentAllowedSections === undefined
       ? ALL_AGENT_SECTIONS  // still loading — show all to avoid flicker
@@ -547,9 +547,9 @@ function HomeContent() {
         : ALL_AGENT_SECTIONS.filter(s => agentAllowedSections.includes(s.id));
     return [
       ...filtered,
-      { id: 'profile', label: 'الملف الشخصي', icon: <UserCircle className="h-5 w-5" /> },
+      { id: 'profile', label: t('nav.profile'), icon: <UserCircle className="h-5 w-5" /> },
     ];
-  }, [agentAllowedSections]);
+  }, [agentAllowedSections, t]);
 
   // ─── Payment callback (UX only) ───
   // When the student returns from Paymob's hosted checkout, the backend
@@ -661,7 +661,7 @@ function HomeContent() {
 
             if (json.success) {
               const { toast } = await import('sonner');
-              toast.success(json.message || 'تم تفعيل اشتراكك بنجاح', {
+              toast.success(json.message || t('nav.subscriptionActivated'), {
                 duration: 4000,
               });
               // v122: URL is already clean (cleaned above). Just reload.
@@ -679,7 +679,7 @@ function HomeContent() {
             // Show error to user — but also try to refresh in case
             // the webhook arrived in the meantime
             const { toast } = await import('sonner');
-            toast.error(json.error || 'تعذّر التحقق التلقائي — انتقل لسجل الاشتراكات لمعرفة الحالة', {
+            toast.error(json.error || t('nav.autoVerifyFailed'), {
               duration: 8000,
             });
             // Refresh after 3s so any pending webhook result shows up
@@ -776,7 +776,7 @@ function HomeContent() {
       console.warn('[handleSignOut] signOut() threw, but UI is already on auth page:', err);
       // Even if signOut fails, force-clear the session by redirecting
       if (typeof window !== 'undefined') {
-        window.location.href = '/?auth_error=' + encodeURIComponent('تم تسجيل الخروج');
+        window.location.href = '/?auth_error=' + encodeURIComponent(t('auth.logoutSuccess'));
       }
     }
   }, [signOut, destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage]);
@@ -1106,7 +1106,7 @@ onSignOut={async () => {
                 onSectionChange={(s: string) => setAgentSection(s)}
                 customNavItems={[
                   ...agentNavItems,
-                  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
+                  { id: 'settings', label: t('nav.settings'), icon: <Settings className="h-5 w-5" /> },
                 ]}
               />
               <main

@@ -47,17 +47,14 @@ interface Props {
   onRequestSubmitted?: () => void;
 }
 
-/** Format the savings text in proper Arabic. */
-function formatSavings(yearlyPrice: number, monthlyPrice: number): string {
+/** Format the savings text (localized). */
+function formatSavings(yearlyPrice: number, monthlyPrice: number, t: (key: string, params?: Record<string, string | number>) => string): string {
   if (monthlyPrice <= 0 || yearlyPrice <= 0) return '';
   const monthlyTotal = monthlyPrice * 12;
   if (yearlyPrice >= monthlyTotal) return '';
   const saved = monthlyTotal - yearlyPrice;
   const savedMonths = Math.round(saved / monthlyPrice);
-  if (savedMonths === 1) return '(وفًر شهر)';
-  if (savedMonths === 2) return '(وفًر شهرين)';
-  if (savedMonths >= 3 && savedMonths <= 10) return `(وفًر ${savedMonths} أشهر)`;
-  if (savedMonths > 10) return `(وفًر ${savedMonths} شهر)`;
+  if (savedMonths >= 1) return t('lockedSection.saveMonths', { count: savedMonths });
   return '';
 }
 
@@ -68,7 +65,7 @@ export default function SectionLockedView({
   userRole,
   onRequestSubmitted,
 }: Props) {
-  const { direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const isStorage = config.usage_metric === 'storage';
   const [planType, setPlanType] = useState<'monthly' | 'yearly'>('monthly');
   const [notes, setNotes] = useState('');
@@ -126,7 +123,7 @@ export default function SectionLockedView({
   const yearlyPrice = userRole === 'student'
     ? config.student_yearly_price
     : config.teacher_yearly_price;
-  const savingsText = formatSavings(Number(yearlyPrice), Number(monthlyPrice));
+  const savingsText = formatSavings(Number(yearlyPrice), Number(monthlyPrice), t);
 
   // v134g: dynamic usage limit based on the SELECTED PLAN + role.
   const usageLimit = userRole === 'student'
@@ -148,17 +145,17 @@ export default function SectionLockedView({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم إرسال طلب التفعيل. سيتم التواصل معك قريباً.');
+        toast.success(t('lockedSection.requestSent'));
         setExistingRequest({ status: 'pending', plan_type: planType, created_at: new Date().toISOString() });
         onRequestSubmitted?.();
       } else {
-        const errMsg = json.error || 'فشل إرسال الطلب';
+        const errMsg = json.error || t('lockedSection.requestFailed');
         toast.error(errMsg);
         console.error('[SectionLockedView] submit error:', json);
       }
     } catch (err) {
       console.error('[SectionLockedView] network error:', err);
-      toast.error('حدث خطأ غير متوقع أثناء إرسال الطلب');
+      toast.error(t('lockedSection.requestUnexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -167,11 +164,11 @@ export default function SectionLockedView({
   const statusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200"><Clock className="h-3 w-3 me-1" />قيد المراجعة</Badge>;
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200"><Clock className="h-3 w-3 me-1" />{t('lockedSection.statusPending')}</Badge>;
       case 'approved':
-        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle2 className="h-3 w-3 me-1" />مقبول</Badge>;
+        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200"><CheckCircle2 className="h-3 w-3 me-1" />{t('lockedSection.statusApproved')}</Badge>;
       case 'rejected':
-        return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200"><XCircle className="h-3 w-3 me-1" />مرفوض</Badge>;
+        return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200"><XCircle className="h-3 w-3 me-1" />{t('lockedSection.statusRejected')}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -198,8 +195,8 @@ export default function SectionLockedView({
             <CardTitle className="text-xl">{sectionLabel}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {isStorage
-                ? 'هذا القسم يتطلب شراء مساحة تخزينية.'
-                : 'هذا القسم ميزة مدفوعة. اختر خطة التفعيل المناسبة لك.'}
+                ? t('lockedSection.requiresStoragePurchase')
+                : t('lockedSection.paidFeature')}
             </p>
           </CardHeader>
         </Card>
@@ -209,8 +206,8 @@ export default function SectionLockedView({
           <Card className="border-emerald-200 dark:border-emerald-900/60">
             <CardContent className="p-6 text-center space-y-2">
               <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
-              <p className="font-medium text-emerald-700 dark:text-emerald-400">القسم مفعّل</p>
-              <p className="text-xs text-muted-foreground">يمكنك الآن استخدام هذا القسم.</p>
+              <p className="font-medium text-emerald-700 dark:text-emerald-400">{t('lockedSection.sectionActive')}</p>
+              <p className="text-xs text-muted-foreground">{t('lockedSection.canUseNow')}</p>
             </CardContent>
           </Card>
         )}
@@ -220,9 +217,9 @@ export default function SectionLockedView({
           <Card>
             <CardContent className="p-4 flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-medium">طلبك قيد المراجعة</p>
+                <p className="text-sm font-medium">{t('lockedSection.requestUnderReview')}</p>
                 <p className="text-xs text-muted-foreground">
-                  الخطة: {existingRequest?.plan_type === 'yearly' ? 'سنوي' : isStorage ? 'مساحة' : 'شهري'}
+                  {t('lockedSection.planLabel')}: {existingRequest?.plan_type === 'yearly' ? t('lockedSection.yearly') : isStorage ? t('lockedSection.storage') : t('lockedSection.monthly')}
                 </p>
               </div>
               {statusBadge('pending')}
@@ -238,8 +235,8 @@ export default function SectionLockedView({
               <Card>
                 <CardContent className="p-4 flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium">طلبك السابق</p>
-                    <p className="text-xs text-muted-foreground">تم رفضه — يمكنك إرسال طلب جديد</p>
+                    <p className="text-sm font-medium">{t('lockedSection.previousRequest')}</p>
+                    <p className="text-xs text-muted-foreground">{t('lockedSection.rejectedCanResend')}</p>
                   </div>
                   {statusBadge('rejected')}
                 </CardContent>
@@ -252,13 +249,13 @@ export default function SectionLockedView({
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <HardDrive className="h-4 w-4 text-sky-600" />
-                    تزويد مساحة التخزين
+                    {t('lockedSection.increaseStorage')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>مساحة التخزين ممتلئة. اختر خطة لتزويد المساحة:</span>
+                    <span>{t('lockedSection.storageFull')}</span>
                   </div>
                   {/* Monthly upgrade */}
                   <button
@@ -271,9 +268,9 @@ export default function SectionLockedView({
                     }`}
                   >
                     <div>
-                      <div className="font-medium text-sm">خطة شهرية</div>
+                      <div className="font-medium text-sm">{t('lockedSection.monthlyPlan')}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        {storageQuota ?? 'غير محدود'} ميجابايت · 30 يوماً
+                        {storageQuota ?? t('lockedSection.unlimited')} {t('lockedSection.mbUnit')} · {t('lockedSection.days30')}
                       </div>
                     </div>
                     <div className="font-bold text-amber-700 dark:text-amber-400">
@@ -291,9 +288,9 @@ export default function SectionLockedView({
                     }`}
                   >
                     <div>
-                      <div className="font-medium text-sm">خطة سنوية</div>
+                      <div className="font-medium text-sm">{t('lockedSection.yearlyPlan')}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        {storageQuota ?? 'غير محدود'} ميجابايت · 365 يوماً {savingsText}
+                        {storageQuota ?? t('lockedSection.unlimited')} {t('lockedSection.mbUnit')} · {t('lockedSection.days365')} {savingsText}
                       </div>
                     </div>
                     <div className="font-bold text-amber-700 dark:text-amber-400">
@@ -301,7 +298,7 @@ export default function SectionLockedView({
                     </div>
                   </button>
                   <div className="rounded-md bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3 text-xs text-sky-700 dark:text-sky-300">
-                    تشمل المساحة جميع الملفات المرفوعة. المحذوفة محسوبة من الإجمالي.
+                    {t('lockedSection.storageIncludesNote')}
                   </div>
                 </CardContent>
               </Card>
@@ -312,7 +309,7 @@ export default function SectionLockedView({
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-amber-600" />
-                      اختر الخطة
+                      {t('lockedSection.choosePlan')}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -326,9 +323,9 @@ export default function SectionLockedView({
                       }`}
                     >
                       <div>
-                        <div className="font-medium text-sm">اشتراك شهري</div>
+                        <div className="font-medium text-sm">{t('lockedSection.monthlySubscription')}</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {usageLimit ? `${usageLimit} عملية` : 'غير محدود'} · 30 يوماً
+                          {usageLimit ? `${usageLimit} ${t('lockedSection.operationsUnit')}` : t('lockedSection.unlimited')} · {t('lockedSection.days30')}
                         </div>
                       </div>
                       <div className="font-bold text-amber-700 dark:text-amber-400">
@@ -345,9 +342,9 @@ export default function SectionLockedView({
                       }`}
                     >
                       <div>
-                        <div className="font-medium text-sm">اشتراك سنوي</div>
+                        <div className="font-medium text-sm">{t('lockedSection.yearlySubscription')}</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {usageLimit ? `${usageLimit} عملية` : 'غير محدود'} · 365 يوماً {savingsText}
+                          {usageLimit ? `${usageLimit} ${t('lockedSection.operationsUnit')}` : t('lockedSection.unlimited')} · {t('lockedSection.days365')} {savingsText}
                         </div>
                       </div>
                       <div className="font-bold text-amber-700 dark:text-amber-400">
@@ -362,18 +359,18 @@ export default function SectionLockedView({
             {/* Request form */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">بيانات طلب التفعيل</CardTitle>
+                <CardTitle className="text-sm">{t('lockedSection.requestFormTitle')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="rounded-md bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3 text-xs text-sky-700 dark:text-sky-300">
-                  سيتم إرسال طلبك لإدارة المنصة. سيتواصل معك فريق الدعم لإتمام التفعيل بعد تأكيد الدفع.
+                  {t('lockedSection.requestFormDesc')}
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">ملاحظات (اختياري)</Label>
+                  <Label className="text-xs">{t('lockedSection.notesOptional')}</Label>
                   <Textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="أي ملاحظات تريد إرسالها للإدارة..."
+                    placeholder={t('lockedSection.notesPlaceholder')}
                     rows={2}
                     maxLength={500}
                   />
@@ -385,11 +382,11 @@ export default function SectionLockedView({
                 >
                   {submitting ? <Loader2 className="h-4 w-4 me-1 animate-spin" /> : <Lock className="h-4 w-4 me-1" />}
                   {isStorage
-                    ? `إرسال طلب تزويد المساحة (${planType === 'yearly' ? 'سنوي' : 'شهري'})`
-                    : `إرسال طلب التفعيل (${planType === 'yearly' ? 'سنوي' : 'شهري'})`}
+                    ? t('lockedSection.submitStorageRequest', { plan: planType === 'yearly' ? t('lockedSection.yearly') : t('lockedSection.monthly') })
+                    : t('lockedSection.submitActivationRequest', { plan: planType === 'yearly' ? t('lockedSection.yearly') : t('lockedSection.monthly') })}
                 </Button>
                 <p className="text-[10px] text-muted-foreground text-center">
-                  سيتم استخدام بيانات حسابك (الاسم، البريد، الهاتف) تلقائياً في الطلب.
+                  {t('lockedSection.accountDataUsedNote')}
                 </p>
               </CardContent>
             </Card>

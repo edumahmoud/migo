@@ -301,7 +301,8 @@
     "invalidPhone": "رقم الهاتف غير صحيح",
     "phoneConversionFailed": "تعذّر تحويل رقم الهاتف إلى الصيغة الدولية (+201234567890)",
     "switchToEnglish": "التبديل إلى الإنجليزية",
-    "switchToArabic": "التبديل إلى العربية"
+    "switchToArabic": "التبديل إلى العربية",
+    "logoutSuccess": "تم تسجيل الخروج"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -410,7 +411,10 @@
     "payoutMethods": "وسائل الاستلام",
     "payouts": "المدفوعات",
     "payoutHistory": "سجل المدفوعات",
-    "financialManagement": "الإيرادات المالية"
+    "financialManagement": "الإيرادات المالية",
+    "searchStudent": "البحث عن طالب",
+    "subscriptionActivated": "تم تفعيل اشتراكك بنجاح",
+    "autoVerifyFailed": "تعذّر التحقق التلقائي — انتقل لسجل الاشتراكات لمعرفة الحالة"
   },
   "roles": {
     "student": "طالب",
@@ -5515,5 +5519,45 @@
     "freeWithDuration": "مجاني ({duration})",
     "waitingAgentActivation": "بانتظار تفعيل الوكيل/المعلم",
     "pendingPayment": "قيد الدفع"
+  },
+  "lockedSection": {
+    "saveMonths": "(وفّر {count, plural, one {شهر} two {شهرين} few {# أشهر} many {# شهر} other {# شهر})}",
+    "requestSent": "تم إرسال طلب التفعيل. سيتم التواصل معك قريباً.",
+    "requestFailed": "فشل إرسال الطلب",
+    "requestUnexpectedError": "حدث خطأ غير متوقع أثناء إرسال الطلب",
+    "statusPending": "قيد المراجعة",
+    "statusApproved": "مقبول",
+    "statusRejected": "مرفوض",
+    "requiresStoragePurchase": "هذا القسم يتطلب شراء مساحة تخزينية.",
+    "paidFeature": "هذا القسم ميزة مدفوعة. اختر خطة التفعيل المناسبة لك.",
+    "sectionActive": "القسم مفعّل",
+    "canUseNow": "يمكنك الآن استخدام هذا القسم.",
+    "requestUnderReview": "طلبك قيد المراجعة",
+    "planLabel": "الخطة",
+    "yearly": "سنوي",
+    "monthly": "شهري",
+    "storage": "مساحة",
+    "previousRequest": "طلبك السابق",
+    "rejectedCanResend": "تم رفضه — يمكنك إرسال طلب جديد",
+    "increaseStorage": "تزويد مساحة التخزين",
+    "storageFull": "مساحة التخزين ممتلئة. اختر خطة لتزويد المساحة:",
+    "monthlyPlan": "خطة شهرية",
+    "yearlyPlan": "خطة سنوية",
+    "storageIncludesNote": "تشمل المساحة جميع الملفات المرفوعة. المحذوفة محسوبة من الإجمالي.",
+    "choosePlan": "اختر الخطة",
+    "monthlySubscription": "اشتراك شهري",
+    "yearlySubscription": "اشتراك سنوي",
+    "requestFormTitle": "بيانات طلب التفعيل",
+    "requestFormDesc": "سيتم إرسال طلبك لإدارة المنصة. سيتواصل معك فريق الدعم لإتمام التفعيل بعد تأكيد الدفع.",
+    "notesOptional": "ملاحظات (اختياري)",
+    "notesPlaceholder": "أي ملاحظات تريد إرسالها للإدارة...",
+    "accountDataUsedNote": "سيتم استخدام بيانات حسابك (الاسم، البريد، الهاتف) تلقائياً في الطلب.",
+    "unlimited": "غير محدود",
+    "mbUnit": "ميجابايت",
+    "operationsUnit": "عملية",
+    "days30": "30 يوماً",
+    "days365": "365 يوماً",
+    "submitStorageRequest": "إرسال طلب تزويد المساحة ({plan})",
+    "submitActivationRequest": "إرسال طلب التفعيل ({plan})"
   }
 }
