@@ -85,10 +85,10 @@ export default function AdminFeeCatalogSection() {
       if (json.success) {
         setFees(json.data ?? []);
       } else {
-        toast.error(json.error || 'تعذّر جلب الرسوم');
+        toast.error(json.error || t('feeCatalog.loadFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('feeCatalog.unexpected'));
     } finally {
       setLoading(false);
     }
@@ -105,7 +105,7 @@ export default function AdminFeeCatalogSection() {
   const handleCreate = async () => {
     if (submitting) return;
     if (!form.code || !form.name_ar || !form.name_en || !form.value) {
-      toast.error('كل الحقول المطلوبة لازم تتملى');
+      toast.error(t('feeCatalog.allFieldsRequired'));
       return;
     }
     setSubmitting(true);
@@ -125,14 +125,14 @@ export default function AdminFeeCatalogSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم إنشاء الرسوم بنجاح');
+        toast.success(t('feeCatalog.createSuccess'));
         resetForm();
         await fetchFees();
       } else {
-        toast.error(json.error || 'فشل الإنشاء');
+        toast.error(json.error || t('feeCatalog.createFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('feeCatalog.unexpected'));
     } finally {
       setSubmitting(false);
     }
@@ -141,7 +141,7 @@ export default function AdminFeeCatalogSection() {
   const handleUpdate = async () => {
     if (!editingId || submitting) return;
     if (!form.value) {
-      toast.error('القيمة مطلوبة');
+      toast.error(t('feeCatalog.valueRequired'));
       return;
     }
     setSubmitting(true);
@@ -159,14 +159,14 @@ export default function AdminFeeCatalogSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم التحديث');
+        toast.success(t('feeCatalog.updateSuccess'));
         resetForm();
         await fetchFees();
       } else {
-        toast.error(json.error || 'فشل التحديث');
+        toast.error(json.error || t('feeCatalog.updateFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('feeCatalog.unexpected'));
     } finally {
       setSubmitting(false);
     }
@@ -179,10 +179,10 @@ export default function AdminFeeCatalogSection() {
     });
     const json = await res.json();
     if (json.success) {
-      toast.success('تم التفعيل');
+      toast.success(t('feeCatalog.activateSuccess'));
       await fetchFees();
     } else {
-      toast.error(json.error || 'فشل التفعيل');
+      toast.error(json.error || t('feeCatalog.activateFailed'));
     }
   };
 
@@ -193,15 +193,15 @@ export default function AdminFeeCatalogSection() {
     });
     const json = await res.json();
     if (json.success) {
-      toast.success('تم التعطيل');
+      toast.success(t('feeCatalog.deactivateSuccess'));
       await fetchFees();
     } else {
-      toast.error(json.error || 'فشل التعطيل');
+      toast.error(json.error || t('feeCatalog.deactivateFailed'));
     }
   };
 
   const handleDelete = async (id: string) => {
-    const ok = await confirm({ title: 'تأكيد الحذف', description: 'لا يمكن التراجع. الرسوم اللي اتمسحت مينفعش تتعرف على الطلبات القديمة.', confirmLabel: 'حذف', cancelLabel: 'تراجع', variant: 'destructive' });
+    const ok = await confirm({ title: t('feeCatalog.deleteConfirmTitle'), description: t('feeCatalog.deleteConfirmDesc'), confirmLabel: t('feeCatalog.deleteLabel'), cancelLabel: t('common.back'), variant: 'destructive' });
     if (!ok) return;
     const res = await fetch(`/api/admin/fee-catalog/${id}`, {
       method: 'DELETE',
@@ -209,10 +209,10 @@ export default function AdminFeeCatalogSection() {
     });
     const json = await res.json();
     if (json.success) {
-      toast.success('تم الحذف');
+      toast.success(t('feeCatalog.deleteSuccess'));
       await fetchFees();
     } else {
-      toast.error(json.error || 'فشل الحذف');
+      toast.error(json.error || t('feeCatalog.deleteFailed'));
     }
   };
 
@@ -237,10 +237,10 @@ export default function AdminFeeCatalogSection() {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Receipt className="h-5 w-5 text-sky-600" />
-            الرسوم
+            {t('feeCatalog.title')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            كل الرسوم المُعرّفة هنا بتتضاف على إجمالي الاشتراكات قبل ما الطالب يدفع.
+            {t('feeCatalog.subtitle')}
           </p>
         </div>
         {!showCreate && (
@@ -250,7 +250,7 @@ export default function AdminFeeCatalogSection() {
             className="bg-sky-600 hover:bg-sky-700 text-white gap-1"
           >
             <Plus className="h-4 w-4" />
-            إضافة رسوم
+            {t('feeCatalog.addFee')}
           </Button>
         )}
       </div>
@@ -260,7 +260,7 @@ export default function AdminFeeCatalogSection() {
         <Card className="border-sky-200 dark:border-sky-900/40">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base">
-              {editingId ? 'تعديل رسوم' : 'إضافة رسوم جديدة'}
+              {editingId ? t('feeCatalog.editFee') : t('feeCatalog.addNewFee')}
             </CardTitle>
             <Button size="sm" variant="ghost" onClick={resetForm} disabled={submitting} className="h-7">
               <X className="h-4 w-4" />
@@ -270,7 +270,7 @@ export default function AdminFeeCatalogSection() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Code (immutable in edit mode) */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">الكود</label>
+                <label className="text-xs text-muted-foreground">{t('feeCatalog.code')}</label>
                 <Input
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
@@ -282,18 +282,18 @@ export default function AdminFeeCatalogSection() {
 
               {/* Name (Arabic) */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">الاسم (عربي)</label>
+                <label className="text-xs text-muted-foreground">{t('feeCatalog.nameAr')}</label>
                 <Input
                   value={form.name_ar}
                   onChange={(e) => setForm({ ...form, name_ar: e.target.value })}
-                  placeholder="ضريبة القيمة المضافة"
+                  placeholder={t('feeCatalog.nameArPlaceholder')}
                   disabled={submitting}
                 />
               </div>
 
               {/* Name (English) */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">الاسم (إنجليزي)</label>
+                <label className="text-xs text-muted-foreground">{t('feeCatalog.nameEn')}</label>
                 <Input
                   value={form.name_en}
                   onChange={(e) => setForm({ ...form, name_en: e.target.value })}
@@ -305,7 +305,7 @@ export default function AdminFeeCatalogSection() {
 
               {/* Fee kind toggle */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">النوع</label>
+                <label className="text-xs text-muted-foreground">{t('feeCatalog.kind')}</label>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -315,7 +315,7 @@ export default function AdminFeeCatalogSection() {
                     disabled={!!editingId || submitting}
                   >
                     <Percent className="h-3 w-3" />
-                    نسبة %
+                    {t('feeCatalog.percentage')}
                   </Button>
                   <Button
                     size="sm"
@@ -325,7 +325,7 @@ export default function AdminFeeCatalogSection() {
                     disabled={!!editingId || submitting}
                   >
                     <Banknote className="h-3 w-3" />
-                    مبلغ
+                    {t('feeCatalog.amount')}
                   </Button>
                 </div>
               </div>
@@ -333,7 +333,7 @@ export default function AdminFeeCatalogSection() {
               {/* Value */}
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">
-                  القيمة {form.fee_kind === 'percentage' ? '(%)' : '(EGP)'}
+                  {t('feeCatalog.value')} {form.fee_kind === 'percentage' ? '(%)' : '(EGP)'}
                 </label>
                 {/* IMPORTANT: pointer-events-none on the suffix span so it doesn't
                     intercept clicks on the input field. */}
@@ -357,7 +357,7 @@ export default function AdminFeeCatalogSection() {
 
               {/* Sort order */}
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">ترتيب العرض</label>
+                <label className="text-xs text-muted-foreground">{t('feeCatalog.sortOrder')}</label>
                 <Input
                   type="number"
                   min="0"
@@ -370,11 +370,11 @@ export default function AdminFeeCatalogSection() {
 
               {/* Description */}
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs text-muted-foreground">وصف اختياري</label>
+                <label className="text-xs text-muted-foreground">{t('feeCatalog.optionalDesc')}</label>
                 <Input
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="ضريبة 14% — تحسب من إجمالي الاشتراكات"
+                  placeholder={t('feeCatalog.descPlaceholder')}
                   disabled={submitting}
                 />
               </div>
@@ -382,7 +382,7 @@ export default function AdminFeeCatalogSection() {
 
             <div className="flex gap-2 justify-end">
               <Button onClick={resetForm} variant="outline" disabled={submitting}>
-                إلغاء
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={editingId ? handleUpdate : handleCreate}
@@ -393,7 +393,7 @@ export default function AdminFeeCatalogSection() {
                 className="bg-sky-600 hover:bg-sky-700 text-white gap-1"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {editingId ? 'حفظ التعديل' : 'إنشاء'}
+                {editingId ? t('feeCatalog.saveEdit') : t('feeCatalog.create')}
               </Button>
             </div>
           </CardContent>
@@ -411,7 +411,7 @@ export default function AdminFeeCatalogSection() {
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Receipt className="h-12 w-12 text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">
-                ما فيش رسوم بعد. اضغط "إضافة رسوم" لإنشاء أول واحدة.
+                {t('feeCatalog.emptyState')}
               </p>
             </div>
           ) : (
@@ -419,12 +419,12 @@ export default function AdminFeeCatalogSection() {
               <table className="w-full text-sm">
                 <thead className="border-b bg-muted/30">
                   <tr>
-                    <th className="p-3 text-start font-medium">الكود</th>
-                    <th className="p-3 text-start font-medium">الاسم</th>
-                    <th className="p-3 text-start font-medium">النوع</th>
-                    <th className="p-3 text-end font-medium">القيمة</th>
-                    <th className="p-3 text-center font-medium">الحالة</th>
-                    <th className="p-3 text-center font-medium">إجراءات</th>
+                    <th className="p-3 text-start font-medium">{t('feeCatalog.colCode')}</th>
+                    <th className="p-3 text-start font-medium">{t('feeCatalog.colName')}</th>
+                    <th className="p-3 text-start font-medium">{t('feeCatalog.colKind')}</th>
+                    <th className="p-3 text-end font-medium">{t('feeCatalog.colValue')}</th>
+                    <th className="p-3 text-center font-medium">{t('feeCatalog.colStatus')}</th>
+                    <th className="p-3 text-center font-medium">{t('feeCatalog.colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -445,7 +445,7 @@ export default function AdminFeeCatalogSection() {
                       <td className="p-3">
                         <Badge variant="secondary" className="text-xs gap-1">
                           {fee.fee_kind === 'percentage' ? <Percent className="h-3 w-3" /> : <Banknote className="h-3 w-3" />}
-                          {fee.fee_kind === 'percentage' ? 'نسبة' : 'مبلغ'}
+                          {fee.fee_kind === 'percentage' ? t('feeCatalog.kindPercentage') : t('feeCatalog.kindAmount')}
                         </Badge>
                       </td>
                       <td className="p-3 text-end font-mono font-bold">
@@ -461,7 +461,7 @@ export default function AdminFeeCatalogSection() {
                             : 'bg-muted text-muted-foreground'
                         }`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${fee.is_active ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} />
-                          {fee.is_active ? 'مفعّل' : 'معطّل'}
+                          {fee.is_active ? t('feeCatalog.active') : t('feeCatalog.inactive')}
                         </span>
                       </td>
                       <td className="p-3 text-center">
@@ -471,7 +471,7 @@ export default function AdminFeeCatalogSection() {
                             variant="ghost"
                             className="h-7 text-xs"
                             onClick={() => startEdit(fee)}
-                            title="تعديل"
+                            title={t('feeCatalog.editTitle')}
                           >
                             <Pencil className="h-3 w-3" />
                           </Button>
@@ -481,7 +481,7 @@ export default function AdminFeeCatalogSection() {
                               variant="ghost"
                               className="h-7 text-xs text-amber-600"
                               onClick={() => handleDeactivate(fee.id)}
-                              title="تعطيل"
+                              title={t('feeCatalog.deactivateTitle')}
                             >
                               <PowerOff className="h-3 w-3" />
                             </Button>
@@ -491,7 +491,7 @@ export default function AdminFeeCatalogSection() {
                               variant="ghost"
                               className="h-7 text-xs text-emerald-600"
                               onClick={() => handleActivate(fee.id)}
-                              title="تفعيل"
+                              title={t('feeCatalog.activateTitle')}
                             >
                               <Power className="h-3 w-3" />
                             </Button>
@@ -501,7 +501,7 @@ export default function AdminFeeCatalogSection() {
                             variant="ghost"
                             className="h-7 text-xs text-rose-600"
                             onClick={() => handleDelete(fee.id)}
-                            title="حذف"
+                            title={t('feeCatalog.deleteTitle')}
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
