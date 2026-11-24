@@ -11,7 +11,7 @@ import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useStatusStore } from '@/stores/status-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useTranslations } from '@/i18n/use-translations';
-import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
+import type { AppPage, CourseTab, StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { useI18n } from '@/lib/i18n/context';
@@ -43,6 +43,8 @@ import StudentSuspensionOverlay from '@/components/shared/student-suspension-ove
 import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
 import PlatformAnnouncementOverlay, { useLoginAnnouncement, AnnouncementBrandingPanel } from '@/components/shared/platform-announcement-overlay';
 import PlatformAnnouncementPopup from '@/components/shared/platform-announcement-popup';
+import { useNavigationHistory } from '@/hooks/use-navigation-history';
+import { toast } from 'sonner';
 
 // ─── AppErrorBoundary: wraps the entire dashboard content area ───
 // Separate from DashboardErrorBoundary which wraps individual dashboards.
@@ -160,9 +162,28 @@ class AppErrorBoundary extends React.Component<
 
 type AuthMode = 'login' | 'register' | 'forgot-password' | 'update-password';
 
+// Logical location mirrored onto the browser history so the system back
+// button steps back through screens instead of exiting the app.
+interface NavSnapshotFields {
+  page: AppPage;
+  studentSection: StudentSection;
+  teacherSection: TeacherSection;
+  adminSection: AdminSection;
+  agentSection: string;
+  quizId: string | null;
+  quizReviewMode: boolean;
+  summaryId: string | null;
+  prevStudentSection: StudentSection | null;
+  subjectId: string | null;
+  courseTab: CourseTab;
+  videoId: string | null;
+  studentId: string | null;
+  profileUserId: string | null;
+}
+
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo, passwordRecoveryMode, clearPasswordRecovery } = useAuthStore();
-  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, setQuizReviewMode, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode } = useAppStore();
+  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, setQuizReviewMode, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode, previousStudentSection, selectedSubjectId, courseTab, selectedVideoId, selectedStudentId } = useAppStore();
   // v113: agent portal section state
   const [agentSection, setAgentSection] = useState<string>('search');
   // v132: agent's allowed_sections (fetched from /api/agent/me).
@@ -177,6 +198,70 @@ function HomeContent() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
   const { t, isRTL, direction } = useTranslations();
+
+  // ─── System back button: step back through screens instead of exiting ───
+  // The whole app lives on one URL, so Android/PWA back would close the app.
+  // Mirror the logical location (page, role section, quiz/summary/video
+  // views, profile) onto the browser history; a system back restores the
+  // previous location, and at the root a "press back again to exit" toast
+  // is shown instead of exiting.
+  const navSnapshot = useMemo(() => {
+    if (!user) return null;
+    const fields: NavSnapshotFields = {
+      page: currentPage,
+      studentSection: storedStudentSection,
+      teacherSection: storedTeacherSection,
+      adminSection: storedAdminSection,
+      agentSection,
+      quizId: viewingQuizId,
+      quizReviewMode,
+      summaryId: viewingSummaryId,
+      prevStudentSection: previousStudentSection,
+      subjectId: selectedSubjectId,
+      courseTab,
+      videoId: selectedVideoId,
+      studentId: selectedStudentId,
+      profileUserId,
+    };
+    return JSON.stringify(fields);
+  }, [user, currentPage, storedStudentSection, storedTeacherSection, storedAdminSection, agentSection, viewingQuizId, quizReviewMode, viewingSummaryId, previousStudentSection, selectedSubjectId, courseTab, selectedVideoId, selectedStudentId, profileUserId]);
+
+  const handleNavRestore = useCallback((serialized: string) => {
+    try {
+      const snap = JSON.parse(serialized) as NavSnapshotFields;
+      useAppStore.setState({
+        currentPage: snap.page,
+        studentSection: snap.studentSection,
+        teacherSection: snap.teacherSection,
+        adminSection: snap.adminSection,
+        viewingQuizId: snap.quizId,
+        quizReviewMode: snap.quizReviewMode,
+        viewingSummaryId: snap.summaryId,
+        previousStudentSection: snap.prevStudentSection,
+        selectedSubjectId: snap.subjectId,
+        courseTab: snap.courseTab,
+        selectedVideoId: snap.videoId,
+        selectedStudentId: snap.studentId,
+        profileUserId: snap.profileUserId,
+      });
+      if (typeof snap.agentSection === 'string') {
+        setAgentSection(snap.agentSection);
+      }
+    } catch {
+      // Malformed snapshot — ignore.
+    }
+  }, []);
+
+  const handleExitWarning = useCallback(() => {
+    toast(t('common.pressBackAgainToExit'));
+  }, [t]);
+
+  useNavigationHistory({
+    enabled: initialized && !!user && currentPage !== 'auth',
+    snapshot: navSnapshot,
+    onRestore: handleNavRestore,
+    onExitWarning: handleExitWarning,
+  });
 
   // ─── Early Password Recovery Detection (synchronous) ───
   // Must run BEFORE initialize() so we can prevent the SIGNED_IN race condition.
