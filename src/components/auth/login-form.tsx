@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -159,40 +159,44 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
           <CardContent className="pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
             {/* Mode switcher — by email / by student code */}
-            <div className="grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
-              <button
-                type="button"
-                onClick={() => setMode('email')}
-                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
-                  mode === 'email'
-                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Mail className="h-4 w-4" />
-                بالبريد الإلكتروني
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('code')}
-                className={`py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-all ${
-                  mode === 'code'
-                    ? 'bg-white dark:bg-background shadow-sm font-semibold text-sky-700'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <KeyRound className="h-4 w-4" />
-                بالكود
-              </button>
+            <div className="relative grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
+              {([
+                { key: 'email', label: 'بالبريد الإلكتروني', Icon: Mail },
+                { key: 'code', label: 'بالكود', Icon: KeyRound },
+              ] as const).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMode(key)}
+                  className={`relative py-1.5 px-2 rounded-md flex items-center justify-center gap-1.5 transition-colors duration-300 ${
+                    mode === key ? 'font-semibold text-sky-700' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {mode === key && (
+                    <motion.span
+                      layoutId="login-mode-pill"
+                      className="absolute inset-0 rounded-md bg-white dark:bg-background shadow-sm"
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </span>
+                </button>
+              ))}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
+              <AnimatePresence mode="wait" initial={false}>
               {mode === 'email' ? (
                 /* Email Field */
                 <motion.div
-                  initial={{ opacity: 0, x: 20 }}
+                  key="email-field"
+                  initial={{ opacity: 0, x: 16 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
                   className="space-y-2"
                 >
                   <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
@@ -216,9 +220,11 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               ) : (
                 /* Student Code Field */
                 <motion.div
-                  initial={{ opacity: 0, x: 20 }}
+                  key="code-field"
+                  initial={{ opacity: 0, x: 16 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
                   className="space-y-2"
                 >
                   <Label htmlFor="student-code" className="text-gray-700 font-medium text-xs sm:text-sm">
@@ -244,6 +250,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
                 </motion.div>
               )}
+              </AnimatePresence>
 
               {/* Password Field */}
               <motion.div
@@ -284,12 +291,15 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               </motion.div>
 
               {/* Forgot Password Link */}
+              <AnimatePresence initial={false}>
               {onForgotPassword && mode === 'email' && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.45 }}
-                  className="flex ms-auto w-fit"
+                  key="forgot"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="flex ms-auto w-fit overflow-hidden"
                 >
                   <button
                     type="button"
@@ -300,6 +310,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   </button>
                 </motion.div>
               )}
+              </AnimatePresence>
 
               {/* Submit Button */}
               <motion.div
