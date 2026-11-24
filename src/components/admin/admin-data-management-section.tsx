@@ -49,26 +49,8 @@ interface PreviewData {
   grandTotal: number;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  users: 'الحسابات المسجلة',
-  academic: 'البيانات الأكاديمية',
-  financial: 'البيانات المالية',
-  communication: 'البيانات التواصلية',
-  settings: 'إعدادات المنصة',
-  analytics: 'بيانات التحليلات',
-};
-
-const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  users: 'كل المستخدمين (الطلاب، المعلمين، الوكلاء) + بياناتهم المرتبطة',
-  academic: 'المقررات، المحاضرات، الدروس، الاختبارات، الواجبات، الحضور، SCORM',
-  financial: 'الطلبات، المدفوعات، السجل المالي، العمولات، طرق الدفع',
-  communication: 'الإشعارات، الإعلانات، الرسائل، الاستطلاعات، البلاغات',
-  settings: 'إعدادات المؤسسة (الاسم، الشعار، إلخ)',
-  analytics: 'البيانات التحليلية المُخزّنة مؤقتاً',
-};
-
 export default function AdminDataManagementSection() {
-  const { direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const [phase, setPhase] = useState<Phase>('loading');
   const [token, setToken] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -112,10 +94,10 @@ export default function AdminDataManagementSection() {
       if (json.success) {
         setPreview(json);
       } else {
-        toast.error(json.error || 'فشل جلب المعاينة');
+        toast.error(json.error || t('dataManagement.previewFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('dataManagement.unexpected'));
     } finally {
       setPreviewLoading(false);
     }
@@ -140,15 +122,15 @@ export default function AdminDataManagementSection() {
   // ─── Execute the destruction ───
   const handleExecute = async () => {
     if (selectedCategories.size === 0) {
-      toast.error('اختر فئة واحدة على الأقل');
+      toast.error(t('dataManagement.selectAtLeastOne'));
       return;
     }
 
     const ok = await confirm({
-      title: 'تأكيد الحذف النهائي',
-      description: `سيتم حذف ${selectedCategories.size} فئة من البيانات نهائياً. ${deleteSelf ? 'سيتم أيضاً حذف حسابك.' : 'لن يتم حذف حسابك.'} لا يمكن التراجع عن هذا الإجراء.`,
-      confirmLabel: 'متابعة',
-      cancelLabel: 'إلغاء',
+      title: t('dataManagement.deleteConfirmTitle'),
+      description: `${t('dataManagement.deleteConfirmDesc', { count: selectedCategories.size })} ${deleteSelf ? t('dataManagement.alsoDeleteAccount') : t('dataManagement.keepAccount')} ${t('dataManagement.noUndo')}`,
+      confirmLabel: t('dataManagement.proceed'),
+      cancelLabel: t('common.cancel'),
       variant: 'destructive',
     });
     if (!ok) return;
@@ -168,7 +150,7 @@ export default function AdminDataManagementSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم حذف ${json.summary.totalDeleted} صف نهائياً`);
+        toast.success(t('dataManagement.deleteSuccess', { count: json.summary.totalDeleted }));
         // If deleteSelf, the account is being destroyed — sign out.
         if (deleteSelf) {
           setTimeout(() => window.location.href = '/', 3000);
@@ -177,10 +159,10 @@ export default function AdminDataManagementSection() {
           fetchPreview();
         }
       } else {
-        toast.error(json.error || 'فشل التنفيذ');
+        toast.error(json.error || t('dataManagement.executeFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('dataManagement.unexpected'));
     } finally {
       setExecuting(false);
     }
@@ -206,13 +188,13 @@ export default function AdminDataManagementSection() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-rose-700 dark:text-rose-400">
             <ShieldAlert className="h-5 w-5" />
-            إدارة بيانات المنصة — منطقة الخطر
+            {t('dataManagement.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            هذا القسم يسمح بحذف بيانات المنصة بالكامل. يتطلب كلمة مرور منفصلة عن كلمة مرور حسابك.
-            جميع العمليات هنا لا يمكن التراجع عنها.
+            {t('dataManagement.subtitle1')}{' '}
+            {t('dataManagement.subtitle2')}
           </p>
         </CardContent>
       </Card>
@@ -234,11 +216,11 @@ export default function AdminDataManagementSection() {
           <div className="flex items-center justify-between">
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
               <CheckCircle2 className="h-3 w-3 me-1" />
-              تم التحقق — الجلسة تنتهي خلال 10 دقائق
+              {t('dataManagement.verifiedNote')}
             </Badge>
             <Button variant="ghost" size="sm" onClick={() => { setToken(null); setPhase('locked'); }}>
               <Lock className="h-4 w-4 me-1" />
-              قفل
+              {t('dataManagement.lock')}
             </Button>
           </div>
 
@@ -252,7 +234,7 @@ export default function AdminDataManagementSection() {
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Database className="h-4 w-4 text-sky-600" />
-                  بيانات المنصة — اختر ما تريد حذفه
+                  {t('dataManagement.sectionTitle')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -266,17 +248,17 @@ export default function AdminDataManagementSection() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm">{cat.label}</span>
+                          <span className="font-medium text-sm">{t(`dataManagement.cat.${key}`)}</span>
                           <Badge variant="secondary" className="text-[10px]">
-                            {cat.total} صف
+                            {t('dataManagement.rowsCount', { count: cat.total })}
                           </Badge>
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-1">
-                          {CATEGORY_DESCRIPTIONS[key]}
+                          {t(`dataManagement.catDesc.${key}`)}
                         </p>
                         <details className="mt-1">
                           <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
-                            عرض الجداول ({cat.tables.length})
+                            {t('dataManagement.showTables', { count: cat.tables.length })}
                           </summary>
                           <div className="mt-1 text-[10px] text-muted-foreground space-y-0.5">
                             {cat.tables.map(t => (
@@ -303,11 +285,11 @@ export default function AdminDataManagementSection() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm text-rose-700 dark:text-rose-400">
-                          حذف حسابي أيضاً
+                          {t('dataManagement.deleteMyAccount')}
                         </span>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-1">
-                        سيتم حذف حساب الأدمن الخاص بك نهائياً بعد حذف باقي البيانات. سيتم تسجيل خروجك تلقائياً.
+                        {t('dataManagement.deleteMyAccountDesc')}
                       </p>
                     </div>
                   </label>
@@ -316,12 +298,12 @@ export default function AdminDataManagementSection() {
                 {/* Execute section */}
                 <div className="border-t pt-4 space-y-3">
                   <div className="space-y-1.5">
-                    <Label className="text-sm">أعد إدخال كلمة مرور الحذف للتأكيد</Label>
+                    <Label className="text-sm">{t('dataManagement.reenterLabel')}</Label>
                     <Input
                       type="password"
                       value={executePassword}
                       onChange={(e) => setExecutePassword(e.target.value)}
-                      placeholder="كلمة مرور الحذف"
+                      placeholder={t('dataManagement.passwordPlaceholder')}
                       dir="ltr"
                     />
                   </div>
@@ -330,10 +312,10 @@ export default function AdminDataManagementSection() {
                     <div className="rounded-md bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 p-3 text-xs">
                       <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-medium mb-1">
                         <AlertTriangle className="h-4 w-4" />
-                        سيتم حذف {selectedCategories.size} فئة
+                        {t('dataManagement.willDelete', { count: selectedCategories.size })}
                       </div>
                       <p className="text-muted-foreground">
-                        لإتمام العملية، اكتب كلمة <span className="font-mono font-bold text-rose-600">DELETE</span> في رسالة التأكيد التي ستظهر.
+                        {t('dataManagement.typeDeleteHintPre')} <span className="font-mono font-bold text-rose-600">DELETE</span> {t('dataManagement.typeDeleteHintPost')}
                       </p>
                     </div>
                   )}
@@ -344,7 +326,7 @@ export default function AdminDataManagementSection() {
                     className="w-full bg-rose-600 hover:bg-rose-700 text-white"
                   >
                     {executing ? <Loader2 className="h-4 w-4 me-1 animate-spin" /> : <Trash2 className="h-4 w-4 me-1" />}
-                    تنفيذ الحذف النهائي
+                    {t('dataManagement.executeDelete')}
                   </Button>
                 </div>
               </CardContent>
@@ -364,11 +346,11 @@ function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
 
   const handleSubmit = async () => {
     if (password !== confirm) {
-      toast.error('كلمتا المرور غير متطابقتين');
+      toast.error(t('dataManagement.passwordMismatch'));
       return;
     }
     if (password.length < 8) {
-      toast.error('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+      toast.error(t('dataManagement.passwordTooShort'));
       return;
     }
     setSaving(true);
@@ -380,13 +362,13 @@ function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تعيين كلمة مرور الحذف');
+        toast.success(t('dataManagement.passwordSetSuccess'));
         onSuccess();
       } else {
-        toast.error(json.error || 'فشل');
+        toast.error(json.error || t('dataManagement.failed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('dataManagement.unexpected'));
     } finally {
       setSaving(false);
     }
@@ -397,25 +379,25 @@ function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Lock className="h-4 w-4 text-amber-600" />
-          تعيين كلمة مرور الحذف (لأول مرة)
+          {t('dataManagement.setPasswordTitle')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-1.5">
-          <Label>كلمة المرور الجديدة</Label>
+          <Label>{t('dataManagement.newPasswordLabel')}</Label>
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} dir="ltr" />
         </div>
         <div className="space-y-1.5">
-          <Label>تأكيد كلمة المرور</Label>
+          <Label>{t('dataManagement.confirmPasswordLabel')}</Label>
           <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} dir="ltr" />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          كلمة المرور هذه منفصلة عن كلمة مرور حسابك. ستُطلب عند كل دخول لهذا القسم وعند تنفيذ أي حذف.
-          يجب أن تحتوي على 8 أحرف على الأقل مع أحرف وأرقام.
+          {t('dataManagement.passwordNote1')}{' '}
+          {t('dataManagement.passwordNote2')}
         </p>
         <Button onClick={handleSubmit} disabled={saving || !password || !confirm} className="w-full">
           {saving ? <Loader2 className="h-4 w-4 me-1 animate-spin" /> : null}
-          تعيين كلمة المرور
+          {t('dataManagement.setPasswordButton')}
         </Button>
       </CardContent>
     </Card>
@@ -437,13 +419,13 @@ function UnlockForm({ onSuccess }: { onSuccess: (token: string) => void }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم التحقق');
+        toast.success(t('dataManagement.verified'));
         onSuccess(json.token);
       } else {
-        toast.error(json.error || 'فشل التحقق');
+        toast.error(json.error || t('dataManagement.verifyFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('dataManagement.unexpected'));
     } finally {
       setVerifying(false);
     }
@@ -454,12 +436,12 @@ function UnlockForm({ onSuccess }: { onSuccess: (token: string) => void }) {
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           <Lock className="h-4 w-4 text-amber-600" />
-          إدخال كلمة مرور الحذف
+          {t('dataManagement.enterPasswordTitle')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="space-y-1.5">
-          <Label>كلمة مرور الحذف</Label>
+          <Label>{t('dataManagement.passwordLabel')}</Label>
           <Input
             type="password"
             value={password}
@@ -472,7 +454,7 @@ function UnlockForm({ onSuccess }: { onSuccess: (token: string) => void }) {
         </div>
         <Button onClick={handleUnlock} disabled={verifying || !password} className="w-full">
           {verifying ? <Loader2 className="h-4 w-4 me-1 animate-spin" /> : <Lock className="h-4 w-4 me-1" />}
-          فتح القسم
+          {t('dataManagement.unlockButton')}
         </Button>
       </CardContent>
     </Card>
