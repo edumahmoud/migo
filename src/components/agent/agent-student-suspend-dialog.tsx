@@ -30,7 +30,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '@/i18n/use-translations';
 
 interface SubjectOption {
   id: string;

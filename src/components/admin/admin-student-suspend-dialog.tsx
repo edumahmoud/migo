@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
-import { useTranslations } from 'next-intl';
+import { useTranslations } from '@/i18n/use-translations';
 
 interface CurrentSuspension {
   id: string;
