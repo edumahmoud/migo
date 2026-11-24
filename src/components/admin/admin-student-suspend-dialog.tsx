@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { useTranslations } from 'next-intl';
 
 interface CurrentSuspension {
   id: string;
@@ -44,16 +45,17 @@ interface Props {
 }
 
 const DURATION_PRESETS: Array<{ label: string; hours: number | null }> = [
-  { label: 'ساعة', hours: 1 },
-  { label: 'يوم', hours: 24 },
-  { label: 'أسبوع', hours: 24 * 7 },
-  { label: 'شهر', hours: 24 * 30 },
-  { label: 'غير محدد', hours: null },
+  { label: 'adminSuspendDialog.duration.hour', hours: 1 },
+  { label: 'adminSuspendDialog.duration.day', hours: 24 },
+  { label: 'adminSuspendDialog.duration.week', hours: 24 * 7 },
+  { label: 'adminSuspendDialog.duration.month', hours: 24 * 30 },
+  { label: 'adminSuspendDialog.duration.indefinite', hours: null },
 ];
 
 export default function AdminStudentSuspendDialog({
   open, studentId, studentName, onClose, onChanged,
 }: Props) {
+  const { t } = useTranslations();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [currentGlobal, setCurrentGlobal] = useState<CurrentSuspension | null>(null);
@@ -119,7 +121,7 @@ export default function AdminStudentSuspendDialog({
     try {
       const hours = useCustom ? Number(customHours) : durationHours;
       if (useCustom && (!hours || hours <= 0 || isNaN(hours))) {
-        toast.error('أدخل عدد ساعات صحيح');
+        toast.error(t('adminSuspendDialog.invalidHours'));
         setSubmitting(false);
         return;
       }
@@ -134,14 +136,14 @@ export default function AdminStudentSuspendDialog({
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل إيقاف الطالب');
+        toast.error(json.error || t('adminSuspendDialog.suspendStudentFailed'));
         return;
       }
-      toast.success('تم إيقاف الطالب على مستوى المنصة');
+      toast.success(t('adminSuspendDialog.suspendedGlobally'));
       await fetchCurrent();
       onChanged?.();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminSuspendDialog.unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -158,16 +160,16 @@ export default function AdminStudentSuspendDialog({
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل فك الإيقاف');
+        toast.error(json.error || t('adminSuspendDialog.liftFailed'));
         return;
       }
       toast.success(scope === 'all'
-        ? `تم فك ${json.lifted} إيقاف عن الطالب`
-        : 'تم فك الإيقاف العام عن الطالب');
+        ? t('adminSuspendDialog.liftedCount', { count: json.lifted })
+        : t('adminSuspendDialog.liftedGlobal'));
       await fetchCurrent();
       onChanged?.();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('adminSuspendDialog.unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -191,13 +193,13 @@ export default function AdminStudentSuspendDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Ban className="h-5 w-5 text-amber-600" />
-            إيقاف / تنشيط الطالب (مشرف)
+            {t('adminSuspendDialog.title')}
           </DialogTitle>
           <DialogDescription>
-            الطالب: <span className="font-medium">{studentName}</span>
+            {t('adminSuspendDialog.studentLabel')} <span className="font-medium">{studentName}</span>
             <br />
             <span className="text-[10px] text-muted-foreground">
-              صلاحية كاملة: إيقاف على مستوى المنصة + فك الإيقاف عن أي مقرر
+              {t('adminSuspendDialog.adminNote')}
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -213,19 +215,19 @@ export default function AdminStudentSuspendDialog({
               <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-1">
                 <div className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
                   <AlertCircle className="h-3.5 w-3.5" />
-                  الطالب مُوقَف على مستوى المنصة
+                  {t('adminSuspendDialog.globalStatus')}
                 </div>
                 <p className="text-amber-800 dark:text-amber-200">
-                  تاريخ الإيقاف: {formatDate(currentGlobal.suspended_at)}
+                  {t('adminSuspendDialog.suspendedAt')}{formatDate(currentGlobal.suspended_at)}
                 </p>
                 {currentGlobal.expires_at && (
                   <p className="text-amber-800 dark:text-amber-200">
-                    ينتهي تلقائياً: {formatDate(currentGlobal.expires_at)}
+                    {t('adminSuspendDialog.autoExpires')}{formatDate(currentGlobal.expires_at)}
                   </p>
                 )}
                 {currentGlobal.reason && (
                   <p className="text-amber-800 dark:text-amber-200 mt-1">
-                    السبب: {currentGlobal.reason}
+                    {t('adminSuspendDialog.reason')}{currentGlobal.reason}
                   </p>
                 )}
                 <Button
@@ -235,7 +237,7 @@ export default function AdminStudentSuspendDialog({
                   className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Power className="h-4 w-4 me-1" />}
-                  فك الإيقاف العام فقط
+                  {t('adminSuspendDialog.liftGlobalOnly')}
                 </Button>
               </div>
             )}
@@ -245,19 +247,19 @@ export default function AdminStudentSuspendDialog({
               <div className="rounded-md border border-orange-200 bg-orange-50 dark:bg-orange-900/15 px-3 py-2 text-xs space-y-1">
                 <div className="flex items-center gap-1.5 font-medium text-orange-700 dark:text-orange-300">
                   <AlertCircle className="h-3.5 w-3.5" />
-                  إيقافات على مستوى المقررات ({currentByCourse.length})
+                  {t('adminSuspendDialog.courseSuspensions', { count: currentByCourse.length })}
                 </div>
                 <ul className="text-orange-800 dark:text-orange-200 list-disc ps-4">
                   {currentByCourse.slice(0, 5).map(c => (
                     <li key={c.id}>
                       {(c as { subject?: { name: string } | null }).subject?.name ?? '—'}
                       {c.expires_at && (
-                        <span className="text-[10px]"> — ينتهي: {formatDate(c.expires_at)}</span>
+                        <span className="text-[10px]"> {t('adminSuspendDialog.expiresAt')}{formatDate(c.expires_at)}</span>
                       )}
                     </li>
                   ))}
                   {currentByCourse.length > 5 && (
-                    <li className="text-[10px]">+{currentByCourse.length - 5} أخرى</li>
+                    <li className="text-[10px]">+{currentByCourse.length - 5} {t('adminSuspendDialog.more')}</li>
                   )}
                 </ul>
               </div>
@@ -272,7 +274,7 @@ export default function AdminStudentSuspendDialog({
                 className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <ShieldCheck className="h-4 w-4 me-1" />}
-                فك كل الإيقافات ({(currentGlobal ? 1 : 0) + currentByCourse.length})
+                {t('adminSuspendDialog.liftAllCount', { count: (currentGlobal ? 1 : 0) + currentByCourse.length })}
               </Button>
             )}
 
@@ -280,13 +282,13 @@ export default function AdminStudentSuspendDialog({
             {!currentGlobal && (
               <div className="space-y-3 border-t pt-3">
                 <div className="space-y-2">
-                  <Label>مدة الإيقاف</Label>
+                  <Label>{t('adminSuspendDialog.durationLabel')}</Label>
                   <div className="grid grid-cols-5 gap-1.5">
                     {DURATION_PRESETS.map((p) => {
                       const selected = !useCustom && durationHours === p.hours;
                       return (
                         <button
-                          key={p.label}
+                          key={t(p.label)}
                           type="button"
                           onClick={() => { setUseCustom(false); setDurationHours(p.hours); }}
                           className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
@@ -310,7 +312,7 @@ export default function AdminStudentSuspendDialog({
                       onChange={(e) => setUseCustom(e.target.checked)}
                       className="h-3 w-3"
                     />
-                    مدة مخصصة (ساعات)
+                    {t('adminSuspendDialog.customHours')}
                   </Label>
                   {useCustom && (
                     <Input
@@ -318,18 +320,18 @@ export default function AdminStudentSuspendDialog({
                       min={1}
                       value={customHours}
                       onChange={(e) => setCustomHours(e.target.value)}
-                      placeholder="مثال: 12"
+                      placeholder={t('adminSuspendDialog.hoursPlaceholder')}
                       dir="ltr"
                     />
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <Label>السبب (اختياري)</Label>
+                  <Label>{t('adminSuspendDialog.reasonLabel')}</Label>
                   <Textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="مثال: مخالفة لشروط الاستخدام..."
+                    placeholder={t('adminSuspendDialog.reasonPlaceholder')}
                     rows={2}
                     maxLength={500}
                   />
@@ -341,14 +343,14 @@ export default function AdminStudentSuspendDialog({
                   className="w-full bg-amber-600 hover:bg-amber-700 text-white"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Ban className="h-4 w-4 me-1" />}
-                  إيقاف الطالب (على مستوى المنصة)
+                  {t('adminSuspendDialog.suspendGlobal')}
                 </Button>
 
                 <p className="text-[11px] text-muted-foreground flex items-start gap-1">
                   <Clock className="h-3 w-3 mt-0.5 shrink-0" />
                   <span>
-                    سيتعذر على الطالب الدخول للمنصة طوال مدة الإيقاف. الإيقاف العام
-                    يبقى منفصلاً عن أي إيقاف على مستوى المقرر قد يكون مفروضاً من المعلم.
+                    {t('adminSuspendDialog.suspendNote1')}
+                    {t('adminSuspendDialog.suspendNote2')}
                   </span>
                 </p>
               </div>

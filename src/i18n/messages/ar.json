@@ -6830,5 +6830,41 @@
     "suspendNote2": "لن يتأثر وصوله إلى المقررات الأخرى.",
     "liftAll": "فك إيقاف الكل ({count})",
     "close": "إغلاق"
+  },
+  "adminSuspendDialog": {
+    "duration": {
+      "hour": "ساعة",
+      "day": "يوم",
+      "week": "أسبوع",
+      "month": "شهر",
+      "indefinite": "غير محدد"
+    },
+    "invalidHours": "أدخل عدد ساعات صحيح",
+    "suspendStudentFailed": "فشل إيقاف الطالب",
+    "suspendedGlobally": "تم إيقاف الطالب على مستوى المنصة",
+    "unexpectedError": "حدث خطأ غير متوقع",
+    "liftFailed": "فشل فك الإيقاف",
+    "liftedCount": "تم فك {count} إيقاف عن الطالب",
+    "liftedGlobal": "تم فك الإيقاف العام عن الطالب",
+    "title": "إيقاف / تنشيط الطالب (مشرف)",
+    "studentLabel": "الطالب: ",
+    "adminNote": "صلاحية كاملة: إيقاف على مستوى المنصة + فك الإيقاف عن أي مقرر",
+    "globalStatus": "الطالب مُوقَف على مستوى المنصة",
+    "suspendedAt": "تاريخ الإيقاف: ",
+    "autoExpires": "ينتهي تلقائياً: ",
+    "reason": "السبب: ",
+    "liftGlobalOnly": "فك الإيقاف العام فقط",
+    "courseSuspensions": "إيقافات على مستوى المقررات ({count})",
+    "expiresAt": "— ينتهي: ",
+    "more": "أخرى",
+    "liftAllCount": "فك كل الإيقافات ({count})",
+    "durationLabel": "مدة الإيقاف",
+    "customHours": "مدة مخصصة (ساعات)",
+    "hoursPlaceholder": "مثال: 12",
+    "reasonLabel": "السبب (اختياري)",
+    "reasonPlaceholder": "مثال: مخالفة لشروط الاستخدام...",
+    "suspendGlobal": "إيقاف الطالب (على مستوى المنصة)",
+    "suspendNote1": "سيتعذر على الطالب الدخول للمنصة طوال مدة الإيقاف. الإيقاف العام",
+    "suspendNote2": "يبقى منفصلاً عن أي إيقاف على مستوى المقرر قد يكون مفروضاً من المعلم."
   }
 }

@@ -6830,5 +6830,41 @@
     "suspendNote2": "Access to other subjects will not be affected.",
     "liftAll": "Lift all ({count})",
     "close": "Close"
+  },
+  "adminSuspendDialog": {
+    "duration": {
+      "hour": "Hour",
+      "day": "Day",
+      "week": "Week",
+      "month": "Month",
+      "indefinite": "Indefinite"
+    },
+    "invalidHours": "Enter a valid number of hours",
+    "suspendStudentFailed": "Failed to suspend the student",
+    "suspendedGlobally": "Student suspended platform-wide",
+    "unexpectedError": "An unexpected error occurred",
+    "liftFailed": "Failed to lift the suspension",
+    "liftedCount": "{count} suspensions lifted for the student",
+    "liftedGlobal": "General suspension lifted for the student",
+    "title": "Suspend / Activate Student (Admin)",
+    "studentLabel": "Student: ",
+    "adminNote": "Full authority: platform-level suspension + lifting suspension from any course",
+    "globalStatus": "Student is suspended platform-wide",
+    "suspendedAt": "Suspended at: ",
+    "autoExpires": "Auto-expires: ",
+    "reason": "Reason: ",
+    "liftGlobalOnly": "Lift general suspension only",
+    "courseSuspensions": "Course-level suspensions ({count})",
+    "expiresAt": "— expires: ",
+    "more": "more",
+    "liftAllCount": "Lift all suspensions ({count})",
+    "durationLabel": "Suspension duration",
+    "customHours": "Custom duration (hours)",
+    "hoursPlaceholder": "e.g. 12",
+    "reasonLabel": "Reason (optional)",
+    "reasonPlaceholder": "e.g. Terms of use violation...",
+    "suspendGlobal": "Suspend student (platform-wide)",
+    "suspendNote1": "The student will not be able to access the platform for the suspension duration. The general suspension",
+    "suspendNote2": "stays separate from any course-level suspension a teacher may have imposed."
   }
 }
