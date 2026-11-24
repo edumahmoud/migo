@@ -21,22 +21,10 @@ import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
 import BrandingPointerZone from '@/components/auth/branding-pointer-zone';
 import FloatingLoginFeatures from '@/components/auth/floating-login-features';
-import RegisterForm from '@/components/auth/register-form';
-import ForgotPasswordForm from '@/components/auth/forgot-password-form';
 import AuthLanguageToggle from '@/components/auth/auth-language-toggle';
-import UpdatePasswordForm from '@/components/auth/update-password-form';
-import StudentDashboard from '@/components/student/student-dashboard';
-import TeacherDashboard from '@/components/teacher/teacher-dashboard';
-import AdminDashboard from '@/components/admin/admin-dashboard';
-import AgentPortal from '@/components/agent/agent-portal';
-import StudentActivationPage from '@/components/auth/student-activation-page';
-import OtpVerificationPage from '@/components/auth/otp-verification-page';
-import QuizView from '@/components/shared/quiz-view';
-import UserProfilePage from '@/components/shared/user-profile-page';
 import AppHeader from '@/components/shared/app-header';
 import AppSidebar from '@/components/shared/app-sidebar';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
-import SetupWizard from '@/components/setup/setup-wizard';
 import { BrandLogo } from '@/components/shared/brand-logo';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import StudentSuspensionOverlay from '@/components/shared/student-suspension-overlay';
@@ -45,6 +33,29 @@ import PlatformAnnouncementOverlay, { useLoginAnnouncement, AnnouncementBranding
 import PlatformAnnouncementPopup from '@/components/shared/platform-announcement-popup';
 import { useNavigationHistory } from '@/hooks/use-navigation-history';
 import { toast } from 'sonner';
+import dynamic from 'next/dynamic';
+
+// Code-split heavy screens: a student never downloads the admin/teacher/agent
+// bundles, and the login page does not pull in any dashboard code.
+function RouteLoading() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+    </div>
+  );
+}
+const RegisterForm = dynamic(() => import('@/components/auth/register-form'), { loading: () => <RouteLoading />, ssr: false });
+const ForgotPasswordForm = dynamic(() => import('@/components/auth/forgot-password-form'), { loading: () => <RouteLoading />, ssr: false });
+const UpdatePasswordForm = dynamic(() => import('@/components/auth/update-password-form'), { loading: () => <RouteLoading />, ssr: false });
+const StudentDashboard = dynamic(() => import('@/components/student/student-dashboard'), { loading: () => <RouteLoading />, ssr: false });
+const TeacherDashboard = dynamic(() => import('@/components/teacher/teacher-dashboard'), { loading: () => <RouteLoading />, ssr: false });
+const AdminDashboard = dynamic(() => import('@/components/admin/admin-dashboard'), { loading: () => <RouteLoading />, ssr: false });
+const AgentPortal = dynamic(() => import('@/components/agent/agent-portal'), { loading: () => <RouteLoading />, ssr: false });
+const StudentActivationPage = dynamic(() => import('@/components/auth/student-activation-page'), { loading: () => <RouteLoading />, ssr: false });
+const OtpVerificationPage = dynamic(() => import('@/components/auth/otp-verification-page'), { loading: () => <RouteLoading />, ssr: false });
+const QuizView = dynamic(() => import('@/components/shared/quiz-view'), { loading: () => <RouteLoading />, ssr: false });
+const UserProfilePage = dynamic(() => import('@/components/shared/user-profile-page'), { loading: () => <RouteLoading />, ssr: false });
+const SetupWizard = dynamic(() => import('@/components/setup/setup-wizard'), { loading: () => <RouteLoading />, ssr: false });
 
 // ─── AppErrorBoundary: wraps the entire dashboard content area ───
 // Separate from DashboardErrorBoundary which wraps individual dashboards.

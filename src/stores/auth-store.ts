@@ -545,7 +545,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
             
             if (profile) {
-              await registerSession(profile.id);
+              void registerSession(profile.id);
               if (sessionCheckCleanup) sessionCheckCleanup();
               sessionCheckCleanup = startSessionValidation(profile.id, async () => {
                 await supabase.auth.signOut();
@@ -556,7 +556,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             } else {
               // Fallback from auth metadata
               const fallbackProfile = createFallbackProfile(session.user);
-              await registerSession(fallbackProfile.id);
+              void registerSession(fallbackProfile.id);
               if (sessionCheckCleanup) sessionCheckCleanup();
               sessionCheckCleanup = startSessionValidation(fallbackProfile.id, async () => {
                 await supabase.auth.signOut();
@@ -690,15 +690,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
           
           if (profile) {
-            await registerSession(authUser.id);
-            if (sessionCheckCleanup) sessionCheckCleanup();
-            sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
-              await supabase.auth.signOut();
-              set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
-            });
             signInRateLimit.attempts = 0;
             set({ user: profile, loading: false, banInfo: banInfo || null });
             applyProfileLocale(profile);
+            // Session registration is bookkeeping: run it after the user is in
+            // instead of making login wait for an extra DB round-trip.
+            void registerSession(authUser.id)
+              .catch(() => {})
+              .then(() => {
+                if (sessionCheckCleanup) sessionCheckCleanup();
+                sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
+                  await supabase.auth.signOut();
+                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+                });
+              });
             return { error: null };
           }
         }
@@ -708,7 +713,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Fallback: create profile from auth metadata
       const fallbackProfile = createFallbackProfile(authUser);
-      await registerSession(authUser.id);
+      void registerSession(authUser.id);
       if (sessionCheckCleanup) sessionCheckCleanup();
       sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
         await supabase.auth.signOut();
@@ -961,14 +966,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    // End session tracking in the background (don't block UI)
-    endSession().catch(() => {});
-
-    // Sign out from Supabase
+    // End session tracking while the token is still valid, but never wait more
+    // than 1.5s for it: logout must feel instant.
     try {
-      await supabase.auth.signOut();
+      await Promise.race([
+        endSession().catch(() => {}),
+        new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+      ]);
+    } catch {
+      // Non-critical
+    }
+
+    // Capture the access token, then clear the local session immediately
+    // (scope 'local' makes no network call, so cookies/storage are wiped at once
+    // and the auth page is not held up by a slow Supabase round-trip).
+    let accessToken: string | null = null;
+    try {
+      const { data } = await supabase.auth.getSession();
+      accessToken = data.session?.access_token ?? null;
+    } catch {
+      // ignore
+    }
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {
       // State is already cleared, ignore signOut errors
+    }
+
+    // Revoke the refresh tokens server-side in the background (same effect as the
+    // previous global sign-out, without blocking the UI).
+    const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (accessToken && sbUrl && sbKey) {
+      try {
+        void fetch(`${sbUrl}/auth/v1/logout?scope=global`, {
+          method: 'POST',
+          headers: { apikey: sbKey, Authorization: `Bearer ${accessToken}` },
+          keepalive: true,
+        }).catch(() => {});
+      } catch {
+        // Non-critical
+      }
     }
   },
   

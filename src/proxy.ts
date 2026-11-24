@@ -51,19 +51,27 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // Refresh the session – this will call setAll() if cookies need updating
-  await supabase.auth.getUser();
-
   // ── Protected API route checks ──
   const isProtectedApi = protectedApiRoutes.some(route => pathname.startsWith(route));
 
   if (!isProtectedApi) {
-    // Not a protected API route – just return the response with refreshed cookies
+    // Pages and ordinary API routes: only keep the auth cookies fresh. getSession()
+    // reads the cookie and calls Supabase Auth ONLY when the access token has
+    // expired (refresh, which calls setAll()). It makes no network round-trip on
+    // the common path, unlike getUser() which cost a full Supabase Auth call on
+    // every navigation. Routes that need a verified identity (admin, payments,
+    // gemini, files) still do the full getUser() check below or in the route.
+    try {
+      await supabase.auth.getSession();
+    } catch {
+      // Refresh failures must never block page loads
+    }
     return response;
   }
 
   // Verify the user using the session from cookies
   try {
+    // Single full verification (also refreshes cookies via setAll when needed)
     const {
       data: { user },
       error,
