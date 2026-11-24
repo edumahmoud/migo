@@ -3266,7 +3266,8 @@
     "institutionDataSavedSuccess": "تم حفظ بيانات المؤسسة بنجاح",
     "tableNotCreatedExecuteSQL": "الجدول لم يُنشأ بعد. يرجى تنفيذ SQL أولاً",
     "errorDuringVerification": "حدث خطأ أثناء التحقق",
-    "institutionEmail": "البريد الإلكتروني"
+    "institutionEmail": "البريد الإلكتروني",
+    "editOrgHint": "يمكنك تعديل بيانات المؤسسة من إعدادات لوحة التحكم"
   },
   "banned": {
     "accountBanned": "حسابك محظور",

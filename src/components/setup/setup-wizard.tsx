@@ -786,7 +786,7 @@ $$;`;
       </div>
 
       <p className="text-sky-200/70 text-sm">
-        يمكنك تعديل بيانات المؤسسة من إعدادات لوحة التحكم
+        {t('editOrgHint')}
       </p>
 
       <Button

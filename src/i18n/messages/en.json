@@ -3266,7 +3266,8 @@
     "institutionDataSavedSuccess": "Institution data saved successfully",
     "tableNotCreatedExecuteSQL": "Table not created yet. Please execute SQL first",
     "errorDuringVerification": "An error occurred during verification",
-    "institutionEmail": "Email"
+    "institutionEmail": "Email",
+    "editOrgHint": "You can edit the organization details from the dashboard settings"
   },
   "banned": {
     "accountBanned": "Your account is banned",
