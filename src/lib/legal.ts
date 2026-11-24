@@ -80,3 +80,18 @@ export function validateLegalMd(md: string): string | null {
   if (!/^## .+/m.test(md)) return 'لازم يحتوي على بند واحد على الأقل (سطر يبدأ بـ ##)';
   return null;
 }
+
+export const CONTACT_EMAIL_PLACEHOLDER = '{{contact_email}}';
+export const DEFAULT_CONTACT_EMAIL = 'mahmoud.ramadan.korany@gmail.com';
+
+/** Replaces every {{contact_email}} placeholder with the current contact email. */
+export function applyContactEmail(md: string, email: string): string {
+  return md.split(CONTACT_EMAIL_PLACEHOLDER).join(email);
+}
+
+export function validateContactEmail(v: unknown): string | null {
+  if (typeof v !== 'string') return 'البريد غير صالح';
+  const e = v.trim();
+  if (e.length > 200 || !/^[^\s@<>{}]+@[^\s@<>{}]+\.[^\s@<>{}]+$/.test(e)) return 'صيغة البريد الإلكتروني غير صحيحة';
+  return null;
+}
