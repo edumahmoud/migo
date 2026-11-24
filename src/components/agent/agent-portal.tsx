@@ -1476,7 +1476,7 @@ function TeacherSectionPreview({ sectionId }: { sectionId: string }) {
   );
 }
 
-function renderSectionContent(sectionId: string, data: Record<string, unknown> | null, t: (key: string, params?: Record<string, unknown>) => string) {
+function renderSectionContent(sectionId: string, data: Record<string, unknown> | null, t: (key: string, params?: Record<string, string | number | Date>) => string) {
   if (!data) return null;
   const note = data.note as string | undefined;
   if (note) {
