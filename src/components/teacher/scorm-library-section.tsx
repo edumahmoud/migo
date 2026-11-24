@@ -143,7 +143,6 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDesc, setUploadDesc] = useState('');
-  const [uploadVersion, setUploadVersion] = useState<'1.2' | '2004'>('1.2');
   const [uploadSubjectId, setUploadSubjectId] = useState('');
   const [uploading, setUploading] = useState(false);
 
@@ -201,7 +200,6 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
     setUploadFile(null);
     setUploadTitle('');
     setUploadDesc('');
-    setUploadVersion('1.2');
     setUploadSubjectId('');
   };
 
@@ -233,7 +231,6 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
         fields: {
           title: uploadTitle.trim(),
           description: uploadDesc.trim(),
-          version: uploadVersion,
           link_subject_ids: uploadSubjectId,
         },
       });
@@ -699,31 +696,6 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                 className="resize-none"
                 disabled={uploading}
               />
-            </div>
-
-            {/* SCORM version */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">{t('scormVersion') || 'SCORM Version'}</Label>
-              <div className="grid grid-cols-2 gap-2" role="radiogroup">
-                {(['1.2', '2004'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    role="radio"
-                    aria-checked={uploadVersion === v}
-                    disabled={uploading}
-                    onClick={() => setUploadVersion(v)}
-                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
-                      uploadVersion === v
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:bg-muted/60'
-                    }`}
-                  >
-                    {uploadVersion === v && <Check className="h-4 w-4" />}
-                    SCORM {v}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Choose the course to upload to (required) */}
