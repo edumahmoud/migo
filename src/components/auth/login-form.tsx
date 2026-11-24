@@ -85,7 +85,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentCode.trim()) {
-      toast.error('الرجاء إدخال الكود');
+      toast.error(t('auth.pleaseEnterCode'));
       return;
     }
     if (!password.trim()) {
@@ -102,7 +102,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
       });
       const resolveJson = await resolveRes.json();
       if (!resolveJson.success) {
-        toast.error(resolveJson.error || 'الكود غير صحيح');
+        toast.error(resolveJson.error || t('auth.invalidCode'));
         return;
       }
 
@@ -161,8 +161,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
             {/* Mode switcher — by email / by student code */}
             <div className="relative grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
               {([
-                { key: 'email', label: 'بالبريد الإلكتروني', Icon: Mail },
-                { key: 'code', label: 'بالكود', Icon: KeyRound },
+                { key: 'email', label: t('auth.byEmail'), Icon: Mail },
+                { key: 'code', label: t('auth.byCode'), Icon: KeyRound },
               ] as const).map(({ key, label, Icon }) => (
                 <button
                   key={key}
@@ -228,13 +228,13 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   className="space-y-2"
                 >
                   <Label htmlFor="student-code" className="text-gray-700 font-medium text-xs sm:text-sm">
-                    الكود
+                    {t('auth.studentCode')}
                   </Label>
                   <div className="relative">
                     <Input
                       id="student-code"
                       type="text"
-                      placeholder="مثال: A1B2C3D4"
+                      placeholder={t('auth.studentCodeExample')}
                       value={studentCode}
                       onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
                       className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20 font-mono tracking-widest"

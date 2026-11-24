@@ -287,7 +287,21 @@
     "errorOccurred": "An error occurred",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "mustLogin": "You must login first"
+    "mustLogin": "You must login first",
+    "byEmail": "By email",
+    "byCode": "By code",
+    "studentCode": "Code",
+    "studentCodeExample": "Example: A1B2C3D4",
+    "pleaseEnterCode": "Please enter the code",
+    "invalidCode": "Invalid code",
+    "phoneNumber": "Phone number",
+    "phonePlaceholder": "01000000000 (or +201000000000)",
+    "phoneAutoConvertHint": "The number will be converted automatically to international format (+20…) and a code will be sent via Telegram.",
+    "pleaseEnterPhone": "Please enter your phone number",
+    "invalidPhone": "Invalid phone number",
+    "phoneConversionFailed": "Could not convert the phone number to international format (+201234567890)",
+    "switchToEnglish": "Switch to English",
+    "switchToArabic": "Switch to Arabic"
   },
   "nav": {
     "dashboard": "Dashboard",

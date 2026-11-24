@@ -23,6 +23,7 @@ import BrandingPointerZone from '@/components/auth/branding-pointer-zone';
 import FloatingLoginFeatures from '@/components/auth/floating-login-features';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
+import AuthLanguageToggle from '@/components/auth/auth-language-toggle';
 import UpdatePasswordForm from '@/components/auth/update-password-form';
 import StudentDashboard from '@/components/student/student-dashboard';
 import TeacherDashboard from '@/components/teacher/teacher-dashboard';
@@ -1311,7 +1312,11 @@ function AuthPageContent({
       </div>
 
       {/* ── Auth Form Panel ── */}
-      <div className="auth-form-panel flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+        {/* Language toggle (login / register) */}
+        <div className="absolute top-3 end-3 z-20">
+          <AuthLanguageToggle />
+        </div>
         {/* Mobile-only top branding/announcement */}
         <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mb-4">
           {hasFullscreenAnnouncement ? (

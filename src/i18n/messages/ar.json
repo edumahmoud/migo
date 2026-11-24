@@ -287,7 +287,21 @@
     "errorOccurred": "حدث خطأ",
     "showPassword": "إظهار كلمة المرور",
     "hidePassword": "إخفاء كلمة المرور",
-    "mustLogin": "يجب تسجيل الدخول أولاً"
+    "mustLogin": "يجب تسجيل الدخول أولاً",
+    "byEmail": "بالبريد الإلكتروني",
+    "byCode": "بالكود",
+    "studentCode": "الكود",
+    "studentCodeExample": "مثال: A1B2C3D4",
+    "pleaseEnterCode": "الرجاء إدخال الكود",
+    "invalidCode": "الكود غير صحيح",
+    "phoneNumber": "رقم الهاتف",
+    "phonePlaceholder": "01000000000 (أو +201000000000)",
+    "phoneAutoConvertHint": "سيتم تحويل الرقم تلقائياً إلى صيغة دولية (+20…) وإرسال كود عبر تليجرام.",
+    "pleaseEnterPhone": "الرجاء إدخال رقم الهاتف",
+    "invalidPhone": "رقم الهاتف غير صحيح",
+    "phoneConversionFailed": "تعذّر تحويل رقم الهاتف إلى الصيغة الدولية (+201234567890)",
+    "switchToEnglish": "التبديل إلى الإنجليزية",
+    "switchToArabic": "التبديل إلى العربية"
   },
   "nav": {
     "dashboard": "لوحة التحكم",

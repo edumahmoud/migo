@@ -89,19 +89,19 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       return;
     }
     if (!phone.trim()) {
-      toast.error('الرجاء إدخال رقم الهاتف');
+      toast.error(t('auth.pleaseEnterPhone'));
       return;
     }
     // Basic phone validation: digits, +, spaces, min 8 chars
     if (!isParseablePhoneInput(phone.trim())) {
-      toast.error('رقم الهاتف غير صحيح');
+      toast.error(t('auth.invalidPhone'));
       return;
     }
     // Normalize to E.164 before sending — Telegram Gateway requires
     // international format like +201555614624.
     const normalizedPhone = normalizePhoneToE164(phone.trim());
     if (!normalizedPhone) {
-      toast.error('تعذّر تحويل رقم الهاتف إلى الصيغة الدولية (+201234567890)');
+      toast.error(t('auth.phoneConversionFailed'));
       return;
     }
     if (!password.trim()) {
@@ -224,13 +224,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 className="space-y-2"
               >
                 <Label htmlFor="reg-phone" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  رقم الهاتف <span className="text-rose-500">*</span>
+                  {t('auth.phoneNumber')} <span className="text-rose-500">*</span>
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-phone"
                     type="tel"
-                    placeholder="01000000000 (أو +201000000000)"
+                    placeholder={t('auth.phonePlaceholder')}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -241,7 +241,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                 </div>
                 <p className="text-[10px] text-gray-400">
-                  سيتم تحويل الرقم تلقائياً إلى صيغة دولية (+20…) وإرسال كود عبر تليجرام.
+                  {t('auth.phoneAutoConvertHint')}
                 </p>
               </motion.div>
 
