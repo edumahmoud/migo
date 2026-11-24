@@ -143,7 +143,7 @@ export default function AdminPaidServicesSection() {
       });
       const json = await res.json();
       if (json.success) { toast.success(t('paidServices.rejectSuccess')); fetchAll(); }
-      else { toast.error(json.error || 'فشل'); }
+      else { toast.error(json.error || t('paidServices.failed')); }
     } catch { toast.error(t('paidServices.error')); }
   };
 
@@ -173,7 +173,7 @@ export default function AdminPaidServicesSection() {
       });
       const json = await res.json();
       if (json.success) { toast.success(t('paidServices.trialCreated')); fetchAll(); }
-      else { toast.error(json.error || 'فشل'); }
+      else { toast.error(json.error || t('paidServices.failed')); }
     } catch { toast.error(t('paidServices.error')); }
   };
 
@@ -186,7 +186,7 @@ export default function AdminPaidServicesSection() {
       });
       const json = await res.json();
       if (json.success) { toast.success(t('paidServices.trialRevoked')); fetchAll(); }
-      else { toast.error(json.error || 'فشل'); }
+      else { toast.error(json.error || t('paidServices.failed')); }
     } catch { toast.error(t('paidServices.error')); }
   };
 
@@ -205,7 +205,7 @@ export default function AdminPaidServicesSection() {
       });
       const json = await res.json();
       if (json.success) { toast.success(t('paidServices.deactivateSuccess')); fetchAll(); }
-      else { toast.error(json.error || 'فشل'); }
+      else { toast.error(json.error || t('paidServices.failed')); }
     } catch { toast.error(t('paidServices.error')); }
   };
 
@@ -616,7 +616,7 @@ function StorageManager({
       });
       const json = await res.json();
       if (json.success) { toast.success(t('paidServices.planDeleted')); fetchPlans(); }
-      else { toast.error(json.error || 'فشل'); }
+      else { toast.error(json.error || t('paidServices.failed')); }
     } catch { toast.error(t('paidServices.error')); }
   };
 
