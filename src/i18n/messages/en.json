@@ -301,7 +301,8 @@
     "invalidPhone": "Invalid phone number",
     "phoneConversionFailed": "Could not convert the phone number to international format (+201234567890)",
     "switchToEnglish": "Switch to English",
-    "switchToArabic": "Switch to Arabic"
+    "switchToArabic": "Switch to Arabic",
+    "logoutSuccess": "Logged out"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -410,7 +411,10 @@
     "payoutMethods": "Payout Methods",
     "payouts": "Payouts",
     "payoutHistory": "Payout History",
-    "financialManagement": "Financial Management"
+    "financialManagement": "Financial Management",
+    "searchStudent": "Search for a student",
+    "subscriptionActivated": "Your subscription has been activated successfully",
+    "autoVerifyFailed": "Automatic verification failed, go to the subscriptions log to see the status"
   },
   "roles": {
     "student": "Student",
@@ -5515,5 +5519,45 @@
     "freeWithDuration": "Free ({duration})",
     "waitingAgentActivation": "Waiting for agent/teacher activation",
     "pendingPayment": "Pending payment"
+  },
+  "lockedSection": {
+    "saveMonths": "(Save {count, plural, one {# month} other {# months}})",
+    "requestSent": "Activation request sent. We will contact you soon.",
+    "requestFailed": "Failed to send the request",
+    "requestUnexpectedError": "An unexpected error occurred while sending the request",
+    "statusPending": "Under review",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected",
+    "requiresStoragePurchase": "This section requires purchasing storage space.",
+    "paidFeature": "This section is a paid feature. Choose the activation plan that suits you.",
+    "sectionActive": "Section active",
+    "canUseNow": "You can now use this section.",
+    "requestUnderReview": "Your request is under review",
+    "planLabel": "Plan",
+    "yearly": "Yearly",
+    "monthly": "Monthly",
+    "storage": "Storage",
+    "previousRequest": "Your previous request",
+    "rejectedCanResend": "It was rejected, you can send a new request",
+    "increaseStorage": "Increase storage space",
+    "storageFull": "Storage is full. Choose a plan to increase the space:",
+    "monthlyPlan": "Monthly plan",
+    "yearlyPlan": "Yearly plan",
+    "storageIncludesNote": "The space includes all uploaded files. Deleted ones are counted in the total.",
+    "choosePlan": "Choose the plan",
+    "monthlySubscription": "Monthly subscription",
+    "yearlySubscription": "Yearly subscription",
+    "requestFormTitle": "Activation request details",
+    "requestFormDesc": "Your request will be sent to the platform administration. The support team will contact you to complete activation after payment confirmation.",
+    "notesOptional": "Notes (optional)",
+    "notesPlaceholder": "Any notes you want to send to the administration...",
+    "accountDataUsedNote": "Your account data (name, email, phone) will be used automatically in the request.",
+    "unlimited": "Unlimited",
+    "mbUnit": "MB",
+    "operationsUnit": "operations",
+    "days30": "30 days",
+    "days365": "365 days",
+    "submitStorageRequest": "Send storage increase request ({plan})",
+    "submitActivationRequest": "Send activation request ({plan})"
   }
 }
