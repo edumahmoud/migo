@@ -106,15 +106,15 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
               {/* v130: Banned by — show who issued the ban + their role */}
               {banInfo.bannedByName && (
                 <div className="rounded-lg bg-muted/50 border p-4">
-                  <p className="text-sm font-medium text-foreground mb-1">تم الحظر من قِبل</p>
+                  <p className="text-sm font-medium text-foreground mb-1">{t('banned.bannedByLabel')}</p>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-foreground">{banInfo.bannedByName}</span>
                     {banInfo.bannedByRole && (
                       <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                        {banInfo.bannedByRole === 'superadmin' ? 'مدير المنصة' :
-                         banInfo.bannedByRole === 'admin' ? 'مشرف' :
-                         banInfo.bannedByRole === 'teacher' ? 'معلم' :
-                         banInfo.bannedByRole === 'registration_agent' ? 'وكيل' :
+                        {banInfo.bannedByRole === 'superadmin' ? t('banned.roleSuperadmin') :
+                         banInfo.bannedByRole === 'admin' ? t('banned.roleAdmin') :
+                         banInfo.bannedByRole === 'teacher' ? t('banned.roleTeacher') :
+                         banInfo.bannedByRole === 'registration_agent' ? t('banned.roleAgent') :
                          banInfo.bannedByRole}
                       </span>
                     )}

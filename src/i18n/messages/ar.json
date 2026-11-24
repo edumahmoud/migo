@@ -2255,7 +2255,8 @@
     "sharedWithPeople": "تمت المشاركة مع {count} أشخاص",
     "toastFolderAndFilesPrivate": "أصبح المجلد والملفات خاصة",
     "toastFolderUpdateFailed": "فشل تحديث المجلد",
-    "toastFolderVisibilityChanged": "تم تغيير ظهور المجلد"
+    "toastFolderVisibilityChanged": "تم تغيير ظهور المجلد",
+    "toastBatchTooLarge": "إجمالي حجم الملفات ({size} ميجابايت) أكبر من المساحة المتبقية ({remaining} ميجابايت). لا يمكن رفع جميع الملفات. يرجى تزويد المساحة أو تقليل عدد الملفات."
   },
   "attendance": {
     "attendance": "الحضور",
@@ -3282,7 +3283,12 @@
     "expired": "منتهي الصلاحية",
     "dayHourMinute": "{days} يوم و {hours} ساعة و {minutes} دقيقة",
     "hourMinute": "{hours} ساعة و {minutes} دقيقة",
-    "minuteOnly": "{minutes} دقيقة"
+    "minuteOnly": "{minutes} دقيقة",
+    "bannedByLabel": "تم الحظر من قِبل",
+    "roleSuperadmin": "مدير المنصة",
+    "roleAdmin": "مشرف",
+    "roleTeacher": "معلم",
+    "roleAgent": "وكيل"
   },
   "offline": {
     "noConnection": "لا يوجد اتصال",
@@ -5864,5 +5870,34 @@
     "tabRevenue": "الإيرادات",
     "tabMethods": "طرق الاستلام",
     "tabHistory": "سجل المدفوعات"
+  },
+  "usageCounter": {
+    "unitGb": "جيجابايت",
+    "unitMb": "ميجابايت",
+    "storageLabel": "مساحة التخزين",
+    "pctUsed": "{pct}% مستخدم",
+    "freeLabel": "مجاني: {size}",
+    "full": "ممتلئة",
+    "upgrade": "تزويد",
+    "remaining": "تبقى {size}",
+    "maxReached": "لقد وصلت إلى الحد الأقصى ({limit} عملية)",
+    "attemptsRemaining": "المحاولات المتبقية:"
+  },
+  "suspensionOverlay": {
+    "expiredChecking": "انتهت المدة — يتم التحقق...",
+    "timeLeftDays": "{days, plural, one {يوم واحد} two {يومان} few {# أيام} many {# يومًا} other {# يوم}} و {hours, plural, one {ساعة واحدة} two {ساعتان} few {# ساعات} many {# ساعة} other {# ساعة}} و {minutes, plural, one {دقيقة واحدة} two {دقيقتان} few {# دقائق} many {# دقيقة} other {# دقيقة}}",
+    "timeLeftHours": "{hours, plural, one {ساعة واحدة} two {ساعتان} few {# ساعات} many {# ساعة} other {# ساعة}} و {minutes, plural, one {دقيقة واحدة} two {دقيقتان} few {# دقائق} many {# دقيقة} other {# دقيقة}}",
+    "timeLeftMinutes": "{minutes, plural, one {دقيقة واحدة} two {دقيقتان} few {# دقائق} many {# دقيقة} other {# دقيقة}}",
+    "noReason": "لا يوجد سبب محدد",
+    "title": "تم إيقاف حسابك مؤقتاً",
+    "description": "تم تعليق وصولك إلى المنصة من قبل المشرف. هذا الإيقاف مؤقت ويمكن رفعه.",
+    "reasonLabel": "السبب",
+    "timeRemaining": "الوقت المتبقي",
+    "indefinite": "إيقاف غير محدد المدة — تواصل مع المشرف",
+    "recheck": "إعادة التحقق",
+    "signOut": "تسجيل الخروج"
+  },
+  "brand": {
+    "logoAlt": "شعار المؤسسة"
   }
 }

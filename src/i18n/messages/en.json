@@ -2255,7 +2255,8 @@
     "sharedWithPeople": "Shared with {count} people",
     "toastFolderAndFilesPrivate": "Folder and files are now private",
     "toastFolderUpdateFailed": "Failed to update folder",
-    "toastFolderVisibilityChanged": "Folder visibility changed"
+    "toastFolderVisibilityChanged": "Folder visibility changed",
+    "toastBatchTooLarge": "Total file size ({size} MB) is larger than the remaining space ({remaining} MB). Cannot upload all files. Please upgrade your storage or select fewer files."
   },
   "attendance": {
     "attendance": "Attendance",
@@ -3282,7 +3283,12 @@
     "expired": "Expired",
     "dayHourMinute": "{days}d {hours}h {minutes}m",
     "hourMinute": "{hours}h {minutes}m",
-    "minuteOnly": "{minutes}m"
+    "minuteOnly": "{minutes}m",
+    "bannedByLabel": "Banned by",
+    "roleSuperadmin": "Platform manager",
+    "roleAdmin": "Admin",
+    "roleTeacher": "Teacher",
+    "roleAgent": "Agent"
   },
   "offline": {
     "noConnection": "No Connection",
@@ -5864,5 +5870,34 @@
     "tabRevenue": "Revenue",
     "tabMethods": "Payout methods",
     "tabHistory": "Payout history"
+  },
+  "usageCounter": {
+    "unitGb": "GB",
+    "unitMb": "MB",
+    "storageLabel": "Storage",
+    "pctUsed": "{pct}% used",
+    "freeLabel": "Free: {size}",
+    "full": "Full",
+    "upgrade": "Upgrade",
+    "remaining": "{size} left",
+    "maxReached": "You have reached the maximum ({limit} operations)",
+    "attemptsRemaining": "Attempts remaining:"
+  },
+  "suspensionOverlay": {
+    "expiredChecking": "Duration expired, checking...",
+    "timeLeftDays": "{days, plural, one {# day} other {# days}}, {hours, plural, one {# hour} other {# hours}} and {minutes, plural, one {# minute} other {# minutes}}",
+    "timeLeftHours": "{hours, plural, one {# hour} other {# hours}} and {minutes, plural, one {# minute} other {# minutes}}",
+    "timeLeftMinutes": "{minutes, plural, one {# minute} other {# minutes}}",
+    "noReason": "No reason specified",
+    "title": "Your account is temporarily suspended",
+    "description": "Your access to the platform has been suspended by the admin. This suspension is temporary and can be lifted.",
+    "reasonLabel": "Reason",
+    "timeRemaining": "Time remaining",
+    "indefinite": "Indefinite suspension, contact the admin",
+    "recheck": "Re-check",
+    "signOut": "Sign out"
+  },
+  "brand": {
+    "logoAlt": "Institution logo"
   }
 }

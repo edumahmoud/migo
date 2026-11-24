@@ -1053,10 +1053,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (checkJson.success) {
         const remainingMb = checkJson.remaining_mb ?? 0;
         if (totalBatchSizeMb > remainingMb) {
-          toast.error(
-            `إجمالي حجم الملفات (${totalBatchSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). ` +
-            `لا يمكن رفع جميع الملفات. يرجى تزويد المساحة أو تقليل عدد الملفات.`
-          );
+          toast.error(t('files.toastBatchTooLarge', { size: totalBatchSizeMb.toFixed(1), remaining: remainingMb }));
           return;
         }
       }
@@ -1088,7 +1085,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setPendingUploads([]);
     setSelectedSubjectForUploadIds(new Set());
 
-    toast.info(t('files.toastUploadStarted') || `جارٍ رفع ${toUpload.length} ملف(ات) في الخلفية...`);
+    toast.info(t('files.toastUploadStarted'));
   };
 
   // -------------------------------------------------------

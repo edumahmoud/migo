@@ -76,7 +76,7 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
     const update = () => {
       const remaining = new Date(globalSuspension.expires_at!).getTime() - Date.now();
       if (remaining <= 0) {
-        setTimeLeft('انتهت المدة — يتم التحقق...');
+        setTimeLeft(t('suspensionOverlay.expiredChecking'));
         fetchSuspensions();
         return;
       }
@@ -84,11 +84,11 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
       const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
       const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
       if (days > 0) {
-        setTimeLeft(`${days} يوم و ${hours} ساعة و ${minutes} دقيقة`);
+        setTimeLeft(t('suspensionOverlay.timeLeftDays', { days, hours, minutes }));
       } else if (hours > 0) {
-        setTimeLeft(`${hours} ساعة و ${minutes} دقيقة`);
+        setTimeLeft(t('suspensionOverlay.timeLeftHours', { hours, minutes }));
       } else {
-        setTimeLeft(`${minutes} دقيقة`);
+        setTimeLeft(t('suspensionOverlay.timeLeftMinutes', { minutes }));
       }
     };
     update();
@@ -102,7 +102,7 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
 
   if (!globalSuspension) return <>{children}</>;
 
-  const reason = globalSuspension.reason ?? 'لا يوجد سبب محدد';
+  const reason = globalSuspension.reason ?? t('suspensionOverlay.noReason');
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" dir={direction}>
@@ -122,26 +122,26 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
         </motion.div>
 
         <h2 className="text-xl font-bold text-amber-900 dark:text-amber-100 mb-1">
-          تم إيقاف حسابك مؤقتاً
+          {t('suspensionOverlay.title')}
         </h2>
         <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
-          تم تعليق وصولك إلى المنصة من قبل المشرف. هذا الإيقاف مؤقت ويمكن رفعه.
+          {t('suspensionOverlay.description')}
         </p>
 
         <div className="rounded-md bg-amber-100 dark:bg-amber-900/50 px-3 py-2 text-xs space-y-1 mb-4 text-amber-900 dark:text-amber-100">
           <div className="flex items-center justify-center gap-1">
             <ShieldAlert className="h-3.5 w-3.5" />
-            <span>السبب: {reason}</span>
+            <span>{t('suspensionOverlay.reasonLabel')}: {reason}</span>
           </div>
           {globalSuspension.expires_at ? (
             <div className="flex items-center justify-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              <span>الوقت المتبقي: {timeLeft || '...'}</span>
+              <span>{t('suspensionOverlay.timeRemaining')}: {timeLeft || '...'}</span>
             </div>
           ) : (
             <div className="flex items-center justify-center gap-1">
               <Clock className="h-3.5 w-3.5" />
-              <span>إيقاف غير محدد المدة — تواصل مع المشرف</span>
+              <span>{t('suspensionOverlay.indefinite')}</span>
             </div>
           )}
         </div>
@@ -153,7 +153,7 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
             className="border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40"
           >
             <RefreshCw className="h-4 w-4 me-1" />
-            إعادة التحقق
+            {t('suspensionOverlay.recheck')}
           </Button>
           <Button
             variant="destructive"
@@ -161,7 +161,7 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
             className="bg-rose-600 hover:bg-rose-700"
           >
             <LogOut className="h-4 w-4 me-1" />
-            تسجيل الخروج
+            {t('suspensionOverlay.signOut')}
           </Button>
         </div>
       </motion.div>
