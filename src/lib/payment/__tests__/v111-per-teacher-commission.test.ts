@@ -423,7 +423,8 @@ describe('Fix #3: PATCH commission API + editable UI', () => {
     expect(src).not.toContain('نسبة الاتفاق مع المنصة');
     // The teacher financial section should contain it instead
     const teacherSrc = readSrc('src/components/teacher/teacher-financial-section.tsx');
-    expect(teacherSrc).toContain('نسبة العمولة');
+    // i18n: the label moved to the message catalogs (financial.commissionRate)
+    expect(teacherSrc).toContain("t('financial.commissionRate')");
     expect(teacherSrc).toContain('resolved_commission_rate');
   });
 });
