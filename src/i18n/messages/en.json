@@ -3037,7 +3037,8 @@
     "subjectCount": "{count} subjects",
     "supervisorsForTeacher": "Supervisors for {name}",
     "teacherCount": "{count} teachers",
-    "temporaryRemaining": "Temporary ban — {time} remaining"
+    "temporaryRemaining": "Temporary ban — {time} remaining",
+    "statScormPackages": "SCORM Packages"
   },
   "adminFinancial": {
     "title": "Financial Dashboard",
@@ -5332,7 +5333,7 @@
     "deleteConfirm": "Are you sure you want to delete this SCORM package? This will remove all tracking data and unlink it from all courses. This action cannot be undone.",
     "deleteSuccess": "Package deleted",
     "coTeacher": "Co-teacher",
-    "teacherNotice": "As a teacher, you can upload packages and link them to your courses. Only admins can delete packages."
+    "teacherNotice": "As a teacher, you can upload packages to your courses, link platform packages to them, and delete packages you uploaded."
   },
   "tracking": {
     "lessonFailuresTitle": "Student Lesson Failure Points",
@@ -5426,3 +5427,4 @@
   "pendingRequests": "Pending requests",
   "subjectDescPlaceholder": "Subject description (optional)"
 }
+

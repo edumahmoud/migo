@@ -196,6 +196,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (type === 'all' || type === 'scorm') {
+      const { count: scormPackageCount, error: scormError } = await supabaseServer
+        .from('scorm_packages')
+        .select('*', { count: 'exact', head: true });
+
+      if (scormError) {
+        console.error('Error fetching SCORM package count:', scormError);
+        errors.push(`scorm: ${scormError.message}`);
+      } else {
+        results.scormPackageCount = scormPackageCount ?? 0;
+      }
+    }
+
     if (type === 'banned') {
       const { data: banned, error: bannedError } = await supabaseServer
         .from('banned_users')
@@ -258,3 +271,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

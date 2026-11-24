@@ -142,6 +142,12 @@ export async function GET(request: NextRequest) {
         uploader_name: uploaderMap.get(pkg.uploaded_by) || 'Unknown',
         linked_subjects: visibleLinks,
         linked_subject_ids: visibleLinks.map((ls) => ls.id),
+        // Mirrors resolveScormAccess: admins manage everything; teachers manage
+        // packages they uploaded or packages whose subject they teach.
+        can_manage:
+          isAdmin ||
+          pkg.uploaded_by === userId ||
+          (pkg.subject_id !== null && teacherSubjectIds?.has(pkg.subject_id) === true),
       };
     });
 
@@ -154,3 +160,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

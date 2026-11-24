@@ -54,6 +54,7 @@ import {
   Bell,
   Wallet,
   DollarSign,
+  Package,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -72,7 +73,6 @@ import {
 } from 'recharts';
 // Admin dashboard uses API routes with service role client — no direct Supabase data calls
 import { supabase } from '@/lib/supabase';
-import ScormLibrarySection from '@/components/teacher/scorm-library-section';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
@@ -137,7 +137,6 @@ const adminNavItemDefs = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'scormLibrary', labelKey: 'nav.scormLibrary', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'announcements', labelKey: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
   { id: 'platformAnnouncements', labelKey: 'nav.platformAnnouncements', icon: <PartyPopper className="h-5 w-5" /> },
   { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
@@ -511,11 +510,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const bannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
 
   // ─── Navigation ───
-  const [activeSection, setActiveSection] = useState<AdminSection>(storedAdminSection || 'dashboard');
+  const [activeSection, setActiveSection] = useState<AdminSection>(
+    storedAdminSection && storedAdminSection !== 'scormLibrary' ? storedAdminSection : 'dashboard',
+  );
 
   // Keep local state in sync when store changes (e.g. notification navigation)
   useEffect(() => {
-    if (storedAdminSection && storedAdminSection !== activeSection) {
+    if (storedAdminSection && storedAdminSection !== 'scormLibrary' && storedAdminSection !== activeSection) {
       setActiveSection(storedAdminSection);
     }
   }, [storedAdminSection, activeSection]);
@@ -528,6 +529,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [totalSubmissions, setTotalSubmissions] = useState(0);
   const [totalVideos, setTotalVideos] = useState(0);
   const [totalLessons, setTotalLessons] = useState(0);
+  const [totalScormPackages, setTotalScormPackages] = useState(0);
   const [flaggedComments, setFlaggedComments] = useState<any[]>([]);
   const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
@@ -683,6 +685,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         if (result.data.quizCount !== undefined) setTotalQuizzes(result.data.quizCount as number);
         if (result.data.videoCount !== undefined) setTotalVideos(result.data.videoCount as number);
         if (result.data.lessonCount !== undefined) setTotalLessons(result.data.lessonCount as number);
+        if (result.data.scormPackageCount !== undefined) setTotalScormPackages(result.data.scormPackageCount as number);
         
         // Log warnings if any
         if (result.warnings && result.warnings.length > 0) {
@@ -1417,7 +1420,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </motion.div>
 
       {/* Stats row */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
         <StatCard
           icon={<Users className="h-5 w-5" />}
           label={t('admin.statTotalUsers')}
@@ -1447,6 +1450,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           label={t('admin.statVideos')}
           value={totalVideos}
           color="violet"
+        />
+        <StatCard
+          icon={<Package className="h-5 w-5" />}
+          label={t('admin.statScormPackages')}
+          value={totalScormPackages}
+          color="sky"
         />
         <div onClick={() => setActiveSection('banned')} className="cursor-pointer">
           <StatCard
@@ -4027,11 +4036,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   {renderSubjects()}
                 </motion.div>
               )}
-              {activeSection === 'scormLibrary' && (
-                <motion.div key="scormLibrary" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <ScormLibrarySection profile={profile} />
-                </motion.div>
-              )}
               {activeSection === 'announcements' && (
                 <motion.div key="announcements" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderAnnouncements()}
@@ -4117,3 +4121,4 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     </div>
   );
 }
+
