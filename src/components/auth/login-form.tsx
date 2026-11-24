@@ -356,6 +356,28 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 </p>
               </motion.div>
             )}
+
+            {/* Legal links */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.9 }}
+              className="mt-4 sm:mt-5 text-center"
+            >
+              <p className="text-xs text-gray-400">
+                <a href="/terms" target="_blank" rel="noreferrer" className="hover:text-sky-600 hover:underline transition-colors">
+                  {t('legal.terms')}
+                </a>
+                {' · '}
+                <a href="/refund" target="_blank" rel="noreferrer" className="hover:text-sky-600 hover:underline transition-colors">
+                  {t('legal.refund')}
+                </a>
+                {' · '}
+                <a href="/privacy" target="_blank" rel="noreferrer" className="hover:text-sky-600 hover:underline transition-colors">
+                  {t('legal.privacy')}
+                </a>
+              </p>
+            </motion.div>
           </CardContent>
         </Card>
       </motion.div>
