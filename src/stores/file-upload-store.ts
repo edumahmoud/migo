@@ -16,10 +16,6 @@ import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import {
-import { useLocaleStore } from '@/i18n/locale-store';
-
-const msg = (ar: string, en: string): string =>
-  useLocaleStore.getState().locale === 'ar' ? ar : en;
   saveTaskMeta,
   saveFileData,
   getAllTaskMetas,
@@ -28,6 +24,10 @@ const msg = (ar: string, en: string): string =>
   cleanupOldTasks,
   type PersistedUploadTask,
 } from '@/lib/upload-persistence';
+import { useLocaleStore } from '@/i18n/locale-store';
+
+const msg = (ar: string, en: string): string =>
+  useLocaleStore.getState().locale === 'ar' ? ar : en;
 
 // ─── Types ───
 
