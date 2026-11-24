@@ -72,10 +72,10 @@ export default function AdminFinancialBreakdownSection() {
         setBreakdown(json.breakdown ?? []);
         setSummary(json.summary ?? { total_gross: 0, total_platform: 0, total_teacher: 0, total_count: 0, total_unique_students: 0, total_unique_subjects: 0 });
       } else {
-        toast.error(json.error || 'تعذّر جلب البيانات');
+        toast.error(json.error || t('financialBreakdown.loadFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('financialBreakdown.unexpected'));
     } finally {
       setLoading(false);
     }
@@ -85,14 +85,14 @@ export default function AdminFinancialBreakdownSection() {
 
   const handleExport = async () => {
     if (breakdown.length === 0) {
-      toast.error('لا توجد بيانات للتصدير');
+      toast.error(t('financialBreakdown.noDataToExport'));
       return;
     }
     setExporting(true);
     try {
       const XLSX = await import('xlsx');
       const headers = [
-        ['الفترة', 'الإجمالي', 'حصة المنصة', 'حصة المعلم', 'طلاب فريدون', 'مقررات مباعة', 'عدد العمليات'],
+        [t('financialBreakdown.colPeriod'), t('financialBreakdown.colTotal'), t('financialBreakdown.colPlatformShare'), t('financialBreakdown.colTeacherShare'), t('financialBreakdown.colUniqueStudents'), t('financialBreakdown.colSoldCourses'), t('financialBreakdown.colTransactions')],
       ];
       const rows = breakdown.map(r => [
         r.period,
@@ -105,7 +105,7 @@ export default function AdminFinancialBreakdownSection() {
       ]);
       // Add summary row at the end
       rows.push([
-        'الإجمالي',
+        t('financialBreakdown.total'),
         summary.total_gross,
         summary.total_platform,
         summary.total_teacher,
@@ -116,13 +116,13 @@ export default function AdminFinancialBreakdownSection() {
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet([...headers, ...rows]);
-      XLSX.utils.book_append_sheet(wb, ws, `التقسيم (${period})`);
+      XLSX.utils.book_append_sheet(wb, ws, t('financialBreakdown.sheetName', { period }));
       const fileName = `financial_breakdown_${period}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      toast.success(`تم تصدير ${breakdown.length} صف إلى ${fileName}`);
+      toast.success(t('financialBreakdown.exportSuccess', { count: breakdown.length, file: fileName }));
     } catch (err) {
       console.error('[export] failed', err);
-      toast.error('تعذّر تصدير Excel');
+      toast.error(t('financialBreakdown.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -145,7 +145,7 @@ export default function AdminFinancialBreakdownSection() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <Calendar className="h-5 w-5 text-sky-600" />
-          التقسيم الزمني للحسابات
+          {t('financialBreakdown.title')}
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1">
@@ -157,7 +157,7 @@ export default function AdminFinancialBreakdownSection() {
                 className="h-8 text-xs"
                 onClick={() => setPeriod(p)}
               >
-                {p === 'day' ? 'يومي' : p === 'month' ? 'شهري' : 'سنوي'}
+                {p === 'day' ? t('financialBreakdown.daily') : p === 'month' ? t('financialBreakdown.monthly') : t('financialBreakdown.yearly')}
               </Button>
             ))}
           </div>
@@ -168,7 +168,7 @@ export default function AdminFinancialBreakdownSection() {
               value={from}
               onChange={(e) => setFrom(e.target.value)}
               className="h-8 w-[140px] text-xs"
-              aria-label="من تاريخ"
+              aria-label={t('financialBreakdown.fromDate')}
             />
             <span className="text-xs text-muted-foreground">—</span>
             <Input
@@ -176,7 +176,7 @@ export default function AdminFinancialBreakdownSection() {
               value={to}
               onChange={(e) => setTo(e.target.value)}
               className="h-8 w-[140px] text-xs"
-              aria-label="إلى تاريخ"
+              aria-label={t('financialBreakdown.toDate')}
             />
             {(from || to) && (
               <Button
@@ -184,7 +184,7 @@ export default function AdminFinancialBreakdownSection() {
                 variant="ghost"
                 className="h-8 w-8 p-0"
                 onClick={() => { setFrom(''); setTo(''); }}
-                title="مسح الفلتر"
+                title={t('financialBreakdown.clearFilter')}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -198,7 +198,7 @@ export default function AdminFinancialBreakdownSection() {
             disabled={exporting || breakdown.length === 0}
           >
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            تصدير Excel
+            {t('financialBreakdown.exportExcel')}
           </Button>
         </div>
       </div>
@@ -207,37 +207,37 @@ export default function AdminFinancialBreakdownSection() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">إجمالي المدفوع</div>
+            <div className="text-xs text-muted-foreground">{t('financialBreakdown.totalPaid')}</div>
             <div className="text-lg font-bold font-mono">{summary.total_gross.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">حصة المنصة</div>
+            <div className="text-xs text-muted-foreground">{t('financialBreakdown.platformShare')}</div>
             <div className="text-lg font-bold font-mono text-sky-600">{summary.total_platform.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">حصة المعلمين</div>
+            <div className="text-xs text-muted-foreground">{t('financialBreakdown.teachersShare')}</div>
             <div className="text-lg font-bold font-mono text-emerald-600">{summary.total_teacher.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">طلاب فريدون</div>
+            <div className="text-xs text-muted-foreground">{t('financialBreakdown.uniqueStudents')}</div>
             <div className="text-lg font-bold text-indigo-600">{summary.total_unique_students ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">مقررات مباعة</div>
+            <div className="text-xs text-muted-foreground">{t('financialBreakdown.soldCourses')}</div>
             <div className="text-lg font-bold text-amber-600">{summary.total_unique_subjects ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-xs text-muted-foreground">عدد العمليات</div>
+            <div className="text-xs text-muted-foreground">{t('financialBreakdown.transactionCount')}</div>
             <div className="text-lg font-bold">{summary.total_count}</div>
           </CardContent>
         </Card>
@@ -246,7 +246,7 @@ export default function AdminFinancialBreakdownSection() {
       {/* Breakdown table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">تفصيل حسب {period === 'day' ? 'اليوم' : period === 'month' ? 'الشهر' : 'السنة'}</CardTitle>
+          <CardTitle className="text-base">{t('financialBreakdown.detailBy', { period: period === 'day' ? t('financialBreakdown.theDay') : period === 'month' ? t('financialBreakdown.theMonth') : t('financialBreakdown.theYear') })}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -256,20 +256,20 @@ export default function AdminFinancialBreakdownSection() {
           ) : breakdown.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <DollarSign className="h-12 w-12 text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">لا توجد بيانات مالية في هذه الفترة.</p>
+              <p className="text-sm text-muted-foreground">{t('financialBreakdown.noData')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="p-3 text-start font-medium">الفترة</th>
-                    <th className="p-3 text-end font-medium">الإجمالي</th>
-                    <th className="p-3 text-end font-medium text-sky-600">المنصة</th>
-                    <th className="p-3 text-end font-medium text-emerald-600">المعلمين</th>
-                    <th className="p-3 text-center font-medium text-indigo-600">طلاب</th>
-                    <th className="p-3 text-center font-medium text-amber-600">مقررات</th>
-                    <th className="p-3 text-center font-medium">العمليات</th>
+                    <th className="p-3 text-start font-medium">{t('financialBreakdown.colPeriod')}</th>
+                    <th className="p-3 text-end font-medium">{t('financialBreakdown.colTotal')}</th>
+                    <th className="p-3 text-end font-medium text-sky-600">{t('financialBreakdown.platform')}</th>
+                    <th className="p-3 text-end font-medium text-emerald-600">{t('financialBreakdown.teachers')}</th>
+                    <th className="p-3 text-center font-medium text-indigo-600">{t('financialBreakdown.students')}</th>
+                    <th className="p-3 text-center font-medium text-amber-600">{t('financialBreakdown.courses')}</th>
+                    <th className="p-3 text-center font-medium">{t('financialBreakdown.transactions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -288,7 +288,7 @@ export default function AdminFinancialBreakdownSection() {
                   ))}
                   {/* Total row */}
                   <tr className="border-t-2 border-sky-200 bg-sky-50/30 dark:bg-sky-900/10">
-                    <td className="p-3 text-start font-bold">الإجمالي</td>
+                    <td className="p-3 text-start font-bold">{t('financialBreakdown.total')}</td>
                     <td className="p-3 text-end font-mono font-bold">{summary.total_gross.toFixed(2)}</td>
                     <td className="p-3 text-end font-mono font-bold text-sky-600">{summary.total_platform.toFixed(2)}</td>
                     <td className="p-3 text-end font-mono font-bold text-emerald-600">{summary.total_teacher.toFixed(2)}</td>
