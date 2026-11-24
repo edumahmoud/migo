@@ -31,6 +31,7 @@ import {
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 
 interface CurrentSuspension {
@@ -50,17 +51,18 @@ interface Props {
   onChanged?: () => void;
 }
 
-const DURATION_PRESETS: Array<{ label: string; hours: number | null }> = [
-  { label: 'ساعة', hours: 1 },
-  { label: 'يوم', hours: 24 },
-  { label: 'أسبوع', hours: 24 * 7 },
-  { label: 'شهر', hours: 24 * 30 },
-  { label: 'غير محدد', hours: null },
+const DURATION_PRESETS: Array<{ labelKey: string; hours: number | null }> = [
+  { labelKey: 'suspendDialog.durHour', hours: 1 },
+  { labelKey: 'suspendDialog.durDay', hours: 24 },
+  { labelKey: 'suspendDialog.durWeek', hours: 24 * 7 },
+  { labelKey: 'suspendDialog.durMonth', hours: 24 * 30 },
+  { labelKey: 'suspendDialog.durIndefinite', hours: null },
 ];
 
 export default function StudentSuspendDialog({
   open, studentId, studentName, subjectId, subjectName, onClose, onChanged,
 }: Props) {
+  const { t, locale } = useTranslations();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [current, setCurrent] = useState<CurrentSuspension | null>(null);
@@ -126,7 +128,7 @@ export default function StudentSuspendDialog({
     try {
       const hours = useCustom ? Number(customHours) : durationHours;
       if (useCustom && (!hours || hours <= 0 || isNaN(hours))) {
-        toast.error('أدخل عدد ساعات صحيح');
+        toast.error(t('suspendDialog.invalidHours'));
         setSubmitting(false);
         return;
       }
@@ -142,14 +144,14 @@ export default function StudentSuspendDialog({
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل إيقاف الطالب');
+        toast.error(json.error || t('suspendDialog.suspendFailed'));
         return;
       }
-      toast.success('تم إيقاف الطالب من هذا المقرر');
+      toast.success(t('suspendDialog.suspendSuccess'));
       await fetchCurrent();
       onChanged?.();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -166,14 +168,14 @@ export default function StudentSuspendDialog({
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || 'فشل فك الإيقاف');
+        toast.error(json.error || t('suspendDialog.unsuspendFailed'));
         return;
       }
-      toast.success('تم فك الإيقاف عن الطالب');
+      toast.success(t('suspendDialog.unsuspendSuccess'));
       await fetchCurrent();
       onChanged?.();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -182,7 +184,7 @@ export default function StudentSuspendDialog({
   const formatDate = (iso: string | null) => {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleString('ar-EG', {
+      return new Date(iso).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB', {
         year: 'numeric', month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit',
       });
@@ -197,12 +199,12 @@ export default function StudentSuspendDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Ban className="h-5 w-5 text-amber-600" />
-            إيقاف / تفعيل الطالب
+            {t('suspendDialog.title')}
           </DialogTitle>
           <DialogDescription>
-            الطالب: <span className="font-medium">{studentName}</span>
+            {t('suspendDialog.studentLabel')}: <span className="font-medium">{studentName}</span>
             <br />
-            المقرر: <span className="font-medium">{subjectName}</span>
+            {t('suspendDialog.courseLabel')}: <span className="font-medium">{subjectName}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -216,19 +218,19 @@ export default function StudentSuspendDialog({
             <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
                 <AlertCircle className="h-3.5 w-3.5" />
-                الطالب مُوقَف حالياً عن هذا المقرر
+                {t('suspendDialog.currentlySuspended')}
               </div>
               <p className="text-amber-800 dark:text-amber-200">
-                تاريخ الإيقاف: {formatDate(current.suspended_at)}
+                {t('suspendDialog.suspendedAt')}: {formatDate(current.suspended_at)}
               </p>
               {current.expires_at && (
                 <p className="text-amber-800 dark:text-amber-200">
-                  ينتهي تلقائياً: {formatDate(current.expires_at)}
+                  {t('suspendDialog.expiresAt')}: {formatDate(current.expires_at)}
                 </p>
               )}
               {current.reason && (
                 <p className="text-amber-800 dark:text-amber-200 mt-1">
-                  السبب: {current.reason}
+                  {t('suspendDialog.reasonLabel')}: {current.reason}
                 </p>
               )}
             </div>
@@ -238,20 +240,20 @@ export default function StudentSuspendDialog({
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Power className="h-4 w-4 me-1" />}
-              فك الإيقاف الآن
+              {t('suspendDialog.unsuspendNow')}
             </Button>
           </div>
         ) : (
           // Not suspended — show suspend form
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>مدة الإيقاف</Label>
+              <Label>{t('suspendDialog.durationLabel')}</Label>
               <div className="grid grid-cols-5 gap-1.5">
                 {DURATION_PRESETS.map((p) => {
                   const selected = !useCustom && durationHours === p.hours;
                   return (
                     <button
-                      key={p.label}
+                      key={p.labelKey}
                       type="button"
                       onClick={() => { setUseCustom(false); setDurationHours(p.hours); }}
                       className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
@@ -260,7 +262,7 @@ export default function StudentSuspendDialog({
                           : 'border-border hover:bg-muted'
                       }`}
                     >
-                      {p.label}
+                      {t(p.labelKey)}
                     </button>
                   );
                 })}
@@ -275,7 +277,7 @@ export default function StudentSuspendDialog({
                   onChange={(e) => setUseCustom(e.target.checked)}
                   className="h-3 w-3"
                 />
-                مدة مخصصة (ساعات)
+                {t('suspendDialog.customDuration')}
               </Label>
               {useCustom && (
                 <Input
@@ -283,18 +285,18 @@ export default function StudentSuspendDialog({
                   min={1}
                   value={customHours}
                   onChange={(e) => setCustomHours(e.target.value)}
-                  placeholder="مثال: 12"
+                  placeholder={t('suspendDialog.customHoursPlaceholder')}
                   dir="ltr"
                 />
               )}
             </div>
 
             <div className="space-y-1">
-              <Label>السبب (اختياري)</Label>
+              <Label>{t('suspendDialog.reasonOptional')}</Label>
               <Textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="مثال: عدم حضور المحاضرات..."
+                placeholder={t('suspendDialog.reasonPlaceholder')}
                 rows={2}
                 maxLength={500}
               />
@@ -306,14 +308,13 @@ export default function StudentSuspendDialog({
               className="w-full bg-amber-600 hover:bg-amber-700 text-white"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Ban className="h-4 w-4 me-1" />}
-              إيقاف الطالب
+              {t('suspendDialog.suspendButton')}
             </Button>
 
             <p className="text-[11px] text-muted-foreground flex items-start gap-1">
               <Clock className="h-3 w-3 mt-0.5 shrink-0" />
               <span>
-                سيتعذر على الطالب الوصول إلى محتوى هذا المقرر طوال مدة الإيقاف.
-                يمكنك فك الإيقاف في أي وقت، أو سيُرفع تلقائياً عند انتهاء المدة.
+                {t('suspendDialog.suspendNote')}
               </span>
             </p>
           </div>

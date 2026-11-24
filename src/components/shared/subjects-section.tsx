@@ -902,24 +902,24 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
     // v116: validate plans — at least one plan, prices must be >= 0.
     if (newSubjectPlans.length === 0) {
-      toast.error('يجب إضافة خطة اشتراك واحدة على الأقل');
+      toast.error(t('subjectsSection.planRequired'));
       return;
     }
     for (const p of newSubjectPlans) {
       const pprice = Number(p.price);
       if (isNaN(pprice) || pprice < 0) {
-        toast.error(`سعر غير صالح لخطة ${p.period_type}`);
+        toast.error(t('subjectsSection.planInvalidPrice', { period: p.period_type }));
         return;
       }
       if (p.duration_days <= 0 || p.duration_days > 3650) {
-        toast.error(`مدة غير صالحة لخطة ${p.period_type} (1-3650 يوم)`);
+        toast.error(t('subjectsSection.planInvalidDuration', { period: p.period_type }));
         return;
       }
     }
     // Each period_type must be unique (UNIQUE constraint in DB).
     const types = newSubjectPlans.map(p => p.period_type);
     if (new Set(types).size !== types.length) {
-      toast.error('لا يمكن تكرار نوع الخطة (شهري/ترمي/سنوي/مخصص) — كل نوع مرة واحدة');
+      toast.error(t('subjectsSection.planDuplicateType'));
       return;
     }
 
@@ -1027,7 +1027,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             // don't fail the whole operation. The teacher can add
             // plans later from the subscription-plans section.
             console.error('Plans insert failed (subject already created):', plansErr.message);
-            toast.warning('تم إنشاء المقرر لكن فشل إضافة بعض الخطط — يمكنك إضافتها يدوياً من إعدادات المقرر.');
+            toast.warning(t('subjectsSection.plansPartialFail'));
           }
         }
 
@@ -1523,8 +1523,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               className="flex items-center gap-2 rounded-xl bg-teal-600 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200 active:scale-[0.97]"
             >
               <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">اشترك في مقررات جديدة</span>
-              <span className="sm:hidden">مقررات جديدة</span>
+              <span className="hidden sm:inline">{t('subjectsSection.subscribeNewCourses')}</span>
+              <span className="sm:hidden">{t('subjectsSection.newCoursesShort')}</span>
             </button>
           )}
           {role === 'teacher' && (
@@ -2034,7 +2034,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                         {isSuspended && !isPaused && role === 'student' && (
                           <div className="absolute top-0 start-0 end-0 z-20 flex items-center justify-center gap-2 bg-rose-500/90 dark:bg-rose-600/90 backdrop-blur-sm py-2 px-3 shadow-sm">
                             <Ban className="h-4 w-4 text-white shrink-0" />
-                            <span className="text-xs font-bold text-white">مُوقَف</span>
+                            <span className="text-xs font-bold text-white">{t('subjectsSection.suspendedBadge')}</span>
                           </div>
                         )}
                         {/* ── Cover Image Section ── */}
@@ -2211,12 +2211,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 {isFree ? (
                                   <span className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                                     <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                    مجاني
+                                    {t('subjectsSection.freeBadge')}
                                   </span>
                                 ) : (
                                   <span className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                                     <Wallet className="h-3 w-3 shrink-0" />
-                                    مدفوع
+                                    {t('subjectsSection.paidBadge')}
                                   </span>
                                 )}
                               </div>
@@ -2244,11 +2244,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 <div className="mt-2 rounded-lg border bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/15 dark:border-amber-900/60 dark:text-amber-300 px-3 py-2 text-xs space-y-1">
                                   <div className="flex items-center gap-1.5">
                                     <Clock className="h-3 w-3 shrink-0 animate-pulse" />
-                                    <span className="font-medium">بانتظار اعتماد الدفع</span>
+                                    <span className="font-medium">{t('subjectsSection.paymentPendingTitle')}</span>
                                   </div>
                                 {sub.monthly_price !== null && sub.monthly_price > 0 && (
                                   <div className="text-[10px] opacity-70">
-                                    تم إرسال طلب الاشتراك — سيتم تفعيله بعد الدفع.
+                                    {t('subjectsSection.paymentPendingDesc')}
                                   </div>
                                   )}
                                 </div>
@@ -2263,7 +2263,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
                             const formatDateShort = (d: Date) => {
                               try {
-                                return d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' });
+                                return d.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
                               } catch {
                                 return d.toISOString().slice(0, 10);
                               }
@@ -2274,13 +2274,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <div className="flex items-center gap-1.5">
                                     {isPermanent ? (
-                                      <><Shield className="h-3 w-3 shrink-0" /><span className="font-medium">دائم</span></>
+                                      <><Shield className="h-3 w-3 shrink-0" /><span className="font-medium">{t('subjectsSection.statusPermanent')}</span></>
                                     ) : isFree ? (
-                                      <><Gift className="h-3 w-3 shrink-0" /><span className="font-medium">مجاني</span></>
+                                      <><Gift className="h-3 w-3 shrink-0" /><span className="font-medium">{t('subjectsSection.statusFree')}</span></>
                                     ) : isExpired ? (
-                                      <><AlertCircle className="h-3 w-3 shrink-0" /><span className="font-medium">منتهي</span></>
+                                      <><AlertCircle className="h-3 w-3 shrink-0" /><span className="font-medium">{t('subjectsSection.statusExpired')}</span></>
                                     ) : (
-                                      <><Clock className="h-3 w-3 shrink-0" /><span className="font-medium">صالح حتى</span></>
+                                      <><Clock className="h-3 w-3 shrink-0" /><span className="font-medium">{t('subjectsSection.statusValidUntil')}</span></>
                                     )}
                                     {periodEnd && (
                                       <span className="font-mono">{formatDateShort(periodEnd)}</span>
@@ -2288,7 +2288,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   </div>
                                   {!isPermanent && !isExpired && daysLeft !== null && (
                                     <span className="text-[10px] opacity-80">
-                                      {daysLeft === 0 ? 'ينتهي اليوم' : `${daysLeft} يوم`}
+                                      {t('subjectsSection.expiresIn', { count: daysLeft })}
                                     </span>
                                   )}
                                 </div>
@@ -2696,7 +2696,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-semibold text-foreground">
-                      خطط الاشتراك
+                      {t('subjectsSection.plansTitle')}
                     </label>
                     <button
                       type="button"
@@ -2711,13 +2711,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 font-medium transition-colors disabled:opacity-50"
                     >
                       <Plus className="h-3 w-3" />
-                      إضافة خطة
+                      {t('subjectsSection.addPlan')}
                     </button>
                   </div>
 
                   <div className="space-y-2">
                     {newSubjectPlans.map((plan, idx) => {
-                      const labelMap: Record<string, string> = { monthly: 'شهري', term: 'ترمي', yearly: 'سنوي', custom: 'مخصص' };
+                      const labelMap: Record<string, string> = { monthly: t('subjectsSection.planTypeMonthly'), term: t('subjectsSection.planTypeTerm'), yearly: t('subjectsSection.planTypeYearly'), custom: t('subjectsSection.planTypeCustom') };
                       const onTypeChange = (newType: 'monthly' | 'term' | 'yearly' | 'custom') => {
                         setNewSubjectPlans(prev => prev.map((p, i) =>
                           i === idx
@@ -2759,28 +2759,28 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               onClick={remove}
                               disabled={creatingSubject || newSubjectPlans.length <= 1}
                               className="text-rose-600 hover:text-rose-700 disabled:opacity-40"
-                              title="حذف الخطة"
+                              title={t('subjectsSection.deletePlan')}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-[10px] text-muted-foreground">السعر (ج.م)</label>
+                              <label className="text-[10px] text-muted-foreground">{t('subjectsSection.planPriceLabel')}</label>
                               <input
                                 type="number"
                                 min="0"
                                 step="0.01"
                                 value={plan.price}
                                 onChange={(e) => onPriceChange(e.target.value)}
-                                placeholder="0 = مجاني"
+                                placeholder={t('subjectsSection.planPricePlaceholder')}
                                 className="w-full rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
                                 dir="ltr"
                                 disabled={creatingSubject}
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] text-muted-foreground">المدة (أيام)</label>
+                              <label className="text-[10px] text-muted-foreground">{t('subjectsSection.planDurationLabel')}</label>
                               <input
                                 type="number"
                                 min="1"
@@ -2795,12 +2795,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           </div>
                           {plan.period_type === 'custom' && (
                             <div>
-                              <label className="text-[10px] text-muted-foreground">تسمية الخطة (اختياري)</label>
+                              <label className="text-[10px] text-muted-foreground">{t('subjectsSection.planLabelLabel')}</label>
                               <input
                                 type="text"
                                 value={plan.period_label}
                                 onChange={(e) => onLabelChange(e.target.value)}
-                                placeholder="مثال: ترم أول 2025"
+                                placeholder={t('subjectsSection.planLabelPlaceholder')}
                                 className="w-full rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
                                 maxLength={60}
                                 disabled={creatingSubject}
@@ -2813,8 +2813,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    حدد خطط الاشتراك للمقرر. سعر المقرر في الكتالوج = سعر الخطة الشهرية (أو 0 إذا لم توجد).
-                    اترك السعر 0 لخطة مجانية — الطالب يختارها وتُفعّل بعد موافقة الوكيل/المعلم.
+                    {t('subjectsSection.plansHelp')}
                   </p>
                 </div>
 
@@ -3182,15 +3181,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             >
               <div className="px-6 pt-6 pb-4 border-b">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold">مقررات متاحة للاشتراك</h3>
+                  <h3 className="text-lg font-bold">{t('subjectsSection.availableCoursesTitle')}</h3>
                   <button onClick={() => !subscribingCourseId && setAvailableCoursesOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">المقررات المجانية تُفعّل فوراً. المدفوعة تُفعّل بعد الدفع عبر بوابة الدفع.</p>
+                <p className="text-xs text-muted-foreground mt-1">{t('subjectsSection.availableCoursesDesc')}</p>
               </div>
               {/* v93+ — footer with multi-select subscribe button */}
               {availableCoursesData && availableCoursesData.available_courses.length > 0 && selectedAvailableCourseIds.size > 0 && (
                 <div className="px-4 py-3 border-t bg-muted/30 flex items-center justify-between">
-                  <span className="text-sm font-medium">{selectedAvailableCourseIds.size} مقرر محدد</span>
+                  <span className="text-sm font-medium">{t('subjectsSection.selectedCourses', { count: selectedAvailableCourseIds.size })}</span>
                   <Button
                     size="sm"
                     disabled={!!subscribingCourseId}
@@ -3213,7 +3212,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             (o: { free?: boolean; amount?: number; status?: string }) => o.free || (o.status === 'pending' && Number(o.amount ?? 0) === 0)
                           );
                           if (freeCreated.length > 0) {
-                            toast.success(`تم إنشاء ${freeCreated.length} طلب اشتراك مجاني. سيتم التفعيل بعد موافقة الوكيل/المعلم.`);
+                            toast.success(t('subjectsSection.freeOrdersCreated', { count: freeCreated.length }));
                           }
                           if (paidCreated.length === 1) {
                             const o = paidCreated[0];
@@ -3236,9 +3235,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               setSessionItems(session.items);
                               setSessionId(session.session_id);
                               setPaymentSummaryOpen(true);
-                              toast.info(`تم إنشاء ${paidCreated.length} طلبات — ادفع الكل دفعة واحدة`);
+                              toast.info(t('subjectsSection.paidOrdersPayAll', { count: paidCreated.length }));
                             } catch {
-                              toast.info(`تم إنشاء ${paidCreated.length} طلبات مدفوعة — اكمل الدفع من القائمة`);
+                              toast.info(t('subjectsSection.paidOrdersPayList', { count: paidCreated.length }));
                             }
                           } else if (freeCreated.length === 0) {
                             const skipped = (json.skipped_orders ?? []).filter(
@@ -3260,9 +3259,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 (n: { subject_id?: string }) => selectedAvailableCourseIds.has(n.subject_id ?? '')
                               );
                               if (notAvail.length > 0) {
-                                toast.error(notAvail[0].reason || 'تعذّر إنشاء بعض الطلبات');
+                                toast.error(notAvail[0].reason || t('subjectsSection.someOrdersFailed'));
                               } else {
-                                toast.info('لم يتم إنشاء طلبات جديدة');
+                                toast.info(t('subjectsSection.noOrdersCreated'));
                               }
                             }
                           }
@@ -3278,7 +3277,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     className="bg-teal-600 hover:bg-teal-700 text-white gap-1"
                   >
                     {subscribingCourseId === 'multi' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    اشترك في المحدد ({selectedAvailableCourseIds.size})
+                    {t('subjectsSection.subscribeSelected', { count: selectedAvailableCourseIds.size })}
                   </Button>
                 </div>
               )}
@@ -3286,10 +3285,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 {!availableCoursesData ? (
                   <div className="flex items-center justify-center py-10">
                     <MascotLoader kind="book" size={72} />
-                    <span className="text-sm text-muted-foreground ms-2">جارٍ تحميل المقررات...</span>
+                    <span className="text-sm text-muted-foreground ms-2">{t('subjectsSection.loadingCourses')}</span>
                   </div>
                 ) : availableCoursesData.available_courses.length === 0 ? (
-                  <div className="text-center text-sm text-muted-foreground py-8">لا توجد مقررات متاحة حالياً. تواصل مع معلمك.</div>
+                  <div className="text-center text-sm text-muted-foreground py-8">{t('subjectsSection.noAvailableCourses')}</div>
                 ) : (
                   // v92+ — group courses by teacher. Show teacher name as
                   // a clickable header; when expanded, show their courses.
@@ -3298,9 +3297,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     // Group courses by teacher_name (fallback to 'غير معروف')
                     const teacherGroups = new Map<string, { teacherName: string; courses: typeof availableCoursesData.available_courses }>();
                     for (const c of availableCoursesData.available_courses) {
-                      const key = c.teacher_name || 'غير معروف';
+                      const key = c.teacher_name || t('subjectsSection.unknownTeacher');
                       if (!teacherGroups.has(key)) {
-                        teacherGroups.set(key, { teacherName: c.teacher_name || 'غير معروف', courses: [] });
+                        teacherGroups.set(key, { teacherName: c.teacher_name || t('subjectsSection.unknownTeacher'), courses: [] });
                       }
                       teacherGroups.get(key)!.courses.push(c);
                     }
@@ -3333,7 +3332,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               <span className="font-semibold text-sm">{group.teacherName}</span>
                               <Badge variant="secondary" className="text-[10px]">{group.courses.length}</Badge>
                               {activeCount > 0 && (
-                                <Badge className="text-[10px] bg-emerald-100 text-emerald-700">{activeCount} نشط</Badge>
+                                <Badge className="text-[10px] bg-emerald-100 text-emerald-700">{t('subjectsSection.activeCountBadge', { count: activeCount })}</Badge>
                               )}
                             </div>
                           </button>
@@ -3368,7 +3367,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                       <div className="flex items-center gap-2">
                                         <span className="font-semibold truncate">{c.name}</span>
                                         {isSubActive && (
-                                          <Badge className="text-[10px] bg-emerald-100 text-emerald-700 shrink-0">نشط</Badge>
+                                          <Badge className="text-[10px] bg-emerald-100 text-emerald-700 shrink-0">{t('subjectsSection.activeBadge')}</Badge>
                                         )}
                                       </div>
                                       <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
@@ -3389,11 +3388,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                           ? selectedPlan.price
                                           : (fallbackPlan ? fallbackPlan.price : c.price);
                                         const periodLabel = selectedPlan
-                                          ? (selectedPlan.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: selectedPlan.duration_days + ' يوم' }[selectedPlan.period_type] || selectedPlan.period_type))
-                                          : 'شهر';
+                                          ? (selectedPlan.period_label || ({ monthly: t('subjectsSection.periodMonthly'), term: t('subjectsSection.periodTerm'), yearly: t('subjectsSection.periodYearly'), custom: t('subjectsSection.periodDays', { days: selectedPlan.duration_days }) }[selectedPlan.period_type] || selectedPlan.period_type))
+                                          : t('subjectsSection.periodMonth');
                                         return (
                                           <div className="font-bold text-emerald-700 text-sm">
-                                            {displayPrice === 0 ? 'مجاناً' : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}
+                                            {displayPrice === 0 ? t('subjectsSection.freeOfCharge') : `${Number(displayPrice).toFixed(2)} ${c.currency}/${periodLabel}`}
                                           </div>
                                         );
                                       })()}
@@ -3418,10 +3417,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                             className="text-[10px] mt-1 rounded border bg-background px-1.5 py-0.5 cursor-pointer"
                                             dir={direction}
                                           >
-                                            {realPlans.length > 1 && <option value="">افتراضي (شهري)</option>}
+                                            {realPlans.length > 1 && <option value="">{t('subjectsSection.defaultMonthly')}</option>}
                                             {realPlans.map(p => (
                                               <option key={p.id} value={p.id}>
-                                                {p.period_label || ({ monthly: 'شهري', term: 'ترم', yearly: 'سنوي', custom: 'مخصص' }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
+                                                {p.period_label || ({ monthly: t('subjectsSection.periodMonthly'), term: t('subjectsSection.periodTerm'), yearly: t('subjectsSection.periodYearly'), custom: t('subjectsSection.planTypeCustom') }[p.period_type] || p.period_type)} — {Number(p.price).toFixed(2)} {p.currency}
                                               </option>
                                             ))}
                                           </select>
@@ -3453,9 +3452,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                                 if (effectivePrice === 0) {
                                                   // Free course — order created as 'pending' (agent must approve)
                                                   if (createdOrder && createdOrder.error) {
-                                                    toast.error('فشل إنشاء الطلب: ' + createdOrder.error);
+                                                    toast.error(t('subjectsSection.orderCreateFailed', { error: createdOrder.error }));
                                                   } else {
-                                                    toast.success('تم إنشاء طلب الاشتراك المجاني. سيتم تفعيله بعد موافقة الوكيل/المعلم.');
+                                                    toast.success(t('subjectsSection.freeOrderCreated'));
                                                     setAvailableCoursesOpen(false);
                                                     fetchSubjects();
                                                   }
@@ -3504,7 +3503,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                                       } else if (json.message) {
                                                         toast.error(json.message);
                                                       } else {
-                                                        toast.error('تعذّر إنشاء طلب الاشتراك — حاول مرة أخرى');
+                                                        toast.error(t('subjectsSection.orderCreateRetry'));
                                                       }
                                                       // DON'T close the modal — let the student see the error
                                                       // and try another course
@@ -3520,7 +3519,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                           disabled={isPaying}
                                           className="mt-1 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
                                         >
-                                          {isPaying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'اشترك'}
+                                          {isPaying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('subjectsSection.subscribe')}
                                         </button>
                                       )}
                                     </div>
@@ -3702,15 +3701,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       {/* Price display */}
                       {subjectPreview.price !== undefined && subjectPreview.price > 0 && (
                         <div className="flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
-                          <span className="text-xs text-emerald-700 font-medium">رسوم الاشتراك الشهري</span>
+                          <span className="text-xs text-emerald-700 font-medium">{t('subjectsSection.monthlyFee')}</span>
                           <span className="font-bold text-emerald-700">
-                            {Number(subjectPreview.price).toFixed(2)} {subjectPreview.currency ?? 'EGP'}/شهر
+                            {Number(subjectPreview.price).toFixed(2)} {subjectPreview.currency ?? 'EGP'}/{t('subjectsSection.periodMonth')}
                           </span>
                         </div>
                       )}
                       {subjectPreview.price === 0 && (
                         <div className="flex items-center gap-2 rounded-lg bg-sky-50 border border-sky-200 px-3 py-2">
-                          <span className="text-xs text-sky-700 font-medium">هذا المقرر مجاني — يمكنك الانضمام مباشرة</span>
+                          <span className="text-xs text-sky-700 font-medium">{t('subjectsSection.freeCourseJoin')}</span>
                         </div>
                       )}
                       <div
@@ -3800,7 +3799,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   if (notAvailable?.reason) {
                                     toast.error(notAvailable.reason);
                                   } else {
-                                    toast.error('تعذّر إنشاء طلب الاشتراك — حاول مرة أخرى');
+                                    toast.error(t('subjectsSection.orderCreateRetry'));
                                   }
                                 }
                                 setJoinCodeOpen(false);
@@ -3830,12 +3829,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       {joiningSubject ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          {subjectPreview.price && subjectPreview.price > 0 ? 'جارٍ إنشاء الطلب...' : t('subjects.sendingRequest')}
+                          {subjectPreview.price && subjectPreview.price > 0 ? t('subjectsSection.creatingOrder') : t('subjects.sendingRequest')}
                         </>
                       ) : (
                         <>
                           <UserPlus className="h-4 w-4" />
-                          {subjectPreview.price && subjectPreview.price > 0 ? 'اشترك وادفع' : t('subjects.confirmJoin')}
+                          {subjectPreview.price && subjectPreview.price > 0 ? t('subjectsSection.subscribeAndPay') : t('subjects.confirmJoin')}
                         </>
                       )}
                     </button>
