@@ -56,11 +56,11 @@ interface Props {
 }
 
 const DURATION_PRESETS: Array<{ label: string; hours: number | null }> = [
-  { label: 'agentSuspendDialog.'duration.hour', hours: 1 },
-  { label: 'agentSuspendDialog.'duration.day', hours: 24 },
-  { label: 'agentSuspendDialog.'duration.week', hours: 24 * 7 },
-  { label: 'agentSuspendDialog.'duration.month', hours: 24 * 30 },
-  { label: 'agentSuspendDialog.'duration.indefinite', hours: null },
+  { label: 'agentSuspendDialog.duration.hour', hours: 1 },
+  { label: 'agentSuspendDialog.duration.day', hours: 24 },
+  { label: 'agentSuspendDialog.duration.week', hours: 24 * 7 },
+  { label: 'agentSuspendDialog.duration.month', hours: 24 * 30 },
+  { label: 'agentSuspendDialog.duration.indefinite', hours: null },
 ];
 
 export default function AgentStudentSuspendDialog({
@@ -123,14 +123,14 @@ export default function AgentStudentSuspendDialog({
 
   const handleSuspend = async () => {
     if (!studentId || !selectedSubjectId) {
-      toast.error(t('agentSuspendDialog.'pickSubjectFirst'));
+      toast.error(t('agentSuspendDialog.pickSubjectFirst'));
       return;
     }
     setSubmitting(true);
     try {
       const hours = useCustom ? Number(customHours) : durationHours;
       if (useCustom && (!hours || hours <= 0 || isNaN(hours))) {
-        toast.error(t('agentSuspendDialog.'invalidHours'));
+        toast.error(t('agentSuspendDialog.invalidHours'));
         setSubmitting(false);
         return;
       }
@@ -149,7 +149,7 @@ export default function AgentStudentSuspendDialog({
       // actively suspended, refuse client-side too (the API will also
       // refuse, but this gives immediate feedback without a round-trip).
       if (selectedSubjectId !== '__all__' && alreadySuspendedIds.has(selectedSubjectId)) {
-        toast.error(t('agentSuspendDialog.'alreadySuspended'));
+        toast.error(t('agentSuspendDialog.alreadySuspended'));
         setSubmitting(false);
         return;
       }
@@ -157,7 +157,7 @@ export default function AgentStudentSuspendDialog({
       // Edge case: "all courses" but every enrolled course is already
       // suspended → nothing to do.
       if (targetSubjectIds.length === 0) {
-        toast.info(t('agentSuspendDialog.'allAlreadySuspended'));
+        toast.info(t('agentSuspendDialog.allAlreadySuspended'));
         setSubmitting(false);
         return;
       }
@@ -178,7 +178,7 @@ export default function AgentStudentSuspendDialog({
         if (json.success) {
           successCount++;
         } else {
-          lastError = json.error || t('agentSuspendDialog.'suspendFailed');
+          lastError = json.error || t('agentSuspendDialog.suspendFailed');
         }
       }
 
@@ -188,20 +188,20 @@ export default function AgentStudentSuspendDialog({
           : 0;
         const msg = selectedSubjectId === '__all__'
           ? (skippedCount > 0
-              ? t('agentSuspendDialog.'suspendedFromSomeSkipped', { successCount, skippedCount })
-              : t('agentSuspendDialog.'suspendedFromAll', { successCount }))
-          : t('agentSuspendDialog.'suspendedFromSelected');
+              ? t('agentSuspendDialog.suspendedFromSomeSkipped', { successCount, skippedCount })
+              : t('agentSuspendDialog.suspendedFromAll', { successCount }))
+          : t('agentSuspendDialog.suspendedFromSelected');
         toast.success(msg);
       } else if (successCount > 0) {
-        toast.success(t('agentSuspendDialog.'suspendedPartial', { successCount, total: targetSubjectIds.length }));
+        toast.success(t('agentSuspendDialog.suspendedPartial', { successCount, total: targetSubjectIds.length }));
       } else {
-        toast.error(lastError || t('agentSuspendDialog.'suspendStudentFailed'));
+        toast.error(lastError || t('agentSuspendDialog.suspendStudentFailed'));
         return;
       }
       await fetchActive(studentId);
       onChanged?.();
     } catch {
-      toast.error(t('agentSuspendDialog.'unexpectedError'));
+      toast.error(t('agentSuspendDialog.unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -218,14 +218,14 @@ export default function AgentStudentSuspendDialog({
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.error || t('agentSuspendDialog.'liftFailed'));
+        toast.error(json.error || t('agentSuspendDialog.liftFailed'));
         return;
       }
-      toast.success(t('agentSuspendDialog.'liftedFromSubject', { subjectName }));
+      toast.success(t('agentSuspendDialog.liftedFromSubject', { subjectName }));
       await fetchActive(studentId);
       onChanged?.();
     } catch {
-      toast.error(t('agentSuspendDialog.'unexpectedError'));
+      toast.error(t('agentSuspendDialog.unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -246,7 +246,7 @@ export default function AgentStudentSuspendDialog({
         if (json.success) successCount++;
       } catch { /* skip */ }
     }
-    toast.success(t('agentSuspendDialog.'liftedPartial', { successCount, total: activeSuspensions.length }));
+    toast.success(t('agentSuspendDialog.liftedPartial', { successCount, total: activeSuspensions.length }));
     await fetchActive(studentId);
     onChanged?.();
     setSubmitting(false);
@@ -270,13 +270,13 @@ export default function AgentStudentSuspendDialog({
         <DialogHeader className="shrink-0 p-6 pb-3">
           <DialogTitle className="flex items-center gap-2">
             <Ban className="h-5 w-5 text-amber-600" />
-            {t('agentSuspendDialog.'title')}
+            {t('agentSuspendDialog.title')}
           </DialogTitle>
           <DialogDescription>
-            {t('agentSuspendDialog.'studentLabel')} <span className="font-medium">{studentName}</span>
+            {t('agentSuspendDialog.studentLabel')} <span className="font-medium">{studentName}</span>
             <br />
             <span className="text-[10px] text-muted-foreground">
-              {t('agentSuspendDialog.'courseOnlyNote')}
+              {t('agentSuspendDialog.courseOnlyNote')}
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -292,7 +292,7 @@ export default function AgentStudentSuspendDialog({
               <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/15 px-3 py-2 text-xs space-y-2">
                 <div className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
                   <AlertCircle className="h-3.5 w-3.5" />
-                  {t('agentSuspendDialog.'activeSuspensions', { count: activeSuspensions.length })}
+                  {t('agentSuspendDialog.activeSuspensions', { count: activeSuspensions.length })}
                 </div>
                 {activeSuspensions.map(s => (
                   <div key={s.id} className="rounded bg-amber-100/50 dark:bg-amber-900/30 p-2 space-y-1">
@@ -306,13 +306,13 @@ export default function AgentStudentSuspendDialog({
                         className="shrink-0 inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-[10px] text-white hover:bg-emerald-700 disabled:opacity-50"
                       >
                         <Power className="h-3 w-3" />
-                        {t('agentSuspendDialog.'lift')}
+                        {t('agentSuspendDialog.lift')}
                       </button>
                     </div>
                     <div className="text-[10px] text-amber-700 dark:text-amber-300">
-                      <div>{t('agentSuspendDialog.'suspendedAt')}{formatDate(s.suspended_at)}</div>
-                      {s.expires_at && <div>{t('agentSuspendDialog.'expires')}{formatDate(s.expires_at)}</div>}
-                      {s.reason && <div>{t('agentSuspendDialog.'reason')}{s.reason}</div>}
+                      <div>{t('agentSuspendDialog.suspendedAt')}{formatDate(s.suspended_at)}</div>
+                      {s.expires_at && <div>{t('agentSuspendDialog.expires')}{formatDate(s.expires_at)}</div>}
+                      {s.reason && <div>{t('agentSuspendDialog.reason')}{s.reason}</div>}
                     </div>
                   </div>
                 ))}
@@ -322,19 +322,19 @@ export default function AgentStudentSuspendDialog({
             {/* Suspend form */}
             <div className="space-y-3 border-t pt-3">
               <div className="space-y-1.5">
-                <Label>{t('agentSuspendDialog.'chooseSubject')}</Label>
+                <Label>{t('agentSuspendDialog.chooseSubject')}</Label>
                 <Select
                   value={selectedSubjectId}
                   onValueChange={setSelectedSubjectId}
                   disabled={submitting || subjects.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={subjects.length === 0 ? t('agentSuspendDialog.'noSubjects') : t('agentSuspendDialog.'chooseSubject')} />
+                    <SelectValue placeholder={subjects.length === 0 ? t('agentSuspendDialog.noSubjects') : t('agentSuspendDialog.chooseSubject')} />
                   </SelectTrigger>
                   <SelectContent>
                     {/* v130: "All courses" option — suspends the student from
                         ALL of this teacher's courses at once */}
-                    <SelectItem value="__all__">{t('agentSuspendDialog.'allSubjects')}</SelectItem>
+                    <SelectItem value="__all__">{t('agentSuspendDialog.allSubjects')}</SelectItem>
                     {subjects.map(s => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
@@ -343,7 +343,7 @@ export default function AgentStudentSuspendDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>{t('agentSuspendDialog.'durationLabel')}</Label>
+                <Label>{t('agentSuspendDialog.durationLabel')}</Label>
                 <div className="grid grid-cols-5 gap-1.5">
                   {DURATION_PRESETS.map((p) => {
                     const selected = !useCustom && durationHours === p.hours;
@@ -373,7 +373,7 @@ export default function AgentStudentSuspendDialog({
                     onChange={(e) => setUseCustom(e.target.checked)}
                     className="h-3 w-3"
                   />
-                  {t('agentSuspendDialog.'customHours')}
+                  {t('agentSuspendDialog.customHours')}
                 </Label>
                 {useCustom && (
                   <Input
@@ -381,18 +381,18 @@ export default function AgentStudentSuspendDialog({
                     min={1}
                     value={customHours}
                     onChange={(e) => setCustomHours(e.target.value)}
-                    placeholder={t('agentSuspendDialog.'hoursPlaceholder')}
+                    placeholder={t('agentSuspendDialog.hoursPlaceholder')}
                     dir="ltr"
                   />
                 )}
               </div>
 
               <div className="space-y-1">
-                <Label>{t('agentSuspendDialog.'reasonLabel')}</Label>
+                <Label>{t('agentSuspendDialog.reasonLabel')}</Label>
                 <Textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder={t('agentSuspendDialog.'reasonPlaceholder')}
+                  placeholder={t('agentSuspendDialog.reasonPlaceholder')}
                   rows={2}
                   maxLength={500}
                 />
@@ -404,14 +404,14 @@ export default function AgentStudentSuspendDialog({
                 className="w-full bg-amber-600 hover:bg-amber-700 text-white"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Ban className="h-4 w-4 me-1" />}
-                {t('agentSuspendDialog.'suspendSelected')}
+                {t('agentSuspendDialog.suspendSelected')}
               </Button>
 
               <p className="text-[11px] text-muted-foreground flex items-start gap-1">
                 <Clock className="h-3 w-3 mt-0.5 shrink-0" />
                 <span>
-                  {t('agentSuspendDialog.'suspendNote1')}
-                  {t('agentSuspendDialog.'suspendNote2')}
+                  {t('agentSuspendDialog.suspendNote1')}
+                  {t('agentSuspendDialog.suspendNote2')}
                 </span>
               </p>
             </div>
@@ -428,11 +428,11 @@ export default function AgentStudentSuspendDialog({
               className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
             >
               <Power className="h-4 w-4 me-1" />
-              {t('agentSuspendDialog.'liftAll', { count: activeSuspensions.length })}
+              {t('agentSuspendDialog.liftAll', { count: activeSuspensions.length })}
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting} className="ms-auto">
-            {t('agentSuspendDialog.'close')}
+            {t('agentSuspendDialog.close')}
           </Button>
         </div>
       </DialogContent>
