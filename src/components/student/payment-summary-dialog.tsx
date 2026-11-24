@@ -203,10 +203,10 @@ export function PaymentSummaryDialog({
           else if (firstMethod.id === 'fawry') setPaymentMethod('fawry');
         } else {
           // No methods available — show card as fallback (will error on pay).
-          setAvailableMethods([{ id: 'card', label: 'بطاقة', icon: '💳', available: true }]);
+          setAvailableMethods([{ id: 'card', label: t('paymentSummary.cardLabel'), icon: '💳', available: true }]);
         }
       } catch {
-        setAvailableMethods([{ id: 'card', label: 'بطاقة', icon: '💳', available: true }]);
+        setAvailableMethods([{ id: 'card', label: t('paymentSummary.cardLabel'), icon: '💳', available: true }]);
       } finally {
         setMethodsLoading(false);
       }
@@ -483,7 +483,7 @@ export function PaymentSummaryDialog({
         const json = await res.json();
         if (json.success && json.order?.status === 'paid') {
           clearInterval(interval);
-          toast.success('تم الدفع بنجاح! تفعيل الاشتراك...');
+          toast.success(t('paymentSummary.paidSuccessActivating'));
           setState('ready');
           // Reload the page so the student sees the now-active enrollment
           if (typeof window !== 'undefined') {
@@ -559,7 +559,7 @@ export function PaymentSummaryDialog({
   const stateLabel =
     state === 'preparing' ? t('student.payment.initializingPayment')
     : state === 'redirecting' ? t('student.payment.redirecting')
-    : state === 'fawry_pending' ? 'في انتظار الدفع عبر فوري'
+    : state === 'fawry_pending' ? t('paymentSummary.waitingFawry')
     : state === 'error' ? t('student.payment.paymentFailed')
     : t('student.payment.readyToPay');
 
@@ -601,7 +601,7 @@ export function PaymentSummaryDialog({
                       plan was selected). */}
                   {it.subjectPrice !== undefined && it.subjectPrice !== it.amount && (
                     <div className="text-[10px] text-muted-foreground mt-0.5 line-through decoration-muted-foreground/40">
-                      أصل سعر المقرر: {Number(it.subjectPrice).toFixed(2)} {it.currency}
+                      {t('paymentSummary.originalPrice')}: {Number(it.subjectPrice).toFixed(2)} {it.currency}
                     </div>
                   )}
                   <div className="text-xs text-muted-foreground mt-0.5">
@@ -659,7 +659,7 @@ export function PaymentSummaryDialog({
                 </div>
               ) : availableMethods.length === 0 ? (
                 <div className="text-center py-2 text-xs text-muted-foreground">
-                  لا توجد طرق دفع متاحة حالياً
+                  {t('paymentSummary.noMethodsAvailable')}
                 </div>
               ) : (
                 <>
@@ -677,7 +677,7 @@ export function PaymentSummaryDialog({
                     >
                       <div className="flex items-center gap-1.5">
                         <CreditCard className={`h-4 w-4 ${paymentMethod === 'card' ? 'text-teal-700 dark:text-teal-300' : 'text-muted-foreground'}`} />
-                        <span className="text-sm font-medium">{t('payment.card') || 'بطاقة'}</span>
+                        <span className="text-sm font-medium">{t('payment.card') || t('paymentSummary.cardLabel')}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">Visa / Mastercard</span>
                     </button>
@@ -696,9 +696,9 @@ export function PaymentSummaryDialog({
                     >
                       <div className="flex items-center gap-1.5">
                         <Banknote className={`h-4 w-4 ${paymentMethod === 'fawry' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`} />
-                        <span className="text-sm font-medium">{t('payment.fawry') || 'فوري'}</span>
+                        <span className="text-sm font-medium">{t('payment.fawry') || t('paymentSummary.fawryLabel')}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">كود دفع — أي ماكينة</span>
+                      <span className="text-xs text-muted-foreground">{t('paymentSummary.fawryDesc')}</span>
                     </button>
                   )}
                   {/* Manual methods (teacher-configured) */}
@@ -718,7 +718,7 @@ export function PaymentSummaryDialog({
                         <span className="text-base">{m.icon}</span>
                         <span className="text-sm font-medium">{m.label}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">تحويل يدوي</span>
+                      <span className="text-xs text-muted-foreground">{t('paymentSummary.manualTransfer')}</span>
                     </button>
                   ))}
                 </>
@@ -730,7 +730,7 @@ export function PaymentSummaryDialog({
           <div className="space-y-1 text-xs border-t border-b border-sky-200 dark:border-sky-900/40 py-2 my-2 bg-sky-50/50 dark:bg-sky-900/10 rounded-md px-3">
             {/* Base subscription price */}
             <div className="flex justify-between font-medium text-foreground">
-              <span>السعر الأساسي للاشتراك</span>
+              <span>{t('paymentSummary.basePrice')}</span>
               <span className="font-mono">{baseSubtotal.toFixed(2)} {currency}</span>
             </div>
             {/* Fees breakdown (tax, VAT, platform commission, etc.) */}
@@ -748,13 +748,13 @@ export function PaymentSummaryDialog({
               ))
             ) : (
               <div className="flex justify-between text-muted-foreground/60">
-                <span>لا توجد رسوم إضافية</span>
+                <span>{t('paymentSummary.noExtraFees')}</span>
                 <span className="font-mono">+0.00 {currency}</span>
               </div>
             )}
             {/* Grand total */}
             <div className="border-t border-sky-200 dark:border-sky-900/40 pt-1 mt-1 flex justify-between font-semibold text-teal-800 dark:text-teal-200">
-              <span>المجموع الكلي (يُرسل لبوابة الدفع)</span>
+              <span>{t('paymentSummary.grandTotal')}</span>
               <span className="font-mono">{grandTotal.toFixed(2)} {currency}</span>
             </div>
           </div>
@@ -798,10 +798,10 @@ export function PaymentSummaryDialog({
             <div className="space-y-3 border-2 border-amber-300 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/15 rounded-lg p-4">
               <div className="text-center">
                 <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
-                  كود الدفع عبر فوري
+                  {t('paymentSummary.fawryCodeTitle')}
                 </h4>
                 <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-                  خذ الكود ده لاقرب ماكينة فوري أو تطبيق فوري وادفع المبلغ خلال 24 ساعة
+                  {t('paymentSummary.fawryCodeDesc')}
                 </p>
                 <div className="bg-white dark:bg-amber-950/40 rounded-md py-4 px-2 border-2 border-dashed border-amber-400 dark:border-amber-700">
                   <code className="text-3xl font-bold font-mono tracking-[0.15em] text-amber-900 dark:text-amber-100 select-all" dir="ltr">
@@ -814,24 +814,24 @@ export function PaymentSummaryDialog({
                   className="mt-3 gap-1 text-xs"
                   onClick={() => {
                     navigator.clipboard?.writeText(fawryReferenceCode);
-                    toast.success('تم نسخ الكود');
+                    toast.success(t('paymentSummary.codeCopied'));
                   }}
                 >
-                  نسخ الكود
+                  {t('paymentSummary.copyCode')}
                 </Button>
               </div>
 
               <div className="text-xs space-y-1 border-t border-amber-200 dark:border-amber-900/40 pt-2">
                 <div className="flex justify-between text-amber-800 dark:text-amber-200">
-                  <span>المبلغ المطلوب:</span>
+                  <span>{t('paymentSummary.amountDue')}:</span>
                   <span className="font-mono font-bold">{totalAmount.toFixed(2)} {currency}</span>
                 </div>
                 <div className="flex justify-between text-amber-700 dark:text-amber-300">
-                  <span>الحالة:</span>
-                  <span>⏳ في انتظار الدفع — سيتم التفعيل تلقائياً بعد الدفع</span>
+                  <span>{t('paymentSummary.status')}:</span>
+                  <span>{t('paymentSummary.waitingPaymentAutoActivate')}</span>
                 </div>
                 <div className="flex justify-between text-amber-600 dark:text-amber-400">
-                  <span>عدد مرات التحقق:</span>
+                  <span>{t('paymentSummary.verifyAttempts')}:</span>
                   <span>{fawryPollCount}</span>
                 </div>
               </div>

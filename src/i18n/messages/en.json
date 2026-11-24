@@ -5605,5 +5605,26 @@
     "subscribe": "Subscribe",
     "noPlansAvailable": "No upgrade plans available right now.",
     "contactAdmin": "Please contact the administration."
+  },
+  "paymentSummary": {
+    "cardLabel": "Card",
+    "paidSuccessActivating": "Payment successful! Activating the subscription...",
+    "waitingFawry": "Waiting for payment via Fawry",
+    "originalPrice": "Original course price",
+    "noMethodsAvailable": "No payment methods available right now",
+    "fawryLabel": "Fawry",
+    "fawryDesc": "Payment code - any machine",
+    "manualTransfer": "Manual transfer",
+    "basePrice": "Base subscription price",
+    "noExtraFees": "No extra fees",
+    "grandTotal": "Grand total (sent to the payment gateway)",
+    "fawryCodeTitle": "Fawry payment code",
+    "fawryCodeDesc": "Take this code to the nearest Fawry machine or the Fawry app and pay the amount within 24 hours",
+    "codeCopied": "Code copied",
+    "copyCode": "Copy code",
+    "amountDue": "Amount due",
+    "status": "Status",
+    "waitingPaymentAutoActivate": "⏳ Waiting for payment - activation will happen automatically after payment",
+    "verifyAttempts": "Verification attempts"
   }
 }
