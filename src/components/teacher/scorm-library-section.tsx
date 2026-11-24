@@ -600,25 +600,35 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
       )}
 
       {/* Upload Dialog */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              {t('uploadPackage') || 'Upload SCORM Package'}
-            </DialogTitle>
-            <DialogDescription>
-              {t('uploadDesc') || 'Upload a SCORM 1.2 or 2004 ZIP package. It will be stored in the platform library and can be linked to multiple courses.'}
-            </DialogDescription>
+      <Dialog open={showUploadDialog} onOpenChange={(open) => { if (!uploading) setShowUploadDialog(open); }}>
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+          <DialogHeader className="border-b bg-gradient-to-b from-primary/5 to-transparent px-6 pb-4 pt-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Upload className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 space-y-1 text-start">
+                <DialogTitle className="text-lg leading-tight">
+                  {t('uploadPackage') || 'Upload SCORM Package'}
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-relaxed">
+                  {t('uploadDesc') || 'Upload a SCORM 1.2 or 2004 ZIP package. It will be stored in the platform library and can be linked to multiple courses.'}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+            {/* File picker */}
             <div className="space-y-2">
-              <Label htmlFor="upload-file">{t('zipFile') || 'ZIP File'}</Label>
-              <Input
+              <Label htmlFor="upload-file" className="text-sm font-medium">
+                {t('zipFile') || 'ZIP File'} <span className="text-destructive">*</span>
+              </Label>
+              <input
                 id="upload-file"
                 type="file"
                 accept=".zip"
+                className="sr-only"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   setUploadFile(f || null);
@@ -628,16 +638,45 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                 }}
                 disabled={uploading}
               />
-              {uploadFile && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Check className="h-3 w-3 text-emerald-600" />
-                  {uploadFile.name} ({formatBytes(uploadFile.size)})
-                </p>
+              {uploadFile ? (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                    <FileBox className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium" dir="ltr" style={{ textAlign: 'start' }}>{uploadFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatBytes(uploadFile.size)}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    disabled={uploading}
+                    onClick={() => setUploadFile(null)}
+                    aria-label={t('removeFile') || 'Remove file'}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="upload-file"
+                  className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/20 px-4 py-6 text-center transition-colors hover:border-primary/50 hover:bg-primary/5"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Upload className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-medium">{t('chooseZip') || 'Choose a ZIP file'}</span>
+                  <span className="text-xs text-muted-foreground">{t('zipHint') || 'SCORM 1.2 or 2004 package (.zip)'}</span>
+                </label>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="upload-title">{t('title') || 'Title'} *</Label>
+              <Label htmlFor="upload-title" className="text-sm font-medium">
+                {t('packageTitle') || 'Package title'} <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="upload-title"
                 value={uploadTitle}
@@ -648,60 +687,89 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="upload-desc">{t('description') || 'Description'}</Label>
+              <Label htmlFor="upload-desc" className="text-sm font-medium">
+                {t('packageDescription') || 'Description'}{' '}
+                <span className="text-xs font-normal text-muted-foreground">({t('optional') || 'optional'})</span>
+              </Label>
               <Textarea
                 id="upload-desc"
                 value={uploadDesc}
                 onChange={(e) => setUploadDesc(e.target.value)}
                 rows={2}
+                className="resize-none"
                 disabled={uploading}
               />
             </div>
 
+            {/* SCORM version */}
             <div className="space-y-2">
-              <Label htmlFor="upload-version">{t('scormVersion') || 'SCORM Version'}</Label>
-              <Select value={uploadVersion} onValueChange={(v) => setUploadVersion(v as any)} disabled={uploading}>
-                <SelectTrigger id="upload-version">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1.2">SCORM 1.2</SelectItem>
-                  <SelectItem value="2004">SCORM 2004</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium">{t('scormVersion') || 'SCORM Version'}</Label>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup">
+                {(['1.2', '2004'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={uploadVersion === v}
+                    disabled={uploading}
+                    onClick={() => setUploadVersion(v)}
+                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                      uploadVersion === v
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted/60'
+                    }`}
+                  >
+                    {uploadVersion === v && <Check className="h-4 w-4" />}
+                    SCORM {v}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Choose the courses to upload to (required) */}
+            {/* Choose the course to upload to (required) */}
             <div className="space-y-2">
-              <Label>{t('linkToCourses') || 'Course to upload to'} *</Label>
+              <Label className="text-sm font-medium">
+                {t('linkToCourses') || 'Course to upload to'} <span className="text-destructive">*</span>
+              </Label>
               {subjects.length === 0 ? (
-                <p className="text-xs text-muted-foreground border rounded-lg p-3">
+                <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
                   {t('noSubjectsAvailable') || 'No subjects available. Create a subject first.'}
                 </p>
               ) : (
-                <div className="border rounded-lg max-h-[160px] overflow-y-auto p-2 space-y-1">
-                  {subjects.map((s) => (
-                    <label
-                      key={s.id}
-                      className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
-                    >
-                      <input
-                        type="radio"
-                        name="upload-subject"
-                        checked={uploadSubjectId === s.id}
-                        onChange={() => setUploadSubjectId(s.id)}
+                <div className="max-h-[180px] space-y-1.5 overflow-y-auto rounded-xl border bg-muted/20 p-2" role="radiogroup">
+                  {subjects.map((s) => {
+                    const selected = uploadSubjectId === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
                         disabled={uploading}
-                        className="rounded-full"
-                      />
-                      <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="truncate">{s.name}</span>
-                      {!s.is_owner && (
-                        <Badge variant="outline" className="text-[9px] ms-auto">
-                          {t('coTeacher') || 'Co-teacher'}
-                        </Badge>
-                      )}
-                    </label>
-                  ))}
+                        onClick={() => setUploadSubjectId(s.id)}
+                        className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-start text-sm transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-transparent bg-background hover:border-border'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                            selected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'
+                          }`}
+                        >
+                          {selected && <Check className="h-3 w-3" />}
+                        </span>
+                        <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                        {!s.is_owner && (
+                          <Badge variant="outline" className="text-[9px]">
+                            {t('coTeacher') || 'Co-teacher'}
+                          </Badge>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               {subjects.length > 0 && (
@@ -712,13 +780,12 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 border-t bg-muted/30 px-6 py-4 sm:gap-2">
             <Button variant="outline" onClick={() => setShowUploadDialog(false)} disabled={uploading}>
               {tCommon('cancel') || 'Cancel'}
             </Button>
             <Button onClick={handleUpload} disabled={uploading || !uploadFile || !uploadTitle.trim() || !uploadSubjectId}>
-              {uploading && <Loader2 className="h-4 w-4 me-1 animate-spin" />}
-              <Upload className="h-4 w-4 me-1" />
+              {uploading ? <Loader2 className="h-4 w-4 me-1 animate-spin" /> : <Upload className="h-4 w-4 me-1" />}
               {t('upload') || 'Upload'}
             </Button>
           </DialogFooter>
@@ -739,11 +806,11 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="edit-title">{t('title') || 'Title'}</Label>
+              <Label htmlFor="edit-title">{t('packageTitle') || 'Title'}</Label>
               <Input id="edit-title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} disabled={saving} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-desc">{t('description') || 'Description'}</Label>
+              <Label htmlFor="edit-desc">{t('packageDescription') || 'Description'}</Label>
               <Textarea id="edit-desc" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} disabled={saving} />
             </div>
             <div className="space-y-2">
