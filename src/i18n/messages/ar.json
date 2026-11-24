@@ -5934,5 +5934,31 @@
     "paidAt": "دُفع: {date}",
     "activatedAt": "فُعّل: {date}",
     "hint": "اكتب رقم العملية لتبحث عن تفاصيلها وحالتها."
+  },
+  "subscriptionsLog": {
+    "loadFailed": "تعذّر تحميل السجل",
+    "connectionFailed": "تعذّر الاتصال بالخادم",
+    "title": "سجل اشتراكات الطلاب",
+    "total": "الإجمالي: {count}",
+    "activeCount": "نشط: {count}",
+    "expiredCount": "منتهي: {count}",
+    "freeCount": "مجاني: {count}",
+    "searchPlaceholder": "ابحث باسم الطالب أو رقم العملية أو المقرر...",
+    "filterAll": "الكل",
+    "filterActive": "نشط",
+    "filterExpired": "منتهي",
+    "loading": "جارٍ التحميل...",
+    "noMatches": "لا توجد اشتراكات مطابقة",
+    "permanent": "دائم",
+    "free": "مجاني",
+    "expired": "منتهي",
+    "expiresInDays": "{days, plural, zero {ينتهي اليوم} one {ينتهي خلال يوم واحد} two {ينتهي خلال يومين} few {ينتهي خلال # أيام} many {ينتهي خلال # يوماً} other {ينتهي خلال # يوم}}",
+    "active": "نشط",
+    "started": "بدأ: {date}",
+    "ends": "ينتهي: {date}",
+    "perMonth": "{price} {currency}/شهرياً",
+    "totalCollected": "الإجمالي المُحصَّل",
+    "platformShare": "نصيب المنصة ({rate}%)",
+    "teacherShare": "نصيب المعلم"
   }
 }

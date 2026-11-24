@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 
 /**
@@ -48,6 +49,7 @@ interface SubscriptionRow {
 }
 
 export default function StudentSubscriptionsLog() {
+  const { t } = useTranslations('subscriptionsLog');
   const [loading, setLoading] = useState(true);
   const [allSubs, setAllSubs] = useState<SubscriptionRow[]>([]);
   const [search, setSearch] = useState('');
@@ -63,10 +65,10 @@ export default function StudentSubscriptionsLog() {
       if (json.success) {
         setAllSubs(json.subscriptions ?? []);
       } else {
-        toast.error(json.error || 'تعذّر تحميل السجل');
+        toast.error(json.error || t('loadFailed'));
       }
     } catch {
-      toast.error('تعذّر الاتصال بالخادم');
+      toast.error(t('connectionFailed'));
     } finally {
       setLoading(false);
     }
@@ -128,13 +130,13 @@ export default function StudentSubscriptionsLog() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <BookOpen className="h-5 w-5 text-sky-700" />
-          سجل اشتراكات الطلاب
+          {t('title')}
         </CardTitle>
         <div className="flex flex-wrap gap-3 mt-2 text-xs">
-          <Badge variant="secondary" className="text-xs">الإجمالي: {stats.total}</Badge>
-          <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-200 text-xs">نشط: {stats.active}</Badge>
-          <Badge variant="destructive" className="text-xs">منتهي: {stats.expired}</Badge>
-          <Badge variant="outline" className="text-xs">مجاني: {stats.free}</Badge>
+          <Badge variant="secondary" className="text-xs">{t('total', { count: stats.total })}</Badge>
+          <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-200 text-xs">{t('activeCount', { count: stats.active })}</Badge>
+          <Badge variant="destructive" className="text-xs">{t('expiredCount', { count: stats.expired })}</Badge>
+          <Badge variant="outline" className="text-xs">{t('freeCount', { count: stats.free })}</Badge>
         </div>
       </CardHeader>
 
@@ -145,7 +147,7 @@ export default function StudentSubscriptionsLog() {
             <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="ابحث باسم الطالب أو رقم العملية أو المقرر..."
+              placeholder={t('searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="ps-9 h-10"
@@ -158,7 +160,7 @@ export default function StudentSubscriptionsLog() {
               onClick={() => setFilter('all')}
               className="h-10"
             >
-              الكل
+              {t('filterAll')}
             </Button>
             <Button
               size="sm"
@@ -166,7 +168,7 @@ export default function StudentSubscriptionsLog() {
               onClick={() => setFilter('active')}
               className="h-10"
             >
-              نشط
+              {t('filterActive')}
             </Button>
             <Button
               size="sm"
@@ -174,7 +176,7 @@ export default function StudentSubscriptionsLog() {
               onClick={() => setFilter('expired')}
               className="h-10"
             >
-              منتهي
+              {t('filterExpired')}
             </Button>
           </div>
         </div>
@@ -183,11 +185,11 @@ export default function StudentSubscriptionsLog() {
         {loading ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin me-2" />
-            جارٍ التحميل...
+            {t('loading')}
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground text-sm">
-            لا توجد اشتراكات مطابقة
+            {t('noMatches')}
           </div>
         ) : (
           <div className="space-y-2 max-h-[500px] overflow-y-auto">
@@ -199,22 +201,22 @@ export default function StudentSubscriptionsLog() {
               const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7 && !isExpired;
 
               const statusBadge = isPermanent ? (
-                <Badge variant="outline" className="text-xs bg-slate-50">دائم</Badge>
+                <Badge variant="outline" className="text-xs bg-slate-50">{t('permanent')}</Badge>
               ) : isFree ? (
                 <Badge variant="outline" className="text-xs bg-sky-50 text-sky-700 border-sky-200">
-                  <Gift className="h-3 w-3 me-1" /> مجاني
+                  <Gift className="h-3 w-3 me-1" /> {t('free')}
                 </Badge>
               ) : isExpired ? (
                 <Badge variant="destructive" className="text-xs">
-                  <AlertCircle className="h-3 w-3 me-1" /> منتهي
+                  <AlertCircle className="h-3 w-3 me-1" /> {t('expired')}
                 </Badge>
               ) : isExpiringSoon ? (
                 <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-200">
-                  <Clock className="h-3 w-3 me-1" /> ينتهي خلال {daysLeft} يوم
+                  <Clock className="h-3 w-3 me-1" /> {t('expiresInDays', { days: daysLeft })}
                 </Badge>
               ) : (
                 <Badge className="text-xs bg-teal-100 text-teal-800 hover:bg-teal-200">
-                  <CheckCircle2 className="h-3 w-3 me-1" /> نشط
+                  <CheckCircle2 className="h-3 w-3 me-1" /> {t('active')}
                 </Badge>
               );
 
@@ -249,17 +251,17 @@ export default function StudentSubscriptionsLog() {
                   <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <Calendar className="h-3 w-3 shrink-0" />
-                      <span>بدأ: {formatDate(sub.period_start || sub.enrolled_at)}</span>
+                      <span>{t('started', { date: formatDate(sub.period_start || sub.enrolled_at) })}</span>
                     </div>
                     {!isPermanent && (
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Clock className="h-3 w-3 shrink-0" />
-                        <span>ينتهي: {formatDate(sub.period_end)}</span>
+                        <span>{t('ends', { date: formatDate(sub.period_end) })}</span>
                       </div>
                     )}
                     {!isFree && sub.monthly_price !== null && (
                       <div className="text-muted-foreground">
-                        {Number(sub.monthly_price)} {sub.currency || 'EGP'}/شهرياً
+                        {t('perMonth', { price: Number(sub.monthly_price), currency: sub.currency || 'EGP' })}
                       </div>
                     )}
                   </div>
@@ -269,15 +271,15 @@ export default function StudentSubscriptionsLog() {
                   {sub.gross_amount !== null && sub.gross_amount > 0 && (
                     <div className="mt-2 rounded-md bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/40 p-2 text-xs space-y-1">
                       <div className="flex justify-between text-sky-800 dark:text-sky-200 font-semibold">
-                        <span>الإجمالي المُحصَّل</span>
+                        <span>{t('totalCollected')}</span>
                         <span className="font-mono">{Number(sub.gross_amount).toFixed(2)} {sub.currency || 'EGP'}</span>
                       </div>
                       <div className="flex justify-between text-muted-foreground">
-                        <span>نصيب المنصة ({Number(sub.commission_rate ?? 0).toFixed(2)}%)</span>
+                        <span>{t('platformShare', { rate: Number(sub.commission_rate ?? 0).toFixed(2) })}</span>
                         <span className="font-mono text-rose-600 dark:text-rose-400">−{Number(sub.platform_share ?? 0).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-muted-foreground">
-                        <span>نصيب المعلم</span>
+                        <span>{t('teacherShare')}</span>
                         <span className="font-mono text-emerald-600 dark:text-emerald-400">+{Number(sub.teacher_share ?? 0).toFixed(2)}</span>
                       </div>
                       {sub.fees_breakdown && sub.fees_breakdown.length > 0 && (

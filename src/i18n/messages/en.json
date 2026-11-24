@@ -5934,5 +5934,31 @@
     "paidAt": "Paid: {date}",
     "activatedAt": "Activated: {date}",
     "hint": "Type the transaction number to search for its details and status."
+  },
+  "subscriptionsLog": {
+    "loadFailed": "Could not load the log",
+    "connectionFailed": "Could not reach the server",
+    "title": "Student subscriptions log",
+    "total": "Total: {count}",
+    "activeCount": "Active: {count}",
+    "expiredCount": "Expired: {count}",
+    "freeCount": "Free: {count}",
+    "searchPlaceholder": "Search by student name, transaction number or course...",
+    "filterAll": "All",
+    "filterActive": "Active",
+    "filterExpired": "Expired",
+    "loading": "Loading...",
+    "noMatches": "No matching subscriptions",
+    "permanent": "Permanent",
+    "free": "Free",
+    "expired": "Expired",
+    "expiresInDays": "{days, plural, one {Expires in # day} other {Expires in # days}}",
+    "active": "Active",
+    "started": "Started: {date}",
+    "ends": "Ends: {date}",
+    "perMonth": "{price} {currency}/month",
+    "totalCollected": "Total collected",
+    "platformShare": "Platform share ({rate}%)",
+    "teacherShare": "Teacher share"
   }
 }
