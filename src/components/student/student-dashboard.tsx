@@ -1629,8 +1629,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     if (!usageCheck.canUse) {
       toast.error(
         usageCheck.limit !== null
-          ? `لقد وصلت إلى الحد الأقصى (${usageCheck.limit} عملية). فعّل القسم للمتابعة.`
-          : 'لا يمكن إنشاء ملخصات جديدة. فعّل القسم للمتابعة.'
+          ? t('student.usageLimitSummaries', { limit: usageCheck.limit })
+          : t('student.usageLimitSummariesNoCount')
       );
       return;
     }
@@ -2562,8 +2562,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     if (!usageCheck.canUse) {
       toast.error(
         usageCheck.limit !== null
-          ? `لقد وصلت إلى الحد الأقصى (${usageCheck.limit} عملية). فعّل القسم للمتابعة.`
-          : 'لا يمكن إنشاء اختبارات جديدة. فعّل القسم للمتابعة.'
+          ? t('student.usageLimitQuizzes', { limit: usageCheck.limit })
+          : t('student.usageLimitQuizzesNoCount')
       );
       return;
     }

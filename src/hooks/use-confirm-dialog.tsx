@@ -26,6 +26,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslations } from '@/i18n/use-translations';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -47,6 +48,7 @@ interface ConfirmOptions {
 }
 
 export function useConfirmDialog() {
+  const { t } = useTranslations();
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions>({
     title: '',
@@ -91,7 +93,7 @@ export function useConfirmDialog() {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={handleCancel}>
-            {options.cancelLabel || 'تراجع'}
+            {options.cancelLabel || t('common.back')}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
@@ -100,7 +102,7 @@ export function useConfirmDialog() {
               : undefined
             }
           >
-            {options.confirmLabel || 'تأكيد'}
+            {options.confirmLabel || t('common.confirm')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -92,7 +92,7 @@ function ConfirmDialog({
   onCancel: () => void;
   variant?: 'danger' | 'warning';
 }) {
-  const { direction } = useTranslations();
+  const { t, direction } = useTranslations();
   if (!open) return null;
   return (
     <AnimatePresence>
@@ -929,7 +929,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
                         setSuspendStudentName(student.name ?? student.email ?? '—');
                       }}
                       className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-amber-50 hover:text-amber-600 transition-colors"
-                      title="إيقاف / تفعيل"
+                      title={t('suspendDialog.title')}
                     >
                       <Ban className="h-3.5 w-3.5" />
                     </button>

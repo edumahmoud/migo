@@ -85,7 +85,7 @@ export default function SettingsModal({
   // v110: Initiate Telegram OTP verification for phone number change
   const handlePhoneUpdate = async () => {
     if (!phone.trim()) {
-      toast.error('الرجاء إدخال رقم الهاتف');
+      toast.error(t('enterPhone'));
       return;
     }
     setIsVerifyingPhone(true);
@@ -100,13 +100,13 @@ export default function SettingsModal({
       const json = await res.json();
       if (json.success) {
         setPhoneVerifyStep('otp');
-        toast.success(json.message || 'تم إرسال رمز التحقق عبر تليجرام');
+        toast.success(json.message || t('otpSentTelegram'));
       } else {
-        toast.error(json.error || 'فشل إرسال رمز التحقق');
+        toast.error(json.error || t('otpSendFailed'));
       }
     } catch (err) {
       console.error('Phone verification init failed:', err);
-      toast.error('فشل إرسال رمز التحقق');
+      toast.error(t('otpSendFailed'));
     } finally {
       setIsVerifyingPhone(false);
     }
@@ -115,7 +115,7 @@ export default function SettingsModal({
   // v110: Verify the OTP code and update the phone number
   const handlePhoneOtpVerify = async () => {
     if (!phoneOtp.trim()) {
-      toast.error('الرجاء إدخال رمز التحقق');
+      toast.error(t('pleaseEnterOtp'));
       return;
     }
     setIsVerifyingPhone(true);
@@ -129,17 +129,17 @@ export default function SettingsModal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم تحديث رقم الهاتف بنجاح');
+        toast.success(json.message || t('phoneUpdatedSuccess'));
         setPhoneVerifyStep('idle');
         setPhoneOtp('');
         // Trigger a profile reload
         window.location.reload();
       } else {
-        toast.error(json.error || 'رمز التحقق غير صحيح');
+        toast.error(json.error || t('otpInvalid'));
       }
     } catch (err) {
       console.error('Phone OTP verify failed:', err);
-      toast.error('فشل التحقق من الرمز');
+      toast.error(t('otpVerifyFailed'));
     } finally {
       setIsVerifyingPhone(false);
     }

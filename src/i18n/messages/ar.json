@@ -1897,7 +1897,17 @@
     "phoneTelegramHint": "سيتم إرسال رمز التحقق عبر تليجرام لتأكيد رقم الهاتف",
     "updatePhone": "تحديث رقم الهاتف عبر تليجرام",
     "verifyOtp": "تأكيد الرمز",
-    "verifyingPhone": "جاري التحقق..."
+    "verifyingPhone": "جاري التحقق...",
+    "enterPhone": "الرجاء إدخال رقم الهاتف",
+    "telegramOpened": "تم فتح تليجرام — ستصلك رسالة برمز التحقق. أدخل الرمز أدناه.",
+    "otpSentTelegram": "تم إرسال رمز التحقق عبر تليجرام",
+    "otpSendFailed": "فشل إرسال رمز التحقق",
+    "pleaseEnterOtp": "الرجاء إدخال رمز التحقق",
+    "phoneUpdatedSuccess": "تم تحديث رقم الهاتف بنجاح",
+    "otpInvalid": "رمز التحقق غير صحيح",
+    "otpVerifyFailed": "فشل التحقق من الرمز",
+    "forLogin": "للدخول",
+    "updatePhoneAuto": "تحديث الرقم — تحويل تلقائي لتليجرام"
   },
   "chat": {
     "chat": "المحادثات",
@@ -3059,7 +3069,8 @@
     "supervisorsForTeacher": "المشرفون على {name}",
     "teacherCount": "{count} معلم",
     "temporaryRemaining": "حظر مؤقت — متبقي {time}",
-    "statScormPackages": "حزم SCORM"
+    "statScormPackages": "حزم SCORM",
+    "studentCodeLabel": "كود: {code}"
   },
   "adminFinancial": {
     "title": "اللوحة المالية",
@@ -4261,7 +4272,11 @@
     "summaryCreatePartialSuccess": "تم إنشاء الملخص: {title} (تعذر الحفظ في السحابة)",
     "summaryCreateSuccess": "تم إنشاء الملخص: {title}",
     "transcribePartialSuccess": "تم النسخ: {title} (تعذر الحفظ في السحابة)",
-    "transcribeSuccess": "تم نسخ الملف: {title}"
+    "transcribeSuccess": "تم نسخ الملف: {title}",
+    "usageLimitSummaries": "لقد وصلت إلى الحد الأقصى ({limit} عملية). فعّل القسم للمتابعة.",
+    "usageLimitSummariesNoCount": "لا يمكن إنشاء ملخصات جديدة. فعّل القسم للمتابعة.",
+    "usageLimitQuizzes": "لقد وصلت إلى الحد الأقصى ({limit} عملية). فعّل القسم للمتابعة.",
+    "usageLimitQuizzesNoCount": "لا يمكن إنشاء اختبارات جديدة. فعّل القسم للمتابعة."
   },
   "supabaseConfig": {
     "configError": "خطأ في الإعدادات",
@@ -5028,7 +5043,8 @@
     "showResultsDesc": "النتائج مرئية للمصوتين",
     "resultsHidden": "النتائج مخفية",
     "resultsRevealed": "تم إظهار النتائج",
-    "revealResults": "إظهار النتائج"
+    "revealResults": "إظهار النتائج",
+    "defaultTeacher": "المعلم"
   },
   "calendar": {
     "title": "التقويم",

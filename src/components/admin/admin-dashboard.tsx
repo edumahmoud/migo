@@ -1521,7 +1521,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <td className="p-3 hidden sm:table-cell">
                             <span className="text-sm text-muted-foreground truncate max-w-[180px] block">{user.email}</span>
                             {(user as { student_code?: string | null }).student_code && (
-                              <span className="text-[10px] font-mono text-sky-600">كود: {(user as { student_code?: string | null }).student_code}</span>
+                              <span className="text-[10px] font-mono text-sky-600">{t('admin.studentCodeLabel', { code: (user as { student_code?: string | null }).student_code })}</span>
                             )}
                           </td>
                           <td className="p-3">

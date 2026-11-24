@@ -1897,7 +1897,17 @@
     "phoneTelegramHint": "A verification code will be sent via Telegram to confirm your phone number",
     "updatePhone": "Update phone number via Telegram",
     "verifyOtp": "Verify code",
-    "verifyingPhone": "Verifying..."
+    "verifyingPhone": "Verifying...",
+    "enterPhone": "Please enter your phone number",
+    "telegramOpened": "Telegram opened — you will receive a message with a verification code. Enter it below.",
+    "otpSentTelegram": "Verification code sent via Telegram",
+    "otpSendFailed": "Failed to send verification code",
+    "pleaseEnterOtp": "Please enter the verification code",
+    "phoneUpdatedSuccess": "Phone number updated successfully",
+    "otpInvalid": "Invalid verification code",
+    "otpVerifyFailed": "Failed to verify the code",
+    "forLogin": "For login",
+    "updatePhoneAuto": "Update number — auto-transfer via Telegram"
   },
   "chat": {
     "chat": "Chat",
@@ -3059,7 +3069,8 @@
     "supervisorsForTeacher": "Supervisors for {name}",
     "teacherCount": "{count} teachers",
     "temporaryRemaining": "Temporary ban — {time} remaining",
-    "statScormPackages": "SCORM Packages"
+    "statScormPackages": "SCORM Packages",
+    "studentCodeLabel": "Code: {code}"
   },
   "adminFinancial": {
     "title": "Financial Dashboard",
@@ -4261,7 +4272,11 @@
     "summaryCreatePartialSuccess": "Summary created: {title} (failed to save to cloud)",
     "summaryCreateSuccess": "Summary created: {title}",
     "transcribePartialSuccess": "Transcribed: {title} (failed to save to cloud)",
-    "transcribeSuccess": "File transcribed: {title}"
+    "transcribeSuccess": "File transcribed: {title}",
+    "usageLimitSummaries": "You have reached the maximum ({limit} operations). Enable the section to continue.",
+    "usageLimitSummariesNoCount": "Cannot create new summaries. Enable the section to continue.",
+    "usageLimitQuizzes": "You have reached the maximum ({limit} operations). Enable the section to continue.",
+    "usageLimitQuizzesNoCount": "Cannot create new quizzes. Enable the section to continue."
   },
   "supabaseConfig": {
     "configError": "Configuration Error",
@@ -5028,7 +5043,8 @@
     "showResultsDesc": "Results are visible to voters",
     "resultsHidden": "Results Hidden",
     "resultsRevealed": "Results Revealed",
-    "revealResults": "Reveal Results"
+    "revealResults": "Reveal Results",
+    "defaultTeacher": "Teacher"
   },
   "calendar": {
     "title": "Calendar",
