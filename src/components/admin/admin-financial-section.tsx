@@ -383,10 +383,15 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
   const handleRefund = async (row: LedgerRow) => {
     if (refundingId) return;
     const confirmed = await confirm({
-      title: 'تأكيد الاسترداد',
-      description: `تأكيد الاسترداد لهذه العملية؟ الطالب: ${row.student_name} — المعلم: ${row.teacher_name} — المقرر: ${row.subject_name} — الإجمالي: ${formatAmount(row.gross_amount, row.currency)}. سيتم تغيير الحالة فقط إلى "مسترد". القيم المالية التاريخية لن تُعدّل.`,
-      confirmLabel: 'استرداد',
-      cancelLabel: 'تراجع',
+      title: t('adminFinancial.refund.confirmTitle'),
+      description: t('adminFinancial.refund.confirmDesc', {
+        student: row.student_name,
+        teacher: row.teacher_name,
+        subject: row.subject_name,
+        total: formatAmount(row.gross_amount, row.currency),
+      }),
+      confirmLabel: t('adminFinancial.refund.actionLabel'),
+      cancelLabel: t('common.back'),
       variant: 'destructive',
     });
     if (!confirmed) return;
@@ -398,14 +403,14 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تسجيل الاسترداد بنجاح');
+        toast.success(t('adminFinancial.refund.success'));
         await fetchData(); // refresh table
       } else {
-        toast.error(json.error || 'فشل الاسترداد');
+        toast.error(json.error || t('adminFinancial.refund.failed'));
       }
     } catch (err) {
       console.error('[refund] failed', err);
-      toast.error('حدث خطأ غير متوقع أثناء الاسترداد');
+      toast.error(t('adminFinancial.refund.unexpected'));
     } finally {
       setRefundingId(null);
     }
@@ -929,13 +934,13 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                 onValueChange={(v) => setPeriodFilter(v as 'all' | 'day' | 'month' | 'year')}
               >
                 <SelectTrigger className="w-32 h-9">
-                  <SelectValue placeholder="الكل" />
+                  <SelectValue placeholder={t('adminFinancial.period.all')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">الكل</SelectItem>
-                  <SelectItem value="day">اليوم</SelectItem>
-                  <SelectItem value="month">هذا الشهر</SelectItem>
-                  <SelectItem value="year">هذا العام</SelectItem>
+                  <SelectItem value="all">{t('adminFinancial.period.all')}</SelectItem>
+                  <SelectItem value="day">{t('adminFinancial.period.day')}</SelectItem>
+                  <SelectItem value="month">{t('adminFinancial.period.month')}</SelectItem>
+                  <SelectItem value="year">{t('adminFinancial.period.year')}</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -988,7 +993,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
             <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
               <Search className="h-6 w-6 text-muted-foreground opacity-50" />
               <p className="text-sm text-muted-foreground">
-                لا توجد نتائج مطابقة للبحث
+                {t('adminFinancial.search.noResults')}
               </p>
               <Button
                 variant="ghost"
@@ -996,7 +1001,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                 className="h-7 text-xs"
                 onClick={() => { setSearchQuery(''); setPeriodFilter('all'); }}
               >
-                مسح البحث
+                {t('adminFinancial.search.clear')}
               </Button>
             </div>
           )}
@@ -1013,7 +1018,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                           orders.provider_order_ref. Shows the gateway's
                           Order ID (Paymob, Fawry, etc.) next to the
                           operation code. */}
-                      <TableHead>رقم الطلب</TableHead>
+                      <TableHead>{t('adminFinancial.table.order')}</TableHead>
                       {/* v112: date column header with sort toggle */}
                       <TableHead>
                         <button
@@ -1041,7 +1046,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                       <TableHead className="text-end">{t('adminFinancial.table.gatewayFee')}</TableHead>
                       <TableHead className="text-end">{t('adminFinancial.table.net')}</TableHead>
                       <TableHead>{t('adminFinancial.table.status')}</TableHead>
-                      <TableHead className="text-center">إجراء</TableHead>
+                      <TableHead className="text-center">{t('adminFinancial.table.action')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1060,7 +1065,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                               const shortCode = formatOpCode(row.id);
                               try {
                                 navigator.clipboard?.writeText(shortCode);
-                                toast.success(`تم نسخ كود العملية: ${shortCode}`);
+                                toast.success(t('adminFinancial.copy.opCode', { code: shortCode }));
                               } catch { /* ignore */ }
                             }}
                           >
@@ -1083,11 +1088,11 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                                     e.stopPropagation();
                                     try {
                                       navigator.clipboard?.writeText(orderId);
-                                      toast.success(`تم نسخ رقم الطلب: ${orderId}`);
+                                      toast.success(t('adminFinancial.copy.orderId', { order: orderId }));
                                     } catch { /* ignore */ }
                                   }}
                                   className="text-sky-700 dark:text-sky-300 hover:underline cursor-pointer"
-                                  title="اضغط للنسخ"
+                                  title={t('adminFinancial.copy.title')}
                                 >
                                   {orderId}
                                 </button>
@@ -1139,14 +1144,14 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                                 className="h-7 gap-1 text-xs text-rose-600 hover:bg-rose-50"
                                 disabled={refundingId === row.id}
                                 onClick={() => handleRefund(row)}
-                                title="استرداد"
+                                title={t('adminFinancial.refund.actionLabel')}
                               >
                                 {refundingId === row.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
                                   <RotateCcw className="h-3 w-3" />
                                 )}
-                                استرداد
+                                {t('adminFinancial.refund.actionLabel')}
                               </Button>
                               {/* G5 — download PDF receipt */}
                               <a
@@ -1154,7 +1159,7 @@ export default function AdminFinancialSection({ profile: _profile }: AdminFinanc
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 h-7 px-2 text-xs text-sky-700 hover:bg-sky-50 rounded-md"
-                                title="تحميل إيصال PDF"
+                                title={t('adminFinancial.receipt.downloadTitle')}
                               >
                                 <FileDown className="h-3 w-3" />
                                 PDF

@@ -3135,7 +3135,8 @@
       "empty": "No transactions match the selected filters",
       "opCode": "Op Code",
       "time": "Time",
-      "totalFiltered": "Total transactions (filtered): {count}"
+      "totalFiltered": "Total transactions (filtered): {count}",
+      "action": "Action"
     },
     "pagination": {
       "previous": "Previous",
@@ -3158,13 +3159,37 @@
     },
     "search": {
       "placeholder": "Search by op code, order, or student...",
-      "label": "Search"
+      "label": "Search",
+      "noResults": "No results match your search",
+      "clear": "Clear search"
     },
     "sort": {
       "label": "Sort",
       "asc": "Ascending",
       "desc": "Descending",
       "byDate": "By date"
+    },
+    "refund": {
+      "confirmTitle": "Confirm refund",
+      "confirmDesc": "Confirm refund for this transaction? Student: {student} — Teacher: {teacher} — Course: {subject} — Total: {total}. Only the status will change to \"Refunded\". Historical financial values will not be modified.",
+      "actionLabel": "Refund",
+      "success": "Refund recorded successfully",
+      "failed": "Refund failed",
+      "unexpected": "An unexpected error occurred during the refund"
+    },
+    "period": {
+      "all": "All",
+      "day": "Today",
+      "month": "This month",
+      "year": "This year"
+    },
+    "copy": {
+      "opCode": "Transaction code copied: {code}",
+      "orderId": "Order number copied: {order}",
+      "title": "Click to copy"
+    },
+    "receipt": {
+      "downloadTitle": "Download PDF receipt"
     }
   },
   "setup": {
