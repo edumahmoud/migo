@@ -105,25 +105,21 @@ interface DashboardData {
   recent: Array<{ id: string; student_id: string; student_name: string | null; student_email: string | null; student_code: string | null; subject_id: string; subject_name: string | null; enrolled_at: string }>;
 }
 
-const KIND_LABEL: Record<Kind, string> = {
-  center: 'المركز الرئيسي',
-  external_office: 'مكتب خارجي',
-  other: 'أخرى',
-};
+
 
 // v132: Agent sections that the teacher can grant per-agent.
 // These match AGENT_SECTION_DEFS in src/components/agent/agent-portal.tsx.
 // v132 reduced the list from 18 sub-sections to 9 top-level sections.
 const TEACHER_SECTION_OPTIONS: Array<{ id: string; label: string; description: string }> = [
-  { id: 'search',               label: 'البحث عن طالب',  description: 'البحث عن طريقاب والتلاعب بالإيقافات والاشتراكات' },
-  { id: 'pendingOrders',         label: 'الطلبات المعلّقة', description: 'قبول/رفض طلبات الاشتراك المعلّقة' },
-  { id: 'dashboard',            label: 'الرئيسية',        description: 'إحصائيات عامة (المقررات، الطلاب، الطلبات، الاشتراكات)' },
-  { id: 'subjects',             label: 'المقررات',       description: 'عرض المقررات والخطط المتاحة لكل مقرر' },
-  { id: 'students',             label: 'الطلاب',         description: 'عرض قائمة الطلاب ومعلوماتهم (للقراءة فقط)' },
-  { id: 'tracking',             label: 'تتبع الأداء',    description: 'متابعة أداء الطلاب (حضور، اختبارات، واجبات، تقدم دروس)' },
-  { id: 'financialManagement',  label: 'الإدارة المالية', description: 'الاطلاع على المعاملات المالية ونصيب المعلم والمنصة' },
-  { id: 'calendar',             label: 'التقويم',        description: 'عرض الاختبارات والمهام والمحاضرات المجدولة' },
-  { id: 'reports',              label: 'البلاغات',       description: 'عرض البلاغات الإشرافية المقدمة من الطلاب' },
+  { id: 'search',               label: 'regAgents.section.search.label',              description: 'regAgents.section.search.description' },
+  { id: 'pendingOrders',        label: 'regAgents.section.pendingOrders.label',       description: 'regAgents.section.pendingOrders.description' },
+  { id: 'dashboard',            label: 'regAgents.section.dashboard.label',           description: 'regAgents.section.dashboard.description' },
+  { id: 'subjects',             label: 'regAgents.section.subjects.label',            description: 'regAgents.section.subjects.description' },
+  { id: 'students',             label: 'regAgents.section.students.label',            description: 'regAgents.section.students.description' },
+  { id: 'tracking',             label: 'regAgents.section.tracking.label',            description: 'regAgents.section.tracking.description' },
+  { id: 'financialManagement',  label: 'regAgents.section.financialManagement.label', description: 'regAgents.section.financialManagement.description' },
+  { id: 'calendar',             label: 'regAgents.section.calendar.label',            description: 'regAgents.section.calendar.description' },
+  { id: 'reports',              label: 'regAgents.section.reports.label',             description: 'regAgents.section.reports.description' },
 ];
 
 export default function RegistrationAgentsSection() {
@@ -239,15 +235,15 @@ export default function RegistrationAgentsSection() {
 
   const submitCreate = async () => {
     if (!form.display_name.trim()) {
-      toast.error('أدخل اسم الوكيل');
+      toast.error(t('regAgents.nameRequired'));
       return;
     }
     if (!form.contact_email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact_email)) {
-      toast.error('أدخل بريد تواصل صحيح');
+      toast.error(t('regAgents.contactEmailInvalid'));
       return;
     }
     if (!form.account_email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.account_email)) {
-      toast.error('أدخل بريد حساب صحيح');
+      toast.error(t('regAgents.accountEmailInvalid'));
       return;
     }
     setSaving(true);
@@ -261,7 +257,7 @@ export default function RegistrationAgentsSection() {
       if (!json.success) {
         toast.error(json.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم إنشاء وكيل التسجيل');
+        toast.success(t('regAgents.createSuccess'));
         setCreateOpen(false);
         setCreatedCreds({
           email: json.user.email,
@@ -297,7 +293,7 @@ export default function RegistrationAgentsSection() {
   const submitEdit = async () => {
     if (!editTarget) return;
     if (!editForm.display_name.trim()) {
-      toast.error('أدخل اسم الوكيل');
+      toast.error(t('regAgents.nameRequired'));
       return;
     }
     setEditSaving(true);
@@ -315,7 +311,7 @@ export default function RegistrationAgentsSection() {
       if (!json.success) {
         toast.error(json.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم تحديث الوكيل');
+        toast.success(t('regAgents.updateSuccess'));
         setEditTarget(null);
         await load();
       }
@@ -338,7 +334,7 @@ export default function RegistrationAgentsSection() {
         toast.error(json.error || t('common.unexpectedError'));
         return;
       }
-      toast.success(next ? 'تم تنشيط الوكيل' : 'تم إيقاف الوكيل');
+      toast.success(next ? t('regAgents.activateSuccess') : t('regAgents.deactivateSuccess'));
       await load();
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -356,7 +352,7 @@ export default function RegistrationAgentsSection() {
       if (!json.success) {
         toast.error(json.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم حذف الوكيل');
+        toast.success(t('regAgents.deleteSuccess'));
         setDeleteTarget(null);
         await load();
       }
@@ -410,9 +406,9 @@ export default function RegistrationAgentsSection() {
   const copyCreds = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`تم نسخ ${label}`);
+      toast.success(t('regAgents.copied', { label: label }));
     } catch {
-      toast.error('تعذر النسخ');
+      toast.error(t('regAgents.copyFailed'));
     }
   };
 
@@ -425,15 +421,15 @@ export default function RegistrationAgentsSection() {
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
             <UserCog className="h-5 w-5 text-sky-600" />
-            وكلاء التسجيل
+            {t('regAgents.title')}
           </h2>
           <p className="text-sm text-muted-foreground">
-            كل وكيل = حساب مستقل (مركز / مكتب خارجي) يستطيع تسجيل الطلاب في دوراتك.
+            {t('regAgents.subtitle')}
           </p>
         </div>
         <Button onClick={openCreate} size="sm">
           <Plus className="h-4 w-4 me-1" />
-          وكيل جديد
+          {t('regAgents.newAgent')}
         </Button>
       </div>
 
@@ -443,55 +439,55 @@ export default function RegistrationAgentsSection() {
           <Card className="border-sky-200 bg-sky-50/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">إجمالي الوكلاء</span>
+                <span className="text-xs text-muted-foreground">{t('regAgents.totalAgents')}</span>
                 <UserCog className="h-4 w-4 text-sky-600" />
               </div>
               <div className="text-2xl font-bold mt-1">{totalAgents}</div>
-              <div className="text-xs text-muted-foreground">{activeAgents} نشط</div>
+              <div className="text-xs text-muted-foreground">{t('regAgents.activeCount', { count: activeAgents })}</div>
             </CardContent>
           </Card>
           <Card className="border-emerald-200 bg-emerald-50/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">إجمالي التسجيلات</span>
+                <span className="text-xs text-muted-foreground">{t('regAgents.totalRegistrations')}</span>
                 <TrendingUp className="h-4 w-4 text-emerald-600" />
               </div>
               <div className="text-2xl font-bold mt-1">{aggregate?.total_registrations ?? 0}</div>
-              <div className="text-xs text-muted-foreground">تسجيل في مقررات</div>
+              <div className="text-xs text-muted-foreground">{t('regAgents.registrationsInCourses')}</div>
             </CardContent>
           </Card>
           <Card className="border-teal-200 bg-teal-50/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">طلاب فريدون</span>
+                <span className="text-xs text-muted-foreground">{t('regAgents.uniqueStudents')}</span>
                 <Users className="h-4 w-4 text-teal-600" />
               </div>
               <div className="text-2xl font-bold mt-1">{aggregate?.total_unique_students ?? 0}</div>
-              <div className="text-xs text-muted-foreground">طالب عبر كل الوكلاء</div>
+              <div className="text-xs text-muted-foreground">{t('regAgents.studentsAcrossAgents')}</div>
             </CardContent>
           </Card>
           <Card className="border-purple-200 bg-purple-50/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">عدد المراكز</span>
+                <span className="text-xs text-muted-foreground">{t('regAgents.centersCount')}</span>
                 <Building2 className="h-4 w-4 text-purple-600" />
               </div>
               <div className="text-2xl font-bold mt-1">
                 {agents.filter((a) => (a.kind ?? 'center') === 'center').length}
               </div>
-              <div className="text-xs text-muted-foreground">مركز رئيسي</div>
+              <div className="text-xs text-muted-foreground">{t('regAgents.mainCenter')}</div>
             </CardContent>
           </Card>
           <Card className="border-amber-200 bg-amber-50/40">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">مكاتب خارجية</span>
+                <span className="text-xs text-muted-foreground">{t('regAgents.externalOffices')}</span>
                 <Building2 className="h-4 w-4 text-amber-600" />
               </div>
               <div className="text-2xl font-bold mt-1">
                 {agents.filter((a) => a.kind === 'external_office').length}
               </div>
-              <div className="text-xs text-muted-foreground">مكتب خارجي</div>
+              <div className="text-xs text-muted-foreground">{t('regAgents.externalOffice')}</div>
             </CardContent>
           </Card>
         </div>
@@ -505,19 +501,19 @@ export default function RegistrationAgentsSection() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث بالاسم أو البريد..."
+              placeholder={t('regAgents.searchPlaceholder')}
               className="ps-10"
             />
           </div>
           <Select value={kindFilter} onValueChange={setKindFilter}>
             <SelectTrigger className="sm:w-48">
-              <SelectValue placeholder="كل الأنواع" />
+              <SelectValue placeholder={t('regAgents.allTypes')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">كل الأنواع</SelectItem>
-              <SelectItem value="center">{KIND_LABEL.center}</SelectItem>
-              <SelectItem value="external_office">{KIND_LABEL.external_office}</SelectItem>
-              <SelectItem value="other">{KIND_LABEL.other}</SelectItem>
+              <SelectItem value="all">{t('regAgents.allTypes')}</SelectItem>
+              <SelectItem value="center">{t('regAgents.kind.center')}</SelectItem>
+              <SelectItem value="external_office">{t('regAgents.kind.externalOffice')}</SelectItem>
+              <SelectItem value="other">{t('regAgents.kind.other')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -532,13 +528,13 @@ export default function RegistrationAgentsSection() {
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
             <UserCog className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            لا يوجد وكلاء تسجيل بعد. اضغط &quot;وكيل جديد&quot; للبدء.
+            {t('regAgents.emptyState')}
           </CardContent>
         </Card>
       ) : filteredAgents.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            لا توجد نتائج مطابقة للبحث.
+            {t('regAgents.noResults')}
           </CardContent>
         </Card>
       ) : (
@@ -556,14 +552,14 @@ export default function RegistrationAgentsSection() {
                       <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                         <span className="truncate">{name}</span>
                         {a.is_active ? (
-                          <Badge variant="default" className="text-xs shrink-0">نشط</Badge>
+                          <Badge variant="default" className="text-xs shrink-0">{t('regAgents.active')}</Badge>
                         ) : (
-                          <Badge variant="destructive" className="text-xs shrink-0">معطّل</Badge>
+                          <Badge variant="destructive" className="text-xs shrink-0">{t('regAgents.disabledBadge')}</Badge>
                         )}
                       </CardTitle>
                       <CardDescription className="text-xs mt-1 flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
-                        {a.kind ? KIND_LABEL[a.kind] : KIND_LABEL.center}
+                        {t(`regAgents.kind.${a.kind === 'external_office' ? 'externalOffice' : (a.kind ?? 'center')}`)}
                       </CardDescription>
                     </div>
                     <div className="flex gap-1 shrink-0">
@@ -571,8 +567,8 @@ export default function RegistrationAgentsSection() {
                         size="icon"
                         variant="ghost"
                         onClick={() => openEdit(a)}
-                        aria-label="تعديل"
-                        title="تعديل البيانات"
+                        aria-label={t('regAgents.editAria')}
+                        title={t('regAgents.editTitle')}
                       >
                         <UserCog className="h-4 w-4" />
                       </Button>
@@ -580,8 +576,8 @@ export default function RegistrationAgentsSection() {
                         size="icon"
                         variant="ghost"
                         onClick={() => setDeleteTarget(a)}
-                        aria-label="حذف"
-                        title="حذف الوكيل"
+                        aria-label={t('regAgents.deleteAria')}
+                        title={t('regAgents.deleteTitle')}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -615,21 +611,21 @@ export default function RegistrationAgentsSection() {
                   {/* Stats: registrations (rows in subject_students) + unique students */}
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="rounded-md bg-emerald-50/60 dark:bg-emerald-900/15 border border-emerald-200/50 px-2 py-1.5">
-                      <div className="text-[10px] text-muted-foreground">تسجيلات</div>
+                      <div class="text-[10px] text-muted-foreground">{t('regAgents.registrations')}</div>
                       <div className="flex items-baseline gap-1">
                         <span className="font-bold text-emerald-700 dark:text-emerald-300">
                           {a.registrations_count ?? a.students_count ?? 0}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">في مقررات</span>
+                        <span className="text-[10px] text-muted-foreground">{t('regAgents.inCourses')}</span>
                       </div>
                     </div>
                     <div className="rounded-md bg-teal-50/60 dark:bg-teal-900/15 border border-teal-200/50 px-2 py-1.5">
-                      <div className="text-[10px] text-muted-foreground">طلاب فريدون</div>
+                      <div className="text-[10px] text-muted-foreground">{t('regAgents.uniqueStudents')}</div>
                       <div className="flex items-baseline gap-1">
                         <span className="font-bold text-teal-700 dark:text-teal-300">
                           {a.unique_students_count ?? 0}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">طالب</span>
+                        <span className="text-[10px] text-muted-foreground">{t('regAgents.studentUnit')}</span>
                       </div>
                     </div>
                   </div>
@@ -641,8 +637,8 @@ export default function RegistrationAgentsSection() {
                       className="text-[10px]"
                     >
                       {a.allowed_sections === null || a.allowed_sections === undefined
-                        ? 'كل أقسام المعلم'
-                        : `${a.allowed_sections.length} قسم مسموح`}
+                        ? t('regAgents.allSections')
+                        : t('regAgents.allowedSectionsCount', { count: a.allowed_sections.length })}
                     </Badge>
                   </div>
 
@@ -653,10 +649,10 @@ export default function RegistrationAgentsSection() {
                       variant="outline"
                       onClick={() => openDashboard(a)}
                       className="text-xs flex-1"
-                      title="لوحة النتائج المالية والإحصائيات"
+                      title={t('regAgents.dashboardTitle')}
                     >
                       <BarChart3 className="h-3.5 w-3.5 me-1" />
-                      اللوحة
+                      {t('regAgents.dashboardButton')}
                     </Button>
                     <Button
                       size="sm"
@@ -665,7 +661,7 @@ export default function RegistrationAgentsSection() {
                       className="text-xs flex-1"
                     >
                       <Users className="h-3.5 w-3.5 me-1" />
-                      الطلاب
+                      {t('regAgents.studentsButton')}
                     </Button>
                     {a.is_active ? (
                       <Button
@@ -673,10 +669,10 @@ export default function RegistrationAgentsSection() {
                         variant="destructive"
                         onClick={() => toggleActive(a, false)}
                         className="text-xs"
-                        title="إيقاف حساب الوكيل"
+                        title={t('regAgents.deactivateTitle')}
                       >
                         <Power className="h-3.5 w-3.5 me-1" />
-                        إيقاف
+                        {t('regAgents.deactivate')}
                       </Button>
                     ) : (
                       <Button
@@ -684,10 +680,10 @@ export default function RegistrationAgentsSection() {
                         variant="default"
                         onClick={() => toggleActive(a, true)}
                         className="text-xs bg-emerald-600 hover:bg-emerald-700"
-                        title="تنشيط حساب الوكيل"
+                        title={t('regAgents.activateTitle')}
                       >
                         <Power className="h-3.5 w-3.5 me-1" />
-                        تنشيط
+                        {t('regAgents.activate')}
                       </Button>
                     )}
                   </div>
@@ -702,25 +698,25 @@ export default function RegistrationAgentsSection() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>إنشاء وكيل تسجيل جديد</DialogTitle>
+            <DialogTitle>{t('regAgents.createTitle')}</DialogTitle>
             <DialogDescription>
-              كل وكيل له حساب مستقل. سيتم توليد كلمة مرور مؤقتة — انسخها للوكيل فوراً.
+              {t('regAgents.createDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="ra-display-name">اسم الوكيل (المركز/المكتب)</Label>
+                <Label htmlFor="ra-display-name">{t('regAgents.agentNameLabel')}</Label>
                 <Input
                   id="ra-display-name"
                   value={form.display_name}
                   onChange={(e) => setForm({ ...form, display_name: e.target.value })}
-                  placeholder="مثال: المركز الرئيسي"
+                  placeholder={t('regAgents.agentNamePlaceholder')}
                   maxLength={120}
                 />
               </div>
               <div className="space-y-1">
-                <Label>النوع</Label>
+                <Label>{t('regAgents.kindLabel')}</Label>
                 <Select
                   value={form.kind}
                   onValueChange={(v) => setForm({ ...form, kind: v as Kind })}
@@ -729,16 +725,16 @@ export default function RegistrationAgentsSection() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="center">{KIND_LABEL.center}</SelectItem>
-                    <SelectItem value="external_office">{KIND_LABEL.external_office}</SelectItem>
-                    <SelectItem value="other">{KIND_LABEL.other}</SelectItem>
+                    <SelectItem value="center">{t('regAgents.kind.center')}</SelectItem>
+                    <SelectItem value="external_office">{t('regAgents.kind.externalOffice')}</SelectItem>
+                    <SelectItem value="other">{t('regAgents.kind.other')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="ra-contact-email">بريد التواصل (يظهر للمعلم)</Label>
+              <Label htmlFor="ra-contact-email">{t('regAgents.contactEmailLabel')}</Label>
               <Input
                 id="ra-contact-email"
                 type="email"
@@ -752,7 +748,7 @@ export default function RegistrationAgentsSection() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="ra-contact-phone">هاتف التواصل</Label>
+                <Label htmlFor="ra-contact-phone">{t('regAgents.contactPhoneLabel')}</Label>
                 <Input
                   id="ra-contact-phone"
                   value={form.contact_phone}
@@ -762,7 +758,7 @@ export default function RegistrationAgentsSection() {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="ra-address">العنوان</Label>
+                <Label htmlFor="ra-address">{t('regAgents.addressLabel')}</Label>
                 <Input
                   id="ra-address"
                   value={form.address}
@@ -773,10 +769,10 @@ export default function RegistrationAgentsSection() {
             </div>
 
             <div className="border-t pt-3 mt-2">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">بيانات حساب الدخول</p>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">{t('regAgents.accountSection')}</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="ra-account-email">بريد الحساب (للدخول)</Label>
+                  <Label htmlFor="ra-account-email">{t('regAgents.accountEmailLabel')}</Label>
                   <Input
                     id="ra-account-email"
                     type="email"
@@ -788,29 +784,29 @@ export default function RegistrationAgentsSection() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="ra-account-name">اسم الشخص المسؤول (اختياري)</Label>
+                  <Label htmlFor="ra-account-name">{t('regAgents.accountNameLabel')}</Label>
                   <Input
                     id="ra-account-name"
                     value={form.account_name}
                     onChange={(e) => setForm({ ...form, account_name: e.target.value })}
                     maxLength={120}
-                    placeholder="مثال: أ. أحمد"
+                    placeholder={t('regAgents.accountNamePlaceholder')}
                   />
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                كلمة المرور ستُولّد تلقائياً وتظهر مرة واحدة فقط بعد الإنشاء.
+                {t('regAgents.passwordNote')}
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setCreateOpen(false)} disabled={saving}>
               <X className="h-4 w-4 me-1" />
-              إلغاء
+              {t('common.cancel')}
             </Button>
             <Button onClick={submitCreate} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Check className="h-4 w-4 me-1" />}
-              إنشاء
+              {t('regAgents.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -820,13 +816,13 @@ export default function RegistrationAgentsSection() {
       <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>تعديل بيانات الوكيل</DialogTitle>
-            <DialogDescription>يمكنك تعديل اسم/نوع/بيانات التواصل. بريد الحساب لا يتغير من هنا.</DialogDescription>
+            <DialogTitle>{t('regAgents.editDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('regAgents.editDialogDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>الاسم</Label>
+                <Label>{t('regAgents.nameLabel')}</Label>
                 <Input
                   value={editForm.display_name}
                   onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
@@ -834,7 +830,7 @@ export default function RegistrationAgentsSection() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>النوع</Label>
+                <Label>{t('regAgents.kindLabel')}</Label>
                 <Select
                   value={editForm.kind}
                   onValueChange={(v) => setEditForm({ ...editForm, kind: v as Kind })}
@@ -843,15 +839,15 @@ export default function RegistrationAgentsSection() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="center">{KIND_LABEL.center}</SelectItem>
-                    <SelectItem value="external_office">{KIND_LABEL.external_office}</SelectItem>
-                    <SelectItem value="other">{KIND_LABEL.other}</SelectItem>
+                    <SelectItem value="center">{t('regAgents.kind.center')}</SelectItem>
+                    <SelectItem value="external_office">{t('regAgents.kind.externalOffice')}</SelectItem>
+                    <SelectItem value="other">{t('regAgents.kind.other')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1">
-              <Label>بريد التواصل</Label>
+              <Label>{t('regAgents.contactEmailShort')}</Label>
               <Input
                 type="email"
                 value={editForm.contact_email}
@@ -862,7 +858,7 @@ export default function RegistrationAgentsSection() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>هاتف التواصل</Label>
+                <Label>{t('regAgents.contactPhoneShort')}</Label>
                 <Input
                   value={editForm.contact_phone}
                   onChange={(e) => setEditForm({ ...editForm, contact_phone: e.target.value })}
@@ -871,7 +867,7 @@ export default function RegistrationAgentsSection() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>العنوان</Label>
+                <Label>{t('regAgents.addressShort')}</Label>
                 <Input
                   value={editForm.address}
                   onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
@@ -884,14 +880,14 @@ export default function RegistrationAgentsSection() {
             <div className="border-t pt-3 mt-2 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground">صلاحيات عرض أقسام المعلم</p>
+                  <p className="text-xs font-semibold text-muted-foreground">{t('regAgents.sectionsPermission')}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    تحكم في أي أقسام يرى الوكيل في صفحة «عرض المعلم» بملفه الشخصي.
+                    {t('regAgents.sectionsPermissionDesc')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="allow-all-switch" className="text-xs cursor-pointer">
-                    كل الأقسام
+                    {t('regAgents.allSectionsShort')}
                   </Label>
                   <Switch
                     id="allow-all-switch"
@@ -905,7 +901,7 @@ export default function RegistrationAgentsSection() {
                 <>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] text-muted-foreground">
-                      الأقسام المسموح بها: <span className="font-medium">{editAllowedSet.size}</span> من {TEACHER_SECTION_OPTIONS.length}
+                      {t('regAgents.allowedSectionsOf', { count: editAllowedSet.size, total: TEACHER_SECTION_OPTIONS.length })}
                     </span>
                     <div className="flex gap-1">
                       <Button
@@ -913,14 +909,14 @@ export default function RegistrationAgentsSection() {
                         className="h-6 text-[11px]"
                         onClick={() => setEditAllowedSet(new Set(TEACHER_SECTION_OPTIONS.map(s => s.id)))}
                       >
-                        تحديد الكل
+                        {t('regAgents.selectAll')}
                       </Button>
                       <Button
                         size="sm" variant="ghost"
                         className="h-6 text-[11px]"
                         onClick={() => setEditAllowedSet(new Set())}
                       >
-                        مسح الكل
+                        {t('regAgents.clearAll')}
                       </Button>
                     </div>
                   </div>
@@ -949,9 +945,9 @@ export default function RegistrationAgentsSection() {
                             className="mt-0.5"
                           />
                           <div className="min-w-0 flex-1">
-                            <div className="font-medium truncate">{sec.label}</div>
+                            <div className="font-medium truncate">{t(sec.label)}</div>
                             <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
-                              {sec.description}
+                              {t(sec.description)}
                             </div>
                           </div>
                         </label>
@@ -960,7 +956,7 @@ export default function RegistrationAgentsSection() {
                   </div>
                   {editAllowedSet.size === 0 && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                      لن يرى الوكيل أي قسم من أقسام المعلم — سيظهر له تنبيه بطلب الصلاحية من المعلم.
+                      {t('regAgents.noSectionsWarning')}
                     </p>
                   )}
                 </>
@@ -969,11 +965,11 @@ export default function RegistrationAgentsSection() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditTarget(null)} disabled={editSaving}>
-              إلغاء
+              {t('common.cancel')}
             </Button>
             <Button onClick={submitEdit} disabled={editSaving}>
               {editSaving ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Check className="h-4 w-4 me-1" />}
-              حفظ
+              {t('regAgents.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -985,10 +981,10 @@ export default function RegistrationAgentsSection() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-sky-600" />
-              بيانات دخول الوكيل
+              {t('regAgents.credsTitle')}
             </DialogTitle>
             <DialogDescription>
-              هذه هي المرة الوحيدة التي يتم فيها عرض كلمة المرور المؤقتة. انسخها وأعطها للوكيل الآن.
+              {t('regAgents.credsDesc')}
             </DialogDescription>
           </DialogHeader>
           {createdCreds && (
@@ -996,45 +992,44 @@ export default function RegistrationAgentsSection() {
               <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>
-                  كلمة المرور لن تُحفظ ولن تظهر مجدداً. إذا فقدتها، ستحتاج إلى تعيين كلمة مرور جديدة
-                  للوكيل من إدارة المستخدمين.
+                  {t('regAgents.credsWarning')}
                 </span>
               </div>
               <div className="space-y-1">
-                <Label>الاسم</Label>
+                <Label>{t('regAgents.nameLabel')}</Label>
                 <div className="text-sm">{createdCreds.name}</div>
               </div>
               <div className="space-y-1">
-                <Label>البريد الإلكتروني للحساب</Label>
+                <Label>{t('regAgents.accountEmailFull')}</Label>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 text-sm bg-muted px-2 py-1 rounded" dir="ltr">
                     {createdCreds.email}
                   </code>
-                  <Button size="icon" variant="ghost" onClick={() => copyCreds(createdCreds.email, 'البريد')}>
+                  <Button size="icon" variant="ghost" onClick={() => copyCreds(createdCreds.email, t('regAgents.emailLabel'))}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <div className="space-y-1">
-                <Label>كلمة المرور المؤقتة</Label>
+                <Label>{t('regAgents.tempPasswordLabel')}</Label>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 text-base font-mono bg-muted px-2 py-1 rounded tracking-widest">
                     {createdCreds.tempPassword}
                   </code>
-                  <Button size="icon" variant="ghost" onClick={() => copyCreds(createdCreds.tempPassword, 'كلمة المرور')}>
+                  <Button size="icon" variant="ghost" onClick={() => copyCreds(createdCreds.tempPassword, t('regAgents.passwordLabel'))}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               <div className="rounded-md bg-sky-50 border border-sky-200 text-sky-900 text-xs p-3">
-                يدخل الوكيل من نفس صفحة تسجيل الدخول بالبريد الإلكتروني وكلمة المرور هذه.
+                {t('regAgents.loginNote')}
               </div>
             </div>
           )}
           <DialogFooter>
             <Button onClick={() => setCreatedCreds(null)}>
               <Check className="h-4 w-4 me-1" />
-              تم — حفظت البيانات
+              {t('regAgents.credsSaved')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1046,10 +1041,10 @@ export default function RegistrationAgentsSection() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-sky-600" />
-              طلاب الوكيل: {studentsTarget?.display_name ?? studentsTarget?.user?.name ?? '—'}
+              {t('regAgents.studentsOf', { name: studentsTarget?.display_name ?? studentsTarget?.user?.name ?? '—' })}
             </DialogTitle>
             <DialogDescription>
-              قائمة بآخر 500 طالب سجّلهم هذا الوكيل.
+              {t('regAgents.studentsListDesc')}
             </DialogDescription>
           </DialogHeader>
           {studentsLoading ? (
@@ -1058,18 +1053,18 @@ export default function RegistrationAgentsSection() {
             </div>
           ) : studentsList.length === 0 ? (
             <div className="text-center text-muted-foreground py-6">
-              لم يُسجّل هذا الوكيل أي طالب بعد.
+              {t('regAgents.noStudents')}
             </div>
           ) : (
             <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-background">
                   <tr className="text-start text-muted-foreground border-b">
-                    <th className="py-2 px-2 text-start">الطالب</th>
-                    <th className="py-2 px-2 text-start">البريد</th>
-                    <th className="py-2 px-2 text-start">كود الطالب</th>
-                    <th className="py-2 px-2 text-start">الدورة</th>
-                    <th className="py-2 px-2 text-start">التاريخ</th>
+                    <th className="py-2 px-2 text-start">{t('regAgents.colStudent')}</th>
+                    <th className="py-2 px-2 text-start">{t('regAgents.colEmail')}</th>
+                    <th className="py-2 px-2 text-start">{t('regAgents.colStudentCode')}</th>
+                    <th className="py-2 px-2 text-start">{t('regAgents.colCourse')}</th>
+                    <th className="py-2 px-2 text-start">{t('regAgents.colDate')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1090,7 +1085,7 @@ export default function RegistrationAgentsSection() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setStudentsTarget(null)}>
-              إغلاق
+              {t('common.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1102,10 +1097,10 @@ export default function RegistrationAgentsSection() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-sky-600" />
-              لوحة نتائج الوكيل: {dashboardTarget?.display_name ?? '—'}
+              {t('regAgents.dashboardOf', { name: dashboardTarget?.display_name ?? '—' })}
             </DialogTitle>
             <DialogDescription>
-              إحصائيات التسجيلات. هذه الأرقام أساس الحسابات المالية والمُعمولات لاحقاً.
+              {t('regAgents.dashboardDesc')}
             </DialogDescription>
           </DialogHeader>
           {dashboardLoading ? (
@@ -1118,7 +1113,7 @@ export default function RegistrationAgentsSection() {
               <div className="grid grid-cols-3 gap-3">
                 <Card className="border-sky-200 bg-sky-50/40">
                   <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground">إجمالي التسجيلات</div>
+                    <div className="text-xs text-muted-foreground">{t('regAgents.totalRegistrations')}</div>
                     <div className="text-2xl font-bold text-sky-700">
                       {dashboard.totals.total_registrations}
                     </div>
@@ -1126,7 +1121,7 @@ export default function RegistrationAgentsSection() {
                 </Card>
                 <Card className="border-emerald-200 bg-emerald-50/40">
                   <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground">عدد الطلاب الفريدين</div>
+                    <div className="text-xs text-muted-foreground">{t('regAgents.uniqueStudentsCount')}</div>
                     <div className="text-2xl font-bold text-emerald-700">
                       {dashboard.totals.total_unique_students}
                     </div>
@@ -1134,7 +1129,7 @@ export default function RegistrationAgentsSection() {
                 </Card>
                 <Card className="border-purple-200 bg-purple-50/40">
                   <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground">عدد الدورات</div>
+                    <div className="text-xs text-muted-foreground">{t('regAgents.coursesCount')}</div>
                     <div className="text-2xl font-bold text-purple-700">
                       {dashboard.totals.total_courses}
                     </div>
@@ -1146,18 +1141,18 @@ export default function RegistrationAgentsSection() {
               <div>
                 <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
                   <Building2 className="h-4 w-4" />
-                  التسجيلات حسب الدورة
+                  {t('regAgents.registrationsByCourse')}
                 </h4>
                 {dashboard.per_course.length === 0 ? (
-                  <div className="text-xs text-muted-foreground py-2">لا توجد دورات بعد.</div>
+                  <div className="text-xs text-muted-foreground py-2">{t('regAgents.noCourses')}</div>
                 ) : (
                   <div className="overflow-x-auto max-h-48 overflow-y-auto border rounded-md">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/40 sticky top-0">
                         <tr className="text-start text-muted-foreground border-b">
-                          <th className="py-2 px-3 text-start">الدورة</th>
-                          <th className="py-2 px-3 text-start">المستوى</th>
-                          <th className="py-2 px-3 text-end">عدد الطلاب</th>
+                          <th className="py-2 px-3 text-start">{t('regAgents.colCourse')}</th>
+                          <th className="py-2 px-3 text-start">{t('regAgents.colLevel')}</th>
+                          <th className="py-2 px-3 text-end">{t('regAgents.colStudentsCount')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1184,7 +1179,7 @@ export default function RegistrationAgentsSection() {
               <div>
                 <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  التسجيلات الشهرية (12 شهر)
+                  {t('regAgents.monthlyRegistrations')}
                 </h4>
                 <div className="flex items-end gap-1 h-24 border-b border-muted">
                   {dashboard.per_month.map((m) => {
@@ -1213,19 +1208,19 @@ export default function RegistrationAgentsSection() {
               <div>
                 <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
                   <TrendingUp className="h-4 w-4" />
-                  أحدث 10 تسجيلات
+                  {t('regAgents.recentRegistrations')}
                 </h4>
                 {dashboard.recent.length === 0 ? (
-                  <div className="text-xs text-muted-foreground py-2">لا توجد تسجيلات بعد.</div>
+                  <div className="text-xs text-muted-foreground py-2">{t('regAgents.noRegistrations')}</div>
                 ) : (
                   <div className="overflow-x-auto max-h-48 overflow-y-auto border rounded-md">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/40 sticky top-0">
                         <tr className="text-muted-foreground border-b">
-                          <th className="py-2 px-3 text-start">الطالب</th>
-                          <th className="py-2 px-3 text-start">الكود</th>
-                          <th className="py-2 px-3 text-start">الدورة</th>
-                          <th className="py-2 px-3 text-start">التاريخ</th>
+                          <th className="py-2 px-3 text-start">{t('regAgents.colStudent')}</th>
+                          <th className="py-2 px-3 text-start">{t('regAgents.colCode')}</th>
+                          <th className="py-2 px-3 text-start">{t('regAgents.colCourse')}</th>
+                          <th className="py-2 px-3 text-start">{t('regAgents.colDate')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1248,7 +1243,7 @@ export default function RegistrationAgentsSection() {
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDashboardTarget(null)}>
-              إغلاق
+              {t('common.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1258,16 +1253,15 @@ export default function RegistrationAgentsSection() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الوكيل؟</AlertDialogTitle>
+            <AlertDialogTitle>{t('regAgents.deleteConfirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم تجريد دور الوكيل وإزالته من قائمة الوكلاء. تبقى سجلات التسجيلات التي أنشأها محفوظة
-              للمراجعة المالية. هذا الإجراء لا يمكن التراجع عنه.
+              {t('regAgents.deleteConfirmDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              حذف
+              {t('regAgents.deleteLabel')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
