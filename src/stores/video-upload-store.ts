@@ -11,6 +11,10 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
+import { useLocaleStore } from '@/i18n/locale-store';
+
+const msg = (ar: string, en: string): string =>
+  useLocaleStore.getState().locale === 'ar' ? ar : en;
 
 // ─── Types ───
 
@@ -169,7 +173,7 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
       } = await supabase.auth.getSession();
       const userId = session?.user?.id;
       if (!userId) {
-        get().updateTask(id, { status: 'error', error: 'يرجى تسجيل الدخول أولاً' });
+        get().updateTask(id, { status: 'error', error: msg('يرجى تسجيل الدخول أولاً', 'Please sign in first') });
         return;
       }
 
@@ -189,7 +193,7 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
           if (remainingMb <= 0) {
             get().updateTask(id, {
               status: 'error',
-              error: `المساحة ممتلئة (${usedMb}/${totalQuotaMb} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`,
+              error: msg(`المساحة ممتلئة (${usedMb}/${totalQuotaMb} ميجابايت). يرجى تزويد المساحة لمواصلة الرفع.`, `Storage full (${usedMb}/${totalQuotaMb} MB). Please free up space to continue uploading.`),
             });
             return;
           }
@@ -198,7 +202,7 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
           if (fileSizeMb > remainingMb) {
             get().updateTask(id, {
               status: 'error',
-              error: `حجم الفيديو (${fileSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). يرجى تزويد المساحة أو حذف بعض الملفات.`,
+              error: msg(`حجم الفيديو (${fileSizeMb.toFixed(1)} ميجابايت) أكبر من المساحة المتبقية (${remainingMb} ميجابايت). يرجى تزويد المساحة أو حذف بعض الملفات.`, `Video size (${fileSizeMb.toFixed(1)} MB) is larger than the remaining space (${remainingMb} MB). Please free up space or delete some files.`),
             });
             return;
           }
@@ -275,7 +279,7 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
         // Get the upload URL from Location header (may be relative)
         const location = createResponse.headers.get('Location');
         if (!location) {
-          throw new Error('لم يتم استلام رابط الرفع من الخادم');
+          throw new Error(msg('لم يتم استلام رابط الرفع من الخادم', 'No upload URL received from the server'));
         }
 
         // Handle relative vs absolute URL
@@ -340,20 +344,20 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'فشل حفظ بيانات الفيديو');
+        throw new Error(result.error || msg('فشل حفظ بيانات الفيديو', 'Failed to save video data'));
       }
 
       // Clean up pause signals
       pauseSignals.delete(id);
 
       get().updateTask(id, { status: 'done', progress: 100 });
-      toast.success(`تم رفع الفيديو "${title}" بنجاح`);
+      toast.success(msg(`تم رفع الفيديو "${title}" بنجاح`, `Video "${title}" uploaded successfully`));
     } catch (err: unknown) {
       const taskNow = get().tasks.find((t) => t.id === id);
       // Don't show error for cancelled/paused tasks
       if (taskNow?.status === 'cancelled' || taskNow?.status === 'paused') return;
 
-      const message = err instanceof Error ? err.message : 'حدث خطأ أثناء رفع الفيديو';
+      const message = err instanceof Error ? err.message : msg('حدث خطأ أثناء رفع الفيديو', 'An error occurred while uploading the video');
       get().updateTask(id, { status: 'error', error: message });
       toast.error(message);
     }
@@ -437,7 +441,7 @@ async function uploadChunks(
 
         // Handle 413 specifically
         if (response.status === 413) {
-          errMsg = 'حجم الملف كبير جداً، يرجى رفع فيديو أصغر من 500 ميجابايت';
+          errMsg = msg('حجم الملف كبير جداً، يرجى رفع فيديو أصغر من 500 ميجابايت', 'File too large, please upload a video smaller than 500 MB');
         } else {
           try {
             const errJson = JSON.parse(errText);
@@ -493,7 +497,7 @@ async function resumeUploadLoop(taskId: string) {
     // Get a fresh auth token
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      useVideoUploadStore.getState().updateTask(taskId, { status: 'error', error: 'يرجى تسجيل الدخول أولاً' });
+      useVideoUploadStore.getState().updateTask(taskId, { status: 'error', error: msg('يرجى تسجيل الدخول أولاً', 'Please sign in first') });
       return;
     }
 
@@ -568,17 +572,17 @@ async function resumeUploadLoop(taskId: string) {
     const result = await response.json();
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || 'فشل حفظ بيانات الفيديو');
+      throw new Error(result.error || msg('فشل حفظ بيانات الفيديو', 'Failed to save video data'));
     }
 
     pauseSignals.delete(taskId);
     useVideoUploadStore.getState().updateTask(taskId, { status: 'done', progress: 100 });
-    toast.success(`تم رفع الفيديو "${updatedTask.title}" بنجاح`);
+    toast.success(msg(`تم رفع الفيديو "${updatedTask.title}" بنجاح`, `Video "${updatedTask.title}" uploaded successfully`));
   } catch (err: unknown) {
     const taskNow = useVideoUploadStore.getState().tasks.find((t) => t.id === taskId);
     if (taskNow?.status === 'cancelled' || taskNow?.status === 'paused') return;
 
-    const message = err instanceof Error ? err.message : 'حدث خطأ أثناء رفع الفيديو';
+    const message = err instanceof Error ? err.message : msg('حدث خطأ أثناء رفع الفيديو', 'An error occurred while uploading the video');
     useVideoUploadStore.getState().updateTask(taskId, { status: 'error', error: message });
     toast.error(message);
   }
@@ -618,17 +622,17 @@ async function directUpload(
           const errBody = JSON.parse(xhr.responseText);
           let errMsg = errBody.error || errBody.message || `HTTP ${xhr.status}`;
           if (xhr.status === 413) {
-            errMsg = 'حجم الملف كبير جداً. يرجى استخدام فيديو أصغر من 50 ميجابايت أو الترقية لخطة Pro';
+            errMsg = msg('حجم الملف كبير جداً. يرجى استخدام فيديو أصغر من 50 ميجابايت أو الترقية لخطة Pro', 'File too large. Please use a video smaller than 50 MB or upgrade to the Pro plan');
           }
           reject(new Error(errMsg));
         } catch {
-          reject(new Error(`فشل رفع الفيديو (HTTP ${xhr.status})`));
+          reject(new Error(msg(`فشل رفع الفيديو (HTTP ${xhr.status})`, `Video upload failed (HTTP ${xhr.status})`)));
         }
       }
     });
 
-    xhr.addEventListener('error', () => reject(new Error('فشل الاتصال بالخادم أثناء رفع الفيديو')));
-    xhr.addEventListener('abort', () => reject(new Error('تم إلغاء الرفع')));
+    xhr.addEventListener('error', () => reject(new Error(msg('فشل الاتصال بالخادم أثناء رفع الفيديو', 'Connection to the server failed while uploading the video'))));
+    xhr.addEventListener('abort', () => reject(new Error(msg('تم إلغاء الرفع', 'Upload cancelled'))));
 
     xhr.open('POST', uploadUrl);
     xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
@@ -687,9 +691,9 @@ async function directUpload(
 
   const result = await response.json();
   if (!response.ok || !result.success) {
-    throw new Error(result.error || 'فشل حفظ بيانات الفيديو');
+    throw new Error(result.error || msg('فشل حفظ بيانات الفيديو', 'Failed to save video data'));
   }
 
   useVideoUploadStore.getState().updateTask(taskId, { status: 'done', progress: 100 });
-  toast.success(`تم رفع الفيديو "${title}" بنجاح`);
+  toast.success(msg(`تم رفع الفيديو "${title}" بنجاح`, `Video "${title}" uploaded successfully`));
 }
