@@ -66,17 +66,17 @@ interface StorageStatus {
   plans: StoragePlan[];
 }
 
-function formatSize(mb: number): string {
-  if (mb >= 1048576) return `${(mb / 1048576).toFixed(0)} تيرابايت`;
-  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} جيجابايت`;
-  return `${mb} ميجابايت`;
+function formatSize(mb: number, t: (key: string) => string): string {
+  if (mb >= 1048576) return `${(mb / 1048576).toFixed(0)} ${t('storagePlans.unitTb')}`;
+  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} ${t('storagePlans.unitGb')}`;
+  return `${mb} ${t('storagePlans.unitMb')}`;
 }
 
 /** Compact size display: returns { value, unit } for big visual display. */
-function splitSize(mb: number): { value: string; unit: string } {
-  if (mb >= 1048576) return { value: (mb / 1048576).toFixed(0), unit: 'تيرابايت' };
-  if (mb >= 1024) return { value: (mb / 1024).toFixed(0), unit: 'جيجابايت' };
-  return { value: String(mb), unit: 'ميجابايت' };
+function splitSize(mb: number, t: (key: string) => string): { value: string; unit: string } {
+  if (mb >= 1048576) return { value: (mb / 1048576).toFixed(0), unit: t('storagePlans.unitTb') };
+  if (mb >= 1024) return { value: (mb / 1024).toFixed(0), unit: t('storagePlans.unitGb') };
+  return { value: String(mb), unit: t('storagePlans.unitMb') };
 }
 
 /** Days left until an ISO expiry date (null when permanent/no expiry). */
@@ -87,7 +87,7 @@ function daysLeft(iso?: string | null): number | null {
 }
 
 export default function StoragePlansView() {
-  const { direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const [status, setStatus] = useState<StorageStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -124,18 +124,18 @@ export default function StoragePlansView() {
           planType: duration, // v134q: the selected subscription duration (monthly/yearly)
           requestType: 'storage_upgrade',
           planId: plan.id,
-          notes: `طلب اشتراك مساحة تخزين: ${plan.name} (${formatSize(plan.size_mb)}) — ${duration === 'monthly' ? 'شهري' : 'سنوي'}`,
+          notes: t('storagePlans.requestNotes', { name: plan.name, size: formatSize(plan.size_mb, t), duration: duration === 'monthly' ? t('storagePlans.monthly') : t('storagePlans.yearly') }),
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(`تم إرسال طلب شراء ${plan.name}. سيتم إشعار الإدارة والمعلم لتفعيل الاشتراك.`);
+        toast.success(t('storagePlans.requestSent', { name: plan.name }));
         setSubmittedPlan(plan.id);
       } else {
-        toast.error(json.error || 'فشل إرسال الطلب');
+        toast.error(json.error || t('storagePlans.requestFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('storagePlans.unexpectedError'));
     } finally {
       setSubmitting(null);
     }
@@ -152,7 +152,7 @@ export default function StoragePlansView() {
   if (!status) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-        تعذّر تحميل بيانات التخزين
+        {t('storagePlans.loadFailed')}
       </div>
     );
   }
@@ -185,7 +185,7 @@ export default function StoragePlansView() {
       {/* ─── Storage Status Card ─── */}
       <Card className={`border-2 ${is_full ? 'border-rose-300' : isWarning ? 'border-amber-300' : 'border-border/60'}`}>
         <CardContent className="p-4 space-y-3">
-          {/* Header row — now with the "تزويد المساحة" button */}
+          {/* Header row — now with the "{t('storagePlans.increaseStorage')}" button */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <div className={`flex h-9 w-9 items-center justify-center rounded-lg shrink-0 ${
@@ -196,9 +196,9 @@ export default function StoragePlansView() {
                 <HardDrive className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">مساحة التخزين</p>
+                <p className="text-sm font-medium truncate">{t('storagePlans.storageSpace')}</p>
                 <p className="text-[10px] text-muted-foreground truncate">
-                  {formatSize(used_mb)} من {formatSize(total_quota)}
+                  {t('storagePlans.usedOf', { used: formatSize(used_mb, t), total: formatSize(total_quota, t) })}
                 </p>
               </div>
             </div>
@@ -215,13 +215,13 @@ export default function StoragePlansView() {
                   onClick={() => setShowPlansModal(true)}
                 >
                   <Zap className="h-3 w-3" />
-                  تزويد المساحة
+                  {t('storagePlans.increaseStorage')}
                 </Button>
               )}
               <button
                 onClick={() => setCollapsed(!collapsed)}
                 className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-                aria-label={effectiveCollapsed ? 'توسيع' : 'طي'}
+                aria-label={effectiveCollapsed ? t('storagePlans.expand') : t('storagePlans.collapse')}
               >
                 {effectiveCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
               </button>
@@ -241,13 +241,13 @@ export default function StoragePlansView() {
                   }`}
                 />
                 <div className="flex items-center justify-between text-[10px]">
-                  <span className="text-muted-foreground">{pct}% مستخدم</span>
+                  <span className="text-muted-foreground">{t('storagePlans.percentUsed', { pct })}</span>
                   <span className={
                     is_full ? 'text-rose-600 font-medium' :
                     isWarning ? 'text-amber-600' :
                     'text-emerald-600'
                   }>
-                    {is_full ? 'ممتلئة' : `${formatSize(remaining_mb)} متبقية`}
+                    {is_full ? t('storagePlans.full') : t('storagePlans.remaining', { size: formatSize(remaining_mb, t) })}
                   </span>
                 </div>
               </div>
@@ -255,12 +255,12 @@ export default function StoragePlansView() {
               {/* Breakdown: free + purchased (+ subscription expiry) */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                  مجاني: {formatSize(free_quota)}
+                  {t('storagePlans.freeLabel')}: {formatSize(free_quota, t)}
                 </Badge>
                 {upgrade_size > 0 && (
                   <Badge variant="outline" className="text-[9px] bg-sky-50 text-sky-700 border-sky-200">
                     <Sparkles className="h-2.5 w-2.5 me-0.5" />
-                    مشتري: +{formatSize(upgrade_size)}
+                    {t('storagePlans.purchasedLabel')}: +{formatSize(upgrade_size, t)}
                   </Badge>
                 )}
                 {/* v134q: subscription expiry countdown */}
@@ -272,8 +272,8 @@ export default function StoragePlansView() {
                   }`}>
                     <CalendarClock className="h-2.5 w-2.5 me-0.5" />
                     {expiryDaysLeft <= 0
-                      ? 'انتهى الاشتراك'
-                      : `ينتهي بعد ${expiryDaysLeft} يوم`}
+                      ? t('storagePlans.subscriptionExpired')
+                      : t('storagePlans.expiresInDays', { count: expiryDaysLeft ?? 0 })}
                   </Badge>
                 )}
               </div>
@@ -283,7 +283,7 @@ export default function StoragePlansView() {
                 <div className="rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 p-2.5 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
                   <span className="text-xs text-rose-700 dark:text-rose-400">
-                    المساحة ممتلئة. اضغط «تزويد المساحة» لشراء مساحة إضافية.
+                    {t('storagePlans.fullHint')}
                   </span>
                 </div>
               )}
@@ -300,10 +300,10 @@ export default function StoragePlansView() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-violet-500 text-white">
                 <Sparkles className="h-4 w-4" />
               </div>
-              ترقية مساحة التخزين
+              {t('storagePlans.upgradeTitle')}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              اختر الخطة والمدة المناسبة لاحتياجك — اشتراك شهري أو سنوي يشمل الملفات والفيديوهات.
+              {t('storagePlans.upgradeDesc')}
             </DialogDescription>
           </DialogHeader>
 
@@ -316,7 +316,7 @@ export default function StoragePlansView() {
                     <HardDrive className={`h-4 w-4 ${
                       is_full ? 'text-rose-500' : isWarning ? 'text-amber-500' : 'text-emerald-500'
                     }`} />
-                    <span className="text-xs font-medium">الاستخدام الحالي</span>
+                    <span className="text-xs font-medium">{t('storagePlans.currentUsage')}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     {status.active_upgrade && (
@@ -327,10 +327,10 @@ export default function StoragePlansView() {
                       }`}>
                         <CheckCircle2 className="h-3 w-3 me-0.5" />
                         {status.active_upgrade.duration_type === 'permanent'
-                          ? 'خطة دائمة'
+                          ? t('storagePlans.permanentPlan')
                           : expiryDaysLeft != null
-                            ? `خطة نشطة · ${expiryDaysLeft} يوم متبقٍ`
-                            : 'خطة نشطة'}
+                            ? t('storagePlans.activePlanDaysLeft', { count: expiryDaysLeft })
+                            : t('storagePlans.activePlan')}
                       </Badge>
                     )}
                   </div>
@@ -344,8 +344,8 @@ export default function StoragePlansView() {
                   }`}
                 />
                 <div className="flex items-center justify-between mt-1.5 text-[10px] text-muted-foreground">
-                  <span>{formatSize(used_mb)} مستخدم</span>
-                  <span>{formatSize(total_quota)} الإجمالي</span>
+                  <span>{t('storagePlans.usedSuffix', { size: formatSize(used_mb, t) })}</span>
+                  <span>{t('storagePlans.totalSuffix', { size: formatSize(total_quota, t) })}</span>
                 </div>
               </div>
 
@@ -361,7 +361,7 @@ export default function StoragePlansView() {
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    شهري
+                    {t('storagePlans.monthly')}
                   </button>
                   <button
                     type="button"
@@ -372,7 +372,7 @@ export default function StoragePlansView() {
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    سنوي
+                    {t('storagePlans.yearly')}
                   </button>
                 </div>
               )}
@@ -383,7 +383,7 @@ export default function StoragePlansView() {
                   const isCurrent = status.active_upgrade?.plan_id === plan.id;
                   const isSubmitted = submittedPlan === plan.id;
                   const accent = planAccents[idx % planAccents.length];
-                  const { value, unit } = splitSize(plan.size_mb);
+                  const { value, unit } = splitSize(plan.size_mb, t);
 
                   // v134q: restrict plans SMALLER than the current active
                   // upgrade. Same size is allowed (renewal/extension).
@@ -425,7 +425,7 @@ export default function StoragePlansView() {
                         {/* Price + duration */}
                         <div className="text-center leading-tight">
                           {yearlyUnavailable ? (
-                            <span className="text-[10px] text-muted-foreground">غير متاح سنوياً</span>
+                            <span className="text-[10px] text-muted-foreground">{t('storagePlans.notAvailableYearly')}</span>
                           ) : (
                             <>
                               <span className={`text-base font-bold ${accent.text}`}>
@@ -433,7 +433,7 @@ export default function StoragePlansView() {
                               </span>
                               <span className="text-[9px] text-muted-foreground ms-0.5">{plan.currency}</span>
                               <span className="text-[9px] text-muted-foreground block">
-                                / {duration === 'monthly' ? 'شهرياً' : 'سنوياً'}
+                                / {duration === 'monthly' ? t('storagePlans.perMonth') : t('storagePlans.perYear')}
                               </span>
                             </>
                           )}
@@ -444,23 +444,23 @@ export default function StoragePlansView() {
                           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 w-full justify-center py-1 text-[9px]">
                             <CheckCircle2 className="h-3 w-3 me-0.5" />
                             {status.active_upgrade?.duration_type === 'permanent'
-                              ? 'خطتك الحالية · دائمة'
+                              ? t('storagePlans.yourCurrentPlanPermanent')
                               : expiryDaysLeft != null
-                                ? `خطتك الحالية · ${expiryDaysLeft} يوم`
-                                : 'خطتك الحالية'}
+                                ? t('storagePlans.yourCurrentPlanDays', { count: expiryDaysLeft })
+                                : t('storagePlans.yourCurrentPlan')}
                           </Badge>
                         ) : isSubmitted ? (
                           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 w-full justify-center py-1 text-[9px]">
                             <Clock className="h-3 w-3 me-0.5" />
-                            تم إرسال الطلب
+                            {t('storagePlans.requestSubmitted')}
                           </Badge>
                         ) : isSmaller ? (
                           <Badge variant="outline" className="bg-muted text-muted-foreground border-border w-full justify-center py-1 text-[9px]">
-                            أقل من خطتك الحالية
+                            {t('storagePlans.lessThanCurrent')}
                           </Badge>
                         ) : yearlyUnavailable ? (
                           <Badge variant="outline" className="bg-muted text-muted-foreground border-border w-full justify-center py-1 text-[9px]">
-                            شهري فقط
+                            {t('storagePlans.monthlyOnly')}
                           </Badge>
                         ) : (
                           <Button
@@ -471,7 +471,7 @@ export default function StoragePlansView() {
                           >
                             {submitting === plan.id
                               ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <><Plus className="h-3 w-3" />{isRenewal ? 'تجديد' : 'اشترك'}</>}
+                              : <><Plus className="h-3 w-3" />{isRenewal ? t('storagePlans.renew') : t('storagePlans.subscribe')}</>}
                           </Button>
                         )}
                       </CardContent>
@@ -484,8 +484,8 @@ export default function StoragePlansView() {
               {status.plans.length === 0 && (
                 <div className="text-center py-8">
                   <HardDrive className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">لا توجد خطط ترقية متاحة حالياً.</p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-1">يرجى التواصل مع الإدارة.</p>
+                  <p className="text-sm text-muted-foreground">{t('storagePlans.noPlansAvailable')}</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">{t('storagePlans.contactAdmin')}</p>
                 </div>
               )}
             </div>
