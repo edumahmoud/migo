@@ -4354,7 +4354,11 @@
     "noPendingRequests": "No pending requests",
     "noPendingRequestsDesc": "Other users' requests for your files will appear here",
     "request": "Request",
-    "title": "Profile"
+    "title": "Profile",
+    "studentCode": "Student code:",
+    "teacherCode": "Teacher code:",
+    "codeCopied": "Code copied",
+    "copyCode": "Copy code"
   },
   "exams": {
     "active": "Active",
@@ -6866,5 +6870,15 @@
     "suspendGlobal": "Suspend student (platform-wide)",
     "suspendNote1": "The student will not be able to access the platform for the suspension duration. The general suspension",
     "suspendNote2": "stays separate from any course-level suspension a teacher may have imposed."
+  },
+  "coursePage": {
+    "suspendedFromSubject": "You are suspended from this subject",
+    "suspendedNoAccess": "You cannot access this subject content until the suspension is lifted.",
+    "reasonLabel": "Reason: ",
+    "suspensionExpires": "Suspension expires: ",
+    "indefiniteSuspension": "Indefinite suspension — contact the teacher",
+    "monthlyFee": "Monthly subscription fee (EGP/month)",
+    "freePlaceholder": "0 = free",
+    "feeNote": "Subscription is monthly — the student pays every month. 0 = free. The student cannot edit the price — it is read from the database."
   }
 }

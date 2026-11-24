@@ -1131,24 +1131,24 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 {subject.name}
               </h3>
               <p className="text-sm font-semibold text-rose-700 dark:text-rose-400 mb-2">
-                تم إيقافك من هذا المقرر
+                {t('coursePage.suspendedFromSubject')}
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                لا يمكنك الوصول إلى محتوى هذا المقرر حتى يتم رفع الإيقاف.
+                {t('coursePage.suspendedNoAccess')}
               </p>
               {suspensionReason && (
                 <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 mb-2">
-                  السبب: {suspensionReason}
+                  {t('coursePage.reasonLabel')}{suspensionReason}
                 </p>
               )}
               {suspensionExpiresAt && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  ينتهي الإيقاف: {new Date(suspensionExpiresAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {t('coursePage.suspensionExpires')}{new Date(suspensionExpiresAt).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                 </p>
               )}
               {!suspensionExpiresAt && (
                 <p className="text-xs text-muted-foreground">
-                  إيقاف غير محدد المدة — تواصل مع المعلم
+                  {t('coursePage.indefiniteSuspension')}
                 </p>
               )}
             </div>
@@ -1292,7 +1292,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 {role === 'teacher' && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      رسوم الاشتراك الشهري (ج.م/شهر)
+                      {t('coursePage.monthlyFee')}
                     </label>
                     <input
                       type="number"
@@ -1300,13 +1300,13 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       step="0.01"
                       value={editPrice}
                       onChange={(e) => setEditPrice(e.target.value)}
-                      placeholder="0 = مجاناً"
+                      placeholder={t('coursePage.freePlaceholder')}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                       dir="ltr"
                       disabled={savingSubject}
                     />
                     <p className="text-xs text-muted-foreground">
-                      الاشتراك شهري — يدفع الطالب كل شهر. 0 = مجاناً. لا يمكن للطالب تعديل السعر — يُقرأ من قاعدة البيانات.
+                      {t('coursePage.feeNote')}
                     </p>
                   </div>
                 )}

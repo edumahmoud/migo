@@ -44,7 +44,7 @@ type Period = 'day' | 'month' | 'year';
  *   - Export to Excel button (exports the breakdown table)
  */
 export default function AdminFinancialBreakdownSection() {
-  const { t, direction } = useTranslations();
+  const { t, direction, locale } = useTranslations();
   const [period, setPeriod] = useState<Period>('month');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -132,11 +132,10 @@ export default function AdminFinancialBreakdownSection() {
     if (period === 'year') return p;
     if (period === 'month') {
       const [y, m] = p.split('-');
-      const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-      return `${monthNames[parseInt(m) - 1] ?? m} ${y}`;
+      return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
     }
     // day
-    return new Date(p).toLocaleDateString('ar-EG');
+    return new Date(p).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US');
   };
 
   return (
