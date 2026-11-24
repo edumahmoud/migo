@@ -58,7 +58,6 @@ export function useNavigationHistory({
     };
     // The tracker anchors once per session; later locations flow through
     // the navigate effect below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
   // Mirror logical location changes onto the history stack.

@@ -73,7 +73,6 @@ export class NavigationHistory {
   private stack: string[] = [];
   private index = 0;
   private topIsGuard = false;
-  private suppressNextPop = false;
   private cancelGuardRearm: (() => void) | null = null;
   private started = false;
 
@@ -128,15 +127,11 @@ export class NavigationHistory {
    */
   handlePop(state: unknown): void {
     if (!this.started) return;
-    if (this.suppressNextPop) {
-      this.suppressNextPop = false;
-      return;
-    }
     if (isGuardState(state)) {
       // A guard entry below the top (shouldn't normally happen — guards are
       // converted on navigation — but stay safe): treat it as transparent
-      // and keep moving back to the real location entry.
-      this.suppressNextPop = true;
+      // and keep moving back. The popstate from this programmatic back is
+      // handled normally, restoring whatever location it lands on.
       this.adapter.back();
       return;
     }
