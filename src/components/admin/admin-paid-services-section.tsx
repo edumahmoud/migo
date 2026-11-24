@@ -93,7 +93,7 @@ export default function AdminPaidServicesSection() {
       if (unlJson.success) setUnlocks(unlJson.unlocks);
       if (trlJson.success) setTrials(trlJson.trials);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('paidServices.unexpected'));
     } finally {
       setLoading(false);
     }
@@ -105,9 +105,14 @@ export default function AdminPaidServicesSection() {
   const handleApprove = async (req: RequestRow) => {
     const days = req.plan_type === 'yearly' ? 365 : 30;
     const ok = await confirm({
-      title: 'تأكيد القبول',
-      description: `تفعيل ${req.user_name || req.user_email} لقسم "${req.section_key}" لمدة ${days} يوماً (${req.plan_type === 'yearly' ? 'سنوي' : 'شهري'})`,
-      confirmLabel: 'تفعيل', cancelLabel: 'إلغاء',
+      title: t('paidServices.approveConfirmTitle'),
+      description: t('paidServices.approveConfirmDesc', {
+        name: req.user_name || req.user_email,
+        section: req.section_key,
+        days: t('paidServices.daysCount', { count: days }),
+        plan: req.plan_type === 'yearly' ? t('paidServices.planYearly') : t('paidServices.planMonthly'),
+      }),
+      confirmLabel: t('paidServices.activate'), cancelLabel: t('common.cancel'),
     });
     if (!ok) return;
     try {
@@ -118,16 +123,16 @@ export default function AdminPaidServicesSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تفعيل القسم للمستخدم');
+        toast.success(t('paidServices.approveSuccess'));
         fetchAll();
-      } else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+      } else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   const handleReject = async (req: RequestRow) => {
     const ok = await confirm({
-      title: 'تأكيد الرفض', description: `رفض طلب ${req.user_name || req.user_email}`,
-      confirmLabel: 'رفض', cancelLabel: 'إلغاء', variant: 'destructive',
+      title: t('paidServices.rejectConfirmTitle'), description: t('paidServices.rejectConfirmDesc', { name: req.user_name || req.user_email }),
+      confirmLabel: t('paidServices.rejectLabel'), cancelLabel: t('common.cancel'), variant: 'destructive',
     });
     if (!ok) return;
     try {
@@ -137,9 +142,9 @@ export default function AdminPaidServicesSection() {
         body: JSON.stringify({ requestId: req.id, action: 'reject' }),
       });
       const json = await res.json();
-      if (json.success) { toast.success('تم رفض الطلب'); fetchAll(); }
+      if (json.success) { toast.success(t('paidServices.rejectSuccess')); fetchAll(); }
       else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   // ─── Config update ───
@@ -152,10 +157,10 @@ export default function AdminPaidServicesSection() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تحديث الإعدادات');
+        toast.success(t('paidServices.settingsSaved'));
         setConfigs(prev => prev.map(c => c.section_key === sectionKey ? { ...c, ...updates } : c));
-      } else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+      } else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   // ─── Trial create ───
@@ -167,9 +172,9 @@ export default function AdminPaidServicesSection() {
         body: JSON.stringify({ sectionKey, scope, durationDays: days }),
       });
       const json = await res.json();
-      if (json.success) { toast.success('تم إنشاء الفتح المؤقت'); fetchAll(); }
+      if (json.success) { toast.success(t('paidServices.trialCreated')); fetchAll(); }
       else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   const handleRevokeTrial = async (trialId: string) => {
@@ -180,16 +185,16 @@ export default function AdminPaidServicesSection() {
         body: JSON.stringify({ trialId }),
       });
       const json = await res.json();
-      if (json.success) { toast.success('تم إلغاء الفتح المؤقت'); fetchAll(); }
+      if (json.success) { toast.success(t('paidServices.trialRevoked')); fetchAll(); }
       else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   // ─── Revoke unlock ───
   const handleRevokeUnlock = async (unlockId: string) => {
     const ok = await confirm({
-      title: 'إلغاء التفعيل', description: 'سيتم إلغاء تفعيل القسم لهذا المستخدم فوراً',
-      confirmLabel: 'إلغاء التفعيل', cancelLabel: 'تراجع', variant: 'destructive',
+      title: t('paidServices.deactivateConfirmTitle'), description: t('paidServices.deactivateConfirmDesc'),
+      confirmLabel: t('paidServices.deactivateLabel'), cancelLabel: t('common.back'), variant: 'destructive',
     });
     if (!ok) return;
     try {
@@ -199,9 +204,9 @@ export default function AdminPaidServicesSection() {
         body: JSON.stringify({ unlockId }),
       });
       const json = await res.json();
-      if (json.success) { toast.success('تم إلغاء التفعيل'); fetchAll(); }
+      if (json.success) { toast.success(t('paidServices.deactivateSuccess')); fetchAll(); }
       else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   const formatDate = (iso: string) => {
@@ -262,11 +267,11 @@ export default function AdminPaidServicesSection() {
         <TabsContent value="requests">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">طلبات التفعيل ({requests.length})</CardTitle>
+              <CardTitle className="text-sm">{t('paidServices.requestsTitle', { count: requests.length })}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {requests.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">لا توجد طلبات</div>
+                <div className="py-8 text-center text-sm text-muted-foreground">{t('paidServices.noRequests')}</div>
               ) : (
                 <div className="divide-y max-h-[600px] overflow-y-auto">
                   {requests.map(r => (
@@ -275,9 +280,9 @@ export default function AdminPaidServicesSection() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-medium">{r.user_name || '—'}</span>
-                            <Badge variant="secondary" className="text-[9px]">{r.user_role === 'student' ? 'طالب' : 'معلم'}</Badge>
+                            <Badge variant="secondary" className="text-[9px]">{r.user_role === 'student' ? t('paidServices.roleStudent') : t('paidServices.roleTeacher')}</Badge>
                             <Badge variant="outline" className="text-[9px]">{r.section_key}</Badge>
-                            <Badge variant="outline" className="text-[9px]">{r.plan_type === 'yearly' ? 'سنوي' : 'شهري'}</Badge>
+                            <Badge variant="outline" className="text-[9px]">{r.plan_type === 'yearly' ? t('paidServices.planYearly') : t('paidServices.planMonthly')}</Badge>
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5">
                             <div dir="ltr" className="text-start">{r.user_email}</div>
@@ -290,18 +295,18 @@ export default function AdminPaidServicesSection() {
                           r.status === 'pending' ? 'outline' :
                           r.status === 'approved' ? 'default' : 'destructive'
                         } className="text-[9px] shrink-0">
-                          {r.status === 'pending' ? 'معلّق' : r.status === 'approved' ? 'مقبول' : 'مرفوض'}
+                          {r.status === 'pending' ? t('paidServices.statusPending') : r.status === 'approved' ? t('paidServices.statusApproved') : t('paidServices.statusRejected')}
                         </Badge>
                       </div>
                       {r.status === 'pending' && (
                         <div className="flex items-center gap-1.5 pt-1 border-t">
                           <Button size="sm" variant="outline" className="h-7 text-[10px] border-emerald-300 text-emerald-700"
                             onClick={() => handleApprove(r)}>
-                            <Check className="h-3 w-3 me-1" /> قبول
+                            <Check className="h-3 w-3 me-1" /> {t('paidServices.approve')}
                           </Button>
                           <Button size="sm" variant="outline" className="h-7 text-[10px] text-rose-600"
                             onClick={() => handleReject(r)}>
-                            <X className="h-3 w-3 me-1" /> رفض
+                            <X className="h-3 w-3 me-1" /> {t('paidServices.reject')}
                           </Button>
                         </div>
                       )}
@@ -317,11 +322,11 @@ export default function AdminPaidServicesSection() {
         <TabsContent value="unlocks">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">التفعيلات النشطة ({unlocks.length})</CardTitle>
+              <CardTitle className="text-sm">{t('paidServices.unlocksTitle', { count: unlocks.length })}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {unlocks.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">لا توجد تفعيلات نشطة</div>
+                <div className="py-8 text-center text-sm text-muted-foreground">{t('paidServices.noUnlocks')}</div>
               ) : (
                 <div className="divide-y max-h-[600px] overflow-y-auto">
                   {unlocks.map(u => (
@@ -332,11 +337,11 @@ export default function AdminPaidServicesSection() {
                           <Badge variant="secondary" className="text-[9px]">{u.user?.role}</Badge>
                           <Badge variant="outline" className="text-[9px]">{u.section_key}</Badge>
                           <Badge variant="outline" className="text-[9px]">
-                            {u.plan_type === 'yearly' ? 'سنوي' : u.plan_type === 'monthly' ? 'شهري' : 'تجربة'}
+                            {u.plan_type === 'yearly' ? t('paidServices.planYearly') : u.plan_type === 'monthly' ? t('paidServices.planMonthly') : t('paidServices.planTrial')}
                           </Badge>
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
-                          {u.user?.email} · ينتهي: {formatDate(u.expires_at)}
+                          {u.user?.email} · {t('paidServices.expires', { date: formatDate(u.expires_at) })}
                         </div>
                       </div>
                       <Button size="sm" variant="ghost" className="h-7 text-[10px] text-rose-600"
@@ -357,9 +362,9 @@ export default function AdminPaidServicesSection() {
             <SectionConfigCard
               config={configs.find(c => c.section_key === 'summaries')}
               updateConfig={updateConfig}
-              title="التلخيصات والاختبارات الذكية"
-              description="يشمل الملخصات والاختبارات المُولّدة بالذكاء الاصطناعي"
-              metricLabel="عملية (تلخيص + اختبار ذكي)"
+              title={t('paidServices.summaryTitle')}
+              description={t('paidServices.summaryDesc')}
+              metricLabel={t('paidServices.summaryMetric')}
             />
           </TabsContent>
         )}
@@ -370,9 +375,9 @@ export default function AdminPaidServicesSection() {
             <SectionConfigCard
               config={configs.find(c => c.section_key === 'questionBankAI')}
               updateConfig={updateConfig}
-              title="توليد الأسئلة بالذكاء الاصطناعي"
-              description="توليد أسئلة من الملفات باستخدام الذكاء الاصطناعي (للمعلمين فقط)"
-              metricLabel="عملية"
+              title={t('paidServices.aiQuestionsTitle')}
+              description={t('paidServices.aiQuestionsDesc')}
+              metricLabel={t('paidServices.aiQuestionsMetric')}
               teacherOnly
             />
           </TabsContent>
@@ -384,8 +389,8 @@ export default function AdminPaidServicesSection() {
             <SectionConfigCard
               config={configs.find(c => c.section_key === 'googleForms')}
               updateConfig={updateConfig}
-              title="مشاركة الأسئلة على Google Forms"
-              description="تصدير الأسئلة إلى Google Forms (للمعلمين فقط)"
+              title={t('paidServices.gformsTitle')}
+              description={t('paidServices.gformsDesc')}
               metricLabel=""
               teacherOnly
               noMetric
@@ -420,6 +425,7 @@ function TrialManager({
   onCreate: (sectionKey: string, scope: 'all' | 'new_users', days: number) => void;
   onRevoke: (trialId: string) => void;
 }) {
+  const { t } = useTranslations();
   const [sectionKey, setSectionKey] = useState('');
   const [scope, setScope] = useState<'all' | 'new_users'>('all');
   const [days, setDays] = useState('7');
@@ -432,10 +438,10 @@ function TrialManager({
   return (
     <div className="space-y-3">
       <Card>
-        <CardHeader><CardTitle className="text-sm">إنشاء فتح مؤقت</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t('paidServices.createTrialTitle')}</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <Select value={sectionKey} onValueChange={setSectionKey}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="اختر القسم" /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t('paidServices.selectSection')} /></SelectTrigger>
             <SelectContent>
               {configs.filter(c => c.is_active).map(c => (
                 <SelectItem key={c.section_key} value={c.section_key}>{c.section_label}</SelectItem>
@@ -445,36 +451,36 @@ function TrialManager({
           <Select value={scope} onValueChange={(v) => setScope(v as 'all' | 'new_users')}>
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">للجميع</SelectItem>
-              <SelectItem value="new_users">للحسابات الجديدة فقط</SelectItem>
+              <SelectItem value="all">{t('paidServices.scopeAll')}</SelectItem>
+              <SelectItem value="new_users">{t('paidServices.scopeNew')}</SelectItem>
             </SelectContent>
           </Select>
-          <Input type="number" value={days} onChange={(e) => setDays(e.target.value)} placeholder="عدد الأيام" className="h-8 text-xs" />
+          <Input type="number" value={days} onChange={(e) => setDays(e.target.value)} placeholder={t('paidServices.daysPlaceholder')} className="h-8 text-xs" />
           <Button
             size="sm"
             disabled={!sectionKey || !days}
             onClick={() => onCreate(sectionKey, scope, Number(days))}
             className="w-full"
           >
-            <Gift className="h-4 w-4 me-1" /> فتح مؤقت
+            <Gift className="h-4 w-4 me-1" /> {t('paidServices.openTrial')}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">الفتح المؤقت الحالي ({trials.filter(t => t.is_active).length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t('paidServices.currentTrialsTitle', { count: trials.filter(tr => tr.is_active).length })}</CardTitle></CardHeader>
         <CardContent className="p-0">
           {trials.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">لا يوجد فتح مؤقت</div>
+            <div className="py-6 text-center text-xs text-muted-foreground">{t('paidServices.noTrials')}</div>
           ) : (
             <div className="divide-y">
-              {trials.map(t => (
+              {trials.map(tr => (
                 <div key={t.id} className="p-2.5 text-xs flex items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{t.section_key}</span>
-                      <Badge variant="outline" className="text-[9px]">{t.scope === 'all' ? 'للجميع' : 'للجدد'}</Badge>
-                      {!t.is_active && <Badge variant="secondary" className="text-[9px]">منتهي</Badge>}
+                      <Badge variant="outline" className="text-[9px]">{tr.scope === 'all' ? t('paidServices.scopeAll') : t('paidServices.scopeNewShort')}</Badge>
+                      {!tr.is_active && <Badge variant="secondary" className="text-[9px]">{t('paidServices.expired')}</Badge>}
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
                       {formatDate(t.started_at)} → {formatDate(t.expires_at)}
@@ -504,6 +510,7 @@ function StorageManager({
   configs: ConfigRow[];
   updateConfig: (sectionKey: string, updates: Record<string, unknown>) => Promise<void>;
 }) {
+  const { t } = useTranslations();
   const [plans, setPlans] = useState<Array<{
     id: string; name: string; name_en: string | null; size_mb: number;
     price: number; price_monthly: number | null; price_yearly: number | null;
@@ -571,7 +578,7 @@ function StorageManager({
 
   const handleAddPlan = async () => {
     if (!newPlan.name || !newPlan.size_mb || !newPlan.price_monthly) {
-      toast.error('الاسم والحجم والسعر الشهري مطلوبة');
+      toast.error(t('paidServices.planFieldsRequired'));
       return;
     }
     setAdding(true);
@@ -589,17 +596,17 @@ function StorageManager({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم إضافة الخطة');
+        toast.success(t('paidServices.planAdded'));
         setNewPlan({ name: '', name_en: '', size_mb: '', price_monthly: '', price_yearly: '', currency: 'EGP' });
         setShowAddDialog(false);
         fetchPlans();
-      } else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+      } else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
     finally { setAdding(false); }
   };
 
   const handleDeletePlan = async (id: string) => {
-    const ok = window.confirm('هل أنت متأكد من حذف هذه الخطة؟ لا يمكن التراجع.');
+    const ok = window.confirm(t('paidServices.deletePlanConfirm'));
     if (!ok) return;
     try {
       const res = await fetch('/api/admin/storage-plans', {
@@ -608,9 +615,9 @@ function StorageManager({
         body: JSON.stringify({ id }),
       });
       const json = await res.json();
-      if (json.success) { toast.success('تم حذف الخطة'); fetchPlans(); }
+      if (json.success) { toast.success(t('paidServices.planDeleted')); fetchPlans(); }
       else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+    } catch { toast.error(t('paidServices.error')); }
   };
 
   const openEditDialog = (plan: typeof plans[number]) => {
@@ -628,7 +635,7 @@ function StorageManager({
   const handleSaveEdit = async () => {
     if (!editingPlan) return;
     if (!editForm.name || !editForm.size_mb || !editForm.price_monthly) {
-      toast.error('الاسم والحجم والسعر الشهري مطلوبة');
+      toast.error(t('paidServices.planFieldsRequired'));
       return;
     }
     setSavingEdit(true);
@@ -649,19 +656,19 @@ function StorageManager({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تحديث الخطة');
+        toast.success(t('paidServices.planUpdated'));
         setShowEditDialog(false);
         setEditingPlan(null);
         fetchPlans();
-      } else { toast.error(json.error || 'فشل'); }
-    } catch { toast.error('حدث خطأ'); }
+      } else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
     finally { setSavingEdit(false); }
   };
 
   const formatSize = (mb: number) => {
-    if (mb >= 1048576) return `${(mb / 1048576).toFixed(0)} تيرابايت`;
-    if (mb >= 1024) return `${(mb / 1024).toFixed(0)} جيجابايت`;
-    return `${mb} ميجابايت`;
+    if (mb >= 1048576) return t('paidServices.sizeTb', { value: (mb / 1048576).toFixed(0) });
+    if (mb >= 1024) return t('paidServices.sizeGb', { value: (mb / 1024).toFixed(0) });
+    return t('paidServices.sizeMb', { value: mb });
   };
 
   return (
@@ -671,16 +678,16 @@ function StorageManager({
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <HardDrive className="h-4 w-4 text-emerald-600" />
-            المساحة المجانية (الافتراضية)
+            {t('paidServices.freeStorageTitle')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-[11px] text-muted-foreground">
-            تُمنح مجاناً لكل المستخدمين. تُطبق دائماً حتى بدون قفل القسم.
+            {t('paidServices.freeStorageDesc')}
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[10px] font-medium text-sky-700">مساحة الطالب (ميجابايت)</Label>
+              <Label className="text-[10px] font-medium text-sky-700">{t('paidServices.studentStorage')}</Label>
               <Input
                 type="number"
                 value={freeStudent}
@@ -691,7 +698,7 @@ function StorageManager({
               />
             </div>
             <div>
-              <Label className="text-[10px] font-medium text-teal-700">مساحة المعلم (ميجابايت)</Label>
+              <Label className="text-[10px] font-medium text-teal-700">{t('paidServices.teacherStorage')}</Label>
               <Input
                 type="number"
                 value={freeTeacher}
@@ -704,7 +711,7 @@ function StorageManager({
           </div>
           <Button size="sm" className="w-full" disabled={savingFree} onClick={handleSaveFree}>
             {savingFree ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Check className="h-3 w-3 me-1" />}
-            حفظ المساحة المجانية
+            {t('paidServices.saveFreeStorage')}
           </Button>
         </CardContent>
       </Card>
@@ -715,12 +722,12 @@ function StorageManager({
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm flex items-center gap-2">
               <HardDrive className="h-4 w-4 text-sky-600" />
-              خطط الترقية التجارية ({plans.length})
+              {t('paidServices.plansTitle', { count: plans.length })}
             </CardTitle>
             <Button size="sm" variant="outline" className="h-7 text-xs"
               onClick={() => setShowAddDialog(true)}>
               <Plus className="h-3 w-3 me-1" />
-              إضافة خطة
+              {t('paidServices.addPlan')}
             </Button>
           </div>
         </CardHeader>
@@ -730,7 +737,7 @@ function StorageManager({
               <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
             </div>
           ) : plans.length === 0 ? (
-            <div className="text-center py-4 text-xs text-muted-foreground">لا توجد خطط — أضف خطة جديدة</div>
+            <div className="text-center py-4 text-xs text-muted-foreground">{t('paidServices.noPlans')}</div>
           ) : (
             <div className="space-y-2">
               {plans.map(p => (
@@ -743,8 +750,8 @@ function StorageManager({
                         {p.name_en && <span className="text-[10px] text-muted-foreground">({p.name_en})</span>}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
-                        {formatSize(p.size_mb)} · شهري {Number(p.price_monthly ?? p.price).toFixed(0)} {p.currency}
-                        {p.price_yearly != null && ` · سنوي ${Number(p.price_yearly).toFixed(0)} ${p.currency}`}
+                        {formatSize(p.size_mb)} · {t('paidServices.monthlyPrice', { price: Number(p.price_monthly ?? p.price).toFixed(0), currency: p.currency })}
+                        {p.price_yearly != null && t('paidServices.yearlyPrice', { price: Number(p.price_yearly).toFixed(0), currency: p.currency })}
                       </div>
                     </div>
                   </div>
@@ -769,44 +776,44 @@ function StorageManager({
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>إضافة خطة جديدة</DialogTitle>
-            <DialogDescription>أدخل بيانات خطة الترقية الجديدة</DialogDescription>
+            <DialogTitle>{t('paidServices.addPlanTitle')}</DialogTitle>
+            <DialogDescription>{t('paidServices.addPlanDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div>
-              <Label className="text-xs">اسم الخطة (عربي)</Label>
+              <Label className="text-xs">{t('paidServices.planNameAr')}</Label>
               <Input value={newPlan.name} onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
-                placeholder="مثال: 50 جيجابايت" className="h-8 text-xs" />
+                placeholder={t('paidServices.planNameArPlaceholder')} className="h-8 text-xs" />
             </div>
             <div>
-              <Label className="text-xs">الاسم (إنجليزي)</Label>
+              <Label className="text-xs">{t('paidServices.planNameEn')}</Label>
               <Input value={newPlan.name_en} onChange={(e) => setNewPlan({ ...newPlan, name_en: e.target.value })}
                 placeholder="50 GB" className="h-8 text-xs" dir="ltr" />
             </div>
             <div>
-              <Label className="text-xs">الحجم (ميجابايت)</Label>
+              <Label className="text-xs">{t('paidServices.planSize')}</Label>
               <Input type="number" value={newPlan.size_mb}
                 onChange={(e) => setNewPlan({ ...newPlan, size_mb: e.target.value })}
                 placeholder="51200" className="h-8 text-xs" dir="ltr" />
             </div>
             <div>
-              <Label className="text-xs">السعر الشهري</Label>
+              <Label className="text-xs">{t('paidServices.priceMonthly')}</Label>
               <Input type="number" value={newPlan.price_monthly}
                 onChange={(e) => setNewPlan({ ...newPlan, price_monthly: e.target.value })}
                 placeholder="20" className="h-8 text-xs" dir="ltr" />
             </div>
             <div className="col-span-2">
-              <Label className="text-xs">السعر السنوي (اختياري — اتركه فارغاً إن لم ترد توفير الاشتراك السنوي)</Label>
+              <Label className="text-xs">{t('paidServices.priceYearlyOptional')}</Label>
               <Input type="number" value={newPlan.price_yearly}
                 onChange={(e) => setNewPlan({ ...newPlan, price_yearly: e.target.value })}
                 placeholder="200" className="h-8 text-xs" dir="ltr" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setShowAddDialog(false)}>إلغاء</Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowAddDialog(false)}>{t('common.cancel')}</Button>
             <Button size="sm" disabled={adding} onClick={handleAddPlan}>
               {adding ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Plus className="h-3 w-3 me-1" />}
-              إضافة
+              {t('paidServices.add')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -816,47 +823,47 @@ function StorageManager({
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>تعديل الخطة</DialogTitle>
-            <DialogDescription>عدّل بيانات الخطة ثم اضغط حفظ</DialogDescription>
+            <DialogTitle>{t('paidServices.editPlanTitle')}</DialogTitle>
+            <DialogDescription>{t('paidServices.editPlanDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div>
-              <Label className="text-xs">اسم الخطة (عربي)</Label>
+              <Label className="text-xs">{t('paidServices.planNameAr')}</Label>
               <Input value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 className="h-8 text-xs" />
             </div>
             <div>
-              <Label className="text-xs">الاسم (إنجليزي)</Label>
+              <Label className="text-xs">{t('paidServices.planNameEn')}</Label>
               <Input value={editForm.name_en}
                 onChange={(e) => setEditForm({ ...editForm, name_en: e.target.value })}
                 className="h-8 text-xs" dir="ltr" />
             </div>
             <div>
-              <Label className="text-xs">الحجم (ميجابايت)</Label>
+              <Label className="text-xs">{t('paidServices.planSize')}</Label>
               <Input type="number" value={editForm.size_mb}
                 onChange={(e) => setEditForm({ ...editForm, size_mb: e.target.value })}
                 className="h-8 text-xs" dir="ltr" />
             </div>
             <div>
-              <Label className="text-xs">السعر الشهري</Label>
+              <Label className="text-xs">{t('paidServices.priceMonthly')}</Label>
               <Input type="number" value={editForm.price_monthly}
                 onChange={(e) => setEditForm({ ...editForm, price_monthly: e.target.value })}
                 className="h-8 text-xs" dir="ltr" />
             </div>
             <div className="col-span-2">
-              <Label className="text-xs">السعر السنوي (اختياري)</Label>
+              <Label className="text-xs">{t('paidServices.priceYearlyShort')}</Label>
               <Input type="number" value={editForm.price_yearly}
                 onChange={(e) => setEditForm({ ...editForm, price_yearly: e.target.value })}
-                placeholder="اتركه فارغاً لتعطيل السنوي"
+                placeholder={t('paidServices.priceYearlyPlaceholder')}
                 className="h-8 text-xs" dir="ltr" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setShowEditDialog(false)}>إلغاء</Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowEditDialog(false)}>{t('common.cancel')}</Button>
             <Button size="sm" disabled={savingEdit} onClick={handleSaveEdit}>
               {savingEdit ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Check className="h-3 w-3 me-1" />}
-              حفظ
+              {t('paidServices.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -885,8 +892,9 @@ function SectionConfigCard({
   teacherOnly?: boolean;
   noMetric?: boolean;
 }) {
+  const { t } = useTranslations();
   if (!config) {
-    return <div className="text-center py-8 text-sm text-muted-foreground">لا توجد إعدادات لهذا القسم</div>;
+    return <div className="text-center py-8 text-sm text-muted-foreground">{t('paidServices.noSettings')}</div>;
   }
 
   const c = config;
@@ -896,10 +904,10 @@ function SectionConfigCard({
     <div className="space-y-3">
       {/* Status badges */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {c.student_locked && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">مقفل للطلاب</Badge>}
-        {c.teacher_locked && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">مقفل للمعلمين</Badge>}
-        {!c.student_locked && !c.teacher_locked && <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">مفتوح</Badge>}
-        {teacherOnly && <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-700 border-teal-200">للمعلمين فقط</Badge>}
+        {c.student_locked && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">{t('paidServices.lockedStudents')}</Badge>}
+        {c.teacher_locked && <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200">{t('paidServices.lockedTeachers')}</Badge>}
+        {!c.student_locked && !c.teacher_locked && <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">{t('paidServices.openBadge')}</Badge>}
+        {teacherOnly && <Badge variant="outline" className="text-[9px] bg-teal-50 text-teal-700 border-teal-200">{t('paidServices.teachersOnly')}</Badge>}
       </div>
 
       {/* Lock toggles */}
@@ -916,8 +924,8 @@ function SectionConfigCard({
                   onChange={(e) => updateConfig(c.section_key, { student_locked: e.target.checked })}
                   className="h-4 w-4" />
                 <div>
-                  <span className="text-xs font-medium">قفل للطلاب</span>
-                  <p className="text-[10px] text-muted-foreground">يصبح مدفوعاً للطلاب</p>
+                  <span className="text-xs font-medium">{t('paidServices.lockStudents')}</span>
+                  <p className="text-[10px] text-muted-foreground">{t('paidServices.lockStudentsDesc')}</p>
                 </div>
               </label>
             )}
@@ -926,28 +934,28 @@ function SectionConfigCard({
                 onChange={(e) => updateConfig(c.section_key, { teacher_locked: e.target.checked })}
                 className="h-4 w-4" />
               <div>
-                <span className="text-xs font-medium">قفل للمعلمين</span>
-                <p className="text-[10px] text-muted-foreground">يصبح مدفوعاً للمعلمين</p>
+                <span className="text-xs font-medium">{t('paidServices.lockTeachers')}</span>
+                <p className="text-[10px] text-muted-foreground">{t('paidServices.lockTeachersDesc')}</p>
               </div>
             </label>
           </div>
 
           {/* Pricing */}
           <div className="border-t pt-3">
-            <p className="text-xs font-medium text-muted-foreground mb-2">الأسعار ({c.currency})</p>
+            <p className="text-xs font-medium text-muted-foreground mb-2">{t('paidServices.prices', { currency: c.currency })}</p>
             <div className={`grid gap-3 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {!teacherOnly && (
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                  <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">{t('paidServices.student')}</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthly')}</Label>
                       <Input type="number" defaultValue={c.student_monthly_price}
                         onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
                         className="h-8 text-xs" placeholder="0" dir="ltr" />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearly')}</Label>
                       <Input type="number" defaultValue={c.student_yearly_price}
                         onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
                         className="h-8 text-xs" placeholder="0" dir="ltr" />
@@ -956,16 +964,16 @@ function SectionConfigCard({
                 </div>
               )}
               <div className="space-y-1.5">
-                <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
+                <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">{t('paidServices.teacher')}</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">شهري</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthly')}</Label>
                     <Input type="number" defaultValue={c.teacher_monthly_price}
                       onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_price: Number(e.target.value) })}
                       className="h-8 text-xs" placeholder="0" dir="ltr" />
                   </div>
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">سنوي</Label>
+                    <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearly')}</Label>
                     <Input type="number" defaultValue={c.teacher_yearly_price}
                       onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_price: Number(e.target.value) })}
                       className="h-8 text-xs" placeholder="0" dir="ltr" />
@@ -978,44 +986,44 @@ function SectionConfigCard({
           {/* Usage limits */}
           {hasMetric && (
             <div className="border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1">حد الاستخدام لكل خطة</p>
+              <p className="text-xs font-medium text-muted-foreground mb-1">{t('paidServices.usageLimitTitle')}</p>
               <p className="text-[10px] text-muted-foreground mb-2">
-                الوحدة: {metricLabel} — حد منفصل لكل خطة. يُطبق طوال مدة الاشتراك. اتركه فارغاً لـ "غير محدود".
+                {t('paidServices.usageLimitDesc', { metric: metricLabel })}
               </p>
               <div className={`grid gap-3 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {!teacherOnly && (
                   <div className="space-y-1.5">
-                    <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">الطالب</p>
+                    <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">{t('paidServices.student')}</p>
                     <div className="grid grid-cols-2 gap-1.5">
                       <div>
-                        <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
+                        <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthlyLimit')}</Label>
                         <Input type="number" defaultValue={c.student_monthly_limit ?? ''}
                           onBlur={(e) => updateConfig(c.section_key, { student_monthly_limit: e.target.value ? Number(e.target.value) : null })}
-                          className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                          className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
+                        <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearlyLimit')}</Label>
                         <Input type="number" defaultValue={c.student_yearly_limit ?? ''}
                           onBlur={(e) => updateConfig(c.section_key, { student_yearly_limit: e.target.value ? Number(e.target.value) : null })}
-                          className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                          className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                       </div>
                     </div>
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">المعلم</p>
+                  <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">{t('paidServices.teacher')}</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">حد شهري</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthlyLimit')}</Label>
                       <Input type="number" defaultValue={c.teacher_monthly_limit ?? ''}
                         onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_limit: e.target.value ? Number(e.target.value) : null })}
-                        className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                        className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-muted-foreground">حد سنوي</Label>
+                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearlyLimit')}</Label>
                       <Input type="number" defaultValue={c.teacher_yearly_limit ?? ''}
                         onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_limit: e.target.value ? Number(e.target.value) : null })}
-                        className="h-8 text-xs" placeholder="غير محدود" dir="ltr" />
+                        className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                     </div>
                   </div>
                 </div>
