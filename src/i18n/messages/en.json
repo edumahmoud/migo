@@ -6886,5 +6886,10 @@
     "monthlyFee": "Monthly subscription fee (EGP/month)",
     "freePlaceholder": "0 = free",
     "feeNote": "Subscription is monthly — the student pays every month. 0 = free. The student cannot edit the price — it is read from the database."
+  },
+  "legal": {
+    "terms": "Terms of Use",
+    "refund": "Refund Policy",
+    "privacy": "Privacy Policy"
   }
 }
