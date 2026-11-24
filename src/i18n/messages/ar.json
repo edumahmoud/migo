@@ -291,7 +291,7 @@
     "byEmail": "بالبريد الإلكتروني",
     "byCode": "بالكود",
     "studentCode": "الكود",
-    "studentCodeExample": "مثال: A1B2C3D4",
+    "studentCodeExample": "مثال: S-1 أو T-3",
     "pleaseEnterCode": "الرجاء إدخال الكود",
     "invalidCode": "الكود غير صحيح",
     "phoneNumber": "رقم الهاتف",

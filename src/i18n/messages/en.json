@@ -291,7 +291,7 @@
     "byEmail": "By email",
     "byCode": "By code",
     "studentCode": "Code",
-    "studentCodeExample": "Example: A1B2C3D4",
+    "studentCodeExample": "Example: S-1 or T-3",
     "pleaseEnterCode": "Please enter the code",
     "invalidCode": "Invalid code",
     "phoneNumber": "Phone number",
