@@ -95,6 +95,7 @@ interface SubjectOption {
 
 interface EnrichedPackage extends ScormPackage {
   uploader_name?: string;
+  can_manage?: boolean;
   linked_subjects?: { id: string; name: string; color?: string | null; linked_by?: string; linked_at?: string; is_primary?: boolean }[];
 }
 
@@ -455,9 +456,9 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base font-semibold line-clamp-2 flex items-center gap-2">
-                          <FileBox className="h-4 w-4 text-primary shrink-0" />
-                          {pkg.title}
+                        <CardTitle className="text-base font-semibold flex items-start gap-2">
+                          <FileBox className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <span className="line-clamp-2 min-w-0 break-all">{pkg.title}</span>
                         </CardTitle>
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           <Badge variant="outline" className="text-[10px]">SCORM {pkg.version}</Badge>
@@ -479,7 +480,7 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
                           </Badge>
                         </div>
                       </div>
-                      {isAdmin && (
+                      {(isAdmin || pkg.can_manage) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
@@ -876,9 +877,10 @@ export default function ScormLibrarySection({ profile }: ScormLibrarySectionProp
 
       {!isAdmin && (
         <div className="text-center text-xs text-muted-foreground py-4">
-          {t('teacherNotice') || 'As a teacher, you can link and unlink platform packages to your courses. Only admins can upload or delete packages.'}
+          {t('teacherNotice') || 'As a teacher, you can upload packages to your courses, link platform packages, and delete packages you uploaded.'}
         </div>
       )}
     </motion.div>
   );
 }
+

@@ -3037,7 +3037,8 @@
     "subjectCount": "{count} مادة",
     "supervisorsForTeacher": "المشرفون على {name}",
     "teacherCount": "{count} معلم",
-    "temporaryRemaining": "حظر مؤقت — متبقي {time}"
+    "temporaryRemaining": "حظر مؤقت — متبقي {time}",
+    "statScormPackages": "حزم SCORM"
   },
   "adminFinancial": {
     "title": "اللوحة المالية",
@@ -5332,7 +5333,7 @@
     "deleteConfirm": "هل أنت متأكد من حذف هذه الحزمة؟ سيتم حذف جميع بيانات التتبع وإلغاء ربطها من كل المقررات. لا يمكن التراجع عن هذا الإجراء.",
     "deleteSuccess": "تم حذف الحزمة",
     "coTeacher": "معلم مشارك",
-    "teacherNotice": "بصفتك معلماً، يمكنك رفع الحزم وربطها بمقرراتك. فقط المدراء يمكنهم حذف الحزم."
+    "teacherNotice": "بصفتك معلماً، يمكنك رفع الحزم إلى مقرراتك وربط حزم المنصة بها وحذف الحزم التي رفعتها."
   },
   "tracking": {
     "lessonFailuresTitle": "نقاط إخفاق الطلاب في الدروس",
@@ -5426,3 +5427,4 @@
   "pendingRequests": "طلبات معلقة",
   "subjectDescPlaceholder": "وصف المادة (اختياري)"
 }
+
