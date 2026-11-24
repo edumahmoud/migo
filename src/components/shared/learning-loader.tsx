@@ -18,10 +18,18 @@ export default function LearningLoader() {
           stroke="#5eead4" strokeWidth="4" strokeLinecap="round" fill="none"
           animate={{ opacity: reducedMotion ? 1 : [0.35, 1, 0.35] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.18 }} />
       ))}
-      <motion.path d="M80 47Q101 23 119 37V90Q100 80 80 99Z" fill="#fff" stroke="#99f6e4" strokeWidth="1.5"
-        style={{ transformOrigin: '80px 70px' }}
-        animate={reducedMotion ? {} : { scaleX: [1, 0.05, -1, 0.05, 1], opacity: [1, 0.8, 1, 0.8, 1] }}
-        transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.5 }} />
+      {/* Pages flip one after another from right to left, then the stack resets. */}
+      {[4, 3, 2, 1, 0].map((i) => {
+        const start = 0.08 + i * 0.1;
+        const landed = -(1 - i * 0.025);
+        return (
+          <motion.path key={i} d="M80 47Q101 23 119 37V90Q100 80 80 99Z"
+            fill={i % 2 ? '#f0fdfa' : '#ffffff'} stroke="#99f6e4" strokeWidth="1.5"
+            style={{ transformOrigin: '80px 70px' }}
+            animate={reducedMotion ? {} : { scaleX: [1, 1, landed, landed, landed, 1], opacity: [1, 1, 1, 1, 0, 1] }}
+            transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut', times: [0, start, start + 0.1, 0.88, 0.9, 0.93] }} />
+        );
+      })}
       <motion.path d="M80 11V23M74 17H86M139 24V32M135 28H143M20 27V35M16 31H24" stroke="#14b8a6" strokeWidth="3" strokeLinecap="round"
         animate={{ opacity: reducedMotion ? 1 : [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity }} />
     </svg>
