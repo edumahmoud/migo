@@ -5915,5 +5915,24 @@
   },
   "brand": {
     "logoAlt": "شعار المؤسسة"
+  },
+  "paymentCodeSearch": {
+    "enterCodeFirst": "اكتب كود العملية أولاً",
+    "notFound": "لم يتم العثور على العملية",
+    "found": "تم العثور على العملية",
+    "unexpectedError": "حدث خطأ غير متوقع",
+    "placeholder": "ابحث برقم العملية أو اسم الطالب...",
+    "search": "بحث",
+    "copied": "تم نسخ الكود: {code}",
+    "copyFailed": "تعذّر نسخ الكود",
+    "copyTitle": "اضغط للنسخ",
+    "codeLabel": "كود العملية:",
+    "course": "المقرر",
+    "student": "الطالب",
+    "amount": "المبلغ",
+    "createdAt": "تاريخ الإنشاء",
+    "paidAt": "دُفع: {date}",
+    "activatedAt": "فُعّل: {date}",
+    "hint": "اكتب رقم العملية لتبحث عن تفاصيلها وحالتها."
   }
 }

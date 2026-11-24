@@ -5915,5 +5915,24 @@
   },
   "brand": {
     "logoAlt": "Institution logo"
+  },
+  "paymentCodeSearch": {
+    "enterCodeFirst": "Enter the transaction code first",
+    "notFound": "Transaction not found",
+    "found": "Transaction found",
+    "unexpectedError": "An unexpected error occurred",
+    "placeholder": "Search by transaction number or student name...",
+    "search": "Search",
+    "copied": "Code copied: {code}",
+    "copyFailed": "Could not copy the code",
+    "copyTitle": "Click to copy",
+    "codeLabel": "Transaction code:",
+    "course": "Course",
+    "student": "Student",
+    "amount": "Amount",
+    "createdAt": "Creation date",
+    "paidAt": "Paid: {date}",
+    "activatedAt": "Activated: {date}",
+    "hint": "Type the transaction number to search for its details and status."
   }
 }
