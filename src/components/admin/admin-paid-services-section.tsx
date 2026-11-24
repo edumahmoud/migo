@@ -107,7 +107,7 @@ export default function AdminPaidServicesSection() {
     const ok = await confirm({
       title: t('paidServices.approveConfirmTitle'),
       description: t('paidServices.approveConfirmDesc', {
-        name: req.user_name || req.user_email,
+        name: req.user_name || req.user_email || '',
         section: req.section_key,
         days: t('paidServices.daysCount', { count: days }),
         plan: req.plan_type === 'yearly' ? t('paidServices.planYearly') : t('paidServices.planMonthly'),
@@ -131,7 +131,7 @@ export default function AdminPaidServicesSection() {
 
   const handleReject = async (req: RequestRow) => {
     const ok = await confirm({
-      title: t('paidServices.rejectConfirmTitle'), description: t('paidServices.rejectConfirmDesc', { name: req.user_name || req.user_email }),
+      title: t('paidServices.rejectConfirmTitle'), description: t('paidServices.rejectConfirmDesc', { name: req.user_name || req.user_email || '' }),
       confirmLabel: t('paidServices.rejectLabel'), cancelLabel: t('common.cancel'), variant: 'destructive',
     });
     if (!ok) return;
@@ -475,10 +475,10 @@ function TrialManager({
           ) : (
             <div className="divide-y">
               {trials.map(tr => (
-                <div key={t.id} className="p-2.5 text-xs flex items-center justify-between gap-2">
+                <div key={tr.id} className="p-2.5 text-xs flex items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{t.section_key}</span>
+                      <span className="font-medium">{tr.section_key}</span>
                       <Badge variant="outline" className="text-[9px]">{tr.scope === 'all' ? t('paidServices.scopeAll') : t('paidServices.scopeNewShort')}</Badge>
                       {!tr.is_active && <Badge variant="secondary" className="text-[9px]">{t('paidServices.expired')}</Badge>}
                     </div>
@@ -486,7 +486,7 @@ function TrialManager({
                       {formatDate(t.started_at)} → {formatDate(t.expires_at)}
                     </div>
                   </div>
-                  {t.is_active && (
+                  {tr.is_active && (
                     <Button size="sm" variant="ghost" className="h-7 text-[10px] text-rose-600"
                       onClick={() => onRevoke(t.id)}>
                       <X className="h-3 w-3" />

@@ -340,6 +340,7 @@ export default function AdminDataManagementSection() {
 
 // ─── Set Password Form ───
 function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
+  const { t } = useTranslations();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
@@ -406,6 +407,7 @@ function SetPasswordForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ─── Unlock Form ───
 function UnlockForm({ onSuccess }: { onSuccess: (token: string) => void }) {
+  const { t } = useTranslations();
   const [password, setPassword] = useState('');
   const [verifying, setVerifying] = useState(false);
 
