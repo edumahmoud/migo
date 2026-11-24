@@ -62,7 +62,7 @@ export default function OtpVerificationPage() {
         setCooldown(60);
       } else {
         setStatus('init_error');
-        setErrorMessage(json.error || 'تعذّر بدء جلسة التحقق');
+        setErrorMessage(json.error || t('otp.sessionStartFailed'));
       }
     } catch {
       setStatus('init_error');
@@ -93,10 +93,10 @@ export default function OtpVerificationPage() {
         const json = await res.json();
         if (json.status === 'otp_sent') {
           setStatus('otp_sent');
-          toast.success('تم إرسال الكود إلى Telegram!');
+          toast.success(t('otp.codeSentToast'));
         } else if (json.status === 'verified') {
           setStatus('verified');
-          toast.success('تم التحقق من رقم هاتفك! جارٍ فتح صفحة التفعيل...');
+          toast.success(t('otp.verifiedOpeningActivation'));
           // CRITICAL: refresh the auth-store user before redirecting,
           // so page.tsx routing sees the updated account_status='pending'
           // (was 'pending_verification' before OTP verification).
@@ -126,7 +126,7 @@ export default function OtpVerificationPage() {
 
   // 4. Verify OTP
   const handleVerify = async () => {
-    if (otpCode.length !== 6) { toast.error('أدخل كود من 6 أرقام'); return; }
+    if (otpCode.length !== 6) { toast.error(t('otp.enterSixDigitCode')); return; }
     setVerifying(true);
     try {
       const res = await fetch('/api/auth/verify-otp', {
@@ -137,7 +137,7 @@ export default function OtpVerificationPage() {
       const json = await res.json();
       if (json.success) {
         setStatus('verified');
-        toast.success('تم التحقق من رقم هاتفك بنجاح!');
+        toast.success(t('otp.phoneVerifiedSuccess'));
         // CRITICAL: refresh auth-store user before redirecting, so
         // page.tsx routing sees account_status='pending' (was
         // 'pending_verification' before OTP verification).
@@ -154,7 +154,7 @@ export default function OtpVerificationPage() {
         }
         setTimeout(() => router.push('/'), 1000);
       } else {
-        toast.error(json.error || 'الكود غير صحيح');
+        toast.error(json.error || t('auth.invalidCode'));
       }
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -173,7 +173,7 @@ export default function OtpVerificationPage() {
   const handleSavePhone = async () => {
     const normalized = normalizePhoneToE164(newPhone.trim());
     if (!normalized) {
-      toast.error('رقم الهاتف غير صالح. مثال: 01555614624 أو +201555614624');
+      toast.error(t('otp.invalidPhoneExample'));
       return;
     }
     setSavingPhone(true);
@@ -187,14 +187,14 @@ export default function OtpVerificationPage() {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success('تم تحديث رقمك وإنشاء جلسة جديدة.');
+        toast.success(t('otp.phoneUpdatedNewSession'));
         setEditingPhone(false);
         setNewPhone('');
         setDeepLink(json.deep_link);
         setBotUsername(json.bot_username);
         setStatus('pending_start');
       } else {
-        toast.error(json.error || 'تعذّر تحديث الرقم');
+        toast.error(json.error || t('otp.phoneUpdateFailed'));
       }
     } catch {
       toast.error(t('common.unexpectedError'));
@@ -215,7 +215,7 @@ export default function OtpVerificationPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 to-teal-50">
         <div className="flex items-center gap-2 text-sky-700">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span>جارٍ تجهيز جلسة التحقق...</span>
+          <span>{t('otp.preparingSession')}</span>
         </div>
       </div>
     );
@@ -239,11 +239,11 @@ export default function OtpVerificationPage() {
             >
               <Send className="h-7 w-7 text-white" />
             </motion.div>
-            <CardTitle className="text-xl font-bold">تأكيد رقم الهاتف</CardTitle>
+            <CardTitle className="text-xl font-bold">{t('otp.confirmPhoneTitle')}</CardTitle>
             <CardDescription className="text-sm mt-1">
               {status === 'otp_sent'
-                ? 'تم إرسال كود التحقق إلى Telegram.'
-                : 'افتح Telegram واضغط Start لإرسال كود التحقق إليك.'}
+                ? t('otp.codeSentDesc')
+                : t('otp.openTelegramDesc')}
             </CardDescription>
           </CardHeader>
 
@@ -257,7 +257,7 @@ export default function OtpVerificationPage() {
                   type="button"
                   onClick={() => { setEditingPhone(true); setNewPhone(phone || ''); }}
                   className="text-xs text-sky-600 hover:underline inline-flex items-center gap-1"
-                  title="تعديل الرقم"
+                  title={t('otp.editNumber')}
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
@@ -268,7 +268,7 @@ export default function OtpVerificationPage() {
             {editingPhone && (
               <div className="rounded-lg border border-sky-200 bg-sky-50 dark:bg-sky-900/15 p-3 space-y-2">
                 <Label htmlFor="new-phone" className="text-xs font-medium">
-                  أدخل الرقم الصحيح
+                  {t('otp.enterCorrectNumber')}
                 </Label>
                 <Input
                   id="new-phone"
@@ -282,7 +282,7 @@ export default function OtpVerificationPage() {
                   autoFocus
                 />
                 <div className="text-[10px] text-muted-foreground">
-                  سيتم تحويله إلى: <span dir="ltr" className="font-mono">{normalizePhoneToE164(newPhone) || '—'}</span>
+                  {t('otp.willBeConvertedTo')} <span dir="ltr" className="font-mono">{normalizePhoneToE164(newPhone) || '—'}</span>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -293,9 +293,9 @@ export default function OtpVerificationPage() {
                     className="h-8 text-xs"
                   >
                     {savingPhone ? (
-                      <><Loader2 className="h-3 w-3 animate-spin me-1" />جارٍ الحفظ...</>
+                      <><Loader2 className="h-3 w-3 animate-spin me-1" />{t('otp.saving')}</>
                     ) : (
-                      'حفظ وإعادة الإرسال'
+                      t('otp.saveAndResend')
                     )}
                   </Button>
                   <Button
@@ -306,7 +306,7 @@ export default function OtpVerificationPage() {
                     disabled={savingPhone}
                     className="h-8 text-xs"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </Button>
                 </div>
               </div>
@@ -316,9 +316,9 @@ export default function OtpVerificationPage() {
             {status === 'pending_start' && deepLink && !editingPhone && (
               <div className="space-y-3">
                 <div className="rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 p-3 text-sm text-sky-700 dark:text-sky-300 space-y-1">
-                  <div className="font-semibold">الخطوة 1: افتح Telegram</div>
+                  <div className="font-semibold">{t('otp.step1OpenTelegram')}</div>
                   <div className="text-xs opacity-80">
-                    اضغط الزر بالأسفل ليفتح محادثة البوت في Telegram. سيظهر زر Start في الأسفل — اضغطه لإرسال الكود إليك.
+                    {t('otp.step1Desc')}
                   </div>
                 </div>
                 <a href={deepLink} target="_blank" rel="noopener noreferrer">
@@ -326,12 +326,12 @@ export default function OtpVerificationPage() {
                     type="button"
                     className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
                   >
-                    <Send className="h-5 w-5 me-2" /> فتح Telegram
+                    <Send className="h-5 w-5 me-2" /> {t('otp.openTelegram')}
                   </Button>
                 </a>
                 <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>في انتظار ضغطك لـ Start في Telegram...</span>
+                  <span>{t('otp.waitingForStart')}</span>
                 </div>
               </div>
             )}
@@ -340,12 +340,12 @@ export default function OtpVerificationPage() {
             {status === 'otp_sent' && (
               <div className="space-y-3">
                 <div className="rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 p-3 text-sm text-teal-700 dark:text-teal-300 space-y-1">
-                  <div className="font-semibold">✅ تم إرسال الكود إلى Telegram</div>
-                  <div className="text-xs opacity-80">أدخل الكود الذي وصلك في محادثة البوت.</div>
+                  <div className="font-semibold">{t('otp.codeSentTitle')}</div>
+                  <div className="text-xs opacity-80">{t('otp.enterCodeFromBot')}</div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="otp-input" className="text-sm font-medium text-center block">
-                    أدخل كود التحقق (6 أرقام)
+                    {t('otp.enterVerificationCode')}
                   </Label>
                   <Input
                     id="otp-input"
@@ -366,9 +366,9 @@ export default function OtpVerificationPage() {
                   className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700"
                 >
                   {verifying ? (
-                    <><Loader2 className="h-5 w-5 animate-spin me-2" />جارٍ التحقق...</>
+                    <><Loader2 className="h-5 w-5 animate-spin me-2" />{t('otp.verifying')}</>
                   ) : (
-                    <><CheckCircle2 className="h-5 w-5 me-2" />تأكيد الكود</>
+                    <><CheckCircle2 className="h-5 w-5 me-2" />{t('otp.confirmCode')}</>
                   )}
                 </Button>
               </div>
@@ -384,8 +384,8 @@ export default function OtpVerificationPage() {
             {/* Expired */}
             {status === 'expired' && (
               <div className="rounded-lg bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-900/60 p-3 text-sm text-amber-700 dark:text-amber-400 space-y-2">
-                <div className="font-semibold">انتهت صلاحية جلسة التحقق</div>
-                <Button onClick={handleResend} size="sm" variant="outline">طلب كود جديد</Button>
+                <div className="font-semibold">{t('otp.sessionExpired')}</div>
+                <Button onClick={handleResend} size="sm" variant="outline">{t('otp.requestNewCode')}</Button>
               </div>
             )}
 
@@ -393,7 +393,7 @@ export default function OtpVerificationPage() {
             {status === 'verified' && (
               <div className="rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60 p-3 text-sm text-teal-700 dark:text-teal-400 space-y-2 text-center">
                 <Loader2 className="h-5 w-5 animate-spin mx-auto" />
-                <div>تم التحقق بنجاح! جارٍ التحويل لصفحة التفعيل...</div>
+                <div>{t('otp.verifiedRedirecting')}</div>
               </div>
             )}
 
@@ -405,23 +405,23 @@ export default function OtpVerificationPage() {
                 className="text-xs text-sky-600 hover:text-sky-700 font-medium disabled:opacity-50 flex items-center gap-1"
               >
                 {cooldown > 0 ? (
-                  <><RefreshCw className="h-3 w-3" />إعادة ({cooldown}s)</>
+                  <><RefreshCw className="h-3 w-3" />{t('otp.resendCooldown', { seconds: cooldown })}</>
                 ) : (
-                  <><RefreshCw className="h-3 w-3" />طلب كود جديد</>
+                  <><RefreshCw className="h-3 w-3" />{t('otp.requestNewCode')}</>
                 )}
               </button>
               <button
                 onClick={handleSignOut}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
-                <LogOut className="h-3 w-3" />تسجيل الخروج
+                <LogOut className="h-3 w-3" />{t('auth.logout')}
               </button>
             </div>
 
             {/* Bot username footer */}
             {botUsername && (
               <p className="text-center text-xs text-muted-foreground">
-                البوت: <span dir="ltr">@{botUsername}</span>
+                {t('otp.botLabel')} <span dir="ltr">@{botUsername}</span>
               </p>
             )}
           </CardContent>
