@@ -611,7 +611,7 @@ export default function RegistrationAgentsSection() {
                   {/* Stats: registrations (rows in subject_students) + unique students */}
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="rounded-md bg-emerald-50/60 dark:bg-emerald-900/15 border border-emerald-200/50 px-2 py-1.5">
-                      <div class="text-[10px] text-muted-foreground">{t('regAgents.registrations')}</div>
+                      <div className="text-[10px] text-muted-foreground">{t('regAgents.registrations')}</div>
                       <div className="flex items-baseline gap-1">
                         <span className="font-bold text-emerald-700 dark:text-emerald-300">
                           {a.registrations_count ?? a.students_count ?? 0}

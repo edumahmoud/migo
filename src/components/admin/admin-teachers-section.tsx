@@ -609,17 +609,17 @@ export default function AdminTeachersSection() {
         t('adminTeachers.colCommission'), // v111
         t('adminTeachers.exTotalEarned'), t('adminTeachers.exSettledShort'), t('adminTeachers.exAvailableShort'), t('adminTeachers.exRegDate'),
       ];
-      const rows = teachers.map((t) => [
-        t.name, t.email, t.phone ?? '—', formatAccountStatus(t.account_status),
-        t.subject_count, t.student_count,
+      const rows = teachers.map((th) => [
+        th.name, th.email, th.phone ?? '—', formatAccountStatus(th.account_status),
+        th.subject_count, th.student_count,
         // v111: per-teacher commission (null = uses global rate)
-        t.commission_rate === null || t.commission_rate === undefined
+        th.commission_rate === null || th.commission_rate === undefined
           ? t('adminTeachers.generalShort')
-          : `${Number(t.commission_rate).toFixed(2)}%`,
-        Number(t.total_earned ?? 0).toFixed(2),
-        Number(t.total_settled ?? 0).toFixed(2),
-        Number(t.total_pending ?? 0).toFixed(2),
-        new Date(t.created_at).toLocaleDateString('ar-EG'),
+          : `${Number(th.commission_rate).toFixed(2)}%`,
+        Number(th.total_earned ?? 0).toFixed(2),
+        Number(th.total_settled ?? 0).toFixed(2),
+        Number(th.total_pending ?? 0).toFixed(2),
+        new Date(th.created_at).toLocaleDateString('ar-EG'),
       ]);
       // Totals row
       const totalsRow = [

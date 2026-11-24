@@ -483,12 +483,12 @@ function TrialManager({
                       {!tr.is_active && <Badge variant="secondary" className="text-[9px]">{t('paidServices.expired')}</Badge>}
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {formatDate(t.started_at)} → {formatDate(t.expires_at)}
+                      {formatDate(tr.started_at)} → {formatDate(tr.expires_at)}
                     </div>
                   </div>
                   {tr.is_active && (
                     <Button size="sm" variant="ghost" className="h-7 text-[10px] text-rose-600"
-                      onClick={() => onRevoke(t.id)}>
+                      onClick={() => onRevoke(tr.id)}>
                       <X className="h-3 w-3" />
                     </Button>
                   )}
