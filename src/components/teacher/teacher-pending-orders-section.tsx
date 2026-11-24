@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import type { UserProfile } from '@/lib/types';
@@ -49,6 +50,7 @@ interface TeacherPendingOrdersSectionProps {
  * On activate/cancel success, the list is refreshed.
  */
 export default function TeacherPendingOrdersSection({ profile }: TeacherPendingOrdersSectionProps) {
+  const { t, locale } = useTranslations();
   const [orders, setOrders] = useState<PendingOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [actioningOrderId, setActioningOrderId] = useState<string | null>(null);
@@ -67,10 +69,10 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
       if (json.success) {
         setOrders(json.orders ?? []);
       } else {
-        toast.error(json.error || 'تعذّر جلب الطلبات المعلّقة');
+        toast.error(json.error || t('pendingOrders.fetchFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setLoading(false);
     }
@@ -84,10 +86,10 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
   const activateOrder = async (orderId: string) => {
     if (actioningOrderId) return;
     const ok = await confirm({
-      title: 'تأكيد التفعيل اليدوي',
-      description: 'تأكيد: تم استلام المبلغ من الطالب خارج النظام؟ سيتم تفعيل الاشتراك يدويًا.',
-      confirmLabel: 'تفعيل',
-      cancelLabel: 'تراجع',
+      title: t('pendingOrders.confirmActivateTitle'),
+      description: t('pendingOrders.confirmActivateDesc'),
+      confirmLabel: t('pendingOrders.confirmActivateButton'),
+      cancelLabel: t('pendingOrders.back'),
     });
     if (!ok) return;
     setActioningOrderId(orderId);
@@ -99,13 +101,13 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم تفعيل الاشتراك');
+        toast.success(json.message || t('pendingOrders.activateSuccess'));
         await fetchOrders(); // refresh
       } else {
-        toast.error(json.error || 'فشل التفعيل');
+        toast.error(json.error || t('pendingOrders.activateFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setActioningOrderId(null);
     }
@@ -115,10 +117,10 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
   const cancelOrder = async (orderId: string) => {
     if (actioningOrderId) return;
     const ok = await confirm({
-      title: 'تأكيد الإلغاء',
-      description: 'تأكيد: إلغاء هذا الطلب المعلّق؟ يمكن للطالب إنشاء طلب جديد بعد ذلك.',
-      confirmLabel: 'إلغاء الطلب',
-      cancelLabel: 'تراجع',
+      title: t('pendingOrders.confirmCancelTitle'),
+      description: t('pendingOrders.confirmCancelDesc'),
+      confirmLabel: t('pendingOrders.confirmCancelButton'),
+      cancelLabel: t('pendingOrders.back'),
       variant: 'destructive',
     });
     if (!ok) return;
@@ -130,13 +132,13 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || 'تم إلغاء الطلب');
+        toast.success(json.message || t('pendingOrders.cancelSuccess'));
         await fetchOrders(); // refresh
       } else {
-        toast.error(json.error || 'فشل الإلغاء');
+        toast.error(json.error || t('pendingOrders.cancelFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setActioningOrderId(null);
     }
@@ -174,9 +176,9 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
           <Clock className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold">الطلبات المعلّقة</h1>
+          <h1 className="text-xl font-bold">{t('pendingOrders.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            عرض كل الطلبات المعلّقة لطلابك. يمكنك تفعيل الاشتراك يدويًا (لو استلمت المبلغ خارج النظام) أو إلغاء الطلب.
+            {t('pendingOrders.subtitle')}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
@@ -185,7 +187,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          تحديث
+          {t('pendingOrders.refresh')}
         </Button>
       </header>
 
@@ -199,7 +201,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
             <Inbox className="h-8 w-8 text-amber-600" />
             <div>
               <div className="text-2xl font-bold">{orders.length}</div>
-              <div className="text-xs text-muted-foreground">طلب معلّق</div>
+              <div className="text-xs text-muted-foreground">{t('pendingOrders.pendingCount', { count: orders.length })}</div>
             </div>
           </div>
         </CardContent>
@@ -212,7 +214,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <CardTitle className="text-base flex items-center gap-2">
-                الطلبات
+                {t('pendingOrders.ordersTitle')}
                 <Badge
                   variant="secondary"
                   className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
@@ -227,7 +229,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                   className="h-7 text-xs"
                   onClick={() => setSearchQuery('')}
                 >
-                  مسح البحث
+                  {t('pendingOrders.clearSearch')}
                 </Button>
               )}
             </div>
@@ -240,9 +242,9 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث برقم العملية أو اسم الطالب أو المقرر..."
+                placeholder={t('pendingOrders.searchPlaceholder')}
                 className="h-9 ps-8"
-                aria-label="بحث"
+                aria-label={t('pendingOrders.searchAria')}
               />
             </div>
           </div>
@@ -256,21 +258,21 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Inbox className="h-12 w-12 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">
-                لا توجد طلبات معلّقة حاليًا. سيظهر هنا أي طلب جديد ينشئه طالب ولم يدفع بعد.
+                {t('pendingOrders.emptyOrders')}
               </p>
             </div>
           ) : filteredOrders.length === 0 ? (
             /* v112: empty-state when search filters out everything */
             <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
               <Search className="h-6 w-6 text-muted-foreground opacity-50" />
-              <p className="text-sm text-muted-foreground">لا توجد طلبات مطابقة للبحث</p>
+              <p className="text-sm text-muted-foreground">{t('pendingOrders.emptySearch')}</p>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs"
                 onClick={() => setSearchQuery('')}
               >
-                مسح البحث
+                {t('pendingOrders.clearSearch')}
               </Button>
             </div>
           ) : (
@@ -303,10 +305,10 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                         <BookOpen className="h-3 w-3 shrink-0" />
                         <span className="truncate">{o.subject?.name ?? '—'}</span>
                         <span>·</span>
-                        <span>{new Date(o.created_at).toLocaleString('ar-EG')}</span>
+                        <span>{new Date(o.created_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB')}</span>
                         {o.checkout_session_id && (
                           <Badge variant="secondary" className="text-xs">
-                            جزء من دفعة موحدة
+                            {t('pendingOrders.unifiedPayment')}
                           </Badge>
                         )}
                       </div>
@@ -325,13 +327,13 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                             onClick={() => {
                               try {
                                 navigator.clipboard?.writeText(displayCode);
-                                toast.success(`تم نسخ رقم العملية: ${displayCode}`);
-                              } catch { toast.error('تعذّر النسخ'); }
+                                toast.success(t('pendingOrders.codeCopied', { code: displayCode }));
+                              } catch { toast.error(t('pendingOrders.copyFailed')); }
                             }}
                             className="text-xs font-mono text-sky-700 dark:text-sky-300 hover:underline inline-flex items-center gap-1 self-start"
-                            title="اضغط للنسخ"
+                            title={t('pendingOrders.copyTitle')}
                           >
-                            <span className="font-bold">رقم العملية:</span>
+                            <span className="font-bold">{t('pendingOrders.orderIdLabel')}:</span>
                             <span className="bg-sky-50 dark:bg-sky-900/20 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
                               {displayCode}
                               <Copy className="h-2.5 w-2.5" />
@@ -350,15 +352,15 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                       if (isFree) {
                         // v127: show "مجاني" + plan duration (actual days for custom)
                         const durationDays = o.plan_duration_days ?? 30;
-                        const durationLabel = durationDays >= 365 ? 'سنوي' :
-                          durationDays >= 120 ? 'ترم' :
-                          durationDays >= 60 ? 'فصلين' :
-                          durationDays === 30 ? 'شهري' :
-                          `${durationDays} يوم`;
+                        const durationLabel = durationDays >= 365 ? t('pendingOrders.durYearly') :
+                          durationDays >= 120 ? t('pendingOrders.durTerm') :
+                          durationDays >= 60 ? t('pendingOrders.durTwoTerms') :
+                          durationDays === 30 ? t('pendingOrders.durMonthly') :
+                          t('pendingOrders.durDays', { days: durationDays });
                         return (
                           <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
                             <Gift className="h-3 w-3 me-1" />
-                            مجاني ({durationLabel})
+                            {t('pendingOrders.freeWithDuration', { duration: durationLabel })}
                           </Badge>
                         );
                       }
@@ -368,7 +370,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                         return (
                           <div className="flex flex-col items-end gap-0.5">
                             <span className="text-[9px] text-muted-foreground font-mono">
-                              أصل: {base.toFixed(2)} + رسوم: {fees.toFixed(2)}
+                              {t('pendingOrders.basePlusFees', { base: base.toFixed(2), fees: fees.toFixed(2) })}
                             </span>
                             <span className="text-sm font-mono font-semibold">
                               {Number(o.amount).toFixed(2)} {o.currency}
@@ -412,15 +414,15 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                           !other.provider_order_ref.startsWith('free_')
                         );
                         const ref = hasOwnRef ? o.provider_order_ref! : (sessionOrder?.provider_order_ref ?? '—');
-                        const refLabel = hasOwnRef ? 'رقم العملية' : 'رقم العملية (جلسة)';
-                        const timestamp = new Date(o.created_at).toLocaleString('ar-EG', {
+                        const refLabel = hasOwnRef ? t('pendingOrders.orderIdLabel') : t('pendingOrders.orderIdSession');
+                        const timestamp = new Date(o.created_at).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-GB', {
                           day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                         });
                         return (
                           <div className="flex flex-col items-end gap-0.5">
                             <Badge variant="outline" className="text-[9px] border-emerald-400 text-emerald-700 bg-emerald-50">
                               <CheckCircle2 className="h-2.5 w-2.5 me-0.5" />
-                              تم الدفع
+                              {t('pendingOrders.paidBadge')}
                             </Badge>
                             <span className="text-[9px] text-muted-foreground font-mono" dir="ltr" title={ref || ''}>
                               {refLabel}: {ref && ref.length > 18 ? ref.slice(0, 18) + '…' : ref}
@@ -432,7 +434,7 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                       return (
                         <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-700 bg-amber-50">
                           <Clock className="h-2.5 w-2.5 me-0.5" />
-                          بانتظار الدفع
+                          {t('pendingOrders.awaitingPayment')}
                         </Badge>
                       );
                     })()}
@@ -443,14 +445,14 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                         className="h-8 px-3 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                         disabled={actioningOrderId === o.id}
                         onClick={() => activateOrder(o.id)}
-                        title="تفعيل يدوي (تم استلام المبلغ خارج النظام)"
+                        title={t('pendingOrders.manualActivateTitle')}
                       >
                         {actioningOrderId === o.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <BadgeCheck className="h-3.5 w-3.5" />
                         )}
-                        تفعيل يدوي
+                        {t('pendingOrders.manualActivate')}
                       </Button>
                       {(() => {
                         const pi = !!o.provider_order_ref && o.provider_order_ref.length > 5 && !o.provider_order_ref.startsWith('order_') && !o.provider_order_ref.startsWith('free_');
@@ -461,10 +463,10 @@ export default function TeacherPendingOrdersSection({ profile }: TeacherPendingO
                             className="h-8 px-3 text-xs gap-1 border-red-300 text-red-700 hover:bg-red-50"
                             disabled={actioningOrderId === o.id}
                             onClick={() => cancelOrder(o.id)}
-                            title="إلغاء الطلب المعلّق"
+                            title={t('pendingOrders.cancelOrderTitle')}
                           >
                             <Ban className="h-3.5 w-3.5" />
-                            إلغاء
+                            {t('pendingOrders.cancelButton')}
                           </Button>
                         ) : null;
                       })()}
