@@ -55,6 +55,7 @@ import {
   Wallet,
   DollarSign,
   Package,
+  FileText,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -83,6 +84,7 @@ import PaymentGatewaysSection from '@/components/admin/payment-gateways-section'
 import AdminFinancialManagementSection from '@/components/admin/admin-financial-management-section';
 import AdminDataManagementSection from '@/components/admin/admin-data-management-section';
 import AdminPaidServicesSection from '@/components/admin/admin-paid-services-section';
+import AdminLegalPoliciesSection from '@/components/admin/admin-legal-policies-section';
 import ReportsSection from '@/components/reports/reports-section';
 import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
@@ -151,6 +153,7 @@ const adminNavItemDefs = [
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
   { id: 'dataManagement', labelKey: 'nav.dataManagement', icon: <ShieldAlert className="h-5 w-5" />, superadminOnly: true },
   { id: 'paidServices', labelKey: 'nav.paidServices', icon: <DollarSign className="h-5 w-5" /> },
+  { id: 'legalPolicies', labelKey: 'nav.legalPolicies', icon: <FileText className="h-5 w-5" />, superadminOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -4104,6 +4107,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'paidServices' && (
                 <motion.div key="paidServices" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   <AdminPaidServicesSection />
+                </motion.div>
+              )}
+              {activeSection === 'legalPolicies' && (
+                <motion.div key="legalPolicies" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <AdminLegalPoliciesSection />
                 </motion.div>
               )}
             </AnimatePresence>

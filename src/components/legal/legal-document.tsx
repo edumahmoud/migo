@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
-import type { LegalDoc } from './policies-content';
-import { policies } from './policies-content';
+import AutoPrint from './auto-print';
+import { POLICY_LABELS, type LegalDoc, type PolicySlug } from '@/lib/legal';
 
 /** Renders inline **bold** markers inside policy text. */
 function RichText({ text }: { text: string }) {
@@ -21,23 +21,24 @@ function RichText({ text }: { text: string }) {
   );
 }
 
-const NAV: { key: keyof typeof policies; href: string; label: string }[] = [
-  { key: 'terms', href: '/terms', label: 'شروط الاستخدام' },
-  { key: 'refund', href: '/refund', label: 'سياسة الاسترجاع' },
-  { key: 'privacy', href: '/privacy', label: 'سياسة الخصوصية وحماية البيانات' },
+const NAV: { key: PolicySlug; href: string }[] = [
+  { key: 'terms', href: '/terms' },
+  { key: 'refund', href: '/refund' },
+  { key: 'privacy', href: '/privacy' },
 ];
 
-export default function LegalDocument({ doc }: { doc: LegalDoc }) {
+export default function LegalDocument({ doc, slug }: { doc: LegalDoc; slug: PolicySlug }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" dir="rtl">
+    <div className="print:bg-white min-h-screen bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950" dir="rtl">
       {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none print:hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/15 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 max-w-3xl mx-auto px-4 py-10 sm:py-14">
-        <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-6 sm:p-10">
+      <AutoPrint />
+      <div className="relative z-10 max-w-3xl mx-auto px-4 py-10 sm:py-14 print:py-0 print:px-0 print:max-w-none">
+        <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-6 sm:p-10 print:shadow-none print:border-0 print:rounded-none print:p-0 print:bg-white">
           <p className="text-sm font-semibold text-sky-700 dark:text-sky-400 mb-2">AttenDo | أتيندو</p>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-50 mb-1">
             {doc.title}
@@ -68,10 +69,10 @@ export default function LegalDocument({ doc }: { doc: LegalDoc }) {
           ))}
         </div>
 
-        <nav className="mt-6 text-center text-xs text-gray-400 space-x-3 space-x-reverse">
-          {NAV.filter((n) => policies[n.key].title !== doc.title).map((n) => (
+        <nav className="print:hidden mt-6 text-center text-xs text-gray-400 space-x-3 space-x-reverse">
+          {NAV.filter((n) => n.key !== slug).map((n) => (
             <Link key={n.key} href={n.href} className="hover:text-sky-600 hover:underline transition-colors">
-              {n.label}
+              {POLICY_LABELS[n.key]}
             </Link>
           ))}
           <Link href="/" className="hover:text-sky-600 hover:underline transition-colors">
