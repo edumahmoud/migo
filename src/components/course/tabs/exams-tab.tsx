@@ -672,8 +672,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         questions: quizQuestions,
         show_results: quizShowResults,
         show_review: quizShowReview,
-        is_gate: quizIsGate,
-        pass_threshold: (() => { const n = parseInt(quizPassThreshold, 10); return !isNaN(n) && n >= 0 && n <= 100 ? n : null; })(),
         allow_retake: quizAllowRetake,
         // v136: difficulty strategy metadata (from AI generation or preserved on edit)
         difficulty_mode: quizDifficultyMode ?? null,
@@ -1882,7 +1880,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                     { key: 'review', icon: <Eye className="h-4 w-4" />, label: t('quiz.showReview'), desc: t('quiz.showReviewDesc'), checked: quizShowReview, set: setQuizShowReview },
                     { key: 'retake', icon: <RotateCcw className="h-4 w-4" />, label: t('quiz.allowRetake'), desc: t('quiz.allowRetakeDesc'), checked: quizAllowRetake, set: setQuizAllowRetake },
                     { key: 'shuffle', icon: <Shuffle className="h-4 w-4" />, label: t('quiz.shuffleQuestions'), desc: t('quiz.shuffleOptions'), checked: quizShuffleQuestions, set: setQuizShuffleQuestions },
-                    { key: 'gate', icon: <CheckCircle2 className="h-4 w-4" />, label: t('quiz.isGate'), desc: t('quiz.isGateHint'), checked: quizIsGate, set: setQuizIsGate },
                   ] as Array<{ key: string; icon: ReactNode; label: string; desc: string; checked: boolean; set: (v: boolean) => void }>).map((row) => (
                     <div key={row.key} className="flex items-start gap-3 rounded-lg border p-3" dir={direction}>
                       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500">{row.icon}</span>
@@ -1893,22 +1890,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                       <Switch checked={row.checked} onCheckedChange={row.set} disabled={savingQuiz || generatingFromAi} className="mt-1 shrink-0" dir="ltr" />
                     </div>
                   ))}
-                </div>
-                {/* Pass mark */}
-                <div className="rounded-lg border p-3">
-                  <label className="text-sm font-medium text-foreground block leading-snug">{t('quiz.passThresholdLabel')}</label>
-                  <p className="mt-0.5 mb-2 text-xs text-muted-foreground leading-snug">{t('quiz.passThresholdHint')}</p>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={quizPassThreshold}
-                    onChange={(e) => setQuizPassThreshold(e.target.value)}
-                    disabled={savingQuiz || generatingFromAi}
-                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-                    placeholder="70"
-                    dir="ltr"
-                  />
                 </div>
               </div>
 
