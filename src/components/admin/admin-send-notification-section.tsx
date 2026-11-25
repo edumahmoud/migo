@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Send, Search, X } from 'lucide-react';
+import { Loader2, Send, Search, X, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,9 @@ const TEXT = {
     subject: 'طلاب مادة', users: 'مستخدمون محددون', pickSubject: 'اختر المادة', search: 'ابحث بالاسم أو الإيميل أو الكود',
     ttl: 'العنوان', msg: 'الرسالة', recipients: 'عدد المستلمين', send: 'إرسال', confirm: 'تأكيد الإرسال', cancel: 'إلغاء',
     sentTo: 'تم الإرسال إلى', none: 'لا يوجد مستلمون', fill: 'اكتب العنوان والرسالة', fail: 'تعذر الإرسال',
+    history: 'سجل الإشعارات المرسلة', noHistory: 'لا توجد إشعارات مرسلة بعد', resend: 'إعادة إرسال', by: 'بواسطة', resentTag: 'إعادة إرسال',
+    resendConfirm: (n: number) => `سيتم إعادة إرسال هذا الإشعار إلى ${n} مستخدم حاليًا في نفس الفئة.`,
+    aud: { all: 'كل المستخدمين', teachers: 'المعلمون', students: 'الطلاب', admins: 'الأدمن', subject: 'طلاب مادة', users: 'مستخدمون محددون' } as Record<string, string>,
     confirmText: (n: number) => `سيتم إرسال الإشعار إلى ${n} مستخدم. لا يمكن التراجع بعد الإرسال.`,
   },
   en: {
@@ -34,6 +37,9 @@ const TEXT = {
     subject: "A subject's students", users: 'Specific users', pickSubject: 'Choose a subject', search: 'Search by name, email or code',
     ttl: 'Title', msg: 'Message', recipients: 'Recipients', send: 'Send', confirm: 'Confirm send', cancel: 'Cancel',
     sentTo: 'Sent to', none: 'No recipients', fill: 'Enter a title and message', fail: 'Could not send',
+    history: 'Sent notifications log', noHistory: 'Nothing sent yet', resend: 'Resend', by: 'By', resentTag: 'Resend',
+    resendConfirm: (n: number) => `This will resend to ${n} user(s) currently in the same audience.`,
+    aud: { all: 'All users', teachers: 'Teachers', students: 'Students', admins: 'Admins', subject: "A subject's students", users: 'Specific users' } as Record<string, string>,
     confirmText: (n: number) => `This will notify ${n} user(s). It cannot be undone.`,
   },
 };
@@ -52,6 +58,20 @@ export default function AdminSendNotificationSection() {
   const [count, setCount] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  interface LogRow { id: string; audience: string; title: string; message: string; recipient_count: number; resent_from: string | null; created_at: string; sender_name: string | null }
+  const [log, setLog] = useState<LogRow[]>([]);
+  const [resendId, setResendId] = useState<string | null>(null);
+  const [resendCount, setResendCount] = useState<number | null>(null);
+
+  const loadLog = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/notifications/send?resource=history', { headers: await getCachedAuthHeaders() });
+      const json = await res.json();
+      if (json.success) setLog(json.data);
+    } catch { /* log stays as is */ }
+  }, []);
+  useEffect(() => { loadLog(); }, [loadLog]);
 
   const call = useCallback(async (payload: Record<string, unknown>) => {
     const res = await fetch('/api/admin/notifications/send', {
@@ -102,6 +122,7 @@ export default function AdminSendNotificationSection() {
       if (json.success) {
         toast.success(`${L.sentTo} ${json.count}`);
         setTitle(''); setMessage(''); setConfirming(false);
+        loadLog();
       } else {
         toast.error(json.error || L.fail);
       }
@@ -110,6 +131,23 @@ export default function AdminSendNotificationSection() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const startResend = async (id: string) => {
+    setResendId(id); setResendCount(null);
+    try {
+      const j = await call({ resendLogId: id, dryRun: true });
+      setResendCount(j.success ? j.count : 0);
+    } catch { setResendCount(0); }
+  };
+  const doResend = async () => {
+    if (!resendId) return;
+    setBusy(true);
+    try {
+      const json = await call({ resendLogId: resendId });
+      if (json.success) { toast.success(`${L.sentTo} ${json.count}`); setResendId(null); loadLog(); }
+      else toast.error(json.error || L.fail);
+    } catch { toast.error(L.fail); } finally { setBusy(false); }
   };
 
   const audiences: { id: Audience; label: string }[] = [
@@ -200,6 +238,40 @@ export default function AdminSendNotificationSection() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">{L.history}</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {log.length === 0 && <p className="text-sm text-muted-foreground">{L.noHistory}</p>}
+          {log.map((r) => (
+            <div key={r.id} className="rounded-md border p-3 space-y-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{r.title}{r.resent_from ? <span className="ms-2 text-xs text-muted-foreground">({L.resentTag})</span> : null}</p>
+                  <p className="text-sm text-muted-foreground break-words">{r.message}</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => startResend(r.id)}>
+                  <RotateCw className="h-3.5 w-3.5 me-1" /> {L.resend}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {L.aud[r.audience] ?? r.audience} · {L.recipients}: {r.recipient_count} · {new Date(r.created_at).toLocaleString(locale === 'en' ? 'en-GB' : 'ar-EG')}{r.sender_name ? ` · ${L.by} ${r.sender_name}` : ''}
+              </p>
+              {resendId === r.id && (
+                <div className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
+                  <p className="text-sm">{resendCount === null ? '...' : resendCount === 0 ? L.none : L.resendConfirm(resendCount)}</p>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" disabled={busy || !resendCount} onClick={doResend}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Send className="h-4 w-4 me-2" />} {L.confirm}
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setResendId(null)}>{L.cancel}</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>
