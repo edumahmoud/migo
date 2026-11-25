@@ -6,7 +6,7 @@
  * correct/wrong feedback; grading happens on submit (see gradePagedAnswers).
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowRight, ChevronRight, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -79,10 +79,64 @@ export default function QuizPagedBody({ quiz, order, perPage, page, setPage, ans
     return a === undefined || a === '' || (typeof a === 'object' && Object.keys(a).length === 0);
   }).length;
 
+  const isAnswered = (i: number) => {
+    const a = answers[i];
+    return !(a === undefined || a === '' || (typeof a === 'object' && Object.keys(a).length === 0));
+  };
+  const answeredCount = order.length - unanswered;
+  const [navOpen, setNavOpen] = useState(false);
+
   const go = (p: number) => { setPage(p); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
+  const navigator = (
+    <aside className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4 lg:self-start">
+      <div className="rounded-2xl border border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card p-3 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setNavOpen((o) => !o)}
+          className="flex w-full items-center justify-between gap-2 text-sm font-semibold lg:cursor-default"
+          aria-expanded={navOpen}
+        >
+          <span>{t('quiz.navigatorTitle')}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {t('quiz.navigatorCounts', { answered: answeredCount, left: unanswered })}
+          </span>
+        </button>
+        <div className={`${navOpen ? 'block' : 'hidden'} lg:block mt-3`}>
+          <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-5 gap-1.5 max-h-60 overflow-y-auto">
+            {order.map((qi, n) => {
+              const done = isAnswered(qi);
+              const current = Math.floor(n / perPage) === page;
+              return (
+                <button
+                  key={qi}
+                  type="button"
+                  onClick={() => go(Math.floor(n / perPage))}
+                  aria-label={`${n + 1}`}
+                  className={`h-9 rounded-lg text-xs font-semibold border-2 transition-colors ${
+                    done
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700'
+                      : 'bg-muted text-muted-foreground border-transparent'
+                  } ${current ? 'ring-2 ring-sky-600 ring-offset-1' : ''}`}
+                >
+                  {n + 1}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-300" />{t('quiz.navigatorAnswered')}</span>
+            <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted border" />{t('quiz.navigatorLeft')}</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-4 space-y-4 lg:space-y-0">
+      {navigator}
+      <div className="space-y-4 lg:col-start-1 lg:row-start-1 min-w-0">
       {slice.map((qi, n) => {
         const q = quiz.questions[qi];
         if (!q) return null;
@@ -175,6 +229,7 @@ export default function QuizPagedBody({ quiz, order, perPage, page, setPage, ans
             {unanswered > 0 && <span className="text-xs opacity-80">({unanswered})</span>}
           </Button>
         )}
+      </div>
       </div>
     </div>
   );
