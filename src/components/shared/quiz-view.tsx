@@ -1956,7 +1956,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
               <>
                 <h2 className="text-lg font-bold text-foreground truncate">{quiz?.title}</h2>
                 <p className="text-xs text-muted-foreground">
-                  {pagedPerPage > 0 ? `${pagedPage + 1} / ${Math.ceil(totalQuestions / pagedPerPage)} · ${totalQuestions}` : t('quiz.questionOf', { current: currentIdx + 1, total: totalQuestions })}
+                  {pagedPerPage > 0 ? t('quiz.pagedHeader', { page: pagedPage + 1, pages: Math.ceil(totalQuestions / pagedPerPage), total: totalQuestions }) : t('quiz.questionOf', { current: currentIdx + 1, total: totalQuestions })}
                 </p>
               </>
             )}
@@ -1980,8 +1980,17 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         <div className="space-y-1.5">
           <Progress value={pagedPerPage > 0 ? ((pagedPage + 1) / Math.ceil(totalQuestions / pagedPerPage)) * 100 : progressPct} className="h-2.5 bg-sky-100 dark:bg-sky-800/40 [&>div]:bg-sky-700 dark:[&>div]:bg-sky-500" />
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{currentIdx + 1}</span>
-            <span>{totalQuestions}</span>
+            {pagedPerPage > 0 ? (
+              <>
+                <span>{t('quiz.pagedPage', { page: pagedPage + 1, pages: Math.ceil(totalQuestions / pagedPerPage) })}</span>
+                <span>{t('quiz.navigatorCounts', { answered: Object.values(pagedAnswers).filter((a) => !(a === '' || (typeof a === 'object' && Object.keys(a).length === 0))).length, total: totalQuestions })}</span>
+              </>
+            ) : (
+              <>
+                <span>{currentIdx + 1}</span>
+                <span>{totalQuestions}</span>
+              </>
+            )}
           </div>
         </div>
 
