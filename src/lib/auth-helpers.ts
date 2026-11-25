@@ -216,7 +216,7 @@ export async function requireAgent(
   if (role !== 'registration_agent') {
     return {
       success: false,
-      error: 'هذا الإجراء متاح لوكلاء التسجيل فقط',
+      error: 'هذا الإجراء متاح للوكلاء فقط',
       status: 403,
     };
   }
@@ -237,7 +237,7 @@ export async function requireAgent(
   if (error || !agentRow) {
     return {
       success: false,
-      error: 'لم يتم العثور على وكيل تسجيل نشط مرتبط بحسابك',
+      error: 'لم يتم العثور على وكيل نشط مرتبط بحسابك',
       status: 403,
     };
   }

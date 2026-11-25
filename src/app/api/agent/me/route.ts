@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   if (role !== 'registration_agent') {
     return NextResponse.json(
-      { success: false, error: 'هذا الإجراء متاح لوكلاء التسجيل فقط' },
+      { success: false, error: 'هذا الإجراء متاح للوكلاء فقط' },
       { status: 403 }
     );
   }
