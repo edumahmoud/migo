@@ -1421,9 +1421,9 @@ function AuthPageContent({
       </div>
 
       {/* ── Auth Form Panel ── */}
-      <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-3 px-4 pb-4 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+      <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-0 px-0 pb-0 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
         {/* Mobile header band: short brand-coloured band, the form card overlaps it (desktop: transparent wrapper) */}
-        <div className="auth-mobile-hero relative flex flex-col max-lg:-mx-4 max-lg:-mt-3 max-lg:px-4 max-lg:pt-3 max-lg:pb-16 max-lg:overflow-hidden max-lg:rounded-b-[2rem] max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
+        <div className="auth-mobile-hero relative flex flex-col max-lg:px-4 max-lg:pt-3 max-lg:pb-14 max-lg:overflow-hidden max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
           <div aria-hidden className="pointer-events-none absolute -top-8 -start-6 h-28 w-28 rounded-full bg-amber-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute -bottom-8 -end-6 h-32 w-32 rounded-full bg-emerald-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute top-4 end-1/3 h-16 w-16 rounded-full bg-white/10 lg:hidden" />
@@ -1446,13 +1446,13 @@ function AuthPageContent({
           )}
         </div>
         {hasFullscreenAnnouncement && (
-          <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mt-4">
+          <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mt-4 px-4">
             <AnnouncementBrandingPanel />
           </div>
         )}
 
         {/* Auth form with mode toggle */}
-        <div className={`relative z-10 w-full max-w-md mx-auto ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-11'}`}>
+        <div className={`auth-sheet relative z-10 w-full max-w-md mx-auto max-lg:max-w-none max-lg:flex-1 max-lg:flex max-lg:flex-col max-lg:bg-white max-lg:dark:bg-card max-lg:rounded-t-[2rem] max-lg:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] max-lg:px-4 max-lg:pt-2 max-lg:pb-4 max-lg:[&_[data-slot=card]]:bg-transparent max-lg:[&_[data-slot=card]]:shadow-none max-lg:[&_[data-slot=card]]:rounded-none ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-8'}`}>
           <AnimatePresence mode="wait">
             {authMode === 'login' ? (
               <motion.div
@@ -1504,8 +1504,9 @@ function AuthPageContent({
               </motion.div>
             )}
           </AnimatePresence>
+          <div className="mt-auto pt-4 lg:hidden"><AppVersionLabel /></div>
         </div>
-        <div className="w-full max-w-md mx-auto max-lg:mt-auto max-lg:pt-6 lg:mt-5">
+        <div className="hidden w-full max-w-md mx-auto lg:mt-5 lg:block">
           <AppVersionLabel />
         </div>
       </div>
