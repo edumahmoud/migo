@@ -228,7 +228,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const { setCurrentPage } = useAppStore();
 
   // ─── Translations ───
-  const { t, direction } = useTranslations();
+  const { t, direction, locale } = useTranslations();
 
   // ─── Dynamic type labels ───
   const typeLabels: Record<QuizQuestion['type'], string> = {
@@ -807,6 +807,16 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       setShowResults(true);
     }
    
+  }, [timeLeft]);
+
+  // ─── Time-remaining toasts: from 15 minutes before the end, every 5 minutes ───
+  useEffect(() => {
+    if (timeLeft === null || showResults || alreadyTaken) return;
+    if (timeLeft > 0 && timeLeft <= 900 && timeLeft % 300 === 0) {
+      const mins = timeLeft / 60;
+      toast.warning(locale === 'en' ? `${mins} minutes left in the exam` : `متبقي ${mins} دقيقة على انتهاء الاختبار`, { duration: 6000 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft]);
 
   // ─── Timer warning ───

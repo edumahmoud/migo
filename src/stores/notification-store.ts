@@ -417,16 +417,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         // Play notification sound/haptic
         playNotificationFeedback();
 
-        // Show toasts for unread fresh notifications (limit to 3 to avoid flooding)
-        const toShow = freshNewFromPoll.filter(n => !n.read).slice(0, 3);
-        for (const n of toShow) {
-          try {
-            toast(n.title, {
-              description: n.message,
-              duration: 5000,
-            });
-          } catch { /* sonner may not be mounted */ }
-        }
+        // No toast: the notification already shows in the bell and as a phone notification.
       }
     } catch (err) {
       // Silently ignore refetch errors - they're non-critical and the polling will retry
@@ -575,15 +566,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
               };
             });
 
-            // ─── Show toast + audio/haptic feedback for new notifications ───
+            // ─── Sound/haptic feedback only. No toast: the bell and the phone notification already show it. ───
             if (!newNotif.read) {
               playNotificationFeedback();
-              try {
-                toast(newNotif.title, {
-                  description: newNotif.message,
-                  duration: 5000,
-                });
-              } catch { /* sonner may not be mounted yet */ }
             }
           }
         )
