@@ -1508,6 +1508,10 @@ function AuthPageContent({
               </motion.div>
             )}
           </AnimatePresence>
+          <p dir="ltr" className="mt-5 text-center text-[11px] text-muted-foreground/70 select-text">
+            AttenDo v{process.env.NEXT_PUBLIC_APP_VERSION}
+            {process.env.NEXT_PUBLIC_APP_BUILD ? ` (${process.env.NEXT_PUBLIC_APP_BUILD})` : ''}
+          </p>
         </div>
       </div>
     </div>

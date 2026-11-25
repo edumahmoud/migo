@@ -10,7 +10,13 @@ const isVercel = process.env.VERCEL === '1';
 // Vercel builds are unaffected: they keep the full strict check.
 const isLowMemBuild = process.env.MIGO_LOW_MEM_BUILD === '1';
 
+const appPkg = require('./package.json') as { version: string };
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: appPkg.version,
+    NEXT_PUBLIC_APP_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7),
+  },
   ...(isLowMemBuild ? { experimental: { cpus: 1 } } : {}),
   typescript: {
     // Build should fail on TypeScript errors — fix them instead of hiding them.
