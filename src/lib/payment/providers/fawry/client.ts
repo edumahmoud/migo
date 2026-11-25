@@ -2,11 +2,11 @@
  * Fawry API Client — HTTP calls to Fawry's REST API
  *
  * Handles:
- *   - POST /v2/charge        → create a charge (returns fawryRefNumber)
- *   - GET  /v2/status       → lookup charge status by merchantRefNum
+ *   - POST /charge           → create a charge (returns fawryRefNumber)
+ *   - GET  /status/v2       → lookup charge status by merchantRefNum
  */
 
-import { FAWRY_API_BASE, FawryChargeRequest, FawryChargeResponse, FawryStatusResponse } from './types';
+import { fawryBase, FawryChargeRequest, FawryChargeResponse, FawryStatusResponse } from './types';
 
 /**
  * Create a Fawry charge (reference code payment).
@@ -17,12 +17,13 @@ import { FAWRY_API_BASE, FawryChargeRequest, FawryChargeResponse, FawryStatusRes
  */
 export async function createCharge(
   chargeReq: FawryChargeRequest,
+  sandbox: boolean = false,
   timeoutMs: number = 15000,
 ): Promise<FawryChargeResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${FAWRY_API_BASE}/charge`, {
+    const res = await fetch(`${fawryBase(sandbox)}/charge`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -52,14 +53,15 @@ export async function getChargeStatus(
   merchantCode: string,
   merchantRefNum: string,
   signature: string,
+  sandbox: boolean = false,
   timeoutMs: number = 10000,
 ): Promise<FawryStatusResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const url = new URL(`${FAWRY_API_BASE}/status`);
+    const url = new URL(`${fawryBase(sandbox)}/status/v2`);
     url.searchParams.set('merchantCode', merchantCode);
-    url.searchParams.set('merchantRefNum', merchantRefNum);
+    url.searchParams.set('merchantRefNumber', merchantRefNum);
     url.searchParams.set('signature', signature);
 
     const res = await fetch(url, {
