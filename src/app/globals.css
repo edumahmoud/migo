@@ -1350,13 +1350,15 @@ body.quiz-capture-detected {
     background-position: bottom center;
     background-size: 100% 140px;
   }
-  .auth-mobile-hero[data-mode="register"] { padding-bottom: 40px !important; }
-  .auth-mobile-hero[data-mode="register"] .auth-hero-text > div { margin-top: 6px; }
-  .auth-sheet[data-mode="register"] { padding-top: 0 !important; padding-bottom: 6px !important; }
-  .auth-sheet[data-mode="register"] [data-slot="card"] { gap: 6px !important; padding-block: 6px !important; }
-  .auth-sheet[data-mode="register"] [data-slot="card-title"] { font-size: 18px !important; line-height: 1.2 !important; }
-  .auth-sheet[data-mode="register"] [data-slot="card-content"] { padding-top: 0 !important; padding-bottom: 0 !important; }
-  .auth-sheet[data-mode="register"] form { gap: 0 !important; }
-  .auth-sheet[data-mode="register"] form > * { margin-top: 6px !important; }
-  .auth-sheet[data-mode="register"] input { height: 38px !important; }
+  /* html body prefix: out-ranks older injected app patches */
+  html body .auth-mobile-hero[data-mode="register"] { padding-bottom: 56px !important; }
+  html body .auth-mobile-hero[data-mode="register"] .auth-hero-text > div { margin-top: 8px !important; }
+  html body .auth-sheet[data-mode="register"] { padding-top: 8px !important; padding-bottom: 12px !important; }
+  html body .auth-sheet[data-mode="register"] [data-slot="card"] { gap: 8px !important; padding-block: 6px !important; }
+  html body .auth-sheet[data-mode="register"] [data-slot="card-header"] { padding-top: 10px !important; padding-bottom: 2px !important; }
+  html body .auth-sheet[data-mode="register"] [data-slot="card-title"] { font-size: 20px !important; line-height: 1.25 !important; }
+  html body .auth-sheet[data-mode="register"] [data-slot="card-content"] { padding-top: 4px !important; padding-bottom: 0 !important; }
+  html body .auth-sheet[data-mode="register"] form { gap: 0 !important; }
+  html body .auth-sheet[data-mode="register"] form > * { margin-top: 8px !important; }
+  html body .auth-sheet[data-mode="register"] input { height: 40px !important; }
 }
