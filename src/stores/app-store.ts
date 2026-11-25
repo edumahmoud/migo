@@ -70,6 +70,10 @@ interface AppState {
   pendingReportId: string | null;
   setPendingReportId: (id: string | null) => void;
 
+  // Tab to open inside the teacher's Financial Management section (set by payout notification taps)
+  pendingFinancialTab: 'revenue' | 'methods' | 'history' | null;
+  setPendingFinancialTab: (tab: 'revenue' | 'methods' | 'history' | null) => void;
+
   // Language / i18n
   language: Locale;
   setLanguage: (locale: Locale) => void;
@@ -101,6 +105,7 @@ const initialState = {
   chatUnreadCount: 0,
   reportsUnreadCount: 0,
   pendingReportId: null as string | null,
+  pendingFinancialTab: null as 'revenue' | 'methods' | 'history' | null,
   language: 'ar' as Locale,
   justCompletedQuizIds: new Set<string>(),
 };
@@ -154,6 +159,7 @@ export const useAppStore = create<AppState>()(
       setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
       setReportsUnreadCount: (count) => set({ reportsUnreadCount: count }),
       setPendingReportId: (id) => set({ pendingReportId: id }),
+      setPendingFinancialTab: (tab) => set({ pendingFinancialTab: tab }),
       setLanguage: (locale) => set({ language: locale }),
       addJustCompletedQuiz: (id) => set((state) => {
         const next = new Set(state.justCompletedQuizIds);

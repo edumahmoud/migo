@@ -16,6 +16,7 @@
  *   - Query-style: `subjects?tab=lectures&id=SUBJECT_ID`
  */
 
+import { useAppStore } from '@/stores/app-store';
 import type { CourseTab, NotificationType, UserRole, StudentSection, TeacherSection, AdminSection, AppPage } from '@/lib/types';
 
 // ─── Notification type → default CourseTab mapping ───
@@ -120,7 +121,8 @@ export function navigateNotification(
   if (notif.type === 'payout' || notif.link?.startsWith('financialManagement')) {
     const tab = notif.link?.split(':')[1] || 'history';
     if (userRole === 'teacher') {
-      try { window.location.hash = `teacher-financial-${tab}`; } catch { /* ignore */ }
+      // Do not touch location.hash: it fires popstate and the back-button history handler would react.
+      useAppStore.getState().setPendingFinancialTab(['revenue', 'methods', 'history'].includes(tab) ? (tab as 'revenue' | 'methods' | 'history') : 'history');
       setTeacherSection('financialManagement');
       setCurrentPage('teacher-dashboard');
       return 'handled';
