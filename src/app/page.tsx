@@ -1426,7 +1426,7 @@ function AuthPageContent({
           <AuthLanguageToggle />
         </div>
         {/* Mobile-only top branding/announcement */}
-        <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mb-4">
+        <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mb-4 mt-auto">
           {hasFullscreenAnnouncement ? (
             /* On mobile, show the announcement in branding panel style (fullscreen mode) */
             <AnnouncementBrandingPanel />
@@ -1456,7 +1456,7 @@ function AuthPageContent({
         </div>
 
         {/* Auth form with mode toggle */}
-        <div className="relative z-10 w-full max-w-md mx-auto">
+        <div className="relative z-10 w-full max-w-md mx-auto max-lg:mb-auto max-lg:pb-6">
           <AnimatePresence mode="wait">
             {authMode === 'login' ? (
               <motion.div
@@ -1508,6 +1508,10 @@ function AuthPageContent({
               </motion.div>
             )}
           </AnimatePresence>
+          <p dir="ltr" className="mt-5 text-center text-[11px] text-muted-foreground/70 select-text">
+            AttenDo v{process.env.NEXT_PUBLIC_APP_VERSION}
+            {process.env.NEXT_PUBLIC_APP_BUILD ? ` (${process.env.NEXT_PUBLIC_APP_BUILD})` : ''}
+          </p>
         </div>
       </div>
     </div>

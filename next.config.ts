@@ -1,6 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs/config';
 import type { NextConfig } from "next";
 import path from "path";
+import appPkg from "./package.json";
 
 const isVercel = process.env.VERCEL === '1';
 // Optional low-memory build mode (e.g. CI sandboxes with ~4GB RAM):
@@ -11,6 +12,10 @@ const isVercel = process.env.VERCEL === '1';
 const isLowMemBuild = process.env.MIGO_LOW_MEM_BUILD === '1';
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: appPkg.version,
+    NEXT_PUBLIC_APP_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7),
+  },
   ...(isLowMemBuild ? { experimental: { cpus: 1 } } : {}),
   typescript: {
     // Build should fail on TypeScript errors — fix them instead of hiding them.
