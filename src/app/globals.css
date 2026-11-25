@@ -1316,15 +1316,18 @@ body.quiz-capture-detected {
    hugs its content, so there is no empty white area. */
 @media (max-width: 1023px) {
   .auth-mobile-hero[data-mode="forgot-password"],
+  .auth-mobile-hero[data-mode="register"],
   .auth-mobile-hero[data-mode="update-password"] {
     flex: 1 1 auto;
   }
   .auth-mobile-hero[data-mode="forgot-password"] .auth-hero-text,
+  .auth-mobile-hero[data-mode="register"] .auth-hero-text,
   .auth-mobile-hero[data-mode="update-password"] .auth-hero-text {
     margin-top: auto;
     margin-bottom: auto;
   }
   .auth-sheet[data-mode="forgot-password"],
+  .auth-sheet[data-mode="register"],
   .auth-sheet[data-mode="update-password"] {
     flex: 0 0 auto;
   }
