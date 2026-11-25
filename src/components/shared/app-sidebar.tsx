@@ -33,6 +33,7 @@ import {
   History,
   DollarSign,
   Lock,
+  Award,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -73,6 +74,7 @@ const studentNavItems: NavItem[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'tracking', labelKey: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'grades', labelKey: 'nav.grades', icon: <Award className="h-5 w-5" /> },
   { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'teachers', labelKey: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
   { id: 'summaries', labelKey: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },

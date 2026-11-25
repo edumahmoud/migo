@@ -20,6 +20,7 @@ import {
   Building2,
   Database,
   ShieldAlert,
+  Award,
 } from 'lucide-react';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 
@@ -37,6 +38,7 @@ export interface NavItem<T extends string = string> {
 export const studentNavItems: NavItem<StudentSection>[] = [
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { id: 'subjects', labelKey: 'nav.subjects', icon: BookOpen },
+  { id: 'grades', labelKey: 'nav.grades', icon: Award },
   { id: 'chat', labelKey: 'nav.chat', icon: MessageCircle },
   { id: 'teachers', labelKey: 'nav.teachers', icon: Users },
   { id: 'summaries', labelKey: 'nav.summaries', icon: FileText },
