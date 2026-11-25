@@ -922,11 +922,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   signOut: async () => {
     const currentUser = get().user;
-    // Unlink this phone's push token while the session still exists (Android app only; no-op elsewhere).
+    // Sign-out must never wait on side calls. Read the token with a short cap, send the push unlinks
+    // fire-and-forget with that explicit token (keepalive), and carry on immediately.
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> =>
+      Promise.race([p, new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]);
+    let earlyToken: string | null = null;
     try {
-      const { unregisterNativeDevice, unregisterWebPush } = await import('@/lib/native-push');
-      await Promise.race([Promise.all([unregisterNativeDevice(), unregisterWebPush()]), new Promise((r) => setTimeout(r, 1500))]);
-    } catch { /* never block sign-out */ }
+      const r = await withTimeout(supabase.auth.getSession(), 1500);
+      earlyToken = r?.data?.session?.access_token ?? null;
+    } catch { /* ignore */ }
+    if (earlyToken) {
+      void import('@/lib/native-push')
+        .then(({ unregisterNativeDevice, unregisterWebPush }) => Promise.all([unregisterNativeDevice(earlyToken), unregisterWebPush(earlyToken)]))
+        .catch(() => {});
+    }
     // Attendance is a historical classroom event, not a login-state indicator.
 
     // Immediately clear user state for instant UI feedback
@@ -985,15 +994,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Capture the access token, then clear the local session immediately
     // (scope 'local' makes no network call, so cookies/storage are wiped at once
     // and the auth page is not held up by a slow Supabase round-trip).
-    let accessToken: string | null = null;
+    const accessToken: string | null = earlyToken;
     try {
-      const { data } = await supabase.auth.getSession();
-      accessToken = data.session?.access_token ?? null;
-    } catch {
-      // ignore
-    }
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
+      const done = await withTimeout(supabase.auth.signOut({ scope: 'local' }).then(() => true), 2500);
+      if (!done) {
+        // Auth client stuck (lock / network): wipe the stored session by hand so the user is really signed out.
+        try {
+          for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.includes('-auth-token')) localStorage.removeItem(k);
+          document.cookie.split(';').forEach((c) => { const n = c.split('=')[0].trim(); if (n.startsWith('sb-')) document.cookie = `${n}=; Max-Age=0; path=/`; });
+        } catch { /* ignore */ }
+      }
     } catch {
       // State is already cleared, ignore signOut errors
     }
