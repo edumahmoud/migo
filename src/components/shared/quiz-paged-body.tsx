@@ -65,9 +65,10 @@ interface Props {
   answers: PagedAnswers;
   setAnswers: (fn: (prev: PagedAnswers) => PagedAnswers) => void;
   onSubmit: () => void;
+  submitting?: boolean;
 }
 
-export default function QuizPagedBody({ quiz, order, perPage, page, setPage, answers, setAnswers, onSubmit }: Props) {
+export default function QuizPagedBody({ quiz, order, perPage, page, setPage, answers, setAnswers, onSubmit, submitting }: Props) {
   const { t } = useTranslations();
   const pages = Math.max(1, Math.ceil(order.length / perPage));
   const slice = useMemo(() => order.slice(page * perPage, page * perPage + perPage), [order, page, perPage]);
@@ -169,7 +170,7 @@ export default function QuizPagedBody({ quiz, order, perPage, page, setPage, ans
             {t('common.next')} <ArrowRight className="h-4 w-4" />
           </Button>
         ) : (
-          <Button type="button" onClick={onSubmit} className="me-auto gap-1.5 bg-sky-700 text-white hover:bg-sky-800">
+          <Button type="button" onClick={onSubmit} disabled={submitting} className="me-auto gap-1.5 bg-sky-700 text-white hover:bg-sky-800">
             {t('quiz.submitQuiz')} <Trophy className="h-4 w-4" />
             {unanswered > 0 && <span className="text-xs opacity-80">({unanswered})</span>}
           </Button>
