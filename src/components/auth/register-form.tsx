@@ -176,7 +176,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-1 sm:mb-4 flex h-9 w-9 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
+                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
               >
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
@@ -380,6 +380,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.45 }}
+                className="max-sm:hidden"
               >
                 <div className="rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 p-2 sm:p-3 text-xs text-sky-700 dark:text-sky-400 flex items-start gap-2">
                   <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
