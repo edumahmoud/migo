@@ -1285,3 +1285,29 @@ body.quiz-capture-detected {
   50% { border-radius: 43% 57% 41% 59% / 57% 43% 57% 43%; }
 }
 @media (prefers-reduced-motion: reduce) { .login-glass-blob { animation: none; display: none; } }
+
+/* Phones: the auth sheet stretches to the bottom; spread the form's spacing so short
+   pages (login, forgot password) fill it instead of leaving an empty area. */
+@media (max-width: 1023px) {
+  .auth-sheet > div:not(:last-child),
+  .auth-sheet > div:not(:last-child) > div,
+  .auth-sheet > div:not(:last-child) > div > div {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-sheet [data-slot="card"] {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-sheet [data-slot="card-content"] {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+  }
+  .auth-sheet [data-slot="card-header"] {
+    padding-top: 20px;
+  }
+}

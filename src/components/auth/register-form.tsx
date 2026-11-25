@@ -176,7 +176,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
+                className="mx-auto mb-2 sm:mb-4 hidden sm:flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
               >
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
@@ -184,19 +184,19 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
               {t('auth.registerTitle')}
             </CardTitle>
-            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm max-sm:hidden">
               {t('auth.joinPlatform', { name: displayName })}
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+          <CardContent className="pt-1 sm:pt-4 px-4 sm:px-6 pb-2 sm:pb-6">
+            <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-4">
               {/* Name Field */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.25 }}
-                className="space-y-2"
+                className="space-y-1.5 sm:space-y-2"
               >
                 <Label htmlFor="reg-name" className="text-gray-700 font-medium text-xs sm:text-sm">
                   {t('auth.fullName')}
@@ -221,7 +221,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.25 }}
-                className="space-y-2"
+                className="space-y-1.5 sm:space-y-2"
               >
                 <Label htmlFor="reg-phone" className="text-gray-700 font-medium text-xs sm:text-sm">
                   {t('auth.phoneNumber')} <span className="text-rose-500">*</span>
@@ -240,7 +240,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   />
                   <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                 </div>
-                <p className="text-[10px] text-gray-400">
+                <p className="text-[10px] text-gray-400 max-sm:hidden">
                   {t('auth.phoneAutoConvertHint')}
                 </p>
               </motion.div>
@@ -250,7 +250,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 }}
-                className="space-y-2"
+                className="space-y-1.5 sm:space-y-2"
               >
                 <Label htmlFor="reg-email" className="text-gray-700 font-medium text-xs sm:text-sm">
                   {t('auth.email')}
@@ -276,7 +276,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.35 }}
-                className="space-y-2"
+                className="space-y-1.5 sm:space-y-2"
               >
                 <Label htmlFor="reg-password" className="text-gray-700 font-medium text-xs sm:text-sm">
                   {t('auth.password')}
@@ -339,7 +339,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
-                className="space-y-2"
+                className="space-y-1.5 sm:space-y-2"
               >
                 <Label
                   htmlFor="reg-confirm-password"

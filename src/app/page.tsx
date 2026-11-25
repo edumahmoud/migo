@@ -18,6 +18,7 @@ import { useI18n } from '@/lib/i18n/context';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import AppVersionLabel from '@/components/auth/app-version-label';
+import NativeStatusBarTheme from '@/components/auth/native-status-bar-theme';
 import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
 import BrandingPointerZone from '@/components/auth/branding-pointer-zone';
@@ -1422,6 +1423,7 @@ function AuthPageContent({
 
       {/* ── Auth Form Panel ── */}
       <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-0 px-0 pb-0 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+        <NativeStatusBarTheme />
         {/* Mobile header band: short brand-coloured band, the form card overlaps it (desktop: transparent wrapper) */}
         <div className="auth-mobile-hero relative flex flex-col max-lg:px-4 max-lg:pt-3 max-lg:pb-14 max-lg:overflow-hidden max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
           <div aria-hidden className="pointer-events-none absolute -top-8 -start-6 h-28 w-28 rounded-full bg-amber-300/30 lg:hidden" />
@@ -1435,8 +1437,8 @@ function AuthPageContent({
           {!hasFullscreenAnnouncement && (
             <div className="relative z-10 mx-auto mt-2 w-full max-w-md text-center lg:hidden">
               <h2 className="text-lg font-bold leading-tight text-white">{t('common.smartPlatform')}</h2>
-              <p className="mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2">{t('common.smartPlatformDesc')}</p>
-              <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90">
+              <p className={`mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2 ${authMode === 'register' ? 'hidden' : ''}`}>{t('common.smartPlatformDesc')}</p>
+              <div className={`mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90 ${authMode === 'register' ? 'hidden' : ''}`}>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><BrainCircuit className="h-3 w-3" />{t('features.ai')}</span>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><BookOpen className="h-3 w-3" />{t('features.smartSummary')}</span>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><Users className="h-3 w-3" />{t('features.studentTracking')}</span>
