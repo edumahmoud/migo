@@ -1,3 +1,4 @@
+import { notifyAnnouncement } from '@/lib/announcement-notify';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
@@ -88,6 +89,10 @@ export async function POST(request: NextRequest) {
 
     // Invalidate public API cache so new announcement is visible immediately
     invalidateCache();
+
+    if (data?.id && new Date(data.start_at || Date.now()).getTime() <= Date.now() + 60_000) {
+      await notifyAnnouncement({ id: data.id, title: data.title, message: data.message });
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

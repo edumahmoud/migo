@@ -922,6 +922,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   signOut: async () => {
     const currentUser = get().user;
+    // Unlink this phone's push token while the session still exists (Android app only; no-op elsewhere).
+    try {
+      const { unregisterNativeDevice } = await import('@/lib/native-push');
+      await Promise.race([unregisterNativeDevice(), new Promise((r) => setTimeout(r, 1500))]);
+    } catch { /* never block sign-out */ }
     // Attendance is a historical classroom event, not a login-state indicator.
 
     // Immediately clear user state for instant UI feedback
