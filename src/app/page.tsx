@@ -1427,11 +1427,23 @@ function AuthPageContent({
           <div aria-hidden className="pointer-events-none absolute -top-8 -start-6 h-28 w-28 rounded-full bg-amber-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute -bottom-8 -end-6 h-32 w-32 rounded-full bg-emerald-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute top-4 end-1/3 h-16 w-16 rounded-full bg-white/10 lg:hidden" />
-          {/* Title + language toggle (login / register) */}
-          <div className="relative z-20 mx-auto flex w-full max-w-md items-center justify-between lg:absolute lg:end-3 lg:top-3 lg:m-0 lg:w-auto lg:max-w-none">
-            <span className="text-xl font-bold tracking-wide text-white lg:hidden">AttenDo</span>
+          {/* Language toggle (login / register) */}
+          <div className="relative z-20 mx-auto flex w-full max-w-md justify-end lg:absolute lg:end-3 lg:top-3 lg:m-0 lg:w-auto lg:max-w-none">
             <AuthLanguageToggle />
           </div>
+          {/* Tagline + feature chips live inside the band (mobile only) */}
+          {!hasFullscreenAnnouncement && (
+            <div className="relative z-10 mx-auto mt-2 w-full max-w-md text-center lg:hidden">
+              <h2 className="text-lg font-bold leading-tight text-white">{t('common.smartPlatform')}</h2>
+              <p className="mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2">{t('common.smartPlatformDesc')}</p>
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90">
+                <span className="flex items-center gap-1 text-[11px] font-medium"><BrainCircuit className="h-3 w-3" />{t('features.ai')}</span>
+                <span className="flex items-center gap-1 text-[11px] font-medium"><BookOpen className="h-3 w-3" />{t('features.smartSummary')}</span>
+                <span className="flex items-center gap-1 text-[11px] font-medium"><Users className="h-3 w-3" />{t('features.studentTracking')}</span>
+                <span className="flex items-center gap-1 text-[11px] font-medium"><Shield className="h-3 w-3" />{t('features.secureAndTrusted')}</span>
+              </div>
+            </div>
+          )}
         </div>
         {hasFullscreenAnnouncement && (
           <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mt-4">
