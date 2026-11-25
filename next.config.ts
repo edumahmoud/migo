@@ -1,6 +1,7 @@
 import { withSentryConfig } from '@sentry/nextjs/config';
 import type { NextConfig } from "next";
 import path from "path";
+import appPkg from "./package.json";
 
 const isVercel = process.env.VERCEL === '1';
 // Optional low-memory build mode (e.g. CI sandboxes with ~4GB RAM):
@@ -9,8 +10,6 @@ const isVercel = process.env.VERCEL === '1';
 // because the TS checker + webpack in one worker exceeds sandbox RAM).
 // Vercel builds are unaffected: they keep the full strict check.
 const isLowMemBuild = process.env.MIGO_LOW_MEM_BUILD === '1';
-
-const appPkg = require('./package.json') as { version: string };
 
 const nextConfig: NextConfig = {
   env: {
