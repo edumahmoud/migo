@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import AvatarCropDialog from '@/components/shared/avatar-crop-dialog';
 import { getRoleLabel } from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
@@ -148,6 +149,7 @@ export default function SettingsModal({
   // Avatar upload state
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -189,9 +191,20 @@ export default function SettingsModal({
   };
 
   // ─── Avatar Upload Handler ────────────────────────────
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Step 1: pick a photo, then let the user crop/adjust it before upload.
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    if (!picked.type.startsWith('image/')) {
+      toast.error(t('imageFileOnly'));
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+    setCropFile(picked);
+  };
+
+  // Step 2: upload the cropped photo (same validation and endpoint as before).
+  const uploadAvatarFile = async (file: File) => {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -326,6 +339,7 @@ export default function SettingsModal({
 
   // ─── Render ───────────────────────────────────────────
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={direction}>
         <DialogHeader className="text-end">
@@ -716,5 +730,11 @@ export default function SettingsModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AvatarCropDialog
+      file={cropFile}
+      onCancel={() => { setCropFile(null); if (avatarInputRef.current) avatarInputRef.current.value = ''; }}
+      onConfirm={(f) => { setCropFile(null); uploadAvatarFile(f); }}
+    />
+    </>
   );
 }
