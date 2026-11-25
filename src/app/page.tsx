@@ -1422,51 +1422,25 @@ function AuthPageContent({
 
       {/* ── Auth Form Panel ── */}
       <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-3 px-4 pb-4 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
-        {/* Mobile hero: branded gradient header (desktop: wrapper is transparent) */}
-        <div className="auth-mobile-hero relative flex flex-col max-lg:-mx-4 max-lg:-mt-3 max-lg:px-4 max-lg:pt-3 max-lg:pb-14 max-lg:overflow-hidden max-lg:rounded-b-[2rem] max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:via-teal-700 max-lg:to-sky-700 max-lg:shadow-lg lg:contents">
-        <div aria-hidden className="pointer-events-none absolute -top-10 -end-10 h-40 w-40 rounded-full bg-white/10 blur-xl lg:hidden" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-12 -start-8 h-36 w-36 rounded-full bg-sky-300/20 blur-xl lg:hidden" />
-        {/* Language toggle (login / register) */}
-        <div className="relative z-20 mx-auto mb-3 flex w-full max-w-md justify-end lg:absolute lg:end-3 lg:top-3 lg:m-0 lg:w-auto lg:max-w-none">
-          <AuthLanguageToggle />
+        {/* Mobile header band: short brand-coloured band, the form card overlaps it (desktop: transparent wrapper) */}
+        <div className="auth-mobile-hero relative flex flex-col max-lg:-mx-4 max-lg:-mt-3 max-lg:px-4 max-lg:pt-3 max-lg:pb-16 max-lg:overflow-hidden max-lg:rounded-b-[2rem] max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
+          <div aria-hidden className="pointer-events-none absolute -top-8 -start-6 h-28 w-28 rounded-full bg-amber-300/30 lg:hidden" />
+          <div aria-hidden className="pointer-events-none absolute -bottom-8 -end-6 h-32 w-32 rounded-full bg-emerald-300/30 lg:hidden" />
+          <div aria-hidden className="pointer-events-none absolute top-4 end-1/3 h-16 w-16 rounded-full bg-white/10 lg:hidden" />
+          {/* Title + language toggle (login / register) */}
+          <div className="relative z-20 mx-auto flex w-full max-w-md items-center justify-between lg:absolute lg:end-3 lg:top-3 lg:m-0 lg:w-auto lg:max-w-none">
+            <span className="text-xl font-bold tracking-wide text-white lg:hidden">AttenDo</span>
+            <AuthLanguageToggle />
+          </div>
         </div>
-        {/* Mobile-only top branding/announcement */}
-        <div className="auth-mobile-intro relative z-10 lg:hidden w-full max-w-md mx-auto mb-1">
-          {hasFullscreenAnnouncement ? (
-            /* On mobile, show the announcement in branding panel style (fullscreen mode) */
+        {hasFullscreenAnnouncement && (
+          <div className="auth-mobile-intro lg:hidden w-full max-w-md mx-auto mt-4">
             <AnnouncementBrandingPanel />
-          ) : (
-            /* Default mobile feature badges */
-            <div className="flex flex-col items-center justify-center gap-3 text-center">
-              <div>
-                <h2 className="text-xl font-bold text-white leading-tight">{t('common.smartPlatform')}</h2>
-                <p className="mt-1 text-xs text-white/80 leading-relaxed line-clamp-2">{t('common.smartPlatformDesc')}</p>
-              </div>
-              <div className="flex items-center gap-x-3 gap-y-1.5 text-white/90 flex-wrap justify-center">
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <BrainCircuit className="w-3 h-3" />
-                <span>{t('features.ai')}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <BookOpen className="w-3 h-3" />
-                <span>{t('features.smartSummary')}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <Users className="w-3 h-3" />
-                <span>{t('features.studentTracking')}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <Shield className="w-3 h-3" />
-                <span>{t('features.secureAndTrusted')}</span>
-              </div>
-              </div>
-            </div>
-          )}
-        </div>
-        </div>
+          </div>
+        )}
 
         {/* Auth form with mode toggle */}
-        <div className="relative z-10 w-full max-w-md mx-auto max-lg:-mt-10">
+        <div className={`relative z-10 w-full max-w-md mx-auto ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-11'}`}>
           <AnimatePresence mode="wait">
             {authMode === 'login' ? (
               <motion.div
