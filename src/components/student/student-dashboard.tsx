@@ -101,6 +101,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import SummaryView from '@/components/shared/summary-view';
+import StudentGradesSection from '@/components/student/student-grades-section';
 import StudentTrackingSection from '@/components/student/student-tracking-section';
 import StudentSubscriptionHistorySection from '@/components/student/student-subscription-history-section';
 import MascotLoader from '@/components/shared/mascot-loader';
@@ -5025,6 +5026,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               submissions={submissions}
               assignments={assignments}
             />
+          </SectionErrorBoundary>
+        );
+      case 'grades':
+        return (
+          <SectionErrorBoundary name="Grades">
+            <StudentGradesSection />
           </SectionErrorBoundary>
         );
       case 'subscriptionHistory':
