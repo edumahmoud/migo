@@ -25,7 +25,7 @@ const TEXT = {
     audience: 'المستلمون', all: 'كل المستخدمين', teachers: 'المعلمون', students: 'الطلاب', admins: 'الأدمن',
     subject: 'طلاب مادة', users: 'مستخدمون محددون', pickSubject: 'اختر المادة', search: 'ابحث بالاسم أو الإيميل أو الكود',
     ttl: 'العنوان', msg: 'الرسالة', recipients: 'عدد المستلمين', send: 'إرسال', confirm: 'تأكيد الإرسال', cancel: 'إلغاء',
-    sentTo: 'تم الإرسال إلى', none: 'لا يوجد مستلمون', fill: 'اكتب العنوان والرسالة', fail: 'تعذر الإرسال',
+    sentTo: 'تم الإرسال إلى', tabSend: 'إرسال', tabHistory: 'السجل', none: 'لا يوجد مستلمون', fill: 'اكتب العنوان والرسالة', fail: 'تعذر الإرسال',
     history: 'سجل الإشعارات المرسلة', noHistory: 'لا توجد إشعارات مرسلة بعد', resend: 'إعادة إرسال', by: 'بواسطة', resentTag: 'إعادة إرسال',
     resendConfirm: (n: number) => `سيتم إعادة إرسال هذا الإشعار إلى ${n} مستخدم حاليًا في نفس الفئة.`,
     aud: { all: 'كل المستخدمين', teachers: 'المعلمون', students: 'الطلاب', admins: 'الأدمن', subject: 'طلاب مادة', users: 'مستخدمون محددون' } as Record<string, string>,
@@ -36,7 +36,7 @@ const TEXT = {
     audience: 'Recipients', all: 'All users', teachers: 'Teachers', students: 'Students', admins: 'Admins',
     subject: "A subject's students", users: 'Specific users', pickSubject: 'Choose a subject', search: 'Search by name, email or code',
     ttl: 'Title', msg: 'Message', recipients: 'Recipients', send: 'Send', confirm: 'Confirm send', cancel: 'Cancel',
-    sentTo: 'Sent to', none: 'No recipients', fill: 'Enter a title and message', fail: 'Could not send',
+    sentTo: 'Sent to', tabSend: 'Send', tabHistory: 'History', none: 'No recipients', fill: 'Enter a title and message', fail: 'Could not send',
     history: 'Sent notifications log', noHistory: 'Nothing sent yet', resend: 'Resend', by: 'By', resentTag: 'Resend',
     resendConfirm: (n: number) => `This will resend to ${n} user(s) currently in the same audience.`,
     aud: { all: 'All users', teachers: 'Teachers', students: 'Students', admins: 'Admins', subject: "A subject's students", users: 'Specific users' } as Record<string, string>,
@@ -60,6 +60,7 @@ export default function AdminSendNotificationSection() {
   const [busy, setBusy] = useState(false);
 
   interface LogRow { id: string; audience: string; title: string; message: string; recipient_count: number; resent_from: string | null; created_at: string; sender_name: string | null }
+  const [tab, setTab] = useState<'send' | 'history'>('send');
   const [log, setLog] = useState<LogRow[]>([]);
   const [resendId, setResendId] = useState<string | null>(null);
   const [resendCount, setResendCount] = useState<number | null>(null);
@@ -162,6 +163,19 @@ export default function AdminSendNotificationSection() {
         <h2 className="text-2xl font-bold text-foreground">{L.title}</h2>
         <p className="text-muted-foreground mt-1">{L.desc}</p>
       </div>
+      <div className="flex gap-2 border-b">
+        {([['send', L.tabSend], ['history', L.tabHistory]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => { setTab(id); if (id === 'history') loadLog(); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'send' && (<>
       <Card>
         <CardHeader><CardTitle className="text-base">{L.audience}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -241,6 +255,9 @@ export default function AdminSendNotificationSection() {
         </CardContent>
       </Card>
 
+      </>)}
+
+      {tab === 'history' && (
       <Card>
         <CardHeader><CardTitle className="text-base">{L.history}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -274,6 +291,7 @@ export default function AdminSendNotificationSection() {
           ))}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
