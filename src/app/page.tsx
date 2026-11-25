@@ -1,5 +1,6 @@
 'use client';
 
+import NativeStatusBarTheme from '@/components/auth/native-status-bar-theme';
 import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1422,6 +1423,7 @@ function AuthPageContent({
 
       {/* ── Auth Form Panel ── */}
       <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-0 px-0 pb-0 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+        <NativeStatusBarTheme />
         {/* Mobile header band: short brand-coloured band, the form card overlaps it (desktop: transparent wrapper) */}
         <div data-mode={authMode} className="auth-mobile-hero relative flex flex-col max-lg:px-4 max-lg:pt-3 max-lg:pb-14 max-lg:overflow-hidden max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
           <div aria-hidden className="pointer-events-none absolute -top-8 -start-6 h-28 w-28 rounded-full bg-amber-300/30 lg:hidden" />
