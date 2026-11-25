@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
-import { notifyUser, notifyUsers, getStudentIds } from '@/lib/notifications-service';
+import { notifyUser, notifyUsers, getStudentIds, insertNotificationsAndPush } from '@/lib/notifications-service';
+import { supabaseServer } from '@/lib/supabase-server';
 
 // ─── POST handler ───
 
@@ -176,20 +177,26 @@ export async function POST(request: NextRequest) {
 
       // ─── 7) Chat message notification ───
       case 'chat_message': {
-        const { recipientId, senderName, messagePreview, conversationId } = body;
+        const { recipientId, senderName, groupName, conversationId } = body;
         if (!recipientId) {
           return NextResponse.json({ error: 'Missing recipientId' }, { status: 400 });
         }
 
         const chatLink = conversationId ? `chat:${conversationId}` : 'chat';
+        // No message content in the notification: only who it is from and how many are waiting.
+        const from = String(groupName || senderName || 'مستخدم').slice(0, 80);
+        const { count: unreadBefore } = await supabaseServer
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', recipientId)
+          .eq('type', 'chat')
+          .eq('link', chatLink)
+          .eq('read', false);
+        const n = (unreadBefore ?? 0) + 1;
+        const text = n === 1 ? `لديك رسالة من ${from}` : `لديك ${n} رسائل من ${from}`;
 
-        await notifyUser(
-          recipientId,
-          'chat',
-          `رسالة من ${senderName || 'مستخدم'}`,
-          messagePreview || 'لديك رسالة جديدة',
-          chatLink
-        );
+        // Direct insert (no content dedup): the text repeats, but every message should still reach the phone.
+        await insertNotificationsAndPush([recipientId], 'chat', 'رسالة جديدة', text, chatLink);
         return NextResponse.json({ success: true });
       }
 
@@ -207,7 +214,7 @@ export async function POST(request: NextRequest) {
           teamStudentIds,
           'team_message',
           'ملاحظة من المعلم',
-          `${teamTeacher || 'المعلم'}: ${teamMsg}`,
+          `لديك رسالة من ${teamTeacher || 'المعلم'}`,
           teamLink
         );
         return NextResponse.json({ success: true, notified: teamStudentIds.length });
