@@ -368,7 +368,8 @@ export async function insertNotificationsAndPush(
       continue;
     }
     inserted += chunk.length;
-    pushToUsers(chunk, title, message, link, type).catch(() => {});
+    // Awaited: on serverless the function can be frozen right after the response, dropping web push.
+    await pushToUsers(chunk, title, message, link, type).catch(() => {});
   }
   return inserted;
 }
