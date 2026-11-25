@@ -531,6 +531,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Teacher detail modal ───
   const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
   const [teacherSubjects, setTeacherSubjects] = useState<Subject[]>([]);
+  const [teacherSubjectState, setTeacherSubjectState] = useState<Record<string, 'enrolled' | 'pending'>>({});
   const [loadingTeacherSubjects, setLoadingTeacherSubjects] = useState(false);
   const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
 
@@ -2928,7 +2929,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       // ── Fetch the student's already-selected subject IDs ──
       // (subjects the student is enrolled in OR has a pending order for)
-      // These should be hidden from the teacher's course list.
+      // Used to tag each course in the teacher dialog (enrolled / pending).
       const [enrollmentsRes, pendingOrdersRes] = await Promise.all([
         supabase
           .from('subject_students')
@@ -2941,20 +2942,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           .eq('status', 'pending'),
       ]);
 
-      const studentSelectedSubjectIds = new Set<string>();
-      if (enrollmentsRes.data) {
-        for (const e of enrollmentsRes.data as Array<{ subject_id: string }>) {
-          studentSelectedSubjectIds.add(e.subject_id);
-        }
-      }
+      // Show ALL of this teacher's courses (owned + co-taught), each tagged with the student's status:
+      // enrolled, pending payment, or not subscribed. (Previously enrolled courses were hidden, so a
+      // student subscribed to every course saw "no courses".)
+      const stateMap: Record<string, 'enrolled' | 'pending'> = {};
       if (pendingOrdersRes.data) {
-        for (const o of pendingOrdersRes.data as Array<{ subject_id: string }>) {
-          studentSelectedSubjectIds.add(o.subject_id);
-        }
+        for (const o of pendingOrdersRes.data as Array<{ subject_id: string }>) stateMap[o.subject_id] = 'pending';
+      }
+      if (enrollmentsRes.data) {
+        for (const e of enrollmentsRes.data as Array<{ subject_id: string }>) stateMap[e.subject_id] = 'enrolled';
       }
 
-      // Fetch all subjects owned by this teacher
-      const { data, error } = await supabase
+      const { data: owned, error } = await supabase
         .from('subjects')
         .select('*')
         .eq('teacher_id', teacher.id);
@@ -2963,12 +2962,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         console.error('Error fetching teacher subjects:', error);
         setTeacherSubjects([]);
       } else {
-        // ── Filter out subjects the student has already selected ──
-        // (either enrolled in OR has a pending order for)
-        const filteredSubjects = (data as Subject[]).filter(
-          (s) => !studentSelectedSubjectIds.has(s.id),
-        );
-        setTeacherSubjects(filteredSubjects);
+        let all = (owned || []) as Subject[];
+        try {
+          const { data: co } = await supabase.from('subject_teachers').select('subject_id').eq('teacher_id', teacher.id);
+          const extraIds = (co || []).map((r: { subject_id: string }) => r.subject_id).filter((id: string) => !all.some((s) => s.id === id));
+          if (extraIds.length > 0) {
+            const { data: extra } = await supabase.from('subjects').select('*').in('id', extraIds);
+            all = [...all, ...((extra || []) as Subject[])];
+          }
+        } catch { /* co-teaching lookup is best effort */ }
+        setTeacherSubjectState(stateMap);
+        setTeacherSubjects(all);
       }
     } catch {
       setTeacherSubjects([]);
@@ -4704,6 +4708,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               <p className="text-xs text-muted-foreground line-clamp-1">{subject.description}</p>
                             )}
                           </div>
+                          {teacherSubjectState[subject.id] === 'enrolled' && (
+                            <span className="shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">{t('student.teacherCourseEnrolled')}</span>
+                          )}
+                          {teacherSubjectState[subject.id] === 'pending' && (
+                            <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">{t('student.teacherCoursePending')}</span>
+                          )}
                         </div>
                       ))}
                     </div>
