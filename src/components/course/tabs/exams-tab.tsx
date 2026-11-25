@@ -318,6 +318,35 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
   // ─── Quiz toggles ───
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
+  const [reactivateQuiz, setReactivateQuiz] = useState<Quiz | null>(null);
+  const [reactivateDate, setReactivateDate] = useState('');
+  const [reactivateTime, setReactivateTime] = useState('');
+  const [reactivateReset, setReactivateReset] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
+  const handleReactivateWithTime = async () => {
+    if (!reactivateQuiz || reactivating) return;
+    if (!reactivateDate || !reactivateTime) { toast.error(t('exams.reactivatePickTime')); return; }
+    setReactivating(true);
+    try {
+      const res = await fetch('/api/quizzes', {
+        method: 'PUT',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ quizId: reactivateQuiz.id, reactivate: { date: reactivateDate, time: reactivateTime, resetAttempts: reactivateReset } }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(t('exams.reactivatedWithTime'));
+        setReactivateQuiz(null);
+        fetchData();
+      } else {
+        toast.error(data.error || t('common.unexpectedError'));
+      }
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setReactivating(false);
+    }
+  };
 
   // ─── Quiz settings modal ───
   const [releasingId, setReleasingId] = useState<string | null>(null);
@@ -2427,7 +2456,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
           <div className="flex items-center gap-2 pt-3 border-t">
             {/* Toggle finished */}
             <button
-              onClick={() => handleToggleFinished(quiz)}
+              onClick={() => { if (isFinishedTab) { setReactivateQuiz(quiz); setReactivateDate(''); setReactivateTime(''); setReactivateReset(false); } else { handleToggleFinished(quiz); } }}
               disabled={togglingQuizId === quiz.id}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 isFinishedTab
@@ -2718,6 +2747,55 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
       {/* Create/Edit quiz modal */}
       {renderQuizModal()}
+
+      {/* Reactivate with a new start time */}
+      <AlertDialog open={!!reactivateQuiz} onOpenChange={(open) => { if (!open && !reactivating) setReactivateQuiz(null); }}>
+        <AlertDialogContent dir={direction} className="max-h-[92vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('exams.reactivateTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('exams.reactivateDesc')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-foreground mb-1 block">{t('exams.startDate')}</label>
+                <input type="date" value={reactivateDate} onChange={(e) => setReactivateDate(e.target.value)} disabled={reactivating} className="w-full rounded-lg border bg-background px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground mb-1 block">{t('exams.startTime')}</label>
+                <input type="time" value={reactivateTime} onChange={(e) => setReactivateTime(e.target.value)} disabled={reactivating} className="w-full rounded-lg border bg-background px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-lg border p-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground leading-snug">{t('exams.reactivateReset')}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{reactivateReset ? t('exams.reactivateResetOn') : t('exams.reactivateResetOff')}</p>
+              </div>
+              <Switch checked={reactivateReset} onCheckedChange={setReactivateReset} disabled={reactivating} className="mt-1 shrink-0" dir="ltr" />
+            </div>
+          </div>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel disabled={reactivating}>{t('common.cancel')}</AlertDialogCancel>
+            <button
+              type="button"
+              onClick={() => { const q = reactivateQuiz; setReactivateQuiz(null); if (q) handleToggleFinished(q); }}
+              disabled={reactivating}
+              className="rounded-lg border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-60"
+            >
+              {t('exams.reactivateNow')}
+            </button>
+            <button
+              type="button"
+              onClick={handleReactivateWithTime}
+              disabled={reactivating}
+              className="flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60"
+            >
+              {reactivating && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('exams.reactivateConfirm')}
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={!!deleteQuizConfirmId} onOpenChange={(open) => { if (!open) setDeleteQuizConfirmId(null); }}>

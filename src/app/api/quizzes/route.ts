@@ -189,6 +189,64 @@ export async function PUT(request: NextRequest) {
     // Preserve settings from the original quiz for re-generation
     let preservedSettings: Record<string, unknown> = {};
 
+    // ─── Mode 0: Reactivate a finished quiz with a new start time ───
+    if (quizId && body.reactivate && typeof body.reactivate === 'object') {
+      const { date, time, resetAttempts } = body.reactivate as { date?: string; time?: string; resetAttempts?: boolean };
+      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || typeof time !== 'string' || !/^\d{2}:\d{2}$/.test(time)) {
+        return NextResponse.json({ success: false, error: 'تاريخ أو وقت غير صالح' }, { status: 400 });
+      }
+      // The schedule is Egypt wall-clock time. Convert to a real instant to check it is in the future.
+      const [yy, mo, dd] = date.split('-').map(Number);
+      const [hh, mi] = time.split(':').map(Number);
+      const guess = Date.UTC(yy, mo - 1, dd, hh, mi);
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Cairo', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }).formatToParts(new Date(guess));
+      const g = (t: string) => Number(parts.find((x) => x.type === t)?.value);
+      const offsetMs = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute')) - guess;
+      const startMs = guess - offsetMs;
+      if (!(startMs > Date.now())) {
+        return NextResponse.json({ success: false, error: 'يجب أن يكون الموعد الجديد في المستقبل' }, { status: 400 });
+      }
+
+      const { data: rq, error: rqErr } = await supabaseServer
+        .from('quizzes').select('id, user_id, title, subject_id, allow_retake').eq('id', quizId).single();
+      if (rqErr || !rq) return NextResponse.json({ success: false, error: 'الاختبار غير موجود' }, { status: 404 });
+      if (rq.user_id !== authResult.user.id) {
+        return NextResponse.json({ success: false, error: 'غير مصرح بتعديل هذا الاختبار' }, { status: 403 });
+      }
+
+      if (resetAttempts === true) {
+        const { error: delErr } = await supabaseServer.from('scores').delete().eq('quiz_id', quizId);
+        if (delErr) return NextResponse.json({ success: false, error: 'فشل تصفير المحاولات' }, { status: 500 });
+      }
+
+      // A DB trigger clears the reminder/start markers because the schedule changes.
+      const { data: reQuiz, error: reErr } = await supabaseServer
+        .from('quizzes')
+        .update({ is_finished: false, scheduled_date: date, scheduled_time: time })
+        .eq('id', quizId).select().single();
+      if (reErr) return NextResponse.json({ success: false, error: 'فشل إعادة تفعيل الاختبار' }, { status: 500 });
+
+      // Notify only students who can take it again: everyone after a reset or when retake is on, otherwise those who never took it.
+      try {
+        const { getStudentIds, insertNotificationsAndPush } = await import('@/lib/notifications-service');
+        let ids = await getStudentIds(rq.subject_id);
+        if (resetAttempts !== true && rq.allow_retake !== true) {
+          const { data: taken } = await supabaseServer.from('scores').select('student_id').eq('quiz_id', quizId);
+          const done = new Set((taken || []).map((r: { student_id: string }) => r.student_id));
+          ids = ids.filter((id) => !done.has(id));
+        }
+        if (ids.length > 0) {
+          await insertNotificationsAndPush(
+            ids, 'quiz', 'تمت إعادة فتح الاختبار',
+            `اختبار "${rq.title || ''}" سيبدأ يوم ${date} الساعة ${time}`,
+            `quiz:${rq.subject_id}:${quizId}`,
+          );
+        }
+      } catch (e) { console.error('[Quizzes API] reactivate notify failed', e); }
+
+      return NextResponse.json({ success: true, data: reQuiz }, { headers: rateLimitHeaders });
+    }
+
     // ─── Mode 1: Partial update ───
     if (quizId && updates && typeof updates === 'object') {
       // Verify ownership
