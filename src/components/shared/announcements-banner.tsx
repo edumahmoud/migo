@@ -89,16 +89,27 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
   const [dismissed, setDismissed] = useState<Set<string>>(() => getDismissedSet(userId));
 
   useEffect(() => {
-    fetch('/api/announcements')
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success && result.data) {
-          setAnnouncements(result.data as Announcement[]);
-        }
-      })
-      .catch(() => {
-        // Table may not exist or API failure — silently ignore
-      });
+    const load = () => {
+      fetch('/api/announcements', { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((result) => {
+          if (result.success && result.data) {
+            setAnnouncements(result.data as Announcement[]);
+          }
+        })
+        .catch(() => {
+          // Table may not exist or API failure: silently ignore
+        });
+    };
+    load();
+    // Pick up announcements published while the app is open
+    const timer = setInterval(load, 30_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   const visibleAnnouncements = announcements.filter((a) => !dismissed.has(a.id));
