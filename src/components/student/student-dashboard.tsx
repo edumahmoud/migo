@@ -1305,51 +1305,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     const checkTimes = () => {
       const now = new Date();
 
-      // Check quizzes
-      for (const quiz of quizzes) {
-        if (!quiz.scheduled_date || quiz.is_finished) continue;
-        const startTime = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time || '00:00');
-        if (!startTime) continue;
-
-        const diffMs = startTime.getTime() - now.getTime();
-        // Notify if the quiz starts within 1 minute (before or after)
-        if (diffMs <= 60000 && diffMs >= -60000 && !notifiedIds.has(`quiz-${quiz.id}`)) {
-          notifiedIds.add(`quiz-${quiz.id}`);
-
-          const title = quiz.title || t('nav.exams');
-          const notifTitle = t('student.quizStartingNow');
-          const notifDesc = t('student.quizStartingNowDesc', { title });
-
-          // 1. Play notification sound
-          playNotificationFeedback();
-
-          // 2. Show toast
-          toast.info(notifTitle, { description: notifDesc, duration: 8000 });
-
-          // 3. Browser notification
-          try {
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              new Notification(notifTitle, { body: notifDesc, icon: '/icon-192x192.png' });
-            }
-          } catch { /* Notification API not supported */ }
-
-          // 4. Add to notification store (so it appears in the bell)
-          try {
-            const store = useNotificationStore.getState();
-            // Build a deep link so clicking the notification navigates to the exam
-            const quizLink = quiz.subject_id
-              ? `quiz:${quiz.subject_id}:${quiz.id}`
-              : undefined;
-            store.createNotification({
-              userId: profile.id,
-              type: 'quiz',
-              title: notifTitle,
-              message: notifDesc,
-              link: quizLink,
-            });
-          } catch { /* store not available */ }
-        }
-      }
+      // Quiz start / reminder notifications are created on the server (pg_cron notify_quiz_schedule, v147).
 
       // Check assignments
       for (const assignment of assignments) {
