@@ -622,7 +622,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       {
         // v145: paging only applies to quizzes with more than 5 questions
         const perPage = parseInt(quizQuestionsPerPage, 10);
-        quizData.questions_per_page = quizQuestions.length > 5 && perPage > 1 ? Math.min(perPage, 50) : null;
+        // Saved whenever set; the quiz taker only pages quizzes with more than 5 questions.
+        quizData.questions_per_page = perPage > 1 ? Math.min(perPage, 50) : null;
       }
 
       if (quizDuration.trim()) {
@@ -1850,16 +1851,17 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                 </div>
               </div>
 
-              {/* v145: split into pages (only when the quiz has more than 5 questions) */}
-              {quizQuestions.length > 5 && (
+              {/* v145: split into pages. Always shown: AI/bank quizzes have no questions yet at this point. */}
+              {(
+
                 <div>
                   <label className="text-xs font-medium text-foreground mb-1 block">
-                    {direction === 'rtl' ? 'عدد الأسئلة في كل صفحة (اتركه فارغًا لعرض سؤال واحد في كل مرة)' : 'Questions per page (leave empty for one at a time)'}
+                    {direction === 'rtl' ? 'عدد الأسئلة في كل صفحة (فارغ = سؤال واحد في كل مرة، ويعمل فقط لو الاختبار أكتر من ٥ أسئلة)' : 'Questions per page (empty = one at a time; applies only to quizzes with more than 5 questions)'}
                   </label>
                   <input
                     type="number"
                     min={2}
-                    max={Math.min(50, quizQuestions.length)}
+                    max={50}
                     value={quizQuestionsPerPage}
                     onChange={(e) => setQuizQuestionsPerPage(e.target.value)}
                     disabled={savingQuiz || generatingFromAi}
@@ -1867,7 +1869,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                     placeholder={direction === 'rtl' ? 'مثال: 5' : 'e.g. 5'}
                     dir="ltr"
                   />
-                  {quizQuestionsPerPage && parseInt(quizQuestionsPerPage, 10) > 1 && (
+                  {quizQuestionsPerPage && parseInt(quizQuestionsPerPage, 10) > 1 && quizQuestions.length > 5 && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       {direction === 'rtl'
                         ? `${Math.ceil(quizQuestions.length / parseInt(quizQuestionsPerPage, 10))} صفحات. الإجابات بتتصحح عند التسليم.`

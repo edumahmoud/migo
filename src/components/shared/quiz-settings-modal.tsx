@@ -119,6 +119,7 @@ export default function QuizSettingsModal({
     quiz.pass_threshold != null ? String(quiz.pass_threshold) : ''
   );
   const [isGate, setIsGate] = useState<boolean>(quiz.is_gate ?? false);
+  const [questionsPerPage, setQuestionsPerPage] = useState<string>(quiz.questions_per_page != null ? String(quiz.questions_per_page) : '');
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -129,6 +130,7 @@ export default function QuizSettingsModal({
         show_results: showResults,
         show_review: showReview,
         is_gate: isGate,
+        questions_per_page: (() => { const n = parseInt(questionsPerPage, 10); return n > 1 ? Math.min(n, 50) : null; })(),
         // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
         // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
       };
@@ -213,6 +215,22 @@ export default function QuizSettingsModal({
             <div className="flex items-center gap-2">
               <Settings className="h-4 w-4 text-teal-600" />
               <h3 className="text-sm font-semibold text-foreground">{t('quiz.quizSettings')}</h3>
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium mb-1 block">
+                {direction === 'rtl' ? 'عدد الأسئلة في كل صفحة (فارغ = سؤال واحد في كل مرة، ويعمل فقط لو الاختبار أكتر من ٥ أسئلة)' : 'Questions per page (empty = one at a time; applies only to quizzes with more than 5 questions)'}
+              </Label>
+              <Input
+                type="number"
+                min={2}
+                max={50}
+                value={questionsPerPage}
+                onChange={(e) => setQuestionsPerPage(e.target.value)}
+                disabled={saving}
+                dir="ltr"
+                placeholder={direction === 'rtl' ? 'مثال: 5' : 'e.g. 5'}
+              />
             </div>
 
             <ToggleSwitch
