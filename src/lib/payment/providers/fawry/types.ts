@@ -11,15 +11,11 @@
  * the platform UI, then go pay at a Fawry machine within 24 hours.
  *
  * API endpoints (per Fawry's official docs):
- *   Charge  : POST https://www.atfawry.com/ECommerceWeb/Fawry/payments/api/v2/charge
- *   Status  : GET  https://www.atfawry.com/ECommerceWeb/Fawry/payments/api/v2/status?...
+ *   Charge  : POST https://www.atfawry.com/ECommerceWeb/Fawry/payments/charge
+ *   Status  : GET  https://www.atfawry.com/ECommerceWeb/Fawry/payments/status/v2?...
  *   Webhook : POST to the URL we configured in Fawry Dashboard
  *
- * The webhook is signed with HMAC-SHA256 using the merchant's securityKey.
- * Signature format (charge): merchantCode + merchantRefNum + customerProfileId
- *                            + paymentMethod + amount + securityKey
- * Signature format (webhook): merchantCode + merchantRefNum + paymentMethod
- *                              + paymentAmount (as string) + orderStatus + securityKey
+ * Signatures are plain SHA-256 with the secure key appended (see hmac.ts).
  *
  * IMPORTANT: Fawry's signature format expects the amount as the raw
  * decimal value (e.g., "100.00"), NOT as cents.
@@ -37,6 +33,8 @@ export interface FawryCredentials {
 export interface FawryConfiguration {
   /** Webhook URL configured in Fawry Dashboard. (informational only) */
   webhookUrl?: string;
+  /** 'true' to use Fawry's staging environment (test merchant code + key). */
+  sandbox?: string | boolean;
   /** Redirect URL after payment (UX only — Fawry Code has no redirect). */
   redirectUrl?: string;
   /** Optional display URL (the merchant's brand page). */
@@ -45,65 +43,70 @@ export interface FawryConfiguration {
   gatewayId?: string;
 }
 
-// ─── Charge Request (POST /v2/charge) ───
+// ─── Charge Request (POST /ECommerceWeb/Fawry/payments/charge) ───
 export interface FawryChargeRequest {
   merchantCode: string;
   merchantRefNum: string;        // = our order UUID
-  customerProfileId: string;     // = our student_id (or hashed version)
+  customerProfileId: string;
   customerMobile: string;
   customerEmail: string;
   amount: number;
-  currencyCode: string;           // always 'EGP' for Fawry
-  paymentMethod: 'PAYATFAWRY';   // Fawry Code mode
+  currencyCode: string;
+  paymentMethod: 'PAYATFAWRY';
   description: string;
+  paymentExpiry?: number;        // epoch ms
   chargeItems: Array<{
     itemId: string;
     description: string;
     price: number;
     quantity: number;
   }>;
-  signature: string;            // HMAC-SHA256 hex
+  signature: string;             // SHA-256 hex (not HMAC)
 }
 
 // ─── Charge Response ───
 export interface FawryChargeResponse {
-  statusCode: number;            // 200 = success, others = error
+  type?: string;
+  referenceNumber?: string;      // THE REFERENCE CODE the student takes to the machine
+  merchantRefNumber?: string;
+  expirationTime?: number;
+  statusCode: number;            // 200 = success
   statusDescription?: string;
-  merchantRefNum?: string;
-  fawryRefNumber?: string;       // ← THE REFERENCE CODE the student takes to the machine
-  paymentMethod?: string;
-  paymentStatus?: 'UNPAID' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNKNOWN';
-  // Error fields
-  errorCode?: string;
-  errorMessage?: string;
 }
 
-// ─── Status Response (GET /v2/status) ───
+// ─── Status Response (GET /payments/status/v2) ───
 export interface FawryStatusResponse {
   statusCode: number;
   statusDescription?: string;
-  merchantRefNum?: string;
+  merchantRefNumber?: string;
   fawryRefNumber?: string;
   paymentMethod?: string;
   paymentAmount?: number;
-  paymentStatus?: 'UNPAID' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNKNOWN';
+  orderAmount?: number;
+  paymentStatus?: string;        // NEW | UNPAID | PAID | CANCELED | EXPIRED | REFUNDED | FAILED ...
 }
 
-// ─── Webhook Callback ───
+// ─── Server Notification V2 (POST to our webhook) ───
 export interface FawryCallbackPayload {
-  merchantCode: string;
-  merchantRefNumber: string;     // = our order UUID
+  requestId?: string;
   fawryRefNumber: string;
+  merchantRefNumber: string;     // = our order UUID
+  paymentAmount: number | string;
+  orderAmount: number | string;
+  fawryFees?: number | string;
+  orderStatus: string;           // NEW | PAID | CANCELED | EXPIRED | REFUNDED | PARTIAL_REFUNDED | FAILED
   paymentMethod: string;
-  paymentAmount: number;         // OR string — Fawry sometimes sends it as string
-  orderExpiryDate?: string;
-  paymentStatus: 'PAID' | 'EXPIRED' | 'CANCELLED' | 'UNKNOWN';
-  signature: string;            // HMAC-SHA256 hex
+  paymentRefrenceNumber?: string; // sic
+  orderExpiryDate?: number | string;
+  messageSignature: string;      // SHA-256 hex
 }
 
-// ─── API base URL ───
-export const FAWRY_API_BASE = 'https://www.atfawry.com/ECommerceWeb/Fawry/payments/api/v2';
+// ─── API base URLs ───
+export const FAWRY_PROD_BASE = 'https://www.atfawry.com';
+export const FAWRY_SANDBOX_BASE = 'https://atfawry.fawrystaging.com';
+export const FAWRY_API_PATH = '/ECommerceWeb/Fawry/payments';
+export function fawryBase(sandbox: boolean): string {
+  return (sandbox ? FAWRY_SANDBOX_BASE : FAWRY_PROD_BASE) + FAWRY_API_PATH;
+}
 
-// ─── Fawry status codes ───
 export const FAWRY_SUCCESS_CODE = 200;
-export const FAWRY_ORDER_NOT_FOUND = 997; // used by testConnection

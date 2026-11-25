@@ -7,12 +7,12 @@
  *   2. Fawry returns a fawryRefNumber (9-digit code) — displayed in the UI
  *   3. Student goes to a Fawry machine/app and pays cash within 24h
  *   4. Fawry sends a webhook to our /api/payment/webhook?provider=fawry
- *      with HMAC signature
+ *      with SHA-256 signature
  *   5. Webhook handler verifies the signature + maps paymentStatus → 'paid'
  *   6. The existing activate_subscription_after_payment RPC activates
  *      the order
  *
- * Authentication: HMAC-SHA256 with the merchant's securityKey.
+ * Authentication: plain SHA-256 with the merchant's securityKey appended.
  *
  * IMPORTANT: Fawry's amount is in MAJOR units (e.g., 100.00 EGP), NOT
  * cents. This is different from Paymob. The adapter converts from
@@ -55,6 +55,11 @@ function formatAmount(amount: number): string {
   return amount.toFixed(2);
 }
 
+function isSandbox(configuration: GatewayConfiguration): boolean {
+  const v = (configuration as unknown as { sandbox?: unknown } | undefined)?.sandbox;
+  return v === true || String(v).toLowerCase() === 'true';
+}
+
 /**
  * Map a Fawry paymentStatus string to our normalized PaymentStatus.
  */
@@ -63,8 +68,13 @@ function mapFawryStatus(status: string | undefined): 'pending' | 'paid' | 'faile
     case 'PAID':
       return 'paid';
     case 'EXPIRED':
+    case 'CANCELED':
     case 'CANCELLED':
       return 'cancelled';
+    case 'FAILED':
+      return 'failed';
+    // REFUNDED / PARTIAL_REFUNDED / NEW / UNPAID: never change the order here
+    case 'NEW':
     case 'UNPAID':
     case 'UNKNOWN':
     default:
@@ -148,6 +158,7 @@ export class FawryAdapter implements PaymentGateway {
       amount: input.amount,
       currencyCode: input.currency || 'EGP',
       paymentMethod: 'PAYATFAWRY' as const,
+      paymentExpiry: Date.now() + 24 * 60 * 60 * 1000,
       description: input.description || 'Attendo subscription',
       chargeItems: [
         {
@@ -161,23 +172,23 @@ export class FawryAdapter implements PaymentGateway {
     };
 
     const startTime = Date.now();
-    const response = await createCharge(chargeReq);
+    const response = await createCharge(chargeReq, isSandbox(configuration));
 
-    if (response.statusCode !== 200 || !response.fawryRefNumber) {
+    if (response.statusCode !== 200 || !response.referenceNumber) {
       logPaymentEvent({
         level: 'error',
         operation: 'createPayment',
         provider: 'fawry',
         orderId: input.orderId,
         success: false,
-        errorCode: response.errorCode || `FAWRY_${response.statusCode}`,
-        message: `Fawry charge failed: ${response.statusDescription ?? response.errorMessage ?? 'unknown'}`,
+        errorCode: `FAWRY_${response.statusCode}`,
+        message: `Fawry charge failed: ${response.statusDescription ?? 'unknown'}`,
         durationMs: Date.now() - startTime,
       });
       return {
         success: false,
         provider: 'fawry',
-        metadata: { errorCode: response.errorCode || `FAWRY_${response.statusCode}`, message: `فشل في إنشاء كود فوري: ${response.statusDescription ?? response.errorMessage ?? 'خطأ غير معروف'}` },
+        metadata: { errorCode: `FAWRY_${response.statusCode}`, message: `فشل في إنشاء كود فوري: ${response.statusDescription ?? 'خطأ غير معروف'}` },
       };
     }
 
@@ -187,23 +198,23 @@ export class FawryAdapter implements PaymentGateway {
       provider: 'fawry',
       orderId: input.orderId,
       success: true,
-      paymentReference: response.fawryRefNumber,
-      message: `Fawry reference code generated: ${response.fawryRefNumber}`,
+      paymentReference: response.referenceNumber,
+      message: `Fawry reference code generated: ${response.referenceNumber}`,
       durationMs: Date.now() - startTime,
     });
 
     return {
       success: true,
       provider: 'fawry',
-      paymentReference: response.fawryRefNumber,
+      paymentReference: response.referenceNumber,
       providerOrderReference: merchantRefNum,
       // Fawry Code has NO checkout URL — the student stays on our platform.
       // The UI displays the reference code prominently.
       checkoutUrl: undefined,
       metadata: {
-        referenceCode: response.fawryRefNumber,
+        referenceCode: response.referenceNumber,
         paymentMethod: 'PAYATFAWRY',
-        paymentStatus: response.paymentStatus ?? 'UNPAID',
+        paymentStatus: 'UNPAID',
         // Instructions for the UI to display:
         instructions: 'خذ كود الدفع ده لاقرب ماكينة فوري أو تطبيق فوري وادفع المبلغ خلال 24 ساعة',
       },
@@ -219,7 +230,7 @@ export class FawryAdapter implements PaymentGateway {
   async verifyPayment(
     input: VerifyPaymentInput,
     credentials: GatewayCredentials,
-    _configuration: GatewayConfiguration,
+    configuration: GatewayConfiguration,
   ): Promise<VerifyPaymentResult> {
     const creds = credentials as unknown as FawryCredentials;
     if (!creds?.merchantCode || !creds?.securityKey) {
@@ -245,6 +256,7 @@ export class FawryAdapter implements PaymentGateway {
       creds.merchantCode,
       merchantRefNum,
       signature,
+      isSandbox(configuration),
     );
 
     if (response.statusCode !== 200) {
@@ -271,9 +283,9 @@ export class FawryAdapter implements PaymentGateway {
     return {
       success: true,
       status: mapped,
-      amount: response.paymentAmount ?? 0,
+      amount: response.orderAmount ?? response.paymentAmount ?? 0,
       currency: 'EGP',
-      providerTransactionId: response.fawryRefNumber,
+      providerTransactionId: response.fawryRefNumber ? String(response.fawryRefNumber) : undefined,
       metadata: { paymentStatus: response.paymentStatus, merchantRefNum },
     };
   }
@@ -281,7 +293,7 @@ export class FawryAdapter implements PaymentGateway {
   /**
    * Handle a Fawry webhook callback.
    *
-   * Verifies the HMAC signature, then extracts the merchantRefNumber
+   * Verifies the SHA-256 signature, then extracts the merchantRefNumber
    * (our order UUID) and the payment status.
    */
   async handleWebhook(
@@ -327,18 +339,8 @@ export class FawryAdapter implements PaymentGateway {
       };
     }
 
-    // Verify HMAC signature
-    const isVerified = verifyWebhookSignature(
-      {
-        merchantCode: payload.merchantCode,
-        merchantRefNumber: payload.merchantRefNumber,
-        paymentMethod: payload.paymentMethod,
-        paymentAmount: payload.paymentAmount,
-        paymentStatus: payload.paymentStatus,
-        signature: payload.signature,
-      },
-      creds.securityKey,
-    );
+    // Verify SHA-256 signature
+    const isVerified = verifyWebhookSignature(payload, creds.securityKey);
 
     if (!isVerified) {
       logPaymentEvent({
@@ -354,11 +356,11 @@ export class FawryAdapter implements PaymentGateway {
         provider: 'fawry',
         orderId: payload.merchantRefNumber,
         status: 'pending',
-        metadata: { message: 'HMAC signature mismatch' },
+        metadata: { message: 'signature mismatch' },
       };
     }
 
-    const mapped = mapFawryStatus(payload.paymentStatus);
+    const mapped = mapFawryStatus(payload.orderStatus);
 
     logPaymentEvent({
       level: 'info',
@@ -366,8 +368,8 @@ export class FawryAdapter implements PaymentGateway {
       provider: 'fawry',
       success: true,
       orderId: payload.merchantRefNumber,
-      paymentReference: payload.fawryRefNumber,
-      message: `Fawry webhook verified — status=${mapped} amount=${payload.paymentAmount}`,
+      paymentReference: String(payload.fawryRefNumber),
+      message: `Fawry webhook verified — status=${mapped} amount=${payload.orderAmount}`,
     });
 
     return {
@@ -375,10 +377,11 @@ export class FawryAdapter implements PaymentGateway {
       provider: 'fawry',
       orderId: payload.merchantRefNumber, // our order UUID
       status: mapped,
-      amount: typeof payload.paymentAmount === 'number' ? payload.paymentAmount : Number(payload.paymentAmount),
+      // orderAmount = what we charged (paymentAmount also includes Fawry's own fees)
+      amount: Number(payload.orderAmount ?? payload.paymentAmount),
       currency: 'EGP',
-      paymentReference: payload.fawryRefNumber,
-      providerTransactionId: payload.fawryRefNumber,
+      paymentReference: String(payload.fawryRefNumber),
+      providerTransactionId: String(payload.fawryRefNumber),
       metadata: {
         fawryRefNumber: payload.fawryRefNumber,
         paymentMethod: payload.paymentMethod,
@@ -395,7 +398,7 @@ export class FawryAdapter implements PaymentGateway {
    */
   async testConnection(
     credentials: GatewayCredentials,
-    _configuration: GatewayConfiguration,
+    configuration: GatewayConfiguration,
   ): Promise<GatewayConnectionTestResult> {
     const creds = credentials as unknown as FawryCredentials;
     if (!creds?.merchantCode || !creds?.securityKey) {
@@ -419,6 +422,7 @@ export class FawryAdapter implements PaymentGateway {
       creds.merchantCode,
       dummyRef,
       signature,
+      isSandbox(configuration),
     );
 
     // 997 = order not found (expected for a dummy ref) → creds work
