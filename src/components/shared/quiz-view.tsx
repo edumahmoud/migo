@@ -48,6 +48,8 @@ interface QuizProgress {
   currentIdx: number;
   shuffledOrder: number[];
   startedAt: number; // timestamp when quiz was first started
+  pagedAnswers?: PagedAnswers; // paged mode: raw answers by question index
+  pagedPage?: number;          // paged mode: current page
   updatedAt: number; // timestamp of last save
 }
 
@@ -654,6 +656,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       setShuffledOrder(saved.shuffledOrder);
       setCurrentIdx(saved.currentIdx);
       setUserAnswers(saved.userAnswers);
+      if (saved.pagedAnswers && typeof saved.pagedAnswers === 'object') setPagedAnswers(saved.pagedAnswers);
+      if (typeof saved.pagedPage === 'number') setPagedPage(saved.pagedPage);
       setProgressRestored(true);
       // Auto-dismiss the restored indicator after 4 seconds
       setTimeout(() => setProgressRestored(false), 4000);
@@ -856,10 +860,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       currentIdx,
       shuffledOrder,
       startedAt,
+      pagedAnswers,
+      pagedPage,
       updatedAt: Date.now(),
     });
    
-  }, [userAnswers, currentIdx, shuffledOrder]);
+  }, [userAnswers, currentIdx, shuffledOrder, pagedAnswers, pagedPage]);
 
   // -------------------------------------------------------
   // Current question
@@ -868,12 +874,49 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const totalQuestions = quiz?.questions?.length ?? 0;
   const pagedPerPage = quiz && !reviewMode && (quiz.questions_per_page ?? 0) > 1 && totalQuestions > 5 ? Math.floor(quiz.questions_per_page as number) : 0;
   const pagedOrder = shuffledOrder.length > 0 ? shuffledOrder : Array.from({ length: totalQuestions }, (_, i) => i);
-  const submitPaged = () => {
-    if (!quiz) return;
-    const graded = gradePagedAnswers(quiz.questions, pagedAnswers);
-    setUserAnswers(graded);
-    saveScore(graded.filter((a) => a.isCorrect).length, graded);
-    setShowResults(true);
+  const [gradingPaged, setGradingPaged] = useState(false);
+  // Completion answers: normalized exact match first, then the same AI evaluation the normal flow uses
+  // (3 attempts with backoff). If the AI is unreachable, same benefit-of-doubt rule as the normal flow.
+  const evaluateCompletionAI = async (question: string, correctAnswer: string, studentAnswer: string): Promise<boolean | null> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const headers = await getCachedAuthHeaders();
+        const res = await fetch('/api/gemini/evaluate', { method: 'POST', headers, body: JSON.stringify({ question, correctAnswer, studentAnswer }) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data && !data.data.fallback) return !!data.data.isCorrect;
+        } else if (res.status !== 429 && res.status < 500) {
+          return null;
+        }
+        if (attempt < 2) await new Promise(r => setTimeout(r, (res.status === 429 ? 3000 : 2000) * (attempt + 1)));
+      } catch {
+        if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+      }
+    }
+    return null;
+  };
+  const submitPaged = async () => {
+    if (!quiz || gradingPaged) return;
+    setGradingPaged(true);
+    try {
+      const graded = gradePagedAnswers(quiz.questions, pagedAnswers);
+      await Promise.all(graded.map(async (g) => {
+        if (g.type !== 'completion' || g.isCorrect) return;
+        const q = quiz.questions[g.questionIndex];
+        const student = String(g.answer || '').trim();
+        if (!student) return;
+        const ai = await evaluateCompletionAI(q.question, q.correctAnswer || '', student);
+        if (ai !== null) { g.isCorrect = ai; return; }
+        const sl = student.replace(/\s/g, '').length;
+        const cl = (q.correctAnswer || '').replace(/\s/g, '').length;
+        g.isCorrect = sl >= 2 && cl > 0 && Math.min(sl, cl) / Math.max(sl, cl) >= 0.5;
+      }));
+      setUserAnswers(graded);
+      saveScore(graded.filter((a) => a.isCorrect).length, graded);
+      setShowResults(true);
+    } finally {
+      setGradingPaged(false);
+    }
   };
   const progressPct = totalQuestions > 0 ? ((currentIdx + 1) / totalQuestions) * 100 : 0;
 
@@ -2026,6 +2069,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
               answers={pagedAnswers}
               setAnswers={setPagedAnswers}
               onSubmit={submitPaged}
+              submitting={gradingPaged}
             />
           ) : currentQuestion ? (
             <Card className="border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card shadow-sm">
