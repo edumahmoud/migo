@@ -322,6 +322,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [reactivateDate, setReactivateDate] = useState('');
   const [reactivateTime, setReactivateTime] = useState('');
   const [reactivateReset, setReactivateReset] = useState(false);
+  const [reactivateOnlyNew, setReactivateOnlyNew] = useState(true);
   const [reactivating, setReactivating] = useState(false);
   const handleReactivateWithTime = async () => {
     if (!reactivateQuiz || reactivating) return;
@@ -331,7 +332,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       const res = await fetch('/api/quizzes', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ quizId: reactivateQuiz.id, reactivate: { date: reactivateDate, time: reactivateTime, resetAttempts: reactivateReset } }),
+        body: JSON.stringify({ quizId: reactivateQuiz.id, reactivate: { date: reactivateDate, time: reactivateTime, resetAttempts: reactivateReset, onlyNew: reactivateOnlyNew } }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -2456,7 +2457,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
           <div className="flex items-center gap-2 pt-3 border-t">
             {/* Toggle finished */}
             <button
-              onClick={() => { if (isFinishedTab) { setReactivateQuiz(quiz); setReactivateDate(''); setReactivateTime(''); setReactivateReset(false); } else { handleToggleFinished(quiz); } }}
+              onClick={() => { if (isFinishedTab) { setReactivateQuiz(quiz); setReactivateDate(''); setReactivateTime(''); setReactivateReset(false); setReactivateOnlyNew(true); } else { handleToggleFinished(quiz); } }}
               disabled={togglingQuizId === quiz.id}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 isFinishedTab
@@ -2773,6 +2774,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
               </div>
               <Switch checked={reactivateReset} onCheckedChange={setReactivateReset} disabled={reactivating} className="mt-1 shrink-0" dir="ltr" />
             </div>
+            {!reactivateReset && (
+              <div className="flex items-start gap-3 rounded-lg border p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground leading-snug">{t('exams.reactivateOnlyNew')}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{reactivateOnlyNew ? t('exams.reactivateOnlyNewOn') : t('exams.reactivateOnlyNewOff')}</p>
+                </div>
+                <Switch checked={reactivateOnlyNew} onCheckedChange={setReactivateOnlyNew} disabled={reactivating} className="mt-1 shrink-0" dir="ltr" />
+              </div>
+            )}
           </div>
           <AlertDialogFooter className="gap-2 sm:gap-2">
             <AlertDialogCancel disabled={reactivating}>{t('common.cancel')}</AlertDialogCancel>

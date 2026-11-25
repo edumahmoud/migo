@@ -191,7 +191,7 @@ export async function PUT(request: NextRequest) {
 
     // ─── Mode 0: Reactivate a finished quiz with a new start time ───
     if (quizId && body.reactivate && typeof body.reactivate === 'object') {
-      const { date, time, resetAttempts } = body.reactivate as { date?: string; time?: string; resetAttempts?: boolean };
+      const { date, time, resetAttempts, onlyNew } = body.reactivate as { date?: string; time?: string; resetAttempts?: boolean; onlyNew?: boolean };
       if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || typeof time !== 'string' || !/^\d{2}:\d{2}$/.test(time)) {
         return NextResponse.json({ success: false, error: 'تاريخ أو وقت غير صالح' }, { status: 400 });
       }
@@ -222,7 +222,7 @@ export async function PUT(request: NextRequest) {
       // A DB trigger clears the reminder/start markers because the schedule changes.
       const { data: reQuiz, error: reErr } = await supabaseServer
         .from('quizzes')
-        .update({ is_finished: false, scheduled_date: date, scheduled_time: time })
+        .update({ is_finished: false, scheduled_date: date, scheduled_time: time, reexam_only_new_since: (resetAttempts !== true && onlyNew === true) ? new Date().toISOString() : null })
         .eq('id', quizId).select().single();
       if (reErr) return NextResponse.json({ success: false, error: 'فشل إعادة تفعيل الاختبار' }, { status: 500 });
 
@@ -230,7 +230,7 @@ export async function PUT(request: NextRequest) {
       try {
         const { getStudentIds, insertNotificationsAndPush } = await import('@/lib/notifications-service');
         let ids = await getStudentIds(rq.subject_id);
-        if (resetAttempts !== true && rq.allow_retake !== true) {
+        if (resetAttempts !== true && (rq.allow_retake !== true || onlyNew === true)) {
           const { data: taken } = await supabaseServer.from('scores').select('student_id').eq('quiz_id', quizId);
           const done = new Set((taken || []).map((r: { student_id: string }) => r.student_id));
           ids = ids.filter((id) => !done.has(id));
