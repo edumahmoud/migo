@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 
-// Cache announcements for 60 seconds to avoid repeated DB queries when table is missing
+// Cache announcements for 10 seconds to avoid repeated DB queries when table is missing
 let announcementsCache: { data: unknown[]; timestamp: number } | null = null;
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 10_000;
 
 // GET /api/announcements - get active announcements for all users
 export async function GET() {

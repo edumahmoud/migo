@@ -1,5 +1,6 @@
 'use client';
 
+import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -5071,6 +5072,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
       >
         <div className="p-3 md:p-6 lg:p-8 space-y-4 min-w-0">
+          <div className="mb-4 empty:hidden"><AnnouncementsBanner userId={profile.id} /></div>
           <AnimatePresence mode="wait">
             <motion.div
               key={viewingSummaryId ? `summary-${viewingSummaryId}` : activeSection}

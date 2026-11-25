@@ -1,5 +1,6 @@
 'use client';
 
+import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
@@ -4024,6 +4025,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
       >
         <div className="mx-auto max-w-6xl p-3 md:p-8 min-w-0">
+          <div className="mb-4 empty:hidden"><AnnouncementsBanner userId={profile.id} /></div>
           {loadingData ? renderLoading() : (
             <AnimatePresence mode="wait">
               {activeSection === 'dashboard' && (
