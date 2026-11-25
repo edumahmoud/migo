@@ -17,6 +17,7 @@ import { isSupabaseConfigured } from '@/lib/supabase';
 import { useI18n } from '@/lib/i18n/context';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
+import AppVersionLabel from '@/components/auth/app-version-label';
 import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
 import BrandingPointerZone from '@/components/auth/branding-pointer-zone';
@@ -1508,10 +1509,7 @@ function AuthPageContent({
               </motion.div>
             )}
           </AnimatePresence>
-          <p dir="ltr" className="mt-5 text-center text-[11px] text-muted-foreground/70 select-text">
-            AttenDo v{process.env.NEXT_PUBLIC_APP_VERSION}
-            {process.env.NEXT_PUBLIC_APP_BUILD ? ` (${process.env.NEXT_PUBLIC_APP_BUILD})` : ''}
-          </p>
+          <AppVersionLabel />
         </div>
       </div>
     </div>
