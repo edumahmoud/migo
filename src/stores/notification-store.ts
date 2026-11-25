@@ -427,6 +427,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   initializeNotifications: async (userId: string) => {
     // Prevent duplicate initialization for the same user
     if (get().initialized && get().currentUserId === userId) return;
+    // A different user is signing in on this page (no full sign-out in between):
+    // drop the previous user's notifications, subscription and timers first, so
+    // nothing from the old account (e.g. a teacher's) is ever shown to the new one.
+    {
+      const prev = get().currentUserId;
+      if (prev && prev !== userId) {
+        get().cleanup(true);
+      }
+    }
     // Prevent concurrent initialization (race condition guard)
     if (get().initializing) return;
 
