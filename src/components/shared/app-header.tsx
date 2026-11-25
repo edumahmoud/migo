@@ -367,7 +367,7 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
   };
 
   const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : role === 'registration_agent' ? 'registration' : 'dashboard';
-  const label = sectionLabels[activeSection] || (activeSection === 'registration' ? (t('nav.registration') || 'وكلاء التسجيل') : '');
+  const label = sectionLabels[activeSection] || (activeSection === 'registration' ? (t('nav.registration') || 'الوكلاء') : '');
 
   return (
     <>

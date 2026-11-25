@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error('[GET /api/teacher/registration-agents] query error:', error);
     return NextResponse.json(
-      { success: false, error: 'فشل تحميل وكلاء التسجيل: ' + (error.message || 'unknown') },
+      { success: false, error: 'فشل تحميل الوكلاء: ' + (error.message || 'unknown') },
       { status: 500 }
     );
   }
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
 
   if (auth.role !== 'teacher') {
     return NextResponse.json(
-      { success: false, error: 'يُسمح فقط بدور المعلم بإنشاء وكلاء التسجيل' },
+      { success: false, error: 'يُسمح فقط بدور المعلم بإنشاء الوكلاء' },
       { status: 403 }
     );
   }

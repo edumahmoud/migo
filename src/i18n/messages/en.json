@@ -406,7 +406,7 @@
     "stickyNotes": "Sticky Notes",
     "platformAnnouncements": "Celebrations & Alerts",
     "scormLibrary": "SCORM Library",
-    "registration": "Supervisors",
+    "registration": "Agents",
     "paymentMethods": "Payment Methods",
     "subscriptionHistory": "Subscription History",
     "pendingOrders": "Pending Orders",
@@ -433,10 +433,10 @@
     "admin": "Admin",
     "superadmin": "Platform Admin",
     "supervisor": "Supervisor",
-    "registration_agent": "Registration Agent",
+    "registration_agent": "Agent",
     "registration_agentWithGender": {
-      "male": "Registration Agent",
-      "female": "Registration Agent"
+      "male": "Agent",
+      "female": "Agent"
     },
     "doctorFemale": "Dr. (F)",
     "professorFemale": "Prof. (F)",
@@ -445,7 +445,7 @@
     "studentFemale": "Student (F)",
     "superadminFemale": "Platform Admin (F)",
     "teacherFemale": "Teacher (F)",
-    "registration_agentFemale": "Registration Agent (F)"
+    "registration_agentFemale": "Agent (F)"
   },
   "academicTitles": {
     "professor": "Prof.",
@@ -2859,7 +2859,7 @@
     "linkedTeacher": "Linked Teacher",
     "agentDisplayName": "Agent Display Name",
     "agentsCount": "Agents",
-    "agentsList": "Registration Agents",
+    "agentsList": "Agents",
     "noLinkedTeacher": "Not linked to any teacher",
     "live": "Live",
     "loadingData": "Loading data...",
@@ -6351,7 +6351,7 @@
     "unlimited": "Unlimited"
   },
   "regAgents": {
-    "title": "Registration Agents",
+    "title": "Agents",
     "subtitle": "Each agent is an independent account (center / external office) that can register students in your courses.",
     "newAgent": "New Agent",
     "totalAgents": "Total Agents",
@@ -6371,7 +6371,7 @@
       "externalOffice": "External Office",
       "other": "Other"
     },
-    "emptyState": "No registration agents yet. Click \"New Agent\" to start.",
+    "emptyState": "No agents yet. Click \"New Agent\" to start.",
     "noResults": "No results match your search.",
     "active": "Active",
     "disabledBadge": "Disabled",
@@ -6391,7 +6391,7 @@
     "editTitle": "Edit details",
     "deleteAria": "Delete",
     "deleteTitle": "Delete agent",
-    "createTitle": "Create New Registration Agent",
+    "createTitle": "Create New Agent",
     "createDesc": "Each agent has an independent account. A temporary password will be generated - copy it for the agent immediately.",
     "agentNameLabel": "Agent name (center/office)",
     "agentNamePlaceholder": "e.g. Main Center",
@@ -6454,7 +6454,7 @@
     "nameRequired": "Enter the agent name",
     "contactEmailInvalid": "Enter a valid contact email",
     "accountEmailInvalid": "Enter a valid account email",
-    "createSuccess": "Registration agent created",
+    "createSuccess": "Agent created",
     "updateSuccess": "Agent updated",
     "activateSuccess": "Agent activated",
     "deactivateSuccess": "Agent deactivated",
