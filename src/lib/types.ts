@@ -77,6 +77,8 @@ export interface Quiz {
   /** v145: when > 1 and the quiz has more than 5 questions, questions are shown N per page. */
   questions_per_page?: number | null;
   is_finished?: boolean;
+  /** Students with a score older than this cannot retake (re-exam for those who did not take it). */
+  reexam_only_new_since?: string | null;
   subject_id?: string;
   // v63: LMS enhancements — quiz gating
   pass_threshold?: number | null; // 0-100 percentage required to pass; null = no gate

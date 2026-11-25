@@ -388,14 +388,17 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       // Check if student already completed this quiz
       const { data: existingScore } = await supabase
         .from('scores')
-        .select('id')
+        .select('id, completed_at')
         .eq('student_id', profile.id)
         .eq('quiz_id', quizId)
+        .order('completed_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (existingScore) {
-        // Student already took this quiz
-        if (quizData.allow_retake) {
+        // Student already took this quiz. A re-exam for new students only blocks everyone with an older score.
+        const blockedByReexam = !!quizData.reexam_only_new_since && !!existingScore.completed_at && new Date(existingScore.completed_at).getTime() < new Date(quizData.reexam_only_new_since).getTime();
+        if (quizData.allow_retake && !blockedByReexam) {
           setQuizCompleted(true);
           // Allow retake - student can still take it
         } else {
@@ -1297,27 +1300,31 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
     setSavingScore(true);
     try {
-      // Save score
-      const { error: scoreError } = await supabase.from('scores').insert({
-        student_id: profile.id,
-        teacher_id: quiz.user_id,
-        quiz_id: quizId,
-        quiz_title: quiz.title,
-        score: finalScore,
-        total: totalQuestions,
-        user_answers: finalAnswers,
-      });
+      // The server grades the raw answers and writes the score. The browser never sends a score.
+      let scoreError: { message?: string; status?: number } | null = null;
+      try {
+        const res = await fetch('/api/quizzes/submit', {
+          method: 'POST',
+          headers: await getCachedAuthHeaders(),
+          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
+          if (Array.isArray(data.userAnswers)) setUserAnswers(data.userAnswers as UserAnswer[]);
+        } else {
+          scoreError = { message: data.error, status: res.status };
+        }
+      } catch {
+        scoreError = { message: 'network' };
+      }
 
       if (scoreError) {
         console.error('Error saving score:', scoreError);
-        // FIX: Notify user about save failure instead of silent loss
-        toast.error(t('common.error'), {
-          description: t('common.unexpectedErrorDesc'),
+        const retryable = !scoreError.status || scoreError.status >= 500 || scoreError.status === 429;
+        toast.error(retryable ? t('common.error') : (scoreError.message || t('common.error')), {
+          description: retryable ? t('common.unexpectedErrorDesc') : undefined,
           duration: 8000,
-          action: {
-            label: t('common.retry'),
-            onClick: () => saveScore(finalScore, finalAnswers),
-          },
+          ...(retryable ? { action: { label: t('common.retry'), onClick: () => saveScore(finalScore, finalAnswers) } } : {}),
         });
       }
 
