@@ -4,7 +4,6 @@ import { getSocket } from '@/lib/socket';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel, RealtimePresenceJoinPayload } from '@supabase/supabase-js';
 import { useLocaleStore } from '@/i18n/locale-store';
-import { toast } from 'sonner';
 
 // =====================================================
 // AttenDo - Global Status Store
@@ -623,7 +622,6 @@ function updatePresenceStatus(userId: string, status: UserStatus) {
 
 // =====================================================
 // Internet Status Store — tracks navigator.onLine
-// Shows distinctive toast on disconnect/reconnect
 // Makes avatar status dot red when internet is off
 // =====================================================
 
@@ -633,7 +631,6 @@ interface InternetState {
 }
 
 let internetListenersRegistered = false;
-let disconnectToastId: string | number | null = null;
 
 export const useInternetStore = create<InternetState>((set) => ({
   isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
@@ -645,35 +642,15 @@ export const useInternetStore = create<InternetState>((set) => ({
 
 /**
  * Initialize internet status listeners (call once at app root).
- * Shows distinctive toast on disconnect/reconnect.
+ * Tracks online state only (toasts are shown by ConnectivityMonitor).
  */
 export function initInternetListeners() {
   if (internetListenersRegistered || typeof window === 'undefined') return;
   internetListenersRegistered = true;
 
-  const goOffline = () => {
-    useInternetStore.getState().setOnline(false);
-    const isAr = useLocaleStore.getState().locale === 'ar';
-    const msg = isAr ? '🔴 انقطع اتصال الإنترنت' : '🔴 Internet connection lost';
-    // Use a persistent toast that doesn't auto-dismiss
-    disconnectToastId = toast.error(msg, {
-      duration: Infinity,
-      id: 'internet-disconnected',
-      dismissible: false,
-    });
-  };
-
-  const goOnline = () => {
-    useInternetStore.getState().setOnline(true);
-    const isAr = useLocaleStore.getState().locale === 'ar';
-    const msg = isAr ? '🟢 تم استعادة اتصال الإنترنت' : '🟢 Internet connection restored';
-    // Dismiss the disconnect toast if present
-    if (disconnectToastId !== null) {
-      toast.dismiss('internet-disconnected');
-      disconnectToastId = null;
-    }
-    toast.success(msg, { duration: 4000, id: 'internet-reconnected' });
-  };
+  // State only. The visible toast comes from ConnectivityMonitor (one toast, not two).
+  const goOffline = () => { useInternetStore.getState().setOnline(false); };
+  const goOnline = () => { useInternetStore.getState().setOnline(true); };
 
   window.addEventListener('offline', goOffline);
   window.addEventListener('online', goOnline);
