@@ -1311,3 +1311,30 @@ body.quiz-capture-detected {
     padding-top: 20px;
   }
 }
+
+/* Short pages (forgot / update password): the band grows to fill the screen and the sheet
+   hugs its content, so there is no empty white area. */
+@media (max-width: 1023px) {
+  .auth-mobile-hero[data-mode="forgot-password"],
+  .auth-mobile-hero[data-mode="update-password"] {
+    flex: 1 1 auto;
+  }
+  .auth-mobile-hero[data-mode="forgot-password"] .auth-hero-text,
+  .auth-mobile-hero[data-mode="update-password"] .auth-hero-text {
+    margin-top: auto;
+    margin-bottom: auto;
+  }
+  .auth-sheet[data-mode="forgot-password"],
+  .auth-sheet[data-mode="update-password"] {
+    flex: 0 0 auto;
+  }
+  .auth-sheet[data-mode="forgot-password"] [data-slot="card-content"],
+  .auth-sheet[data-mode="update-password"] [data-slot="card-content"],
+  .auth-sheet[data-mode="register"] [data-slot="card-content"] {
+    justify-content: flex-start;
+  }
+  .auth-sheet[data-mode="register"] [data-slot="card-header"] {
+    padding-top: 8px;
+    padding-bottom: 0;
+  }
+}

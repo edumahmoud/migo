@@ -3,6 +3,7 @@ import React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import ResumeGuard from "@/components/shared/resume-guard";
 import InstitutionHead from "@/components/shared/institution-head";
 import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import NativePushRegistrar from "@/components/shared/native-push-registrar";
@@ -196,6 +197,7 @@ export default function RootLayout({
             </SocketErrorBoundary>
             <InstitutionHead />
             <Toaster />
+            <ResumeGuard />
             <ServiceWorkerRegistration />
             <NativePushRegistrar />
             <InstallPrompt />

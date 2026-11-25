@@ -18,7 +18,6 @@ import { useI18n } from '@/lib/i18n/context';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import AppVersionLabel from '@/components/auth/app-version-label';
-import NativeStatusBarTheme from '@/components/auth/native-status-bar-theme';
 import LearningLoader from '@/components/shared/learning-loader';
 import LoginLottie from '@/components/auth/login-lottie';
 import BrandingPointerZone from '@/components/auth/branding-pointer-zone';
@@ -1423,9 +1422,8 @@ function AuthPageContent({
 
       {/* ── Auth Form Panel ── */}
       <div className="auth-form-panel relative flex-1 flex flex-col justify-start pt-0 px-0 pb-0 lg:pt-8 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
-        <NativeStatusBarTheme />
         {/* Mobile header band: short brand-coloured band, the form card overlaps it (desktop: transparent wrapper) */}
-        <div className="auth-mobile-hero relative flex flex-col max-lg:px-4 max-lg:pt-3 max-lg:pb-14 max-lg:overflow-hidden max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
+        <div data-mode={authMode} className="auth-mobile-hero relative flex flex-col max-lg:px-4 max-lg:pt-3 max-lg:pb-14 max-lg:overflow-hidden max-lg:bg-gradient-to-br max-lg:from-teal-600 max-lg:to-sky-700 lg:contents">
           <div aria-hidden className="pointer-events-none absolute -top-8 -start-6 h-28 w-28 rounded-full bg-amber-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute -bottom-8 -end-6 h-32 w-32 rounded-full bg-emerald-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute top-4 end-1/3 h-16 w-16 rounded-full bg-white/10 lg:hidden" />
@@ -1435,10 +1433,10 @@ function AuthPageContent({
           </div>
           {/* Tagline + feature chips live inside the band (mobile only) */}
           {!hasFullscreenAnnouncement && (
-            <div className="relative z-10 mx-auto mt-2 w-full max-w-md text-center lg:hidden">
+            <div className="auth-hero-text relative z-10 mx-auto mt-2 w-full max-w-md text-center lg:hidden">
               <h2 className="text-lg font-bold leading-tight text-white">{t('common.smartPlatform')}</h2>
-              <p className={`mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2 ${authMode === 'register' ? 'hidden' : ''}`}>{t('common.smartPlatformDesc')}</p>
-              <div className={`mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90 ${authMode === 'register' ? 'hidden' : ''}`}>
+              <p className={`mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2`}>{t('common.smartPlatformDesc')}</p>
+              <div className={`mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90`}>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><BrainCircuit className="h-3 w-3" />{t('features.ai')}</span>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><BookOpen className="h-3 w-3" />{t('features.smartSummary')}</span>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><Users className="h-3 w-3" />{t('features.studentTracking')}</span>
@@ -1454,7 +1452,7 @@ function AuthPageContent({
         )}
 
         {/* Auth form with mode toggle */}
-        <div className={`auth-sheet relative z-10 w-full max-w-md mx-auto max-lg:max-w-none max-lg:flex-1 max-lg:flex max-lg:flex-col max-lg:bg-white max-lg:dark:bg-card max-lg:rounded-t-[2rem] max-lg:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] max-lg:px-0 max-lg:pt-2 max-lg:pb-4 max-lg:[&_[data-slot=card]]:bg-transparent max-lg:[&_[data-slot=card]]:shadow-none max-lg:[&_[data-slot=card]]:rounded-none ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-8'}`}>
+        <div data-mode={authMode} className={`auth-sheet relative z-10 w-full max-w-md mx-auto max-lg:max-w-none max-lg:flex-1 max-lg:flex max-lg:flex-col max-lg:bg-white max-lg:dark:bg-card max-lg:rounded-t-[2rem] max-lg:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] max-lg:px-0 max-lg:pt-2 max-lg:pb-4 max-lg:[&_[data-slot=card]]:bg-transparent max-lg:[&_[data-slot=card]]:shadow-none max-lg:[&_[data-slot=card]]:rounded-none ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-8'}`}>
           <AnimatePresence mode="wait">
             {authMode === 'login' ? (
               <motion.div
