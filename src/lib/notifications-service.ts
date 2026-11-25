@@ -89,7 +89,7 @@ async function pushToUser(
 /**
  * Send push notifications to multiple users.
  */
-async function pushToUsers(
+export async function pushToUsers(
   userIds: string[],
   title: string,
   message: string,
@@ -233,6 +233,8 @@ export async function notifyUser(
 
     // DB insert succeeded — also send push (non-blocking)
     console.log(`[notify] DB insert succeeded for user ${userId}, type=${type}. Sending push...`);
+    // Web push + Android push for normal rows are sent by /api/push/dispatch (DB trigger). Announcement rows skip the trigger.
+    if (!(link && link.startsWith('announcement:'))) return;
     pushToUser(userId, title, message, link, type).then(() => {
       console.log(`[notify] Push delivery completed for user ${userId}, type=${type}`);
     }).catch((err) => {
@@ -307,12 +309,12 @@ export async function notifyUsers(
           console.error('[notify] Single insert also failed for user', row.user_id, ':', singleError.message);
         } else {
           // Individual insert succeeded — push for this user
-          pushToUser(row.user_id, title, message, link, type).catch(() => {});
+          if (link && link.startsWith('announcement:')) pushToUser(row.user_id, title, message, link, type).catch(() => {});
         }
       }
     } else {
       // Bulk insert succeeded — send push to all
-      pushToUsers(uniqueIds, title, message, link, type).catch(() => {});
+      if (link && link.startsWith('announcement:')) pushToUsers(uniqueIds, title, message, link, type).catch(() => {});
     }
   } catch (err) {
     console.error('[notify] notifyUsers exception:', err);
@@ -369,7 +371,7 @@ export async function insertNotificationsAndPush(
     }
     inserted += chunk.length;
     // Awaited: on serverless the function can be frozen right after the response, dropping web push.
-    await pushToUsers(chunk, title, message, link, type).catch(() => {});
+    if (link && link.startsWith('announcement:')) await pushToUsers(chunk, title, message, link, type).catch(() => {});
   }
   return inserted;
 }

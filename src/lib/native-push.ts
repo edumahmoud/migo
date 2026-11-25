@@ -30,3 +30,21 @@ export async function unregisterNativeDevice(): Promise<void> {
   } catch { /* best effort */ }
   try { localStorage.removeItem(FCM_REGISTERED_KEY); } catch { /* ignore */ }
 }
+
+/** Unlink this browser's web-push subscription from the current user. Call before sign-out, while the session still exists.
+ *  The browser subscription itself is kept, so the next account that logs in here re-links it (see WebPushPrompt). */
+export async function unregisterWebPush(): Promise<void> {
+  try {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager?.getSubscription();
+    if (!sub) return;
+    const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+    const headers = await getCachedAuthHeaders();
+    await fetch('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+  } catch { /* best effort */ }
+}
