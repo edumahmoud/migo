@@ -4485,6 +4485,8 @@
     "selectCourseFile": "اختر ملف المقرر",
     "settings": "الإعدادات",
     "showResults": "إظهار النتائج",
+    "releaseResults": "إظهار النتائج للطلاب الآن",
+    "resultsReleased": "تم إظهار النتائج للطلاب",
     "showResultsLabel": "إظهار النتائج للطلاب",
     "shuffleLabel": "خلط الأسئلة",
     "startQuiz": "بدء الاختبار",

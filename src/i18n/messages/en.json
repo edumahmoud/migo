@@ -4485,6 +4485,8 @@
     "selectCourseFile": "Select course file",
     "settings": "Settings",
     "showResults": "Show Results",
+    "releaseResults": "Release results to students",
+    "resultsReleased": "Results are now visible to students",
     "showResultsLabel": "Show Results to Students",
     "shuffleLabel": "Shuffle Questions",
     "startQuiz": "Start Quiz",

@@ -194,7 +194,7 @@ export async function PUT(request: NextRequest) {
       // Verify ownership
       const { data: existingQuiz, error: fetchError } = await supabaseServer
         .from('quizzes')
-        .select('id, user_id')
+        .select('id, user_id, show_results, show_review, subject_id, title')
         .eq('id', quizId)
         .single();
 
@@ -264,6 +264,22 @@ export async function PUT(request: NextRequest) {
           { success: false, error: 'فشل تحديث الاختبار' },
           { status: 500 }
         );
+      }
+
+      // Results/review released (show_results or show_review false -> true): tell only the students who took this quiz.
+      if ((existingQuiz.show_results === false && updateData.show_results === true) || (existingQuiz.show_review === false && updateData.show_review === true)) {
+        try {
+          const { data: taken } = await supabaseServer.from('scores').select('student_id').eq('quiz_id', quizId);
+          const ids = [...new Set((taken || []).map((r: { student_id: string }) => r.student_id))];
+          if (ids.length > 0) {
+            const { insertNotificationsAndPush } = await import('@/lib/notifications-service');
+            await insertNotificationsAndPush(
+              ids, 'quiz', 'تم إظهار نتيجة الاختبار',
+              `نتيجة اختبار "${existingQuiz.title || ''}" ومراجعة إجاباتك متاحة الآن`,
+              `quiz:${existingQuiz.subject_id}:${quizId}`,
+            );
+          }
+        } catch (e) { console.error('[Quizzes API] release notify failed', e); }
       }
 
       return NextResponse.json({
