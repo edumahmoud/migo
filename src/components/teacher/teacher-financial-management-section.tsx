@@ -15,6 +15,7 @@
 
 import { useState, useEffect } from 'react';
 import { DollarSign, Wallet, Receipt } from 'lucide-react';
+import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { Button } from '@/components/ui/button';
 import TeacherFinancialSection from '@/components/teacher/teacher-financial-section';
@@ -32,19 +33,21 @@ export default function TeacherFinancialManagementSection({ profile }: Props) {
   const { t, direction } = useTranslations();
   const [activeTab, setActiveTab] = useState<FinancialTab>('revenue');
 
-  // Restore tab from URL hash on mount, and follow later hash changes
-  // (a payout notification tap sets #teacher-financial-history while this section may already be open).
+  // A payout notification tap sets the wanted tab in the app store (works on cold start and when
+  // this section is already open). The old URL-hash restore is kept for existing links.
+  const pendingTab = useAppStore((st) => st.pendingFinancialTab);
+  const setPendingTab = useAppStore((st) => st.setPendingFinancialTab);
   useEffect(() => {
-    const apply = () => {
-      const hash = window.location.hash.replace('#teacher-financial-', '');
-      if (['revenue', 'methods', 'history'].includes(hash)) {
-        setActiveTab(hash as FinancialTab);
-      }
-    };
-    apply();
-    window.addEventListener('hashchange', apply);
-    return () => window.removeEventListener('hashchange', apply);
-  }, []);
+    if (pendingTab) {
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+      return;
+    }
+    const hash = window.location.hash.replace('#teacher-financial-', '');
+    if (['revenue', 'methods', 'history'].includes(hash)) {
+      setActiveTab(hash as FinancialTab);
+    }
+  }, [pendingTab, setPendingTab]);
 
   const tabs: Array<{ id: FinancialTab; label: string; icon: typeof DollarSign }> = [
     { id: 'revenue', label: t('teacherFinancial.tabRevenue'), icon: DollarSign },
