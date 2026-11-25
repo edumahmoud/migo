@@ -90,20 +90,21 @@ export default function QuizPagedBody({ quiz, order, perPage, page, setPage, ans
 
   const navigator = (
     <aside className="lg:col-start-2 lg:row-start-1 lg:sticky lg:top-4 lg:self-start">
-      <div className="rounded-2xl border border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card p-3 shadow-sm">
+      <div className="rounded-2xl border border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card p-4 shadow-sm">
         <button
           type="button"
           onClick={() => setNavOpen((o) => !o)}
-          className="flex w-full items-center justify-between gap-2 text-sm font-semibold lg:cursor-default"
+          className="flex w-full items-center justify-between gap-3 text-start lg:cursor-default"
           aria-expanded={navOpen}
         >
-          <span>{t('quiz.navigatorTitle')}</span>
-          <span className="text-xs font-normal text-muted-foreground">
-            {t('quiz.navigatorCounts', { answered: answeredCount, left: unanswered })}
+          <span className="text-sm font-bold text-foreground">{t('quiz.navigatorTitle')}</span>
+          <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            {t('quiz.navigatorCounts', { answered: answeredCount, total: order.length })}
           </span>
         </button>
-        <div className={`${navOpen ? 'block' : 'hidden'} lg:block mt-3`}>
-          <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-5 gap-1.5 max-h-60 overflow-y-auto">
+        <div className={`${navOpen ? 'block' : 'hidden'} lg:block mt-4`}>
+          {/* Numbers always run 1, 2, 3... from the left, in Arabic and English, so rows stay even and easy to scan. */}
+          <div dir="ltr" className="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto p-1">
             {order.map((qi, n) => {
               const done = isAnswered(qi);
               const current = Math.floor(n / perPage) === page;
@@ -113,20 +114,22 @@ export default function QuizPagedBody({ quiz, order, perPage, page, setPage, ans
                   type="button"
                   onClick={() => go(Math.floor(n / perPage))}
                   aria-label={`${n + 1}`}
-                  className={`h-9 rounded-lg text-xs font-semibold border-2 transition-colors ${
+                  aria-current={current ? 'true' : undefined}
+                  className={`aspect-square min-h-9 rounded-xl text-sm font-bold tabular-nums transition-colors border-2 ${
                     done
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-700'
-                      : 'bg-muted text-muted-foreground border-transparent'
-                  } ${current ? 'ring-2 ring-sky-600 ring-offset-1' : ''}`}
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'bg-white dark:bg-transparent border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300'
+                  } ${current ? 'ring-2 ring-inset ring-sky-600 border-sky-600' : ''}`}
                 >
                   {n + 1}
                 </button>
               );
             })}
           </div>
-          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-300" />{t('quiz.navigatorAnswered')}</span>
-            <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted border" />{t('quiz.navigatorLeft')}</span>
+          <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2"><span className="h-4 w-4 shrink-0 rounded-md bg-emerald-600" />{t('quiz.navigatorAnswered')}</span>
+            <span className="inline-flex items-center gap-2"><span className="h-4 w-4 shrink-0 rounded-md border-2 border-slate-300 bg-white dark:bg-transparent" />{t('quiz.navigatorLeft')}</span>
+            <span className="inline-flex items-center gap-2"><span className="h-4 w-4 shrink-0 rounded-md border-2 border-sky-600 ring-2 ring-inset ring-sky-600" />{t('quiz.navigatorCurrent')}</span>
           </div>
         </div>
       </div>
