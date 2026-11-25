@@ -1437,8 +1437,8 @@ function AuthPageContent({
           {!hasFullscreenAnnouncement && (
             <div className="relative z-10 mx-auto mt-2 w-full max-w-md text-center lg:hidden">
               <h2 className="text-lg font-bold leading-tight text-white">{t('common.smartPlatform')}</h2>
-              <p className="mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2">{t('common.smartPlatformDesc')}</p>
-              <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90">
+              <p className={`mt-1 text-[11px] leading-relaxed text-white/80 line-clamp-2 ${authMode === 'register' ? 'hidden' : ''}`}>{t('common.smartPlatformDesc')}</p>
+              <div className={`mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-white/90 ${authMode === 'register' ? 'hidden' : ''}`}>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><BrainCircuit className="h-3 w-3" />{t('features.ai')}</span>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><BookOpen className="h-3 w-3" />{t('features.smartSummary')}</span>
                 <span className="flex items-center gap-1 text-[11px] font-medium"><Users className="h-3 w-3" />{t('features.studentTracking')}</span>
