@@ -104,6 +104,7 @@ export default function NotificationBell() {
   const notifications = useNotificationStore((s) => s.notifications);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const initialized = useNotificationStore((s) => s.initialized);
+  const storeUserId = useNotificationStore((s) => s.currentUserId);
   const initializeNotifications = useNotificationStore((s) => s.initializeNotifications);
   const refetchNotifications = useNotificationStore((s) => s.refetchNotifications);
   const markAsRead = useNotificationStore((s) => s.markAsRead);
@@ -129,10 +130,11 @@ export default function NotificationBell() {
   // so no additional polling is needed here. The bell just reads from the store.
   // On open, we refetch to ensure the latest state.
   useEffect(() => {
-    if (user?.id && !initialized) {
+    // Also re-run when the store still belongs to a different user (account switch)
+    if (user?.id && (!initialized || (storeUserId && storeUserId !== user.id))) {
       initializeNotifications(user.id);
     }
-  }, [user?.id, initialized, initializeNotifications]);
+  }, [user?.id, initialized, storeUserId, initializeNotifications]);
 
   // ─── Refetch notifications when app becomes visible ───
   // When the user returns to the app (e.g., from another tab or after the phone was locked),
