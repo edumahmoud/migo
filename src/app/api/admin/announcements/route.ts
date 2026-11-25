@@ -1,3 +1,4 @@
+import { notifyAnnouncement } from '@/lib/announcement-notify';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
@@ -60,6 +61,10 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'حدث خطأ أثناء إنشاء الإعلان' },
         { status: 500 }
       );
+    }
+
+    if (data?.id) {
+      await notifyAnnouncement({ id: data.id, title: data.title, message: data.content });
     }
 
     return NextResponse.json({ success: true, data });

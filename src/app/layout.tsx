@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import InstitutionHead from "@/components/shared/institution-head";
 import ServiceWorkerRegistration from "@/components/shared/sw-registration";
+import NativePushRegistrar from "@/components/shared/native-push-registrar";
 import InstallPrompt from "@/components/shared/install-prompt";
 import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
 import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
@@ -195,6 +196,7 @@ export default function RootLayout({
             <InstitutionHead />
             <Toaster />
             <ServiceWorkerRegistration />
+            <NativePushRegistrar />
             <InstallPrompt />
             <VideoUploadIndicator />
             <FileUploadIndicator />

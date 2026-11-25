@@ -249,6 +249,22 @@ export function navigateNotification(
     }
   }
 
+  // ─── 5b. Announcement links — open the notifications section ───
+  // Format: announcement:ANNOUNCEMENT_ID (the full announcement also shows as a banner/popup)
+  if (notif.link?.startsWith('announcement:')) {
+    if (userRole === 'student') {
+      setStudentSection('notifications');
+      setCurrentPage('student-dashboard');
+    } else if (userRole === 'teacher') {
+      setTeacherSection('notifications');
+      setCurrentPage('teacher-dashboard');
+    } else if (userRole === 'admin' || userRole === 'superadmin') {
+      setAdminSection('notifications');
+      setCurrentPage('admin-dashboard');
+    }
+    return 'handled';
+  }
+
   // ─── 6. Profile links — navigate to user profile ───
   if (notif.link?.startsWith('profile:')) {
     const targetUserId = notif.link.replace('profile:', '');
