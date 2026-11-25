@@ -37,6 +37,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import MascotLoader from '@/components/shared/mascot-loader';
+import QuizPagedBody, { gradePagedAnswers, type PagedAnswers } from '@/components/shared/quiz-paged-body';
 import type { UserProfile, Quiz, QuizQuestion, UserAnswer, Score } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -251,6 +252,9 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
+  // Paged mode (questions_per_page): answers + current page, graded on submit.
+  const [pagedAnswers, setPagedAnswers] = useState<PagedAnswers>({});
+  const [pagedPage, setPagedPage] = useState(0);
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -765,6 +769,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       toast.error(t('quiz.timeUp'));
       // Use a direct approach instead of handleFinishQuiz to avoid stale closure
       if (!quiz) return;
+      if (pagedPerPage > 0) { submitPaged(); return; }
 
       const allAnswers = [...userAnswers];
       const autoOriginalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
@@ -861,6 +866,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   // -------------------------------------------------------
   const currentQuestion: QuizQuestion | null = quiz?.questions?.[shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx] ?? null;
   const totalQuestions = quiz?.questions?.length ?? 0;
+  const pagedPerPage = quiz && !reviewMode && (quiz.questions_per_page ?? 0) > 1 && totalQuestions > 5 ? Math.floor(quiz.questions_per_page as number) : 0;
+  const pagedOrder = shuffledOrder.length > 0 ? shuffledOrder : Array.from({ length: totalQuestions }, (_, i) => i);
+  const submitPaged = () => {
+    if (!quiz) return;
+    const graded = gradePagedAnswers(quiz.questions, pagedAnswers);
+    setUserAnswers(graded);
+    saveScore(graded.filter((a) => a.isCorrect).length, graded);
+    setShowResults(true);
+  };
   const progressPct = totalQuestions > 0 ? ((currentIdx + 1) / totalQuestions) * 100 : 0;
 
   // v135i: teacher's gate stays in effect; student can additionally hide correctness on their side
@@ -1387,6 +1401,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const handleRetry = () => {
     resetQuestionState();
     setCurrentIdx(0);
+    setPagedAnswers({});
+    setPagedPage(0);
     setUserAnswers([]);
     setShowResults(false);
     setShowReview(false);
@@ -1897,7 +1913,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
               <>
                 <h2 className="text-lg font-bold text-foreground truncate">{quiz?.title}</h2>
                 <p className="text-xs text-muted-foreground">
-                  {t('quiz.questionOf', { current: currentIdx + 1, total: totalQuestions })}
+                  {pagedPerPage > 0 ? `${pagedPage + 1} / ${Math.ceil(totalQuestions / pagedPerPage)} · ${totalQuestions}` : t('quiz.questionOf', { current: currentIdx + 1, total: totalQuestions })}
                 </p>
               </>
             )}
@@ -1919,7 +1935,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
         {/* Progress bar */}
         <div className="space-y-1.5">
-          <Progress value={progressPct} className="h-2.5 bg-sky-100 dark:bg-sky-800/40 [&>div]:bg-sky-700 dark:[&>div]:bg-sky-500" />
+          <Progress value={pagedPerPage > 0 ? ((pagedPage + 1) / Math.ceil(totalQuestions / pagedPerPage)) * 100 : progressPct} className="h-2.5 bg-sky-100 dark:bg-sky-800/40 [&>div]:bg-sky-700 dark:[&>div]:bg-sky-500" />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{currentIdx + 1}</span>
             <span>{totalQuestions}</span>
@@ -2000,6 +2016,17 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                 </div>
               </CardContent>
             </Card>
+          ) : pagedPerPage > 0 ? (
+            <QuizPagedBody
+              quiz={quiz!}
+              order={pagedOrder}
+              perPage={pagedPerPage}
+              page={pagedPage}
+              setPage={setPagedPage}
+              answers={pagedAnswers}
+              setAnswers={setPagedAnswers}
+              onSubmit={submitPaged}
+            />
           ) : currentQuestion ? (
             <Card className="border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">

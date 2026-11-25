@@ -74,6 +74,8 @@ export interface Quiz {
   show_review?: boolean;
   allow_retake?: boolean;
   shuffle_questions?: boolean;
+  /** v145: when > 1 and the quiz has more than 5 questions, questions are shown N per page. */
+  questions_per_page?: number | null;
   is_finished?: boolean;
   subject_id?: string;
   // v63: LMS enhancements — quiz gating
