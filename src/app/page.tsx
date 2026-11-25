@@ -314,7 +314,7 @@ function HomeContent() {
   // On mobile PWA, when Android kills the WebView process and restores it,
   // the app remounts from scratch. We check if the user was logged in before
   // to skip the loading spinner and render the app shell immediately.
-  const [hasPersistedSession] = useState(() => {
+  const [hasPersistedSession, setHasPersistedSession] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
       // Check 1: Is this a PWA process restore? (start_url = /?pwa=1)
@@ -380,6 +380,16 @@ function HomeContent() {
 
   // ─── Setup Wizard state ───
   const [setupCheckDone, setSetupCheckDone] = useState(false);
+
+  // After a real sign-out the "persisted session" flag must not keep the full-screen loader up forever.
+  // It only exists to avoid a login flash while a stored session is being restored on startup.
+  useEffect(() => {
+    if (!hasPersistedSession || !initialized || user) return;
+    const timer = setTimeout(() => {
+      if (!useAuthStore.getState().user) setHasPersistedSession(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [hasPersistedSession, initialized, user]);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [wizardInProgress, setWizardInProgress] = useState(false);
 
@@ -855,6 +865,7 @@ function HomeContent() {
   // Previously this was after early returns, causing hook count mismatch.
   const handleSignOut = useCallback(async () => {
     // 1. Immediately switch UI to auth page (instant feedback)
+    setHasPersistedSession(false); // explicit sign-out: never show the restore loader
     setCurrentPage('auth');
     // 2. Clean up websocket, status store, notifications
     destroySocket();
@@ -1061,6 +1072,7 @@ function HomeContent() {
           avatarUrl={user.avatar_url ?? undefined}
 onSignOut={async () => {
             // Same fix as handleSignOut: setCurrentPage('auth') first, then signOut
+            setHasPersistedSession(false);
             setCurrentPage('auth');
             destroySocket();
             cleanupStatusStore();
