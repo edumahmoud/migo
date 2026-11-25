@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { getAllUserSettings, setArchived, setHidden } from './conversation-store';
 import { authenticateRequest, requireAdmin, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
-import { notifyUsers } from '@/lib/notifications-service';
+import { insertNotificationsAndPush } from '@/lib/notifications-service';
 
 /**
  * Chat API Route
@@ -926,14 +926,26 @@ export async function POST(request: NextRequest) {
           // users who are not actively viewing the chat still get notified
           // on their mobile devices via the PWA service worker.
           const senderName = (sender as Record<string, unknown>)?.name as string || 'مستخدم';
-          const messagePreview = content.trim().substring(0, 100);
-          notifyUsers(
-            otherParticipantIds,
-            'chat',
-            `رسالة جديدة من ${senderName}`,
-            messagePreview,
-            `chat:${conversationId}`,
-          ).catch((err) => {
+          // No message content in the notification: only who/which group it is from and how many are unread.
+          const isGroup = convInfo?.type === 'group' && !!convInfo?.title && !(convInfo.title as string).startsWith('pending:');
+          const fromName = String(isGroup ? convInfo!.title : senderName).slice(0, 80);
+          const chatLink = `chat:${conversationId}`;
+          (async () => {
+            const { data: unreadRows } = await supabaseServer
+              .from('notifications')
+              .select('user_id')
+              .eq('type', 'chat')
+              .eq('link', chatLink)
+              .eq('read', false)
+              .in('user_id', otherParticipantIds);
+            const unread = new Map<string, number>();
+            for (const r of (unreadRows ?? []) as { user_id: string }[]) unread.set(r.user_id, (unread.get(r.user_id) ?? 0) + 1);
+            for (const uid of otherParticipantIds) {
+              const n = (unread.get(uid) ?? 0) + 1;
+              const text = n === 1 ? `لديك رسالة من ${fromName}` : `لديك ${n} رسائل من ${fromName}`;
+              await insertNotificationsAndPush([uid], 'chat', 'رسالة جديدة', text, chatLink);
+            }
+          })().catch((err) => {
             // Non-critical — the message is already in the DB
             console.warn('[Chat API] Failed to send push notification for chat message:', err);
           });
