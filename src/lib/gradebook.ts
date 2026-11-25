@@ -25,6 +25,10 @@ export interface CourseGrades {
   letter: string | null;
   gradedCount: number;
   totalCount: number;
+  quizAvg: number | null;
+  assignmentAvg: number | null;
+  quizCount: number;
+  assignmentCount: number;
 }
 
 export function letterGrade(percent: number): string {
@@ -49,4 +53,9 @@ export function computeTotals(items: GradeItem[]): { earned: number; possible: n
   }
   const percent = possible > 0 ? Math.round((earned / possible) * 1000) / 10 : null;
   return { earned, possible, percent, letter: percent === null ? null : letterGrade(percent), gradedCount };
+}
+
+/** Percentage of points earned over the graded items of one type (null when none graded). */
+export function typeAverage(items: GradeItem[], type: GradeItemType): number | null {
+  return computeTotals(items.filter((i) => i.type === type)).percent;
 }
