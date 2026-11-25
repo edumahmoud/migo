@@ -115,6 +115,12 @@ function formatTimeArabic(time24: string, amLabel: string, pmLabel: string): str
 // Uses getCurrentPosition with enableHighAccuracy: true.
 // This is the standard approach that works on mobile devices with GPS hardware.
 // Key: maximumAge: 0 ensures no cached positions, enableHighAccuracy requests the best available fix.
+// 1 = permission denied, 2 = unavailable (location off), 3 = timeout
+let lastGpsErrorCode = 0;
+function gpsFailureMessageKey(): string {
+  return lastGpsErrorCode === 1 ? 'gpsPermissionDenied' : lastGpsErrorCode === 3 ? 'gpsTimeout' : 'gpsLocationOff';
+}
+
 function getCurrentGpsPosition(timeoutMs: number = 30000): Promise<GeolocationPosition | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -128,6 +134,7 @@ function getCurrentGpsPosition(timeoutMs: number = 30000): Promise<GeolocationPo
       },
       (err) => {
         console.warn('[GPS] Error:', err.code, err.message);
+        lastGpsErrorCode = err.code;
         resolve(null);
       },
       {
@@ -144,6 +151,7 @@ function getCurrentGpsPosition(timeoutMs: number = 30000): Promise<GeolocationPo
 // If accuracy is poor (> 100m, likely IP-based), retry once with a fresh request.
 async function getBestGpsPosition(): Promise<GeolocationPosition | null> {
   // First attempt - give GPS 30 seconds to get a fix
+  lastGpsErrorCode = 0;
   let pos = await getCurrentGpsPosition(30000);
 
   if (!pos) return null;
@@ -1589,13 +1597,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         try {
           const pos = await getBestGpsPosition();
           if (pos && !(pos.coords.latitude === 0 && pos.coords.longitude === 0)) {
-            location = pos.coords.accuracy <= 50 ? { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, capturedAt: pos.timestamp } : null;
+            location = pos.coords.accuracy <= 50 && Date.now() - pos.timestamp <= 30000 ? { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, capturedAt: pos.timestamp } : null;
             // Poor fixes leave the session explicitly QR-only.
             if (pos.coords.accuracy > 50) {
               toast(t('gpsAccuracyPoor', { accuracy: Math.round(pos.coords.accuracy) }), { duration: 6000 });
             }
           } else if (!pos) {
-            toast.error(t('gpsLocationUnavailable'), { duration: 6000 });
+            toast.error(t(gpsFailureMessageKey()), { duration: 8000 });
           }
         } catch { /* continue without location */ }
       }
@@ -1869,10 +1877,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       let position: GeolocationPosition | null = null;
       if (method === 'gps') {
         position = await getBestGpsPosition();
-        if (!position || position.coords.accuracy > 50) {
-          toast.error(t('gpsLocationUnavailableGps'));
-          return;
-        }
+        if (!position) { toast.error(t(gpsFailureMessageKey()), { duration: 8000 }); return; }
+        if (position.coords.accuracy > 50) { toast.error(t('gpsAccuracyPoorStudent', { accuracy: Math.round(position.coords.accuracy) }), { duration: 9000 }); return; }
+        if (Date.now() - position.timestamp > 30000) { toast.error(t('gpsTimeout')); return; }
       }
       const headers = await getCachedAuthHeaders();
       const response = await fetch('/api/attendance/check-in', {
@@ -1880,7 +1887,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         body: JSON.stringify({
           sessionId, method, token,
           ...(position ? { latitude: position.coords.latitude, longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy, capturedAt: position.timestamp } : {}),
+            accuracy: position.coords.accuracy, ageMs: Math.max(0, Date.now() - position.timestamp) } : {}),
         }),
       });
       const data = await response.json();

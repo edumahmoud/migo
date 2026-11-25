@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
   if (!checkRateLimit(request, 'attendance-check-in:' + auth.user.id, 30).allowed) return NextResponse.json({ error: 'محاولات كثيرة. انتظر دقيقة.' }, { status: 429 });
   try {
     const body = await request.json();
-    const { sessionId, method, token, latitude, longitude, accuracy, capturedAt } = body;
+    const { sessionId, method, token, latitude, longitude, accuracy, ageMs } = body;
+    // Fix age is measured on the phone (same clock for both ends of the interval), so phone clock skew cannot break it.
+    const capturedAt = typeof ageMs === 'number' && Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= 60000 ? Date.now() - ageMs : (typeof body.capturedAt === 'number' && Math.abs(Date.now() - body.capturedAt) > 5000 ? NaN : body.capturedAt);
     if (typeof sessionId !== 'string' || !UUID_PATTERN.test(sessionId) || !['qr', 'gps'].includes(method)) return NextResponse.json({ error: 'طلب حضور غير صالح' }, { status: 400 });
     const { data: session, error } = await supabaseServer.from('attendance_sessions').select('id,status,started_at').eq('id', sessionId).single();
     if (error || !session || session.status !== 'active') return NextResponse.json({ error: 'جلسة الحضور مغلقة أو غير متاحة' }, { status: 409 });
