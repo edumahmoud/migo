@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { supabaseServer } from '@/lib/supabase-server';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
-import { computeTotals, type CourseGrades, type GradeItem } from '@/lib/gradebook';
+import { computeTotals, typeAverage, type CourseGrades, type GradeItem } from '@/lib/gradebook';
 
 export const runtime = 'nodejs';
 
@@ -74,7 +74,9 @@ export async function GET(request: NextRequest) {
     const courses: CourseGrades[] = (subjR.data || []).map((s: { id: string; name: string; color: string | null }) => {
       const items = (bySubject.get(s.id) || []).sort((x, y) => (y.date || '').localeCompare(x.date || ''));
       const t = computeTotals(items);
-      return { subjectId: s.id, name: s.name, color: s.color, items, earned: t.earned, possible: t.possible, percent: t.percent, letter: t.letter, gradedCount: t.gradedCount, totalCount: items.length };
+      return { subjectId: s.id, name: s.name, color: s.color, items, earned: t.earned, possible: t.possible, percent: t.percent, letter: t.letter, gradedCount: t.gradedCount, totalCount: items.length,
+        quizAvg: typeAverage(items, 'quiz'), assignmentAvg: typeAverage(items, 'assignment'),
+        quizCount: items.filter((i) => i.type === 'quiz').length, assignmentCount: items.filter((i) => i.type === 'assignment').length };
     }).sort((a: CourseGrades, b: CourseGrades) => a.name.localeCompare(b.name));
 
     const withGrades = courses.filter((c) => c.percent !== null);

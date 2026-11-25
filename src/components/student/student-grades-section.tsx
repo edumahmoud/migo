@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Award, BookOpen, ClipboardList, FileSpreadsheet, ChevronDown, RefreshCw, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
+import { Award, BookOpen, ClipboardList, FileSpreadsheet, ChevronDown, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import type { CourseGrades, GradeItem } from '@/lib/gradebook';
-import { letterGrade } from '@/lib/gradebook';
+import { letterGrade, computeTotals } from '@/lib/gradebook';
 import MascotLoader from '@/components/shared/mascot-loader';
 
 function letterColor(p: number | null): string {
@@ -68,6 +67,12 @@ export default function StudentGradesSection() {
   }
 
   const gradedTotal = courses.reduce((n, c) => n + c.gradedCount, 0);
+  const pctText = (p: number | null) => (p === null ? '–' : `${p}%`);
+
+  const openCourse = (id: string) => {
+    setOpen((o) => ({ ...o, [id]: true }));
+    setTimeout(() => document.getElementById(`grades-course-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
 
   return (
     <div className="space-y-4">
@@ -87,78 +92,147 @@ export default function StudentGradesSection() {
         </CardContent></Card>
       ) : (
         <>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className={`h-16 w-16 rounded-2xl flex items-center justify-center text-2xl font-bold ${letterColor(overall)}`}>
+          {/* Overview report: one row per subject */}
+          <Card className="overflow-hidden">
+            <div className="px-4 pt-4 pb-2 flex items-center gap-3">
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center text-xl font-bold ${letterColor(overall)}`}>
                 {overall === null ? '–' : letterGrade(overall)}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">{t('grades.overall')}</p>
-                <p className="text-2xl font-bold">{overall === null ? t('grades.noGradesYet') : `${overall}%`}</p>
+                <p className="text-lg font-bold leading-tight">{overall === null ? t('grades.noGradesYet') : `${overall}%`}</p>
                 <p className="text-xs text-muted-foreground">{t('grades.summaryLine', { courses: courses.length, graded: gradedTotal })}</p>
               </div>
-            </CardContent>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead>
+                  <tr className="bg-muted/50 text-xs text-muted-foreground">
+                    <th className="text-start font-semibold px-4 py-2">{t('grades.colSubject')}</th>
+                    <th className="text-center font-semibold px-2 py-2">{t('grades.colQuizzes')}</th>
+                    <th className="text-center font-semibold px-2 py-2">{t('grades.colAssignments')}</th>
+                    <th className="text-center font-semibold px-2 py-2">{t('grades.colPoints')}</th>
+                    <th className="text-center font-semibold px-2 py-2">{t('grades.colPercent')}</th>
+                    <th className="text-center font-semibold px-4 py-2">{t('grades.colLetter')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {courses.map((c) => (
+                    <tr key={c.subjectId} className="hover:bg-muted/30 cursor-pointer" onClick={() => openCourse(c.subjectId)}>
+                      <td className="px-4 py-2.5 font-medium">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="h-4 w-1 rounded-full shrink-0" style={{ backgroundColor: c.color || '#10b981' }} />
+                          {c.name}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2.5 text-center">{pctText(c.quizAvg)}<span className="text-[11px] text-muted-foreground"> ({c.quizCount})</span></td>
+                      <td className="px-2 py-2.5 text-center">{pctText(c.assignmentAvg)}<span className="text-[11px] text-muted-foreground"> ({c.assignmentCount})</span></td>
+                      <td className="px-2 py-2.5 text-center">{c.percent === null ? '–' : `${c.earned} / ${c.possible}`}</td>
+                      <td className="px-2 py-2.5 text-center font-semibold">{pctText(c.percent)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold ${letterColor(c.percent)}`}>{c.letter ?? '–'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Card>
 
+          {/* Detailed report per subject (Moodle "user report"): item, grade, range, percentage, weight, feedback */}
           {courses.map((c) => {
             const isOpen = !!open[c.subjectId];
+            const groups: Array<{ key: 'quiz' | 'assignment'; label: string; items: GradeItem[] }> = [
+              { key: 'quiz', label: t('grades.groupQuizzes'), items: c.items.filter((i) => i.type === 'quiz') },
+              { key: 'assignment', label: t('grades.groupAssignments'), items: c.items.filter((i) => i.type === 'assignment') },
+            ];
             return (
-              <Card key={c.subjectId} className="overflow-hidden">
+              <Card key={c.subjectId} id={`grades-course-${c.subjectId}`} className="overflow-hidden scroll-mt-20">
                 <button
                   type="button"
                   onClick={() => setOpen((o) => ({ ...o, [c.subjectId]: !o[c.subjectId] }))}
                   className="w-full text-start p-4 flex items-center gap-3 hover:bg-muted/40 transition-colors"
                   aria-expanded={isOpen}
                 >
-                  <span className="h-10 w-1.5 rounded-full shrink-0" style={{ backgroundColor: c.color || '#10b981' }} />
+                  <span className="h-8 w-1.5 rounded-full shrink-0" style={{ backgroundColor: c.color || '#10b981' }} />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold truncate">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {c.percent === null
-                        ? t('grades.noGradesYet')
-                        : t('grades.pointsLine', { earned: c.earned, possible: c.possible })}
-                      {' · '}{t('grades.itemsLine', { graded: c.gradedCount, total: c.totalCount })}
-                    </p>
-                    {c.percent !== null && <Progress value={c.percent} className="h-1.5 mt-2" />}
+                    <p className="text-xs text-muted-foreground">{t('grades.itemsLine', { graded: c.gradedCount, total: c.totalCount })}</p>
                   </div>
-                  <div className="text-end shrink-0">
-                    <span className={`inline-block rounded-lg px-2.5 py-1 text-sm font-bold ${letterColor(c.percent)}`}>
-                      {c.percent === null ? '–' : `${c.letter} · ${c.percent}%`}
-                    </span>
-                  </div>
+                  <span className={`rounded-lg px-2.5 py-1 text-sm font-bold ${letterColor(c.percent)}`}>
+                    {c.percent === null ? '–' : `${c.letter} · ${c.percent}%`}
+                  </span>
                   <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isOpen && (
-                  <div className="border-t divide-y">
+                  <div className="border-t overflow-x-auto">
                     {c.items.length === 0 ? (
                       <p className="p-4 text-sm text-muted-foreground">{t('grades.noItems')}</p>
-                    ) : c.items.map((it) => {
-                      const pct = it.status === 'graded' && it.score !== null && it.max > 0 ? Math.round((it.score / it.max) * 1000) / 10 : null;
-                      return (
-                        <div key={`${it.type}-${it.id}`} className="px-4 py-3 flex items-center gap-3">
-                          <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                            {it.type === 'quiz' ? <ClipboardList className="h-4 w-4" /> : <FileSpreadsheet className="h-4 w-4" />}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{it.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {it.type === 'quiz' ? t('grades.typeQuiz') : t('grades.typeAssignment')}
-                              {it.date ? ` · ${fmtDate(it.date)}` : ''}
-                            </p>
-                            {it.feedback && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{it.feedback}</p>}
-                          </div>
-                          <div className="text-end shrink-0">
-                            {it.status === 'graded' && it.score !== null ? (
-                              <>
-                                <p className="text-sm font-bold">{it.score} / {it.max}</p>
-                                <p className="text-xs text-muted-foreground">{pct}%</p>
-                              </>
-                            ) : statusBadge(it)}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    ) : (
+                      <table className="w-full text-sm min-w-[560px]">
+                        <thead>
+                          <tr className="bg-muted/50 text-xs text-muted-foreground">
+                            <th className="text-start font-semibold px-4 py-2">{t('grades.colItem')}</th>
+                            <th className="text-center font-semibold px-2 py-2">{t('grades.colGrade')}</th>
+                            <th className="text-center font-semibold px-2 py-2">{t('grades.colRange')}</th>
+                            <th className="text-center font-semibold px-2 py-2">{t('grades.colPercent')}</th>
+                            <th className="text-center font-semibold px-2 py-2">{t('grades.colWeight')}</th>
+                            <th className="text-start font-semibold px-4 py-2">{t('grades.colFeedback')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groups.filter((g) => g.items.length > 0).map((g) => {
+                            const sub = computeTotals(g.items);
+                            return (
+                              <Fragment key={g.key}>
+                                <tr className="bg-muted/30">
+                                  <td colSpan={6} className="px-4 py-1.5 text-xs font-bold text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      {g.key === 'quiz' ? <ClipboardList className="h-3.5 w-3.5" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
+                                      {g.label}
+                                    </span>
+                                  </td>
+                                </tr>
+                                {g.items.map((it) => {
+                                  const graded = it.status === 'graded' && it.score !== null && it.max > 0;
+                                  const pct = graded ? Math.round(((it.score as number) / it.max) * 1000) / 10 : null;
+                                  const weight = graded && c.possible > 0 ? Math.round((it.max / c.possible) * 1000) / 10 : null;
+                                  return (
+                                    <tr key={`${it.type}-${it.id}`} className="border-t">
+                                      <td className="px-4 py-2">
+                                        <p className="font-medium">{it.title}</p>
+                                        {it.date && <p className="text-[11px] text-muted-foreground">{fmtDate(it.date)}</p>}
+                                      </td>
+                                      <td className="px-2 py-2 text-center font-semibold whitespace-nowrap">{graded ? it.score : statusBadge(it) ?? '–'}</td>
+                                      <td className="px-2 py-2 text-center text-muted-foreground whitespace-nowrap">{it.max > 0 ? `0–${it.max}` : '–'}</td>
+                                      <td className="px-2 py-2 text-center">{pctText(pct)}</td>
+                                      <td className="px-2 py-2 text-center text-muted-foreground">{pctText(weight)}</td>
+                                      <td className="px-4 py-2 text-xs text-muted-foreground max-w-[220px]">{it.feedback || ''}</td>
+                                    </tr>
+                                  );
+                                })}
+                                <tr className="border-t bg-muted/20 text-xs font-semibold">
+                                  <td className="px-4 py-1.5">{t('grades.subtotal', { group: g.label })}</td>
+                                  <td className="px-2 py-1.5 text-center">{sub.percent === null ? '–' : `${sub.earned}`}</td>
+                                  <td className="px-2 py-1.5 text-center text-muted-foreground">{sub.percent === null ? '–' : `0–${sub.possible}`}</td>
+                                  <td className="px-2 py-1.5 text-center">{pctText(sub.percent)}</td>
+                                  <td colSpan={2} />
+                                </tr>
+                              </Fragment>
+                            );
+                          })}
+                          <tr className="border-t-2 bg-muted/40 font-bold">
+                            <td className="px-4 py-2">{t('grades.courseTotal')}</td>
+                            <td className="px-2 py-2 text-center">{c.percent === null ? '–' : c.earned}</td>
+                            <td className="px-2 py-2 text-center">{c.percent === null ? '–' : `0–${c.possible}`}</td>
+                            <td className="px-2 py-2 text-center">{pctText(c.percent)}</td>
+                            <td className="px-2 py-2 text-center">{c.percent === null ? '' : '100%'}</td>
+                            <td className="px-4 py-2"><span className={`rounded-md px-2 py-0.5 text-xs ${letterColor(c.percent)}`}>{c.letter ?? ''}</span></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    )}
                     <p className="px-4 py-2 text-[11px] text-muted-foreground bg-muted/30">{t('grades.footnote')}</p>
                   </div>
                 )}
