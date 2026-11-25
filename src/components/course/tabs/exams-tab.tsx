@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { looksGarbled } from '@/lib/pdf-client';
 import {
   AlertDialog,
@@ -317,6 +318,29 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
   // ─── Quiz settings modal ───
   const [settingsQuiz, setSettingsQuiz] = useState<Quiz | null>(null);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+  const handleReleaseResults = async (quiz: Quiz) => {
+    if (releasingId) return;
+    setReleasingId(quiz.id);
+    try {
+      const res = await fetch('/api/quizzes', {
+        method: 'PUT',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ quizId: quiz.id, updates: { show_results: true } }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, show_results: true } : q));
+        toast.success(t('exams.resultsReleased'));
+      } else {
+        toast.error(data.error || t('common.unexpectedError'));
+      }
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setReleasingId(null);
+    }
+  };
 
   // -------------------------------------------------------
   // Fetch quizzes and scores
@@ -2293,6 +2317,17 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
           {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
           <div className="flex items-center gap-2 mb-3 md:absolute md:top-3 md:end-3 md:mb-0 md:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+            {/* Release results (only while hidden) */}
+            {quiz.show_results === false && (
+              <button
+                onClick={() => handleReleaseResults(quiz)}
+                disabled={releasingId === quiz.id}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+              >
+                {releasingId === quiz.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                <span>{t('exams.releaseResults')}</span>
+              </button>
+            )}
             {/* Settings */}
             <button
               onClick={() => setSettingsQuiz(quiz)}
