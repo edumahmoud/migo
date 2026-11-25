@@ -32,12 +32,18 @@ export default function TeacherFinancialManagementSection({ profile }: Props) {
   const { t, direction } = useTranslations();
   const [activeTab, setActiveTab] = useState<FinancialTab>('revenue');
 
-  // Restore tab from URL hash on mount
+  // Restore tab from URL hash on mount, and follow later hash changes
+  // (a payout notification tap sets #teacher-financial-history while this section may already be open).
   useEffect(() => {
-    const hash = window.location.hash.replace('#teacher-financial-', '');
-    if (['revenue', 'methods', 'history'].includes(hash)) {
-      setActiveTab(hash as FinancialTab);
-    }
+    const apply = () => {
+      const hash = window.location.hash.replace('#teacher-financial-', '');
+      if (['revenue', 'methods', 'history'].includes(hash)) {
+        setActiveTab(hash as FinancialTab);
+      }
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
   }, []);
 
   const tabs: Array<{ id: FinancialTab; label: string; icon: typeof DollarSign }> = [
