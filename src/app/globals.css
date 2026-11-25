@@ -1277,6 +1277,11 @@ body.quiz-capture-detected {
   .auth-login-card [data-slot="card-title"] { font-size: 18px; }
   .auth-login-card [data-slot="card-content"] > .grid { font-size: 12px; line-height: 16px; }
 }
+/* Phones: the band is full-bleed, so the short-window panel padding (shown when the keyboard opens)
+   would leave white strips above the band and below the sheet. */
+@media (max-width: 1023px) {
+  .auth-form-panel { padding-top: 0; padding-bottom: 0; }
+}
 
 /* Organic glass lens shape for the login branding half. */
 .login-glass-blob { border-radius: 58% 42% 55% 45% / 46% 56% 44% 54%; animation: login-glass-morph 5s ease-in-out infinite; }
