@@ -194,7 +194,7 @@ export async function PUT(request: NextRequest) {
       // Verify ownership
       const { data: existingQuiz, error: fetchError } = await supabaseServer
         .from('quizzes')
-        .select('id, user_id, show_results, subject_id, title')
+        .select('id, user_id, show_results, show_review, subject_id, title')
         .eq('id', quizId)
         .single();
 
@@ -266,8 +266,8 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      // Results released (show_results false -> true): tell only the students who took this quiz.
-      if (existingQuiz.show_results === false && updateData.show_results === true) {
+      // Results/review released (show_results or show_review false -> true): tell only the students who took this quiz.
+      if ((existingQuiz.show_results === false && updateData.show_results === true) || (existingQuiz.show_review === false && updateData.show_review === true)) {
         try {
           const { data: taken } = await supabaseServer.from('scores').select('student_id').eq('quiz_id', quizId);
           const ids = [...new Set((taken || []).map((r: { student_id: string }) => r.student_id))];
@@ -275,7 +275,7 @@ export async function PUT(request: NextRequest) {
             const { insertNotificationsAndPush } = await import('@/lib/notifications-service');
             await insertNotificationsAndPush(
               ids, 'quiz', 'تم إظهار نتيجة الاختبار',
-              `نتيجة اختبار "${existingQuiz.title || ''}" متاحة الآن`,
+              `نتيجة اختبار "${existingQuiz.title || ''}" ومراجعة إجاباتك متاحة الآن`,
               `quiz:${existingQuiz.subject_id}:${quizId}`,
             );
           }

@@ -326,11 +326,11 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       const res = await fetch('/api/quizzes', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
-        body: JSON.stringify({ quizId: quiz.id, updates: { show_results: true } }),
+        body: JSON.stringify({ quizId: quiz.id, updates: { show_results: true, show_review: true } }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, show_results: true } : q));
+        setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, show_results: true, show_review: true } : q));
         toast.success(t('exams.resultsReleased'));
       } else {
         toast.error(data.error || t('common.unexpectedError'));
@@ -2318,7 +2318,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
           {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
           <div className="flex items-center gap-2 mb-3 md:absolute md:top-3 md:end-3 md:mb-0 md:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             {/* Release results (only while hidden) */}
-            {quiz.show_results === false && (
+            {(quiz.show_results === false || quiz.show_review === false) && (
               <button
                 onClick={() => handleReleaseResults(quiz)}
                 disabled={releasingId === quiz.id}
