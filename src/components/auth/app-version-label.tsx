@@ -36,7 +36,7 @@ export default function AppVersionLabel() {
     : `AttenDo Web${build ? ` · ${build}` : ''}`;
 
   return (
-    <p dir="ltr" className="mt-5 text-center text-[11px] text-muted-foreground/70 select-text">
+    <p dir="ltr" className="text-center text-[11px] text-muted-foreground/70 select-text">
       {text}
     </p>
   );
