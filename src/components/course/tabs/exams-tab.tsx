@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 // xlsx is dynamically imported in handleExportQuizResults to reduce initial bundle size
 import {
@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { looksGarbled } from '@/lib/pdf-client';
 import {
@@ -55,7 +56,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion, QuizDifficultyMode, QuizContentScope } from '@/lib/types';
-import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
 import { DifficultySelector, DEFAULT_MIX_COUNTS, type DifficultyMode, type DifficultyMixCounts, type ContentScope } from '@/components/shared/difficulty-selector';
 import { useTranslations } from '@/i18n/use-translations';
 import MascotLoader from '@/components/shared/mascot-loader';
@@ -276,6 +276,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   ]);
   // ─── Quiz settings in creation form ───
   const [quizShowResults, setQuizShowResults] = useState(true);
+  const [quizShowReview, setQuizShowReview] = useState(true);
+  const [quizPassThreshold, setQuizPassThreshold] = useState('');
+  const [quizIsGate, setQuizIsGate] = useState(false);
   const [quizAllowRetake, setQuizAllowRetake] = useState(true);
   const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [quizQuestionsPerPage, setQuizQuestionsPerPage] = useState(''); // v145: '' = one question at a time
@@ -317,7 +320,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
 
   // ─── Quiz settings modal ───
-  const [settingsQuiz, setSettingsQuiz] = useState<Quiz | null>(null);
   const [releasingId, setReleasingId] = useState<string | null>(null);
   const handleReleaseResults = async (quiz: Quiz) => {
     if (releasingId) return;
@@ -506,6 +508,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizContentScopeMeta(null);
     setSubjectBanks([]);
     setQuizShowResults(true);
+    setQuizShowReview(true);
+    setQuizPassThreshold('');
+    setQuizIsGate(false);
     setQuizAllowRetake(true);
     setQuizShuffleQuestions(true);
     setQuizQuestionsPerPage('');
@@ -636,6 +641,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         title: quizTitle.trim(),
         questions: quizQuestions,
         show_results: quizShowResults,
+        show_review: quizShowReview,
+        is_gate: quizIsGate,
+        pass_threshold: (() => { const n = parseInt(quizPassThreshold, 10); return !isNaN(n) && n >= 0 && n <= 100 ? n : null; })(),
         allow_retake: quizAllowRetake,
         // v136: difficulty strategy metadata (from AI generation or preserved on edit)
         difficulty_mode: quizDifficultyMode ?? null,
@@ -669,6 +677,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       if (editingQuiz) {
         // Update existing quiz — preserve is_finished state
         quizData.is_finished = editingQuiz.is_finished ?? false;
+
+        // Go through the API first so students are notified when results/review get released.
+        try {
+          await fetch('/api/quizzes', {
+            method: 'PUT',
+            headers: await getCachedAuthHeaders(),
+            body: JSON.stringify({ quizId: editingQuiz.id, updates: { show_results: quizShowResults, show_review: quizShowReview } }),
+          });
+        } catch { /* the direct update below still saves the settings */ }
 
         const { error } = await supabase
           .from('quizzes')
@@ -784,6 +801,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizTime(quiz.scheduled_time || '');
     setQuizQuestions([...(quiz.questions || [])]);
     setQuizShowResults(quiz.show_results ?? true);
+    setQuizShowReview(quiz.show_review ?? true);
+    setQuizPassThreshold(quiz.pass_threshold != null ? String(quiz.pass_threshold) : '');
+    setQuizIsGate(quiz.is_gate ?? false);
     setQuizAllowRetake(quiz.allow_retake ?? true);
     setQuizShuffleQuestions(quiz.shuffle_questions ?? true);
     setQuizQuestionsPerPage(quiz.questions_per_page && quiz.questions_per_page > 1 ? String(quiz.questions_per_page) : '');
@@ -1729,7 +1749,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
+            className="w-full max-w-2xl rounded-2xl border bg-background shadow-xl max-h-[92vh] sm:max-h-[85vh] overflow-y-auto"
             dir={direction}
           >
             {/* Header */}
@@ -1748,7 +1768,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             </div>
 
             {/* Body */}
-            <div className="p-5 space-y-5">
+            <div className="p-4 sm:p-5 space-y-5">
               {/* Title */}
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.quizTitle')}</label>
@@ -1820,58 +1840,45 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                 )}
               </div>
 
-              {/* ─── Quiz Settings Toggles ─── */}
+              {/* ─── Quiz Settings (results, review, retake, shuffle, pass mark) ─── */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Settings className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   <span className="text-sm font-semibold text-foreground">{t('exams.quizSettings')}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                  {/* Show Results */}
-                  <button
-                    type="button"
-                    onClick={() => setQuizShowResults(!quizShowResults)}
+                <div className="grid grid-cols-1 gap-2">
+                  {([
+                    { key: 'results', icon: <EyeIcon className="h-4 w-4" />, label: t('quiz.showResults'), desc: t('quiz.showResultsDesc'), checked: quizShowResults, set: setQuizShowResults },
+                    { key: 'review', icon: <Eye className="h-4 w-4" />, label: t('quiz.showReview'), desc: t('quiz.showReviewDesc'), checked: quizShowReview, set: setQuizShowReview },
+                    { key: 'retake', icon: <RotateCcw className="h-4 w-4" />, label: t('quiz.allowRetake'), desc: t('quiz.allowRetakeDesc'), checked: quizAllowRetake, set: setQuizAllowRetake },
+                    { key: 'shuffle', icon: <Shuffle className="h-4 w-4" />, label: t('quiz.shuffleQuestions'), desc: t('quiz.shuffleOptions'), checked: quizShuffleQuestions, set: setQuizShuffleQuestions },
+                    { key: 'gate', icon: <CheckCircle2 className="h-4 w-4" />, label: t('quiz.isGate'), desc: t('quiz.isGateHint'), checked: quizIsGate, set: setQuizIsGate },
+                  ] as Array<{ key: string; icon: ReactNode; label: string; desc: string; checked: boolean; set: (v: boolean) => void }>).map((row) => (
+                    <div key={row.key} className="flex items-start gap-3 rounded-lg border p-3" dir={direction}>
+                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500">{row.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground leading-snug">{row.label}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{row.desc}</p>
+                      </div>
+                      <Switch checked={row.checked} onCheckedChange={row.set} disabled={savingQuiz || generatingFromAi} className="mt-1 shrink-0" dir="ltr" />
+                    </div>
+                  ))}
+                </div>
+                {/* Pass mark */}
+                <div className="rounded-lg border p-3">
+                  <label className="text-sm font-medium text-foreground block leading-snug">{t('quiz.passThresholdLabel')}</label>
+                  <p className="mt-0.5 mb-2 text-xs text-muted-foreground leading-snug">{t('quiz.passThresholdHint')}</p>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={quizPassThreshold}
+                    onChange={(e) => setQuizPassThreshold(e.target.value)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all ${
-                      quizShowResults
-                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
-                        : 'border-border text-muted-foreground hover:bg-muted/50'
-                    }`}
-                    dir={direction}
-                  >
-                    <EyeIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{t('exams.showResultsLabel')}</span>
-                  </button>
-                  {/* Allow Retake */}
-                  <button
-                    type="button"
-                    onClick={() => setQuizAllowRetake(!quizAllowRetake)}
-                    disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all ${
-                      quizAllowRetake
-                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
-                        : 'border-border text-muted-foreground hover:bg-muted/50'
-                    }`}
-                    dir={direction}
-                  >
-                    <RotateCcw className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{t('exams.allowRetakeLabel')}</span>
-                  </button>
-                  {/* Shuffle Questions */}
-                  <button
-                    type="button"
-                    onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
-                    disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all ${
-                      quizShuffleQuestions
-                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
-                        : 'border-border text-muted-foreground hover:bg-muted/50'
-                    }`}
-                    dir={direction}
-                  >
-                    <Shuffle className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{t('exams.shuffleLabel')}</span>
-                  </button>
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+                    placeholder="70"
+                    dir="ltr"
+                  />
                 </div>
               </div>
 
@@ -1879,9 +1886,12 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
               {(
 
                 <div>
-                  <label className="text-xs font-medium text-foreground mb-1 block">
-                    {direction === 'rtl' ? 'عدد الأسئلة في كل صفحة (فارغ = سؤال واحد في كل مرة، ويعمل فقط لو الاختبار أكتر من ٥ أسئلة)' : 'Questions per page (empty = one at a time; applies only to quizzes with more than 5 questions)'}
+                  <label className="text-sm font-medium text-foreground mb-0.5 block leading-snug">
+                    {direction === 'rtl' ? 'عدد الأسئلة في كل صفحة' : 'Questions per page'}
                   </label>
+                  <p className="mb-2 text-xs text-muted-foreground leading-snug">
+                    {direction === 'rtl' ? 'فارغ = سؤال واحد في كل مرة. يعمل فقط لو الاختبار أكثر من ٥ أسئلة.' : 'Empty = one at a time. Applies only to quizzes with more than 5 questions.'}
+                  </p>
                   <input
                     type="number"
                     min={2}
@@ -2264,7 +2274,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             </div>
 
             {/* Footer */}
-            <div className="flex items-center gap-3 border-t p-5 sticky bottom-0 bg-background">
+            <div className="flex flex-wrap items-center gap-3 border-t p-4 sm:p-5 sticky bottom-0 bg-background">
               <button
                 onClick={handleSaveQuiz}
                 disabled={savingQuiz || generatingFromAi || !quizTitle.trim() || quizQuestions.length === 0}
@@ -2328,15 +2338,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                 <span>{t('exams.releaseResults')}</span>
               </button>
             )}
-            {/* Settings */}
-            <button
-              onClick={() => setSettingsQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-900/60 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/25 transition-colors md:border-0 md:bg-transparent md:dark:bg-transparent md:px-0 md:py-0 md:h-7 md:w-7 md:justify-center md:rounded-md md:text-muted-foreground md:hover:bg-teal-50 md:dark:hover:bg-teal-50 md:hover:text-teal-600 md:text-sm md:font-normal"
-              title={t('exams.settings')}
-            >
-              <Settings className="h-4 w-4 md:h-3.5 md:w-3.5" />
-              <span className="md:hidden">{t('exams.settings')}</span>
-            </button>
             {/* Edit */}
             <button
               onClick={() => handleEditQuiz(quiz)}
@@ -2717,20 +2718,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
       {/* Create/Edit quiz modal */}
       {renderQuizModal()}
-
-      {/* Quiz Settings Modal */}
-      {settingsQuiz && (
-        <QuizSettingsModal
-          quiz={settingsQuiz}
-          open={!!settingsQuiz}
-          onClose={() => setSettingsQuiz(null)}
-          onUpdate={(updates) => {
-            // Update local quiz data with the new settings
-            setQuizzes(prev => prev.map(q => q.id === settingsQuiz.id ? { ...q, ...updates } : q));
-            setSettingsQuiz(null);
-          }}
-        />
-      )}
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={!!deleteQuizConfirmId} onOpenChange={(open) => { if (!open) setDeleteQuizConfirmId(null); }}>
