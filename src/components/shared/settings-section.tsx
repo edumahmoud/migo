@@ -32,6 +32,7 @@ import {
   KeyRound,
   Phone,
 } from 'lucide-react';
+import AvatarCropDialog from '@/components/shared/avatar-crop-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
@@ -253,6 +254,7 @@ export default function SettingsSection({
   // ─── Avatar upload ───
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
 
   // ─── Password change ───
@@ -506,9 +508,20 @@ export default function SettingsSection({
   };
 
   // ─── Avatar upload ───
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Step 1: pick a photo, then let the user crop/adjust it before upload.
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    if (!picked.type.startsWith('image/')) {
+      toast.error(t('settings.errorImageOnly'));
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      return;
+    }
+    setCropFile(picked);
+  };
+
+  // Step 2: upload the cropped photo (same validation and endpoint as before).
+  const uploadAvatarFile = async (file: File) => {
 
     if (!file.type.startsWith('image/')) {
       toast.error(t('settings.errorImageOnly'));
@@ -1638,6 +1651,12 @@ export default function SettingsSection({
           )}
         </div>
       </div>
+
+      <AvatarCropDialog
+        file={cropFile}
+        onCancel={() => { setCropFile(null); if (avatarInputRef.current) avatarInputRef.current.value = ''; }}
+        onConfirm={(f) => { setCropFile(null); uploadAvatarFile(f); }}
+      />
 
       {/* Avatar Preview Dialog */}
       <Dialog open={avatarPreviewOpen} onOpenChange={setAvatarPreviewOpen}>
