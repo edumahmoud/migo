@@ -13,6 +13,8 @@ import { insertNotificationsAndPush } from '@/lib/notifications-service';
  * Each recipient gets an in-app notification row (the DB trigger sends the Android push) plus web push.
  */
 
+export const maxDuration = 60;
+
 const AUDIENCES = ['all', 'teachers', 'students', 'admins', 'subject', 'users'] as const;
 type Audience = (typeof AUDIENCES)[number];
 const MAX_USER_IDS = 500;
