@@ -85,6 +85,7 @@ import AdminFinancialManagementSection from '@/components/admin/admin-financial-
 import AdminDataManagementSection from '@/components/admin/admin-data-management-section';
 import AdminPaidServicesSection from '@/components/admin/admin-paid-services-section';
 import AdminLegalPoliciesSection from '@/components/admin/admin-legal-policies-section';
+import AdminSendNotificationSection from '@/components/admin/admin-send-notification-section';
 import ReportsSection from '@/components/reports/reports-section';
 import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
@@ -153,6 +154,7 @@ const adminNavItemDefs = [
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
   { id: 'dataManagement', labelKey: 'nav.dataManagement', icon: <ShieldAlert className="h-5 w-5" />, superadminOnly: true },
   { id: 'paidServices', labelKey: 'nav.paidServices', icon: <DollarSign className="h-5 w-5" /> },
+  { id: 'sendNotification', labelKey: 'nav.sendNotification', icon: <Bell className="h-5 w-5" /> },
   { id: 'legalPolicies', labelKey: 'nav.legalPolicies', icon: <FileText className="h-5 w-5" />, superadminOnly: true },
 ];
 
@@ -4107,6 +4109,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'paidServices' && (
                 <motion.div key="paidServices" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   <AdminPaidServicesSection />
+                </motion.div>
+              )}
+              {activeSection === 'sendNotification' && (
+                <motion.div key="sendNotification" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <AdminSendNotificationSection />
                 </motion.div>
               )}
               {activeSection === 'legalPolicies' && (

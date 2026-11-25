@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   Vote,
   MessageCircle,
+  Wallet,
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -61,6 +62,7 @@ function getNotifIcon(type: string, title: string | undefined, t: (key: string) 
     case 'report': return <ShieldAlert className="h-5 w-5 text-orange-600 dark:text-orange-400" />;
     case 'poll': return <Vote className="h-5 w-5 text-violet-600 dark:text-violet-500" />;
     case 'quiz': return <ClipboardList className="h-5 w-5 text-rose-600 dark:text-rose-500" />;
+    case 'payout': return <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />;
     case 'team_message': return <MessageCircle className="h-5 w-5 text-sky-600 dark:text-sky-400" />;
     default: return <Info className="h-5 w-5 text-sky-700 dark:text-sky-400" />;
   }

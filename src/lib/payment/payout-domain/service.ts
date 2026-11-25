@@ -337,7 +337,7 @@ export async function executePayout(
       'payout',
       'تم تنفيذ دفعتك',
       `تم تنفيذ دفعتك بنجاح بمبلغ ${Number(payout.amount).toFixed(2)} ${payout.currency}. كود العملية: ${result.providerReference || payout.internal_reference || payoutId.slice(0, 8)}.`,
-      '/teacher/financial',
+      'financialManagement:history',
     ).catch((err) => {
       console.warn('[payout-domain] notifyUser failed (non-fatal):', err?.message || err);
     });
@@ -471,7 +471,7 @@ export async function processPayoutWebhook(input: {
       'payout',
       'تم تنفيذ دفعتك',
       `تم تنفيذ دفعتك بنجاح بمبلغ ${Number(found.amount).toFixed(2)} ${found.currency}. كود العملية: ${input.providerReference}.`,
-      '/teacher/financial',
+      'financialManagement:history',
     ).catch((err) => {
       console.warn('[payout-domain:webhook] notifyUser failed (non-fatal):', err?.message || err);
     });

@@ -342,3 +342,33 @@ export async function getStudentIds(subjectId: string): Promise<string[]> {
 
   return (data || []).map((e: { student_id: string }) => e.student_id);
 }
+
+/**
+ * Admin broadcast helper: insert one notification per user (no 5-minute link dedup, so two
+ * different admin messages with the same link are never dropped), then web-push to their
+ * subscriptions. The DB trigger sends the Android push for every inserted row.
+ * Returns how many rows were inserted.
+ */
+export async function insertNotificationsAndPush(
+  userIds: string[],
+  type: NotificationType | string,
+  title: string,
+  message: string,
+  link?: string,
+): Promise<number> {
+  const uniqueIds = [...new Set(userIds)];
+  let inserted = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < uniqueIds.length; i += CHUNK) {
+    const chunk = uniqueIds.slice(i, i + CHUNK);
+    const rows = chunk.map((user_id) => ({ user_id, type, title, message, link: link || null }));
+    const { error } = await supabaseServer.from('notifications').insert(rows);
+    if (error) {
+      console.error('[notify] admin broadcast insert failed:', error.message);
+      continue;
+    }
+    inserted += chunk.length;
+    pushToUsers(chunk, title, message, link, type).catch(() => {});
+  }
+  return inserted;
+}

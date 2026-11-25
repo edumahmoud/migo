@@ -38,6 +38,7 @@ export const notifTypeToTab: Record<string, CourseTab> = {
   poll: 'polls',
   quiz: 'exams',
   team_message: 'teams',
+  payout: 'overview',
 };
 
 // Map of link prefixes to course tabs
@@ -113,6 +114,23 @@ export function navigateNotification(
     openProfile,
     t,
   } = options;
+
+  // ─── 0. Payout / financial links — open the teacher's payment history tab ───
+  // Format: financialManagement or financialManagement:history|methods|revenue
+  if (notif.type === 'payout' || notif.link?.startsWith('financialManagement')) {
+    const tab = notif.link?.split(':')[1] || 'history';
+    if (userRole === 'teacher') {
+      try { window.location.hash = `teacher-financial-${tab}`; } catch { /* ignore */ }
+      setTeacherSection('financialManagement');
+      setCurrentPage('teacher-dashboard');
+      return 'handled';
+    }
+    if (userRole === 'admin' || userRole === 'superadmin') {
+      setAdminSection('financialManagement');
+      setCurrentPage('admin-dashboard');
+      return 'handled';
+    }
+  }
 
   // ─── 1. Link request notifications — show modal (caller handles) ───
   if (notif.type === 'link_request' || notif.link?.startsWith('link_request:')) {
@@ -342,13 +360,13 @@ function navigateToSection(
       setCurrentPage('student-dashboard');
     }
   } else if (role === 'teacher') {
-    const validSections: TeacherSection[] = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications', 'reports'];
+    const validSections: TeacherSection[] = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications', 'reports', 'financialManagement'];
     if (validSections.includes(baseSection as TeacherSection)) {
       setTeacherSection(baseSection as TeacherSection);
       setCurrentPage('teacher-dashboard');
     }
   } else if (role === 'admin' || role === 'superadmin') {
-    const validSections: AdminSection[] = ['dashboard', 'users', 'subjects', 'reports', 'announcements', 'banned', 'institution', 'chat', 'settings', 'comments', 'complaints'];
+    const validSections: AdminSection[] = ['dashboard', 'users', 'subjects', 'reports', 'announcements', 'banned', 'institution', 'chat', 'settings', 'comments', 'complaints', 'notifications', 'financialManagement'];
     const adminSection = (baseSection === 'reports' ? 'complaints' : baseSection) as AdminSection;
     if (validSections.includes(adminSection)) {
       setAdminSection(adminSection);

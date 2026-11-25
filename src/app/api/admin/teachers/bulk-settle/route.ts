@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
         'payout',
         'تمت تسوية دفعتك',
         `تمت تسوية مبلغ ${settledAmount.toFixed(2)} ${currency} لصالحك. كود العملية: ${transactionCode}. عدد العمليات: ${selectedEntries.length}.`,
-        '/teacher/financial',
+        'financialManagement:history',
       ).catch((err) => {
         console.warn('[bulk-settle] notifyUser failed (non-fatal):', err?.message || err);
       });

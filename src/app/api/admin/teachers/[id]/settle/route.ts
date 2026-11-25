@@ -146,7 +146,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           execResult.status === 'completed'
             ? `تم تحويل ${requestedAmount.toFixed(2)} EGP لصالحك عبر Paymob. كود العملية: ${execResult.providerReference ?? '—'}`
             : `بدأ تحويل ${requestedAmount.toFixed(2)} EGP لصالحك عبر Paymob. الحالة الحالية: قيد المعالجة. سيتم إشعارك عند الاكتمال.`,
-          '/teacher/financial',
+          'financialManagement:history',
         ).catch(() => {});
       } catch {}
 
@@ -353,7 +353,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     'payout',
     'تمت تسوية دفعتك',
     `تمت تسوية مبلغ ${settledAmount.toFixed(2)} ${currency} لصالحك. كود العملية: ${transactionCode}. عدد العمليات: ${selectedEntries.length}.`,
-    '/teacher/financial',
+    'financialManagement:history',
   ).catch((err) => {
     console.warn('[settle] notifyUser failed (non-fatal):', err?.message || err);
   });
