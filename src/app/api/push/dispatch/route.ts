@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { pushFcmToUser } from '@/lib/fcm';
+import { pushToUsers } from '@/lib/notifications-service';
 
 /**
  * POST /api/push/dispatch  { id }  — called by a Postgres trigger (pg_net) for every new
@@ -34,6 +35,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const r = await pushFcmToUser(n.user_id, { title: n.title, body: n.message, link: n.link || '', type: n.type, id: n.id });
+    // Browser (web push) devices of the same user, so desktop/PWA gets the same notification.
+    await pushToUsers([n.user_id], n.title, n.message, n.link || undefined, n.type).catch(() => {});
     return NextResponse.json({ success: true, ...r });
   } catch (e) {
     console.error('[push/dispatch]', e);
