@@ -277,6 +277,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [quizShowResults, setQuizShowResults] = useState(true);
   const [quizAllowRetake, setQuizAllowRetake] = useState(true);
   const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
+  const [quizQuestionsPerPage, setQuizQuestionsPerPage] = useState(''); // v145: '' = one question at a time
 
   const [savingQuiz, setSavingQuiz] = useState(false);
 
@@ -483,6 +484,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizShowResults(true);
     setQuizAllowRetake(true);
     setQuizShuffleQuestions(true);
+    setQuizQuestionsPerPage('');
     resetQuestionForm();
   };
 
@@ -616,6 +618,12 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         content_scope: quizContentScopeMeta ?? null,
         // NOTE: shuffle_questions is NOT a DB column — stored client-side only
       };
+
+      {
+        // v145: paging only applies to quizzes with more than 5 questions
+        const perPage = parseInt(quizQuestionsPerPage, 10);
+        quizData.questions_per_page = quizQuestions.length > 5 && perPage > 1 ? Math.min(perPage, 50) : null;
+      }
 
       if (quizDuration.trim()) {
         quizData.duration = parseInt(quizDuration, 10);
@@ -753,6 +761,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizShowResults(quiz.show_results ?? true);
     setQuizAllowRetake(quiz.allow_retake ?? true);
     setQuizShuffleQuestions(quiz.shuffle_questions ?? true);
+    setQuizQuestionsPerPage(quiz.questions_per_page && quiz.questions_per_page > 1 ? String(quiz.questions_per_page) : '');
     // v136: preserve difficulty metadata through the edit
     setQuizDifficultyMode(quiz.difficulty_mode ?? null);
     setQuizContentScopeMeta(quiz.content_scope ?? null);
@@ -1840,6 +1849,33 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                   </button>
                 </div>
               </div>
+
+              {/* v145: split into pages (only when the quiz has more than 5 questions) */}
+              {quizQuestions.length > 5 && (
+                <div>
+                  <label className="text-xs font-medium text-foreground mb-1 block">
+                    {direction === 'rtl' ? 'عدد الأسئلة في كل صفحة (اتركه فارغًا لعرض سؤال واحد في كل مرة)' : 'Questions per page (leave empty for one at a time)'}
+                  </label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={Math.min(50, quizQuestions.length)}
+                    value={quizQuestionsPerPage}
+                    onChange={(e) => setQuizQuestionsPerPage(e.target.value)}
+                    disabled={savingQuiz || generatingFromAi}
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+                    placeholder={direction === 'rtl' ? 'مثال: 5' : 'e.g. 5'}
+                    dir="ltr"
+                  />
+                  {quizQuestionsPerPage && parseInt(quizQuestionsPerPage, 10) > 1 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {direction === 'rtl'
+                        ? `${Math.ceil(quizQuestions.length / parseInt(quizQuestionsPerPage, 10))} صفحات. الإجابات بتتصحح عند التسليم.`
+                        : `${Math.ceil(quizQuestions.length / parseInt(quizQuestionsPerPage, 10))} pages. Answers are graded on submit.`}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* ─── Quiz Input Mode Toggle (only for new quizzes, not editing) ─── */}
               {!editingQuiz && (
