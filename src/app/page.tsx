@@ -1452,7 +1452,7 @@ function AuthPageContent({
         )}
 
         {/* Auth form with mode toggle */}
-        <div className={`auth-sheet relative z-10 w-full max-w-md mx-auto max-lg:max-w-none max-lg:flex-1 max-lg:flex max-lg:flex-col max-lg:bg-white max-lg:dark:bg-card max-lg:rounded-t-[2rem] max-lg:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] max-lg:px-4 max-lg:pt-2 max-lg:pb-4 max-lg:[&_[data-slot=card]]:bg-transparent max-lg:[&_[data-slot=card]]:shadow-none max-lg:[&_[data-slot=card]]:rounded-none ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-8'}`}>
+        <div className={`auth-sheet relative z-10 w-full max-w-md mx-auto max-lg:max-w-none max-lg:flex-1 max-lg:flex max-lg:flex-col max-lg:bg-white max-lg:dark:bg-card max-lg:rounded-t-[2rem] max-lg:shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] max-lg:px-0 max-lg:pt-2 max-lg:pb-4 max-lg:[&_[data-slot=card]]:bg-transparent max-lg:[&_[data-slot=card]]:shadow-none max-lg:[&_[data-slot=card]]:rounded-none ${hasFullscreenAnnouncement ? 'max-lg:mt-4' : 'max-lg:-mt-8'}`}>
           <AnimatePresence mode="wait">
             {authMode === 'login' ? (
               <motion.div
@@ -1504,7 +1504,7 @@ function AuthPageContent({
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="mt-auto pt-4 lg:hidden"><AppVersionLabel /></div>
+          <div className="mt-auto px-4 pt-4 lg:hidden"><AppVersionLabel /></div>
         </div>
         <div className="hidden w-full max-w-md mx-auto lg:mt-5 lg:block">
           <AppVersionLabel />
