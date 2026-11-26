@@ -1269,7 +1269,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const isReporter = selectedReport.reporter_id === profile.id;
     const canTakeAction = isActive && (isAssignedToMe || isAdmin);
     // Reopen count display
-    const isReopened = selectedReport.reopen_count && selectedReport.reopen_count > 0;
+    const isReopened = (selectedReport.reopen_count ?? 0) > 0;
 
     return (
       <motion.div
