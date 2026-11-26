@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
+import { notifyUsers } from '@/lib/notifications-service';
 
 /**
  * GET /api/admin/paid-services/requests
@@ -50,7 +51,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'فشل جلب الطلبات' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, requests: requests ?? [] });
+  // Attach the storage plan name so storage requests are readable in the admin list.
+  const planIds = [...new Set((requests ?? []).map((r: { plan_id?: string | null }) => r.plan_id).filter(Boolean))] as string[];
+  const planNames = new Map<string, { name: string; size_mb: number }>();
+  if (planIds.length > 0) {
+    const { data: plans } = await supabaseServer.from('storage_plans').select('id, name, size_mb').in('id', planIds);
+    for (const p of plans ?? []) planNames.set(p.id, { name: p.name, size_mb: p.size_mb });
+  }
+  const out = (requests ?? []).map((r: { plan_id?: string | null }) => ({ ...r, plan: r.plan_id ? planNames.get(r.plan_id) ?? null : null }));
+
+  return NextResponse.json({ success: true, requests: out });
 }
 
 export async function POST(request: NextRequest) {
@@ -88,7 +98,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'هذا الطلب مُسند لمشرف آخر' }, { status: 403 });
   }
 
+  // Approve and reject only apply to pending requests (prevents double activation and
+  // rejecting a request that was already approved while its unlock stays active).
+  if ((action === 'approve' || action === 'reject') && req.status !== 'pending') {
+    return NextResponse.json({ error: 'تمت معالجة هذا الطلب بالفعل' }, { status: 409 });
+  }
+  if (action === 'approve' && durationDays !== undefined &&
+      (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3660)) {
+    return NextResponse.json({ error: 'مدة التفعيل غير صالحة' }, { status: 400 });
+  }
+
   const now = new Date().toISOString();
+  const notifyRequester = (title: string, message: string) =>
+    notifyUsers([req.user_id], 'system', title, message, undefined).catch(() => {});
 
   if (action === 'approve') {
     // ─── Storage upgrade requests ───
@@ -174,6 +196,7 @@ export async function POST(request: NextRequest) {
         console.error('[paid-services/requests] update error:', updateErr);
       }
 
+      notifyRequester('تم تفعيل مساحة التخزين', `تمت الموافقة على طلبك (${plan.name}). المساحة متاحة الآن.`);
       return NextResponse.json({
         success: true,
         storageUpgrade: {
@@ -228,6 +251,7 @@ export async function POST(request: NextRequest) {
       console.error('[paid-services/requests] update error:', updateErr);
     }
 
+    notifyRequester('تم تفعيل القسم', `تمت الموافقة على طلبك لتفعيل القسم (${req.section_key}).`);
     return NextResponse.json({ success: true, expiresAt });
   }
 
@@ -243,6 +267,7 @@ export async function POST(request: NextRequest) {
     if (updateErr) {
       return NextResponse.json({ error: 'فشل تحديث الطلب' }, { status: 500 });
     }
+    notifyRequester('تم رفض الطلب', 'تم رفض طلب التفعيل الخاص بك. تواصل مع الإدارة لمعرفة السبب.');
     return NextResponse.json({ success: true });
   }
 
@@ -250,6 +275,12 @@ export async function POST(request: NextRequest) {
     // Only superadmin can assign.
     if (auth.role !== 'superadmin') {
       return NextResponse.json({ error: 'يتطلب صلاحية superadmin' }, { status: 403 });
+    }
+    if (assignedTo) {
+      const { data: target } = await supabaseServer.from('users').select('role').eq('id', assignedTo).maybeSingle();
+      if (!target || (target.role !== 'admin' && target.role !== 'superadmin')) {
+        return NextResponse.json({ error: 'المشرف غير صالح' }, { status: 400 });
+      }
     }
     const { error: updateErr } = await supabaseServer
       .from('section_activation_requests')

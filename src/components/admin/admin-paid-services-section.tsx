@@ -38,6 +38,7 @@ type RequestRow = {
   plan_type: string; user_name: string | null; user_email: string | null;
   user_phone: string | null; notes: string | null; status: string;
   assigned_to: string | null; created_at: string; processed_at: string | null;
+  request_type?: string | null; plan?: { name: string; size_mb: number } | null;
 };
 
 type ConfigRow = {
@@ -74,6 +75,7 @@ export default function AdminPaidServicesSection() {
   const [unlocks, setUnlocks] = useState<UnlockRow[]>([]);
   const [trials, setTrials] = useState<TrialRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reqFilter, setReqFilter] = useState<'pending' | 'all'>('pending');
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -88,6 +90,7 @@ export default function AdminPaidServicesSection() {
       const [reqJson, cfgJson, unlJson, trlJson] = await Promise.all([
         reqRes.json(), cfgRes.json(), unlRes.json(), trlRes.json(),
       ]);
+      if (!reqJson.success || !unlJson.success) toast.error(reqJson.error || unlJson.error || t('paidServices.failed'));
       if (reqJson.success) setRequests(reqJson.requests);
       if (cfgJson.success) setConfigs(cfgJson.configs);
       if (unlJson.success) setUnlocks(unlJson.unlocks);
@@ -268,20 +271,30 @@ export default function AdminPaidServicesSection() {
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">{t('paidServices.requestsTitle', { count: requests.length })}</CardTitle>
+              <div className="flex gap-1.5 pt-1">
+                <Button size="sm" variant={reqFilter === 'pending' ? 'default' : 'outline'} className="h-6 text-[10px]" onClick={() => setReqFilter('pending')}>
+                  {t('paidServices.filterPending')} ({pendingRequests.length})
+                </Button>
+                <Button size="sm" variant={reqFilter === 'all' ? 'default' : 'outline'} className="h-6 text-[10px]" onClick={() => setReqFilter('all')}>
+                  {t('paidServices.filterAll')} ({requests.length})
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {requests.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">{t('paidServices.noRequests')}</div>
+              ) : requests.filter(x => reqFilter === 'all' || x.status === 'pending').length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">{t('paidServices.noRequests')}</div>
               ) : (
                 <div className="divide-y max-h-[600px] overflow-y-auto">
-                  {requests.map(r => (
+                  {requests.filter(x => reqFilter === 'all' || x.status === 'pending').map(r => (
                     <div key={r.id} className="p-3 text-xs space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-medium">{r.user_name || '—'}</span>
                             <Badge variant="secondary" className="text-[9px]">{r.user_role === 'student' ? t('paidServices.roleStudent') : t('paidServices.roleTeacher')}</Badge>
-                            <Badge variant="outline" className="text-[9px]">{r.section_key}</Badge>
+                            <Badge variant="outline" className="text-[9px]">{r.request_type === 'storage_upgrade' ? `${t('paidServices.storageRequest')}${r.plan ? ': ' + r.plan.name : ''}` : r.section_key}</Badge>
                             <Badge variant="outline" className="text-[9px]">{r.plan_type === 'yearly' ? t('paidServices.planYearly') : t('paidServices.planMonthly')}</Badge>
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5">
@@ -342,6 +355,7 @@ export default function AdminPaidServicesSection() {
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5">
                           {u.user?.email} · {t('paidServices.expires', { date: formatDate(u.expires_at) })}
+                          {new Date(u.expires_at).getTime() < Date.now() && <Badge variant="secondary" className="text-[9px] ms-1">{t('paidServices.expired')}</Badge>}
                         </div>
                       </div>
                       <Button size="sm" variant="ghost" className="h-7 text-[10px] text-rose-600"
@@ -459,7 +473,11 @@ function TrialManager({
           <Button
             size="sm"
             disabled={!sectionKey || !days}
-            onClick={() => onCreate(sectionKey, scope, Number(days))}
+            onClick={() => {
+              const n = Number(days);
+              if (!Number.isInteger(n) || n < 1 || n > 365) { toast.error(t('paidServices.daysRange')); return; }
+              onCreate(sectionKey, scope, n);
+            }}
             className="w-full"
           >
             <Gift className="h-4 w-4 me-1" /> {t('paidServices.openTrial')}
@@ -468,7 +486,7 @@ function TrialManager({
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-sm">{t('paidServices.currentTrialsTitle', { count: trials.filter(tr => tr.is_active).length })}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t('paidServices.currentTrialsTitle', { count: trials.filter(tr => tr.is_active && new Date(tr.expires_at).getTime() > Date.now()).length })}</CardTitle></CardHeader>
         <CardContent className="p-0">
           {trials.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">{t('paidServices.noTrials')}</div>
@@ -480,13 +498,13 @@ function TrialManager({
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{tr.section_key}</span>
                       <Badge variant="outline" className="text-[9px]">{tr.scope === 'all' ? t('paidServices.scopeAll') : t('paidServices.scopeNewShort')}</Badge>
-                      {!tr.is_active && <Badge variant="secondary" className="text-[9px]">{t('paidServices.expired')}</Badge>}
+                      {(!tr.is_active || new Date(tr.expires_at).getTime() < Date.now()) && <Badge variant="secondary" className="text-[9px]">{tr.is_active ? t('paidServices.expired') : t('paidServices.revoked')}</Badge>}
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
                       {formatDate(tr.started_at)} → {formatDate(tr.expires_at)}
                     </div>
                   </div>
-                  {tr.is_active && (
+                  {tr.is_active && new Date(tr.expires_at).getTime() > Date.now() && (
                     <Button size="sm" variant="ghost" className="h-7 text-[10px] text-rose-600"
                       onClick={() => onRevoke(tr.id)}>
                       <X className="h-3 w-3" />
@@ -559,6 +577,7 @@ function StorageManager({
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
 
   const handleSaveFree = async () => {
+    if ([freeStudent, freeTeacher].some(v => v !== '' && (!Number.isFinite(Number(v)) || Number(v) < 0))) { toast.error(t('paidServices.invalidNumber')); return; }
     setSavingFree(true);
     try {
       await updateConfig('files', {
@@ -616,6 +635,19 @@ function StorageManager({
       });
       const json = await res.json();
       if (json.success) { toast.success(t('paidServices.planDeleted')); fetchPlans(); }
+      else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
+  };
+
+  const handleTogglePlan = async (p: typeof plans[number]) => {
+    try {
+      const res = await fetch('/api/admin/storage-plans', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
+        body: JSON.stringify({ id: p.id, updates: { is_active: !p.is_active } }),
+      });
+      const json = await res.json();
+      if (json.success) { toast.success(t('paidServices.planToggled')); fetchPlans(); }
       else { toast.error(json.error || t('paidServices.failed')); }
     } catch { toast.error(t('paidServices.error')); }
   };
@@ -747,6 +779,7 @@ function StorageManager({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-medium truncate">{p.name}</span>
+                        {!p.is_active && <Badge variant="secondary" className="text-[9px]">{t('paidServices.planInactive')}</Badge>}
                         {p.name_en && <span className="text-[10px] text-muted-foreground">({p.name_en})</span>}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
@@ -756,6 +789,10 @@ function StorageManager({
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" className="h-6 text-[10px] px-1.5" title={p.is_active ? t('paidServices.deactivatePlan') : t('paidServices.activatePlan')}
+                      onClick={() => handleTogglePlan(p)}>
+                      {p.is_active ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                    </Button>
                     <Button size="sm" variant="ghost" className="h-6 text-[10px] px-1.5"
                       onClick={() => openEditDialog(p)}>
                       <Edit className="h-3 w-3" />
@@ -898,6 +935,19 @@ function SectionConfigCard({
   }
 
   const c = config;
+  // Save a number field only when it changed and is valid (empty = unlimited for limits only).
+  const saveNumber = (cfg: ConfigRow, key: string, el: HTMLInputElement, nullable: boolean) => {
+    const raw = el.value.trim();
+    const current = (cfg as unknown as Record<string, number | null>)[key];
+    if (raw === '') {
+      if (nullable) { if (current !== null) updateConfig(cfg.section_key, { [key]: null }); return; }
+      toast.error(t('paidServices.invalidNumber')); el.value = String(current ?? 0); return;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) { toast.error(t('paidServices.invalidNumber')); el.value = String(current ?? ''); return; }
+    if (n === Number(current)) return;
+    updateConfig(cfg.section_key, { [key]: n });
+  };
   const hasMetric = !noMetric && c.usage_metric;
 
   return (
@@ -951,13 +1001,13 @@ function SectionConfigCard({
                     <div>
                       <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthly')}</Label>
                       <Input type="number" defaultValue={c.student_monthly_price}
-                        onBlur={(e) => updateConfig(c.section_key, { student_monthly_price: Number(e.target.value) })}
+                        onBlur={(e) => saveNumber(c, 'student_monthly_price', e.target, false)}
                         className="h-8 text-xs" placeholder="0" dir="ltr" />
                     </div>
                     <div>
                       <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearly')}</Label>
                       <Input type="number" defaultValue={c.student_yearly_price}
-                        onBlur={(e) => updateConfig(c.section_key, { student_yearly_price: Number(e.target.value) })}
+                        onBlur={(e) => saveNumber(c, 'student_yearly_price', e.target, false)}
                         className="h-8 text-xs" placeholder="0" dir="ltr" />
                     </div>
                   </div>
@@ -969,13 +1019,13 @@ function SectionConfigCard({
                   <div>
                     <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthly')}</Label>
                     <Input type="number" defaultValue={c.teacher_monthly_price}
-                      onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_price: Number(e.target.value) })}
+                      onBlur={(e) => saveNumber(c, 'teacher_monthly_price', e.target, false)}
                       className="h-8 text-xs" placeholder="0" dir="ltr" />
                   </div>
                   <div>
                     <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearly')}</Label>
                     <Input type="number" defaultValue={c.teacher_yearly_price}
-                      onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_price: Number(e.target.value) })}
+                      onBlur={(e) => saveNumber(c, 'teacher_yearly_price', e.target, false)}
                       className="h-8 text-xs" placeholder="0" dir="ltr" />
                   </div>
                 </div>
@@ -998,13 +1048,13 @@ function SectionConfigCard({
                       <div>
                         <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthlyLimit')}</Label>
                         <Input type="number" defaultValue={c.student_monthly_limit ?? ''}
-                          onBlur={(e) => updateConfig(c.section_key, { student_monthly_limit: e.target.value ? Number(e.target.value) : null })}
+                          onBlur={(e) => saveNumber(c, 'student_monthly_limit', e.target, true)}
                           className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                       </div>
                       <div>
                         <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearlyLimit')}</Label>
                         <Input type="number" defaultValue={c.student_yearly_limit ?? ''}
-                          onBlur={(e) => updateConfig(c.section_key, { student_yearly_limit: e.target.value ? Number(e.target.value) : null })}
+                          onBlur={(e) => saveNumber(c, 'student_yearly_limit', e.target, true)}
                           className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                       </div>
                     </div>
@@ -1016,13 +1066,13 @@ function SectionConfigCard({
                     <div>
                       <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthlyLimit')}</Label>
                       <Input type="number" defaultValue={c.teacher_monthly_limit ?? ''}
-                        onBlur={(e) => updateConfig(c.section_key, { teacher_monthly_limit: e.target.value ? Number(e.target.value) : null })}
+                        onBlur={(e) => saveNumber(c, 'teacher_monthly_limit', e.target, true)}
                         className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                     </div>
                     <div>
                       <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearlyLimit')}</Label>
                       <Input type="number" defaultValue={c.teacher_yearly_limit ?? ''}
-                        onBlur={(e) => updateConfig(c.section_key, { teacher_yearly_limit: e.target.value ? Number(e.target.value) : null })}
+                        onBlur={(e) => saveNumber(c, 'teacher_yearly_limit', e.target, true)}
                         className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
                     </div>
                   </div>

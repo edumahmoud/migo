@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
   // v134q: price_monthly is the canonical field; accept the legacy
   // `price` as a fallback for older callers.
   const monthly = price_monthly ?? price;
+  const bad = (n: unknown) => typeof n !== 'number' || !Number.isFinite(n) || n < 0;
+  if (bad(size_mb) || (size_mb as number) <= 0 || bad(monthly) || (price_yearly != null && bad(price_yearly))) {
+    return NextResponse.json({ error: 'الحجم أو السعر غير صالح' }, { status: 400 });
+  }
   if (!name || !size_mb || (monthly === undefined && price === undefined)) {
     return NextResponse.json({ error: 'name + size_mb + price_monthly مطلوبة' }, { status: 400 });
   }
@@ -104,6 +108,12 @@ export async function PUT(request: NextRequest) {
   const allowed = ['name', 'name_en', 'size_mb', 'price', 'price_monthly', 'price_yearly', 'currency', 'is_active', 'sort_order'];
   const clean: Record<string, unknown> = {};
   for (const k of allowed) { if (k in updates) clean[k] = updates[k]; }
+  for (const k of ['size_mb', 'price', 'price_monthly', 'price_yearly']) {
+    const v = clean[k];
+    if (k in clean && v !== null && (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || (k === 'size_mb' && v <= 0))) {
+      return NextResponse.json({ error: 'الحجم أو السعر غير صالح' }, { status: 400 });
+    }
+  }
   if ('price_monthly' in clean && clean.price_monthly != null) {
     clean.price = clean.price_monthly;
   } else if ('price' in clean && clean.price != null && !('price_monthly' in clean)) {
@@ -136,7 +146,17 @@ export async function DELETE(request: NextRequest) {
   const { id } = body as { id?: string };
   if (!id) return NextResponse.json({ error: 'id مطلوب' }, { status: 400 });
 
-  // v134k: HARD DELETE the plan (not soft delete). The admin wants it gone.
+  // Deleting a plan cascades to the upgrades and subscriptions bought on it, which would silently
+  // remove paid storage from users. Refuse and ask the admin to deactivate it instead.
+  const [{ count: upCount }, { count: subCount }] = await Promise.all([
+    supabaseServer.from('user_storage_upgrades').select('id', { count: 'exact', head: true }).eq('plan_id', id),
+    supabaseServer.from('storage_subscriptions').select('id', { count: 'exact', head: true }).eq('plan_id', id),
+  ]);
+  if ((upCount || 0) + (subCount || 0) > 0) {
+    return NextResponse.json({ error: 'لا يمكن حذف خطة اشتراك فيها مستخدمون. أوقفها بدلاً من ذلك.' }, { status: 409 });
+  }
+
+  // No one is on this plan: safe to delete.
   const { error } = await supabaseServer
     .from('storage_plans')
     .delete()

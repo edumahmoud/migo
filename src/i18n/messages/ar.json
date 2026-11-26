@@ -6386,7 +6386,17 @@
     "usageLimitDesc": "الوحدة: {metric} — حد منفصل لكل خطة. يُطبق طوال مدة الاشتراك. اتركه فارغاً لـ \"غير محدود\".",
     "monthlyLimit": "حد شهري",
     "yearlyLimit": "حد سنوي",
-    "unlimited": "غير محدود"
+    "unlimited": "غير محدود",
+    "filterPending": "المعلّقة",
+    "filterAll": "الكل",
+    "storageRequest": "مساحة تخزين",
+    "revoked": "ملغي",
+    "invalidNumber": "قيمة غير صالحة (أرقام موجبة فقط)",
+    "daysRange": "المدة من 1 إلى 365 يوماً",
+    "planInactive": "متوقفة",
+    "deactivatePlan": "إيقاف الخطة",
+    "activatePlan": "تفعيل الخطة",
+    "planToggled": "تم تحديث حالة الخطة"
   },
   "regAgents": {
     "title": "الوكلاء",
