@@ -111,6 +111,11 @@ interface ReportsSectionProps {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
+function RoleBadge({ role, t }: { role?: string | null; t: (key: string) => string }) {
+  if (!role || !['superadmin', 'admin', 'supervisor', 'registration_agent', 'teacher', 'student'].includes(role)) return null;
+  return <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium text-foreground">{t('roles.' + role)}</span>;
+}
+
 export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const { t, direction } = useTranslations();
   const { setReportsUnreadCount, openProfile, pendingReportId, setPendingReportId } = useAppStore();
