@@ -1046,7 +1046,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <Users className="h-3.5 w-3.5" />
                 <span className="text-lg font-bold">{targetUserStats?.total_reporters ?? reporterCount}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.reporterCount')}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.reporterCountBadge')}</p>
             </div>
             <div className="rounded-lg bg-background/80 p-2 text-center">
               <div className="flex items-center justify-center gap-1 text-sky-600 dark:text-sky-400">
