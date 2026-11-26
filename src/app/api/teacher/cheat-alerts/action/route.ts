@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       const { data: createdReport } = await supabaseServer.from('reports').insert({
         reporter_id: auth.user.id, target_type: 'user', target_id: alert.account_id || null,
         reason: 'تنبيه جهاز مشتبه', description: text, status: 'pending',
+        assigned_to: recipients[0] || null,
       }).select('id, report_number').maybeSingle();
       reportId = createdReport?.id || null;
       reportNumber = createdReport?.report_number || null;

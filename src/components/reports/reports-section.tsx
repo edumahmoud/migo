@@ -1336,7 +1336,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               </>
             )}
             <span className="text-border">|</span>
-            {selectedReport.assigned_user ? (
+            {(selectedReport as any).accused_view ? null : selectedReport.assigned_user ? (
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">{t('reports.assignedTo')}:</span>
                 <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
