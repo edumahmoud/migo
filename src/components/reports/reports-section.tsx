@@ -1370,6 +1370,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           )}
         </div>
 
+        {selectedReport.target_user?.id === profile.id && !isReporter && !isAssignedToMe && !isAdmin && (
+          <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            {t('reports.accusedViewNote')}
+          </div>
+        )}
+
         {/* Target User Info */}
         {renderTargetUserInfo()}
 
