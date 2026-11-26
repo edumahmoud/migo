@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Generate a unique file name
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const extension = file.name.split('.').pop() || 'png';
+    const extension = (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'png';
     const filePath = `platform-announcements/${timestamp}-${randomSuffix}.${extension}`;
 
     // Convert File to ArrayBuffer for Supabase upload
