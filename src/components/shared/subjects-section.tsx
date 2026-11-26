@@ -319,7 +319,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [newSubjectCategory, setNewSubjectCategory] = useState<string>('');
 
   // ─── Refs for stable real-time callbacks ───
-  const fetchSubjectsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | undefined>(undefined);
+  const fetchSubjectsRef = useRef<((forceRefresh?: boolean, silent?: boolean) => Promise<void>) | undefined>(undefined);
 
   // ─── Helper: get category display name based on locale ───
   const getCategoryName = useCallback((cat: Category): string => {
@@ -390,7 +390,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // -------------------------------------------------------
   // Fetch subjects — OPTIMIZED: parallel queries + cache
   // -------------------------------------------------------
-  const fetchSubjects = useCallback(async (forceRefresh = false) => {
+  const fetchSubjects = useCallback(async (forceRefresh = false, silent = false) => {
     // Check cache first (skip if forceRefresh is true)
     const cacheKey = `${profile.id}-${role}`;
     if (!forceRefresh) {
@@ -405,7 +405,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       }
     }
 
-    setLoadingSubjects(true);
+    if (!silent) setLoadingSubjects(true);
     try {
       if (role === 'teacher') {
         // Run both queries in parallel
@@ -639,6 +639,27 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   useEffect(() => {
     fetchSubjects(true);
   }, [fetchSubjects]);
+
+  // -------------------------------------------------------
+  // Students: realtime does not reliably deliver a course that was deleted by its
+  // teacher (the enrollment rows go away through a cascade), so re-read the list
+  // quietly when the app comes back to the foreground, goes online, and every minute.
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (role !== 'student') return;
+    const refresh = () => { fetchSubjectsRef.current?.(true, true); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 60000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+    };
+  }, [role]);
 
   // -------------------------------------------------------
   // Real-time subscription for subjects — SURGICAL updates
