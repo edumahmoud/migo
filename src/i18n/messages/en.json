@@ -6386,7 +6386,17 @@
     "usageLimitDesc": "Unit: {metric} — separate limit per plan. Applies for the whole subscription period. Leave empty for \"unlimited\".",
     "monthlyLimit": "Monthly limit",
     "yearlyLimit": "Yearly limit",
-    "unlimited": "Unlimited"
+    "unlimited": "Unlimited",
+    "filterPending": "Pending",
+    "filterAll": "All",
+    "storageRequest": "Storage",
+    "revoked": "Revoked",
+    "invalidNumber": "Invalid value (positive numbers only)",
+    "daysRange": "Duration must be 1 to 365 days",
+    "planInactive": "Inactive",
+    "deactivatePlan": "Deactivate plan",
+    "activatePlan": "Activate plan",
+    "planToggled": "Plan status updated"
   },
   "regAgents": {
     "title": "Agents",

@@ -134,37 +134,30 @@ export async function GET(request: NextRequest) {
     .gte('expires_at', now)
     .maybeSingle();
 
-  const { data: globalUnlock } = await supabaseServer
+  // There can be one active "all" trial and one "new_users" trial at the same time, so read the list.
+  const { data: globalUnlocks } = await supabaseServer
     .from('global_section_unlocks')
     .select('scope, started_at, expires_at')
     .eq('section_key', sectionKey)
     .eq('is_active', true)
-    .gte('expires_at', now)
-    .maybeSingle();
+    .gte('expires_at', now);
 
   let isUnlocked = !!personalUnlock;
-  if (!isUnlocked && globalUnlock) {
-    if (globalUnlock.scope === 'all') {
+  if (!isUnlocked && (globalUnlocks ?? []).some((g: { scope: string }) => g.scope === 'all')) {
+    isUnlocked = true;
+  }
+  const newUsersTrial = (globalUnlocks ?? []).find((g: { scope: string }) => g.scope === 'new_users');
+  if (!isUnlocked && newUsersTrial) {
+    const { data: userRow } = await supabaseServer
+      .from('users')
+      .select('created_at')
+      .eq('id', auth.user.id)
+      .maybeSingle();
+    if (userRow?.created_at && new Date(userRow.created_at as string) >= new Date(newUsersTrial.started_at as string)) {
       isUnlocked = true;
-    } else if (globalUnlock.scope === 'new_users') {
-      const { data: userRow } = await supabaseServer
-        .from('users')
-        .select('created_at')
-        .eq('id', auth.user.id)
-        .maybeSingle();
-      if (userRow?.created_at) {
-        const trialStart = new Date(globalUnlock.started_at as string);
-        const userCreated = new Date(userRow.created_at as string);
-        if (userCreated >= trialStart) isUnlocked = true;
-      }
     }
   }
 
-  // v134g: determine the correct limit based on the user's plan_type.
-  // If the user has a personal unlock with plan_type='yearly' → use the yearly limit.
-  // If plan_type='monthly' → use the monthly limit.
-  // If unlocked via global trial → use the monthly limit (trials are short).
-  // If not unlocked → use the monthly limit (the free-tier default).
   const userPlanType = (personalUnlock as Record<string, unknown> | null)?.plan_type as string | null;
   const isYearlyPlan = userPlanType === 'yearly';
 

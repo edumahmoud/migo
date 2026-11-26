@@ -56,6 +56,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'userId + sectionKey + planType مطلوبة' }, { status: 400 });
   }
 
+  if (!['monthly', 'yearly', 'manual_trial'].includes(planType)) {
+    return NextResponse.json({ error: 'نوع الخطة غير صالح' }, { status: 400 });
+  }
+  if (durationDays !== undefined && (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3660)) {
+    return NextResponse.json({ error: 'مدة التفعيل غير صالحة' }, { status: 400 });
+  }
+  const { data: target } = await supabaseServer.from('users').select('role').eq('id', userId).maybeSingle();
+  if (!target || (target.role !== 'student' && target.role !== 'teacher')) {
+    return NextResponse.json({ error: 'المستخدم غير موجود أو ليس طالباً/معلماً' }, { status: 400 });
+  }
+  const { data: sec } = await supabaseServer.from('locked_sections_config').select('section_key').eq('section_key', sectionKey).maybeSingle();
+  if (!sec) return NextResponse.json({ error: 'القسم غير موجود' }, { status: 400 });
+
   const days = durationDays ?? (planType === 'yearly' ? 365 : planType === 'monthly' ? 30 : 7);
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();

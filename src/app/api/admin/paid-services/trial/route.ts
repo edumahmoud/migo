@@ -53,6 +53,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'sectionKey + scope + durationDays مطلوبة' }, { status: 400 });
   }
 
+  if (scope !== 'all' && scope !== 'new_users') {
+    return NextResponse.json({ error: 'نطاق الفتح غير صالح' }, { status: 400 });
+  }
+  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365) {
+    return NextResponse.json({ error: 'المدة يجب أن تكون من 1 إلى 365 يوماً' }, { status: 400 });
+  }
+  const { data: sec } = await supabaseServer.from('locked_sections_config').select('section_key').eq('section_key', sectionKey).maybeSingle();
+  if (!sec) return NextResponse.json({ error: 'القسم غير موجود' }, { status: 400 });
+
   // Deactivate existing active trial for this section+scope.
   await supabaseServer
     .from('global_section_unlocks')

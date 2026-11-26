@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
   // 2. Fetch active global unlocks for these sections.
   const { data: globalUnlocks } = await supabaseServer
     .from('global_section_unlocks')
-    .select('section_key, scope, expires_at')
+    .select('section_key, scope, started_at, expires_at')
     .in('section_key', lockedKeys)
     .eq('is_active', true)
     .gte('expires_at', now);

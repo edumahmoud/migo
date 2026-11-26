@@ -81,6 +81,28 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Validate values: prices and limits must be non-negative numbers (limits may be null = unlimited).
+  const priceKeys = ['student_monthly_price', 'student_yearly_price', 'teacher_monthly_price', 'teacher_yearly_price'];
+  const limitKeys = ['student_monthly_limit', 'student_yearly_limit', 'teacher_monthly_limit', 'teacher_yearly_limit',
+    'free_quota_mb', 'free_quota_mb_student', 'free_quota_mb_teacher'];
+  for (const [k, v] of Object.entries(cleanUpdates)) {
+    if (priceKeys.includes(k) && !(typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1000000)) {
+      return NextResponse.json({ error: 'السعر غير صالح' }, { status: 400 });
+    }
+    if (limitKeys.includes(k) && v !== null && !(typeof v === 'number' && Number.isFinite(v) && v >= 0)) {
+      return NextResponse.json({ error: 'الحد غير صالح' }, { status: 400 });
+    }
+    if (k === 'usage_period_days' && !(Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 3660)) {
+      return NextResponse.json({ error: 'مدة الفترة غير صالحة' }, { status: 400 });
+    }
+    if (['student_locked', 'teacher_locked', 'is_active', 'teacher_only'].includes(k) && typeof v !== 'boolean') {
+      return NextResponse.json({ error: 'قيمة غير صالحة' }, { status: 400 });
+    }
+    if (k === 'currency' && !(typeof v === 'string' && /^[A-Z]{3}$/.test(v))) {
+      return NextResponse.json({ error: 'العملة غير صالحة' }, { status: 400 });
+    }
+  }
+
   if (Object.keys(cleanUpdates).length === 0) {
     return NextResponse.json({ error: 'لا توجد حقول صالحة للتحديث' }, { status: 400 });
   }
@@ -97,5 +119,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'فشل تحديث الإعدادات' }, { status: 500 });
   }
 
+  if (!data) return NextResponse.json({ error: 'القسم غير موجود' }, { status: 404 });
   return NextResponse.json({ success: true, config: data });
 }
