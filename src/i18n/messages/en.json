@@ -6396,7 +6396,17 @@
     "planInactive": "Inactive",
     "deactivatePlan": "Deactivate plan",
     "activatePlan": "Activate plan",
-    "planToggled": "Plan status updated"
+    "planToggled": "Plan status updated",
+    "assignTo": "Assign to",
+    "unassigned": "Unassigned",
+    "assigned": "Assigned",
+    "grantTitle": "Manual activation",
+    "grantBtn": "Activate for a user",
+    "grantSearch": "Search by name or email",
+    "grantPickUser": "Pick a user",
+    "grantDays": "Duration in days (optional)",
+    "grantDone": "Activated",
+    "grantConfirm": "Activate"
   },
   "regAgents": {
     "title": "Agents",

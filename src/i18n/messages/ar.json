@@ -6396,7 +6396,17 @@
     "planInactive": "متوقفة",
     "deactivatePlan": "إيقاف الخطة",
     "activatePlan": "تفعيل الخطة",
-    "planToggled": "تم تحديث حالة الخطة"
+    "planToggled": "تم تحديث حالة الخطة",
+    "assignTo": "إسناد إلى",
+    "unassigned": "غير مُسند",
+    "assigned": "تم الإسناد",
+    "grantTitle": "تفعيل يدوي",
+    "grantBtn": "تفعيل يدوي لمستخدم",
+    "grantSearch": "ابحث بالاسم أو الإيميل",
+    "grantPickUser": "اختر مستخدماً",
+    "grantDays": "المدة بالأيام (اختياري)",
+    "grantDone": "تم التفعيل",
+    "grantConfirm": "تفعيل"
   },
   "regAgents": {
     "title": "الوكلاء",
