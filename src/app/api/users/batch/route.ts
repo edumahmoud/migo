@@ -54,6 +54,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'حدث خطأ أثناء جلب بيانات المستخدمين' }, { status: 500 });
     }
 
+    // Teachers and admins also get the email of student rows (for their student lists and search).
+    // Students and other roles never get emails from this route.
+    const viewerRole = await getUserRole(authResult.user.id);
+    if (users && users.length > 0 && (viewerRole === 'teacher' || viewerRole === 'admin' || viewerRole === 'superadmin')) {
+      const studentIds = users.filter((u: any) => u.role === 'student').map((u: any) => u.id);
+      if (studentIds.length > 0) {
+        const { data: emails } = await supabaseServer.from('users').select('id, email').in('id', studentIds);
+        const emailMap = new Map((emails || []).map((e: any) => [e.id, e.email]));
+        return NextResponse.json({ users: users.map((u: any) => (emailMap.has(u.id) ? { ...u, email: emailMap.get(u.id) } : u)) });
+      }
+    }
+
     return NextResponse.json({ users: users || [] });
   } catch (err) {
     console.error('[users/batch] Unexpected error:', err);
