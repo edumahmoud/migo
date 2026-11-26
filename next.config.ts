@@ -10,6 +10,25 @@ const isVercel = process.env.VERCEL === '1';
 // Vercel builds are unaffected: they keep the full strict check.
 const isLowMemBuild = process.env.MIGO_LOW_MEM_BUILD === '1';
 
+// Content-Security-Policy in REPORT-ONLY mode: violations are reported to
+// /api/csp-report but nothing is blocked. Tighten and enforce after review.
+const cspReportOnly = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accept.paymob.com https://www.googletagmanager.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob: https:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://*.ingest.sentry.io https://*.googleapis.com https://accept.paymob.com https://*.paymob.com https://www.atfawry.com https://atfawry.fawrystaging.com",
+  "frame-src 'self' https://accounts.google.com https://docs.google.com https://*.paymob.com https://www.atfawry.com https://atfawry.fawrystaging.com https://www.youtube.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self' https://accept.paymob.com https://www.atfawry.com",
+  "frame-ancestors 'self'",
+  "report-uri /api/csp-report",
+].join('; ');
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7),
@@ -71,6 +90,7 @@ const nextConfig: NextConfig = {
         // Baseline security headers for every route.
         source: '/:path*',
         headers: [
+          { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
@@ -101,4 +121,3 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   telemetry: false,
 });
-
