@@ -235,7 +235,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       if (notesList.length > 0) {
         const authorIds = [...new Set(notesList.map((n) => n.user_id))];
         const { data: authors } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .in('id', authorIds);
         const authorMap = new Map((authors || []).map((a: { id: string; name: string; title_id?: string | null; gender?: string | null; role?: string | null }) => [a.id, a]));
@@ -528,7 +528,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       } else {
         const userIds = data.map((v) => v.user_id);
         const { data: users } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name')
           .in('id', userIds);
         const userMap = new Map((users || []).map((u: { id: string; name: string }) => [u.id, u.name]));

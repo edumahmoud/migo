@@ -365,7 +365,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       const teacherIds = [...new Set(subjectsList.map((s) => s.teacher_id).filter(Boolean))];
       if (teacherIds.length > 0) {
         const { data: teachers, error: tError } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .in('id', teacherIds);
         if (tError) {

@@ -488,7 +488,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       const teacherIds = [...new Set(Object.values(subjectTeacherMap))];
       const teacherNameMap: Record<string, string> = {};
       if (teacherIds.length > 0) {
-        const { data: teachersData } = await supabase.from('users').select('id, name').in('id', teacherIds);
+        const { data: teachersData } = await supabase.from('users_public').select('id, name').in('id', teacherIds);
         if (teachersData) {
           for (const t of teachersData) {
             teacherNameMap[t.id] = t.name;
