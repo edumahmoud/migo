@@ -23,6 +23,7 @@ interface Alert {
   account: Person | null; device_owner: Person | null; other_account: Person | null;
   device_id: string | null; device_label: string | null; other_device_label: string | null; other_device_id: string | null;
   summary: string | null;
+  details?: { escalations?: Array<{ to?: string; to_label?: string }> } | null;
 }
 
 const TEXT = {
