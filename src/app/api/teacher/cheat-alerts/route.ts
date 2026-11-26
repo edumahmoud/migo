@@ -65,9 +65,13 @@ export async function PATCH(request: NextRequest) {
     const status = body.status === 'open' ? 'open' : 'false_alarm';
     if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ success: false, error: 'طلب غير صالح' }, { status: 400 });
     const ids = await allowedSubjectIds(auth.user.id, auth.role);
-    const { data: alert } = await supabaseServer.from('cheat_alerts').select('id,subject_id').eq('id', id).maybeSingle();
+    const { data: alert } = await supabaseServer.from('cheat_alerts').select('id,subject_id,details').eq('id', id).maybeSingle();
     if (!alert || (ids && !(alert.subject_id && ids.includes(alert.subject_id)))) {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
+    }
+    const esc = (alert.details as Record<string, unknown> | null)?.escalations;
+    if (Array.isArray(esc) && esc.length > 0) {
+      return NextResponse.json({ success: false, error: 'تم تحويل هذا التنبيه، ولم يعد القرار فيه لك' }, { status: 409 });
     }
     const { error } = await supabaseServer.from('cheat_alerts').update({
       status, reviewed_by: status === 'false_alarm' ? auth.user.id : null, reviewed_at: status === 'false_alarm' ? new Date().toISOString() : null,

@@ -23,6 +23,7 @@ interface Alert {
   account: Person | null; device_owner: Person | null; other_account: Person | null;
   device_id: string | null; device_label: string | null; other_device_label: string | null; other_device_id: string | null;
   summary: string | null;
+  details?: { escalations?: Array<{ to?: string; to_label?: string }> } | null;
 }
 
 const TEXT = {
@@ -31,6 +32,7 @@ const TEXT = {
     open: 'مفتوحة', falseAlarm: 'إنذارات كاذبة', refresh: 'تحديث', none: 'لا توجد تنبيهات',
     time: 'الوقت', session: 'الامتحان / الحصة', account: 'الحساب المستخدم', device: 'الجهاز', owner: 'صاحب الجهاز', other: 'الطرف الآخر',
     sev: 'الخطورة', what: 'ما حدث', action: 'إجراء', strong: 'قوي', review: 'للمراجعة', mark: 'إنذار كاذب', reopen: 'إعادة فتح',
+    handedOff: 'تم التحويل إلى', agentWord: 'الوكيل', adminWord: 'المشرف',
     take: 'اتخاذ إجراء', takeDesc: 'اختر الإجراء المناسب. لن يحدث شيء تلقائياً قبل ضغطك.',
     direct: 'إجراء مباشر', suspendBtn: 'إيقاف الطالب عن هذه المادة', duration: 'المدة', h1: 'ساعة', h24: '24 ساعة', d7: '7 أيام', open_: 'حتى أرفعه',
     reason: 'السبب / ملاحظة', toAdmin: 'تحويل لمشرف المنصة المرتبط بك', toAgent: 'تحويل للوكيل المختص بتسجيل الطالب',
@@ -50,6 +52,7 @@ const TEXT = {
     open: 'Open', falseAlarm: 'False alarms', refresh: 'Refresh', none: 'No alerts',
     time: 'Time', session: 'Exam / session', account: 'Account used', device: 'Device', owner: 'Device owner', other: 'Other party',
     sev: 'Severity', what: 'What happened', action: 'Action', strong: 'Strong', review: 'Review', mark: 'False alarm', reopen: 'Reopen',
+    handedOff: 'Handed off to', agentWord: 'the agent', adminWord: 'the supervisor',
     take: 'Take action', takeDesc: 'Choose the action. Nothing happens automatically before you press a button.',
     direct: 'Direct action', suspendBtn: 'Suspend student from this subject', duration: 'Duration', h1: '1 hour', h24: '24 hours', d7: '7 days', open_: 'Until I lift it',
     reason: 'Reason / note', toAdmin: 'Escalate to my platform supervisor', toAgent: "Hand off to the student's registration agent",
@@ -101,6 +104,12 @@ export default function CheatAlertsSection() {
     } catch { toast.error(T.fail); } finally { setBusyId(''); }
   };
 
+  const handedTo = (a: Alert) => {
+    const e = a.details?.escalations;
+    if (!Array.isArray(e) || e.length === 0) return '';
+    const last = e[e.length - 1];
+    return last.to_label || (last.to === 'agent' ? T.agentWord : T.adminWord);
+  };
   const openAction = (a: Alert) => { setActive(a); setNote(''); setHours('24'); };
 
   const run = async (kind: 'suspend' | 'escalate_admin' | 'handoff_agent') => {
@@ -167,12 +176,16 @@ export default function CheatAlertsSection() {
                     <td className="p-2">{whoFull(a.device_owner)}</td>
                     <td className="p-2">{a.other_account ? whoFull(a.other_account) : '-'}</td>
                     <td className="p-2">
+                      {handedTo(a) ? (
+                        <div className="text-xs text-muted-foreground">{T.handedOff}: <span className="font-medium text-foreground">{handedTo(a)}</span></div>
+                      ) : (
                       <div className="flex flex-wrap gap-1">
                         <Button size="sm" variant="outline" disabled={busyId === a.id} onClick={() => void setStatus(a.id, a.status === 'open' ? 'false_alarm' : 'open')}>
                           {busyId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : a.status === 'open' ? T.mark : T.reopen}
                         </Button>
                         <Button size="sm" onClick={() => openAction(a)}>{T.take}</Button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}

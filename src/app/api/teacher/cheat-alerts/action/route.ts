@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
     }
 
+    const prevEsc = (alert.details as Record<string, unknown> | null)?.escalations;
+    if (Array.isArray(prevEsc) && prevEsc.length > 0) {
+      return NextResponse.json({ success: false, error: 'تم تحويل هذا التنبيه بالفعل، ولم يعد القرار فيه لك' }, { status: 409 });
+    }
+
     const { data: acct } = alert.account_id
       ? await supabaseServer.from('users').select('name,email').eq('id', alert.account_id).maybeSingle()
       : { data: null };
@@ -106,9 +111,12 @@ export async function POST(request: NextRequest) {
         await notifyUser(r, 'system', `تنبيه جهاز محوّل إليك من المعلم ${teacherName}`, msg, undefined);
       }
     }
+    const { data: recUsers } = await supabaseServer.from('users').select('name,role').in('id', recipients);
+    const roleAr: Record<string, string> = { superadmin: 'مدير المنصة', admin: 'مدير', supervisor: 'مشرف', registration_agent: 'وكيل', teacher: 'معلم' };
+    const toLabel = (recUsers || []).map((u: any) => `${u.name || ''} (${roleAr[u.role] || (kind === 'agent' ? 'وكيل' : 'مشرف')})`).join('، ');
     const prev = Array.isArray((alert.details as Record<string, unknown> | null)?.escalations) ? ((alert.details as Record<string, unknown>).escalations as unknown[]) : [];
     await supabaseServer.from('cheat_alerts').update({
-      details: { ...(alert.details || {}), escalations: [...prev, { to: kind, by: auth.user.id, at: new Date().toISOString(), note: note || null }] },
+      details: { ...(alert.details || {}), escalations: [...prev, { to: kind, to_label: toLabel, by: auth.user.id, at: new Date().toISOString(), note: note || null }] },
     }).eq('id', id);
     return NextResponse.json({ success: true, notified: recipients.length, to: kind });
   } catch (e) {
