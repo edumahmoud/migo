@@ -29,6 +29,13 @@ const cspReportOnly = [
   "report-uri /api/csp-report",
 ].join('; ');
 
+// Enforced CSP: only the low-risk directives. Resource directives stay report-only above.
+const cspEnforced = [
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7),
@@ -90,6 +97,7 @@ const nextConfig: NextConfig = {
         // Baseline security headers for every route.
         source: '/:path*',
         headers: [
+          { key: 'Content-Security-Policy', value: cspEnforced },
           { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
