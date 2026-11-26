@@ -1223,7 +1223,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                               <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />
                             ) : null}
                             <span className="text-sm font-medium">
-                              {isWarning ? t('reports.officialWarning') : msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} /> <RoleBadge role={msg.sender.role} t={t} /> : t('common.user')}
+                              {isWarning ? t('reports.officialWarning') : msg.sender ? <><UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} /> <RoleBadge role={msg.sender.role} t={t} /> : t('common.user')}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                               isWarning
