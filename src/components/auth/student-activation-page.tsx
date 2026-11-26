@@ -495,7 +495,6 @@ export default function StudentActivationPage() {
                   <div key={i} className="flex items-center gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1.5">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                     <span className="font-medium">{lt.teacher?.name ?? '—'}</span>
-                    <Badge variant="outline" className="text-xs" dir="ltr">{lt.teacher?.email}</Badge>
                   </div>
                 ))}
               </div>

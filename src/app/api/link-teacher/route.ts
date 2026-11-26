@@ -162,7 +162,6 @@ export async function POST(request: Request) {
         teacher: {
           id: teacher.id,
           name: teacher.name,
-          email: teacher.email,
           avatar_url: teacher.avatar_url,
           teacher_code: teacher.teacher_code,
         },
