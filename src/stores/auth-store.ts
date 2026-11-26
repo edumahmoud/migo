@@ -428,6 +428,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // the INITIAL_SESSION event provides the valid session. Without handling this,
       // the user gets redirected to the login page on refresh.
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        // Audit log: a Google sign-in just came back from the provider (flag set in signInWithGoogle, valid 10 min).
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('audit_pending_login');
+            if (raw && session.access_token) {
+              const p = JSON.parse(raw) as { m?: string; t?: number };
+              localStorage.removeItem('audit_pending_login');
+              if (p.m === 'google' && typeof p.t === 'number' && Date.now() - p.t < 10 * 60 * 1000) {
+                ensureDeviceId();
+                void fetch('/api/audit/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                  body: JSON.stringify({ method: 'google' }),
+                }).catch(() => {});
+              }
+            }
+          } catch { /* ignore */ }
+        }
         // ─── Password Recovery Detection (prevents race condition) ───
         // When the user clicks a password reset link, Supabase fires INITIAL_SESSION
         // or SIGNED_IN first, then PASSWORD_RECOVERY later. If we process the
@@ -922,6 +940,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   signInWithGoogle: async () => {
     try {
+      // Audit log: remember that a Google sign-in was started, so the return from Google is logged as a login.
+      try { localStorage.setItem('audit_pending_login', JSON.stringify({ m: 'google', t: Date.now() })); } catch { /* ignore */ }
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -933,7 +953,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         },
       });
       
-      if (error) return { error: getSafeErrorMessage(error) };
+      if (error) {
+        try { localStorage.removeItem('audit_pending_login'); } catch { /* ignore */ }
+        void fetch('/api/audit/login-failed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: '', reason: 'unknown', method: 'google' }) }).catch(() => {});
+        return { error: getSafeErrorMessage(error) };
+      }
       return { error: null };
     } catch {
       return { error: 'حدث خطأ غير متوقع أثناء تسجيل الدخول بجوجل' };
@@ -951,6 +975,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const r = await withTimeout(supabase.auth.getSession(), 1500);
       earlyToken = r?.data?.session?.access_token ?? null;
     } catch { /* ignore */ }
+    if (earlyToken) {
+      // Audit log: record the logout (fire and forget, keepalive so it survives the page change).
+      void fetch('/api/audit/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${earlyToken}` }, keepalive: true }).catch(() => {});
+    }
     if (earlyToken) {
       void import('@/lib/native-push')
         .then(({ unregisterNativeDevice, unregisterWebPush }) => Promise.all([unregisterNativeDevice(earlyToken), unregisterWebPush(earlyToken)]))
@@ -1185,4 +1213,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 // Export helper for use in components
 export { getDashboardForRole };
+
 
