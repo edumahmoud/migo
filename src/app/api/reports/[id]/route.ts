@@ -178,6 +178,20 @@ export async function GET(
       (report as any).reporter_count = targetEnrichmentResult.reporterCount;
     }
 
+    // The accused only sees what concerns them: no internal staff thread,
+    // no internal assignee, and device alerts are shown as a plain notice
+    // (the description names other accounts and devices).
+    const accusedOnly = isTargetUser && report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin;
+    if (accusedOnly) {
+      const visibleMessages = messages.filter((m: any) => m.recipient_id === userId || m.sender_id === userId);
+      const safe: any = { ...report, assigned_user: null, assigned_to: null, responses: [], messages: visibleMessages, accused_view: true };
+      if (report.reason === 'تنبيه جهاز مشتبه') {
+        safe.description = 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك أثناء استخدام المنصة، وتم رفعه للمراجعة. لا يوجد إجراء مطلوب منك الآن. قد تتواصل معك الإدارة أو المعلم إذا لزم الأمر.';
+        safe.target_content = null;
+      }
+      return NextResponse.json({ success: true, data: safe });
+    }
+
     return NextResponse.json({
       success: true,
       data: { ...report, responses, messages },
