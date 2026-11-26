@@ -1231,7 +1231,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                                 : 'text-sky-600 dark:text-sky-400'
                             }`}>
                               {isWarning ? (
-                                <><AlertTriangle className="h-3.5 w-3.5" /> {t('reports.warn')}</>
+                                <><AlertTriangle className="h-3.5 w-3.5" /> {t('reports.warningToUser')}</>
                               ) : (
                                 <><Mail className="h-3.5 w-3.5" /> {msg.recipient_type === 'reporter' ? t('reports.messageToReporter') : t('reports.messageToAccused')}</>
                               )}
