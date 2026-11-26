@@ -72,6 +72,7 @@ import { SectionErrorBoundary } from '@/components/shared/section-error-boundary
 import NotificationsSection from '@/components/shared/notifications-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import TodoSection from '@/components/shared/todo-section';
+import CheatAlertsSection from '@/components/teacher/cheat-alerts-section';
 import CalendarSection from '@/components/shared/calendar-section';
 import CoursePage from '@/components/course/course-page';
 import TeacherSummariesSection from '@/components/teacher/teacher-summaries-section';
@@ -2586,6 +2587,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <TeacherPendingOrdersSection profile={profile} />
                   </SectionErrorBoundary>
                 )}
+                {activeSection === 'cheatAlerts' && <SectionErrorBoundary name="CheatAlerts"><CheatAlertsSection /></SectionErrorBoundary>}
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && (
                   <div className="space-y-2">
@@ -3010,3 +3012,4 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     </div>
   );
 }
+
