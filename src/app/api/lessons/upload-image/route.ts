@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Sanitize filename: remove special characters, keep extension
     const originalName = file.name || 'image.png';
-    const extension = originalName.split('.').pop()?.toLowerCase() || 'png';
+    const extension = (originalName.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)?.toLowerCase() || 'png';
     const safeTimestamp = Date.now();
     const sanitizedFilename = `${safeTimestamp}_${originalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
