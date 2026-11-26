@@ -97,7 +97,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: kind === 'agent' ? 'لا يوجد وكيل مرتبط بتسجيل هذا الطالب' : 'لا يوجد مشرف' }, { status: 404 });
     }
     for (const r of recipients) {
-      await notifyUser(r, 'system', 'تحويل تنبيه جهاز من معلم', text, undefined);
+      if (kind === 'admin') {
+        const msg = `حوّل المعلم ${teacherName} إليك تنبيه جهاز يحتاج مراجعتك واتخاذ قرار.\n${text}` + (reportNumber ? `\nرقم البلاغ: ${reportNumber}` : '') + '\nاضغط لفتح البلاغ.';
+        await notifyUser(r, 'report', `تنبيه جهاز محوّل إليك من المعلم ${teacherName}`, msg, reportId ? `/reports/${reportId}` : undefined);
+      } else {
+        const msg = `حوّل المعلم ${teacherName} إليك تنبيه جهاز لأنك وكيل التسجيل المرتبط بهذا الطالب. المطلوب منك التواصل مع الطالب والتأكد من استخدامه لحسابه وجهازه، ثم إبلاغ المعلم بالنتيجة.\n${text}`;
+        await notifyUser(r, 'system', `تنبيه جهاز محوّل إليك من المعلم ${teacherName}`, msg, undefined);
+      }
     }
     const prev = Array.isArray((alert.details as Record<string, unknown> | null)?.escalations) ? ((alert.details as Record<string, unknown>).escalations as unknown[]) : [];
     await supabaseServer.from('cheat_alerts').update({
