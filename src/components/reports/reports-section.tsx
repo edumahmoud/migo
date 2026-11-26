@@ -1241,7 +1241,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         </div>
                         <p className={`text-sm whitespace-pre-wrap mt-1 ms-10 ${
                           isWarning ? 'text-orange-800 dark:text-orange-300' : 'text-foreground'
-                        }`}>{msg.content}</p>
+                        }`}>{isWarning && msg.content.trim() === t('reports.warn') ? t('reports.warningDefaultBody') : msg.content}</p>
                         {/* Message attachments in timeline */}
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5 ms-10">
