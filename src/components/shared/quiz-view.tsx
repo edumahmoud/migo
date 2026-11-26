@@ -305,11 +305,21 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     }
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase
-        .from('quizzes')
-        .select('*')
-        .eq('id', quizId)
-        .single();
+      // The server sends the questions without the answer key (the key comes back one question at a time).
+      let data: Quiz | null = null;
+      let fetchError: unknown = null;
+      try {
+        const res = await fetch('/api/quizzes/take', {
+          method: 'POST',
+          headers: await getCachedAuthHeaders(),
+          body: JSON.stringify({ quizId, review: !!reviewMode }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.success && json.quiz) data = json.quiz as Quiz;
+        else fetchError = json?.error || res.status;
+      } catch (e) {
+        fetchError = e;
+      }
 
       if (fetchError || !data) {
         // If we already have data, don't overwrite with error
@@ -518,7 +528,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         (payload) => {
           const updated = payload.new as Quiz;
           if (updated) {
-            setQuiz(prev => prev ? { ...prev, ...updated, questions: Array.isArray(updated.questions) ? updated.questions : prev.questions } : prev);
+            setQuiz(prev => prev ? { ...prev, ...updated, questions: prev.questions } : prev);
           }
         }
       )
@@ -903,17 +913,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     setGradingPaged(true);
     try {
       const graded = gradePagedAnswers(quiz.questions, pagedAnswers);
-      await Promise.all(graded.map(async (g) => {
-        if (g.type !== 'completion' || g.isCorrect) return;
-        const q = quiz.questions[g.questionIndex];
-        const student = String(g.answer || '').trim();
-        if (!student) return;
-        const ai = await evaluateCompletionAI(q.question, q.correctAnswer || '', student);
-        if (ai !== null) { g.isCorrect = ai; return; }
-        const sl = student.replace(/\s/g, '').length;
-        const cl = (q.correctAnswer || '').replace(/\s/g, '').length;
-        g.isCorrect = sl >= 2 && cl > 0 && Math.min(sl, cl) / Math.max(sl, cl) >= 0.5;
-      }));
+      // The server grades everything (including completion answers) when the score is saved.
       setUserAnswers(graded);
       saveScore(graded.filter((a) => a.isCorrect).length, graded);
       setShowResults(true);
@@ -987,25 +987,64 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   // -------------------------------------------------------
   // Handle MCQ answer
   // -------------------------------------------------------
-  const handleMCQAnswer = (option: string) => {
-    if (answered) return;
+  // Asks the server whether the answer is right; the server returns the key for this one question only.
+  const checkingRef = useRef(false);
+  const checkOnServer = async (answer: string | Record<string, string>): Promise<{ isCorrect: boolean } | null> => {
+    const origIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+    try {
+      const res = await fetch('/api/quizzes/check', {
+        method: 'POST',
+        headers: await getCachedAuthHeaders(),
+        body: JSON.stringify({ quizId, questionIndex: origIdx, answer }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        if (res.status === 429) toast.error(t('common.tooManyRequests'));
+        return null;
+      }
+      if (json.hidden) return { isCorrect: false };
+      setQuiz((prev) => prev ? {
+        ...prev,
+        questions: prev.questions.map((qq, i) => i === origIdx
+          ? { ...qq, correctAnswer: json.correctAnswer ?? qq.correctAnswer, pairs: json.pairs ?? qq.pairs }
+          : qq),
+      } : prev);
+      return { isCorrect: !!json.isCorrect };
+    } catch {
+      return null;
+    }
+  };
+
+  const handleMCQAnswer = async (option: string) => {
+    if (answered || checkingRef.current) return;
+    checkingRef.current = true;
     setSelectedOption(option);
-    const correct = option === currentQuestion?.correctAnswer;
-    setIsCorrect(correct);
+    const r = await checkOnServer(option);
+    checkingRef.current = false;
+    if (!r) {
+      setSelectedOption(null);
+      toast.error(t('common.connectionError'));
+      return;
+    }
+    setIsCorrect(r.isCorrect);
     setAnswered(true);
   };
 
   // -------------------------------------------------------
   // Handle Boolean answer
   // -------------------------------------------------------
-  const handleBooleanAnswer = (answer: string) => {
-    if (answered) return;
+  const handleBooleanAnswer = async (answer: string) => {
+    if (answered || checkingRef.current) return;
+    checkingRef.current = true;
     setSelectedOption(answer);
-    // v135e: case-insensitive comparison for language-agnostic boolean values
-    const correct =
-      answer === currentQuestion?.correctAnswer ||
-      String(answer).trim().toLowerCase() === String(currentQuestion?.correctAnswer || '').trim().toLowerCase();
-    setIsCorrect(correct);
+    const r = await checkOnServer(answer);
+    checkingRef.current = false;
+    if (!r) {
+      setSelectedOption(null);
+      toast.error(t('common.connectionError'));
+      return;
+    }
+    setIsCorrect(r.isCorrect);
     setAnswered(true);
   };
 
@@ -1019,169 +1058,29 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       }
       return;
     }
+    if (checkingRef.current) return;
 
     // Track which question is being evaluated to prevent race condition
     const evaluatingIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
     evaluatingQuestionIdxRef.current = evaluatingIdx;
-
+    checkingRef.current = true;
     setEvaluatingCompletion(true);
 
     try {
-      // First check exact match
-      const studentAnswer = completionInput.trim();
-      const correctAnswer = currentQuestion?.correctAnswer?.trim() || '';
-
-      const studentLower = studentAnswer.toLowerCase();
-      const correctLower = correctAnswer.toLowerCase();
-
-      if (studentLower === correctLower) {
-        setIsCorrect(true);
-        setAnswered(true);
-        setEvaluatingCompletion(false);
+      // The server applies the same matching rules and the AI check, and returns the result.
+      const r = await checkOnServer(completionInput.trim());
+      // Guard: if user navigated away during evaluation, don't apply result to wrong question
+      if (evaluatingQuestionIdxRef.current !== evaluatingIdx) return;
+      if (!r) {
+        toast.error(t('common.connectionError'));
         return;
       }
-
-      // ─── Arabic text normalization ───
-      // Remove diacritics (tashkeel), normalize alef variants, normalize taa marbuta
-      const normalizeArabic = (s: string) =>
-        s.replace(/[\u064B-\u065F\u0670]/g, '')   // remove fatha, damma, kasra, shadda, sukun, etc.
-         .replace(/[أإآٱ]/g, 'ا')                  // normalize alef variants → bare alef
-         .replace(/ة/g, 'ه')                        // taa marbuta → haa
-         .replace(/ى/g, 'ي');                       // alef maqsura → yaa
-
-      // ─── Flexible local matching (before AI call) ───
-      // Normalize: remove hyphens, spaces, common suffixes, AND Arabic variations
-      const normalize = (s: string) =>
-        normalizeArabic(s)
-         .toLowerCase()
-         .replace(/[-_\s]/g, '')    // remove hyphens, underscores, spaces
-         .replace(/ing$/, '')        // strip -ing suffix (wireframing → wirefram)
-         .replace(/tion$/, '')       // strip -tion suffix (compilation → compila)
-         .replace(/ment$/, '')       // strip -ment suffix
-         .replace(/ness$/, '')       // strip -ness suffix
-         .replace(/able$/, '')       // strip -able suffix
-         .replace(/ible$/, '');      // strip -ible suffix
-
-      const studentNorm = normalize(studentAnswer);
-      const correctNorm = normalize(correctAnswer);
-
-      if (studentNorm === correctNorm && studentNorm.length >= 3) {
-        setIsCorrect(true);
-        setAnswered(true);
-        setEvaluatingCompletion(false);
-        return;
-      }
-
-      // Also check if one contains the other (e.g., "test" in "testing")
-      if (
-        (studentNorm.length >= 4 && correctNorm.includes(studentNorm)) ||
-        (correctNorm.length >= 4 && studentNorm.includes(correctNorm))
-      ) {
-        // Only accept if length difference is small (< 40%) to avoid false positives
-        const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
-        const maxLen = Math.max(studentNorm.length, correctNorm.length);
-        if (maxLen > 0 && lenDiff / maxLen < 0.4) {
-          setIsCorrect(true);
-          setAnswered(true);
-          setEvaluatingCompletion(false);
-          return;
-        }
-      }
-
-      // ─── Arabic-English cross-language matching ───
-      // Check Arabic-normalized forms against each other (handles diacritics, alef variants)
-      const studentArNorm = normalizeArabic(studentAnswer).trim();
-      const correctArNorm = normalizeArabic(correctAnswer).trim();
-      if (studentArNorm === correctArNorm && studentArNorm.length >= 2) {
-        setIsCorrect(true);
-        setAnswered(true);
-        setEvaluatingCompletion(false);
-        return;
-      }
-
-      // ─── Call API for semantic evaluation with retry ───
-      let aiResult: boolean | null = null;
-      let lastError: string | null = null;
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const headers = await getCachedAuthHeaders();
-          const res = await fetch('/api/gemini/evaluate', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              question: currentQuestion?.question,
-              correctAnswer: currentQuestion?.correctAnswer,
-              studentAnswer,
-            }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.data) {
-              // If server returned a fallback (e.g., rate-limited), don't trust isCorrect
-              // Let it fall through to benefit-of-doubt logic instead
-              if (data.data.fallback) {
-                aiResult = null;
-              } else {
-                aiResult = data.data.isCorrect;
-                break;
-              }
-            } else if (res.status !== 429) {
-              // Non-retryable API error (validation, etc.) — don't retry
-              break;
-            }
-          }
-
-          if (res.status === 429) {
-            // Rate limited — wait and retry
-            lastError = t('common.tooManyRequests');
-            if (attempt < 2) await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
-            continue;
-          }
-
-          // Other server errors — retry with backoff
-          lastError = t('common.connectionError');
-          if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-        } catch (fetchErr) {
-          lastError = t('common.connectionError');
-          if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-        }
-      }
-
-      // Guard: if user navigated away during AI evaluation, don't apply result to wrong question
-      if (evaluatingQuestionIdxRef.current !== evaluatingIdx) {
-        setEvaluatingCompletion(false);
-        return;
-      }
-
-      if (aiResult !== null) {
-        // AI evaluation succeeded
-        setIsCorrect(aiResult);
-      } else {
-        // AI evaluation failed after all retries
-        // Give benefit of doubt: if the student wrote something substantial
-        // and it's not obviously wrong, mark as correct to avoid unfair penalty
-        // This prevents students from being penalized when the AI service is down
-        const studentLen = studentAnswer.replace(/\s/g, '').length;
-        const correctLen = correctAnswer.replace(/\s/g, '').length;
-        const lenRatio = correctLen > 0 ? Math.min(studentLen, correctLen) / Math.max(studentLen, correctLen) : 0;
-
-        // If answer length is similar (within 50%) and non-trivial, give benefit of doubt
-        if (studentLen >= 2 && lenRatio >= 0.5) {
-          setIsCorrect(true);
-          toast.info(t('quiz.aiGenerating'));
-        } else {
-          setIsCorrect(false);
-          if (lastError) toast.error(lastError);
-        }
-      }
+      setIsCorrect(r.isCorrect);
       setAnswered(true);
     } catch {
       toast.error(t('common.unexpectedError'));
-      setIsCorrect(false);
-      setAnswered(true);
     } finally {
+      checkingRef.current = false;
       setEvaluatingCompletion(false);
       evaluatingQuestionIdxRef.current = null;
     }
@@ -1216,8 +1115,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     }
   }, [selectedKey, selectedValue]);
 
-  const handleMatchingCheck = () => {
-    if (answered) return;
+  const handleMatchingCheck = async () => {
+    if (answered || checkingRef.current) return;
 
     if (!currentQuestion?.pairs) return;
 
@@ -1228,13 +1127,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       return;
     }
 
-    // All-or-nothing: check all pairs
-    const allCorrect = currentQuestion.pairs.every(
-      (pair) => matchedPairs[pair.key] === pair.value
-    );
-
-    setIsCorrect(allCorrect);
-    setMatchingFeedback(allCorrect ? 'correct' : 'incorrect');
+    checkingRef.current = true;
+    const r = await checkOnServer(matchedPairs);
+    checkingRef.current = false;
+    if (!r) {
+      toast.error(t('common.connectionError'));
+      return;
+    }
+    setIsCorrect(r.isCorrect);
+    setMatchingFeedback(r.isCorrect ? 'correct' : 'incorrect');
     setAnswered(true);
   };
 
@@ -1311,6 +1212,14 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
           if (Array.isArray(data.userAnswers)) setUserAnswers(data.userAnswers as UserAnswer[]);
+          // Now that the score is saved, fetch the full quiz for the review screen (the server decides if it is allowed).
+          try {
+            const rv = await fetch('/api/quizzes/take', { method: 'POST', headers: await getCachedAuthHeaders(), body: JSON.stringify({ quizId, review: true }) });
+            const rj = await rv.json().catch(() => ({}));
+            if (rv.ok && rj.success && rj.quiz && Array.isArray(rj.quiz.questions)) {
+              setQuiz((prev) => prev && prev.questions.length === rj.quiz.questions.length ? { ...prev, questions: rj.quiz.questions } : prev);
+            }
+          } catch { /* the review just stays without the key */ }
         } else {
           scoreError = { message: data.error, status: res.status };
         }
@@ -2585,6 +2494,8 @@ function MatchingQuestion({
   const qDir = questionDir(question);
   // Shuffle values so they don't appear in the same order as keys
   // Uses Fisher-Yates shuffle — ensures the order is DIFFERENT from the original
+  // Stable while the key is revealed after checking (same values, different pairing).
+  const valuesKey = (question.pairs || []).map((p) => p.value).slice().sort().join('\u0001');
   const values = useMemo(() => {
     if (!question.pairs) return [];
     const original = question.pairs.map((p) => p.value);
@@ -2605,7 +2516,8 @@ function MatchingQuestion({
     );
 
     return shuffled;
-  }, [question.pairs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valuesKey, question.question]);
 
   if (!question.pairs) return null;
 
