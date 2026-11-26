@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
 import type { UserRole } from '@/lib/types';
+import { rememberVerifiedActor } from '@/lib/audit-context';
 
 // ─── Types ───
 
@@ -78,6 +79,9 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
       status: 401,
     };
   }
+
+  // Audit log: from here on database writes for this request carry the verified actor.
+  rememberVerifiedActor(request, { id: authUser.id, email: authUser.email });
 
   return {
     success: true,
@@ -432,3 +436,4 @@ export function verifyOwnership(authUserId: string, requestedUserId: string): Au
   }
   return null;
 }
+
