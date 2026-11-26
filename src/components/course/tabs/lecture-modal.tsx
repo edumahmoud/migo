@@ -1629,7 +1629,7 @@ export default function LectureModal({
                       .filter((student) =>
                         !manualSearchQuery.trim() ||
                         student.name.toLowerCase().includes(manualSearchQuery.trim().toLowerCase()) ||
-                        student.email.toLowerCase().includes(manualSearchQuery.trim().toLowerCase())
+                        (student.email || '').toLowerCase().includes(manualSearchQuery.trim().toLowerCase())
                       )
                       .map((student) => (
                       <div key={student.id} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
@@ -1653,7 +1653,7 @@ export default function LectureModal({
                     {absentStudents.filter((student) =>
                       !manualSearchQuery.trim() ||
                       student.name.toLowerCase().includes(manualSearchQuery.trim().toLowerCase()) ||
-                      student.email.toLowerCase().includes(manualSearchQuery.trim().toLowerCase())
+                      (student.email || '').toLowerCase().includes(manualSearchQuery.trim().toLowerCase())
                     ).length === 0 && manualSearchQuery.trim() && (
                       <div className="py-8 text-center text-xs text-muted-foreground">{t('lecture.noSearchResults')}</div>
                     )}

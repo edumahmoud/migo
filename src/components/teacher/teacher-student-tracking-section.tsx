@@ -898,7 +898,7 @@ export default function TeacherStudentTrackingSection({
       const q = searchQuery.trim().toLowerCase();
       data = data.filter(d =>
         d.student.name.toLowerCase().includes(q) ||
-        d.student.email.toLowerCase().includes(q)
+        (d.student.email || '').toLowerCase().includes(q)
       );
     }
 

@@ -803,8 +803,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
   const filteredStudents = students.filter(
     (s) =>
-      s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-      s.email.toLowerCase().includes(studentSearch.toLowerCase())
+      (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) ||
+      (s.email || '').toLowerCase().includes(studentSearch.toLowerCase())
   );
 
   const getStudentLastScore = (studentId: string): Score | null => {
