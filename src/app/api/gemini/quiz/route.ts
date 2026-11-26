@@ -5,6 +5,7 @@ export const maxDuration = 60;
 export const runtime = 'nodejs';
 import { generateQuiz, isAiError } from '@/lib/ai';
 import type { QuizGenerationOptions, QuizMixCounts } from '@/lib/ai/types';
+import { gateSection } from '@/lib/section-gate';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 import { supabaseServer } from '@/lib/supabase-server';
@@ -83,6 +84,11 @@ export async function POST(request: NextRequest) {
     const contentScope: string | undefined = VALID_SCOPES.includes(body.contentScope) ? body.contentScope : undefined;
     const mixCounts = parseMixCounts(body.mixCounts);
     const bankId: string | undefined = typeof body.bankId === 'string' && body.bankId.length > 0 ? body.bankId : undefined;
+
+    if (bankId) {
+      const gate = await gateSection(authResult.user.id, 'questionBankAI');
+      if (gate.block) return gate.block;
+    }
 
     // ─── v136: dedup guard — pull the bank's existing questions into the prompt ───
     let existingQuestions: string[] | undefined;
