@@ -6406,7 +6406,19 @@
     "grantPickUser": "اختر مستخدماً",
     "grantDays": "المدة بالأيام (اختياري)",
     "grantDone": "تم التفعيل",
-    "grantConfirm": "تفعيل"
+    "grantConfirm": "تفعيل",
+    "planMonthTitle": "الاشتراك الشهري",
+    "planYearTitle": "الاشتراك السنوي",
+    "priceLabel": "السعر ({currency})",
+    "limitLabel": "الحد الأقصى للاستخدام",
+    "windowMonthly": "يُحسب على آخر 30 يوم",
+    "windowYearly": "يُحسب على آخر 365 يوم",
+    "limitEmptyHint": "اتركه فاضي = بدون حد",
+    "summaryLine": "{role}: شهري {mp} {currency}{ml} · سنوي {yp} {currency}{yl}",
+    "summaryLimit": " ({n} عنصر)",
+    "summaryUnlimited": " (بدون حد)",
+    "howItWorks": "كل اشتراك له سعره وحده وحده الأقصى. الحد بيتحسب على آخر 30 يوم للشهري وآخر 365 يوم للسنوي، وبيتجدد تدريجيا كل ما العناصر القديمة تخرج من الفترة.",
+    "lockSectionTitle": "1) مين يتقفل عليه القسم"
   },
   "regAgents": {
     "title": "الوكلاء",
