@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
 
     let recipients: string[] = [];
     let kind = '';
+    let reportId: string | null = null;
+    let reportNumber: string | null = null;
     if (action === 'escalate_admin') {
       kind = 'admin';
       const { data: links } = await supabaseServer.from('teacher_supervisor_links').select('supervisor_id').eq('teacher_id', auth.user.id);
