@@ -2506,7 +2506,7 @@
     "filterByStatus": "تصفية حسب الحالة",
     "evidenceUploaded": "تم رفع الدليل",
     "accused": "الطرف المعني",
-    "accusedContentLabel": "رسالتك للمتهم",
+    "accusedContentLabel": "رسالتك للطرف المعني",
     "accusedMessageNotice": "سيتم إرسال رسالتك إلى المستخدم المتهم",
     "accusedMessagePlaceholder": "اكتب رسالتك للمتهم...",
     "actionFailed": "فشل الإجراء",
