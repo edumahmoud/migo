@@ -275,7 +275,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         const uploaderMap = new Map<string, { name: string; title_id?: string | null; gender?: string | null; role?: string | null }>();
 
         const { data: uploaders } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .in('id', uploaderIds);
 
