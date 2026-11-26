@@ -27,6 +27,15 @@ export async function POST(request: NextRequest) {
       newDevice = (count ?? 0) === 0;
     }
 
+    // Device registry: the first account to sign in on a device becomes its owner (used by the cheating alerts).
+    if (d.deviceId) {
+      const label = [d.deviceType, d.os, d.browser].filter(Boolean).join(' / ');
+      const { error: regError } = await supabaseServer.rpc('device_register', {
+        p_user: user.id, p_device: d.deviceId, p_ip: d.ip, p_label: label, p_dtype: d.deviceType, p_os: d.os, p_browser: d.browser, p_client: d.client,
+      });
+      if (regError) console.error('[audit] device register failed:', regError.message);
+    }
+
     const { error } = await supabaseServer.from('audit_events').insert({
       category: 'auth',
       action: 'auth.login_success',
