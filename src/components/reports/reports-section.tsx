@@ -1326,6 +1326,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <span className="text-muted-foreground">{t('reports.reporter')}:</span>
                 <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender, t)} />
+                <RoleBadge role={selectedReport.reporter.role} t={t} />
               </div>
             ) : (
               <span>{t('reports.reporter')}: {t('reports.unknown')}</span>
