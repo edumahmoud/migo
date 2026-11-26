@@ -312,7 +312,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           if (tid) {
             setTeacherId(tid);
             supabase
-              .from('users')
+              .from('users_public')
               .select('name, title_id, gender, role')
               .eq('id', tid)
               .single()
