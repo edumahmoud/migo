@@ -89,6 +89,7 @@ import AdminPaidServicesSection from '@/components/admin/admin-paid-services-sec
 import AdminLegalPoliciesSection from '@/components/admin/admin-legal-policies-section';
 import AdminSendNotificationSection from '@/components/admin/admin-send-notification-section';
 import AdminAuditLogSection from '@/components/admin/admin-audit-log-section';
+import AdminSharedLabsSection from '@/components/admin/admin-shared-labs-section';
 import ReportsSection from '@/components/reports/reports-section';
 import NotificationsSection from '@/components/shared/notifications-section';
 import StatCard from '@/components/shared/stat-card';
@@ -160,6 +161,7 @@ const adminNavItemDefs = [
   { id: 'sendNotification', labelKey: 'nav.sendNotification', icon: <Bell className="h-5 w-5" /> },
   { id: 'legalPolicies', labelKey: 'nav.legalPolicies', icon: <FileText className="h-5 w-5" />, superadminOnly: true },
   { id: 'auditLog', labelKey: 'nav.auditLog', icon: <ShieldAlert className="h-5 w-5" />, superadminOnly: true },
+  { id: 'sharedLabs', labelKey: 'nav.auditLog', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -4041,7 +4043,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         role={profile.role as 'student' | 'teacher' | 'admin'}
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
-        customNavItems={adminNavItemDefs.map(item => ({ ...item, label: item.id === 'auditLog' ? (locale === 'en' ? 'Audit log' : 'سجل التدقيق') : t(item.labelKey) })).filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')}
+        customNavItems={adminNavItemDefs.map(item => ({ ...item, label: item.id === 'auditLog' ? (locale === 'en' ? 'Audit log' : 'سجل التدقيق') : item.id === 'sharedLabs' ? (locale === 'en' ? 'Shared devices' : 'الأجهزة المشتركة') : t(item.labelKey) })).filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')}
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
@@ -4155,6 +4157,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <AdminAuditLogSection />
                 </motion.div>
               )}
+              {activeSection === 'sharedLabs' && profile.role === 'superadmin' && (
+                <motion.div key="sharedLabs" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <AdminSharedLabsSection />
+                </motion.div>
+              )}
             </AnimatePresence>
           )}
         </div>
@@ -4170,5 +4177,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     </div>
   );
 }
+
 
 
