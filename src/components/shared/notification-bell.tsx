@@ -188,7 +188,7 @@ export default function NotificationBell() {
   const fetchTeacherForModal = async (teacherId: string) => {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('users_public')
         .select('*')
         .eq('id', teacherId)
         .single();
