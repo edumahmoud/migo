@@ -939,7 +939,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Fetch teacher profiles
     const teacherIds = teacherEntries.map((e) => e.tid);
     const { data: teachers, error: teachersError } = await supabase
-      .from('users')
+      .from('users_public')
       .select('*')
       .in('id', teacherIds);
 
