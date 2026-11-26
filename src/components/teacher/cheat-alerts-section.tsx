@@ -102,6 +102,12 @@ export default function CheatAlertsSection() {
     } catch { toast.error(T.fail); } finally { setBusyId(''); }
   };
 
+  const handedTo = (a: Alert) => {
+    const e = a.details?.escalations;
+    if (!Array.isArray(e) || e.length === 0) return '';
+    const last = e[e.length - 1];
+    return last.to_label || (last.to === 'agent' ? T.agentWord : T.adminWord);
+  };
   const openAction = (a: Alert) => { setActive(a); setNote(''); setHours('24'); };
 
   const run = async (kind: 'suspend' | 'escalate_admin' | 'handoff_agent') => {
