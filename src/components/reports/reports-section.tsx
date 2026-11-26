@@ -1181,7 +1181,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <div className="flex items-center gap-2">
                             {resp.responder && <UserAvatar name={resp.responder.name} avatarUrl={resp.responder.avatar_url} size="sm" />}
                             <span className="text-sm font-medium">
-                              {resp.responder ? <UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender, t)} /> : t('common.user')}
+                              {resp.responder ? <UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender, t)} /> <RoleBadge role={resp.responder.role} t={t} /> : t('common.user')}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
                               {getActionIcon(resp.action)}
