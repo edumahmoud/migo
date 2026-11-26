@@ -207,7 +207,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
       // Fetch creator names for non-anonymous polls
       const creatorIds = [...new Set(pollsList.map((p) => p.created_by))];
       const { data: creatorsData } = await supabase
-        .from('users')
+        .from('users_public')
         .select('id, name')
         .in('id', creatorIds);
 
