@@ -38,12 +38,30 @@ export async function POST(request: NextRequest) {
     const { data: subj } = alert.subject_id
       ? await supabaseServer.from('subjects').select('name').eq('id', alert.subject_id).maybeSingle()
       : { data: null };
-    const text = `تنبيه جهاز (${alert.kind}) للحساب ${acct?.name || acct?.email || ''}` +
-      (subj?.name ? ` في مادة "${subj.name}"` : '') + (alert.context_label ? ` - ${alert.context_label}` : '') +
-      (alert.summary ? `. ${alert.summary}` : '') + (note ? `. ملاحظة المعلم: ${note}` : '');
+    const { data: me } = await supabaseServer.from('users').select('name').eq('id', auth.user.id).maybeSingle();
+    const teacherName = me?.name || 'معلم';
+    const kindLabels: Record<string, string> = {
+      device_owner_mismatch: 'جهاز صاحبه مختلف عن الحساب المستخدم',
+      device_shared_in_session: 'نفس الجهاز لحسابين في نفس الجلسة',
+      account_on_two_devices: 'نفس الحساب على جهازين',
+      unusual_device: 'جهاز غير معتاد للطالب',
+      many_devices_or_ips: 'تغيّر كثير في الأجهزة أو الـ IP',
+    };
+    const studentLabel = acct?.name ? (acct.email ? `${acct.name} (${acct.email})` : acct.name) : (acct?.email || 'غير معروف');
+    const detailLines = [
+      `الطالب: ${studentLabel}`,
+      subj?.name ? `المادة: ${subj.name}` : '',
+      `نوع التنبيه: ${kindLabels[alert.kind as string] || alert.kind}`,
+      alert.context_label ? `السياق: ${alert.context_label}` : '',
+      alert.summary ? `التفاصيل: ${alert.summary}` : '',
+      note ? `ملاحظة المعلم: ${note}` : '',
+    ].filter(Boolean);
+    const text = detailLines.join('\n');
 
     let recipients: string[] = [];
     let kind = '';
+    let reportId: string | null = null;
+    let reportNumber: string | null = null;
     if (action === 'escalate_admin') {
       kind = 'admin';
       const { data: links } = await supabaseServer.from('teacher_supervisor_links').select('supervisor_id').eq('teacher_id', auth.user.id);
@@ -53,10 +71,12 @@ export async function POST(request: NextRequest) {
         recipients = (admins || []).map((a) => a.id);
       }
       // Also open a report so it appears in the supervisor's reports inbox.
-      await supabaseServer.from('reports').insert({
+      const { data: createdReport } = await supabaseServer.from('reports').insert({
         reporter_id: auth.user.id, target_type: 'user', target_id: alert.account_id || null,
         reason: 'تنبيه جهاز مشتبه', description: text, status: 'pending',
-      });
+      }).select('id, report_number').maybeSingle();
+      reportId = createdReport?.id || null;
+      reportNumber = createdReport?.report_number || null;
     } else {
       kind = 'agent';
       if (alert.account_id && alert.subject_id) {
@@ -77,7 +97,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: kind === 'agent' ? 'لا يوجد وكيل مرتبط بتسجيل هذا الطالب' : 'لا يوجد مشرف' }, { status: 404 });
     }
     for (const r of recipients) {
-      await notifyUser(r, 'system', 'تحويل تنبيه جهاز من معلم', text, undefined);
+      if (kind === 'admin') {
+        const msg = `حوّل المعلم ${teacherName} إليك تنبيه جهاز يحتاج مراجعتك واتخاذ قرار.\n${text}` + (reportNumber ? `\nرقم البلاغ: ${reportNumber}` : '') + '\nاضغط لفتح البلاغ.';
+        await notifyUser(r, 'report', `تنبيه جهاز محوّل إليك من المعلم ${teacherName}`, msg, reportId ? `/reports/${reportId}` : undefined);
+      } else {
+        const msg = `حوّل المعلم ${teacherName} إليك تنبيه جهاز لأنك وكيل التسجيل المرتبط بهذا الطالب. المطلوب منك التواصل مع الطالب والتأكد من استخدامه لحسابه وجهازه، ثم إبلاغ المعلم بالنتيجة.\n${text}`;
+        await notifyUser(r, 'system', `تنبيه جهاز محوّل إليك من المعلم ${teacherName}`, msg, undefined);
+      }
     }
     const prev = Array.isArray((alert.details as Record<string, unknown> | null)?.escalations) ? ((alert.details as Record<string, unknown>).escalations as unknown[]) : [];
     await supabaseServer.from('cheat_alerts').update({
