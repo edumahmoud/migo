@@ -1338,6 +1338,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <span className="font-bold text-rose-600 dark:text-rose-500">{t('reports.against')}</span>
                   <UserAvatar name={selectedReport.target_user.name} avatarUrl={selectedReport.target_user.avatar_url} size="sm" />
                   <UserLink userId={selectedReport.target_user.id} name={formatNameWithTitle(selectedReport.target_user.name, selectedReport.target_user.role, selectedReport.target_user.title_id, selectedReport.target_user.gender, t)} />
+                  <RoleBadge role={selectedReport.target_user.role} t={t} />
                 </div>
               </>
             )}
