@@ -1276,7 +1276,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
-        className="space-y-4"
+        className="space-y-4 pb-28 md:pb-0"
       >
         {/* Back button */}
         <button
