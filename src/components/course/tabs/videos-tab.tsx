@@ -218,7 +218,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         >();
 
         const { data: uploaders } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .in('id', uploaderIds);
 
@@ -330,7 +330,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
         const video = data as SubjectVideo;
         const { data: uploader } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .eq('id', video.uploaded_by)
           .single();
@@ -445,7 +445,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         >();
 
         const { data: users } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .in('id', userIds);
 
@@ -502,7 +502,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
         const comment = data as VideoComment;
         const { data: user } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .eq('id', comment.user_id)
           .single();
