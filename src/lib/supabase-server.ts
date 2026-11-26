@@ -32,13 +32,13 @@ function getSupabaseServerInternal(): SupabaseClient {
       },
       global: {
         // Audit log: tell the database who/where/which device is behind each call (see audit-context.ts).
-        fetch: async (input, init) => {
+        fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
           const extra = await buildAuditHeaders();
           if (!extra) return fetch(input, init);
           const h = new Headers(init?.headers);
           for (const [k, v] of Object.entries(extra)) h.set(k, v);
           return fetch(input, { ...init, headers: h });
-        },
+        }) as typeof fetch,
       },
     });
   }
