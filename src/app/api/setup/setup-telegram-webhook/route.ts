@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/setup/setup-telegram-webhook
@@ -30,6 +31,10 @@ interface WebhookInfo {
 }
 
 export async function GET(request: NextRequest) {
+  // Super-admin only: this route reveals bot configuration and can re-point the webhook.
+  const auth = await requireSuperAdmin(request);
+  if (!auth.success) return authErrorResponse(auth);
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   const botUsername = process.env.TELEGRAM_BOT_USERNAME || '';
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';

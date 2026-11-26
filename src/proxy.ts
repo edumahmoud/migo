@@ -8,6 +8,23 @@ const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files'];
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // A person who opens a raw API URL in the browser address bar (a document
+  // navigation, never a fetch) gets the friendly error page instead of JSON.
+  // Only signed-out visitors are redirected, and callbacks, payments, webhooks and
+  // other legitimate top-level navigations are left alone.
+  if (
+    request.method === 'GET' &&
+    pathname.startsWith('/api/') &&
+    request.headers.get('sec-fetch-dest') === 'document' &&
+    !/^\/api\/(health|manifest|icon|google|auth|payment|payments|paymob|fawry|telegram|setup|cron|files|socket\.io)/.test(pathname) &&
+    !request.cookies.getAll().some((c) => c.name.startsWith('sb-'))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/status/401';
+    url.search = '';
+    return NextResponse.rewrite(url, { status: 401 });
+  }
+
   // Skip static files, Next.js internals, auth callback, and socket.io
   if (
     pathname === '/api/health' ||
