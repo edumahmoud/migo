@@ -176,6 +176,7 @@ export default function CheatAlertsSection() {
                         </Button>
                         <Button size="sm" onClick={() => openAction(a)}>{T.take}</Button>
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}
