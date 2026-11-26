@@ -1351,7 +1351,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           </div>
 
           {selectedReport.description && (
-            <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap bg-muted/50 rounded-lg p-2.5">{selectedReport.description}</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words bg-muted/50 rounded-lg p-2.5">{selectedReport.description}</p>
           )}
 
           {/* Report attachments */}
