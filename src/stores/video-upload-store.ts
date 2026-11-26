@@ -341,9 +341,16 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
         }),
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({} as { success?: boolean; error?: string }));
 
       if (!response.ok || !result.success) {
+        // The record was refused (e.g. STORAGE_FULL): remove the uploaded video so it does not stay orphaned.
+        const orphanPaths = [storagePath];
+        const thumbMarker = '/video-files/';
+        if (thumbnailUrl && thumbnailUrl.includes(thumbMarker)) {
+          orphanPaths.push(decodeURIComponent(thumbnailUrl.split(thumbMarker)[1].split('?')[0]));
+        }
+        await supabase.storage.from('video-files').remove(orphanPaths).catch(() => {});
         throw new Error(result.error || msg('فشل حفظ بيانات الفيديو', 'Failed to save video data'));
       }
 
@@ -697,3 +704,4 @@ async function directUpload(
   useVideoUploadStore.getState().updateTask(taskId, { status: 'done', progress: 100 });
   toast.success(msg(`تم رفع الفيديو "${title}" بنجاح`, `Video "${title}" uploaded successfully`));
 }
+
