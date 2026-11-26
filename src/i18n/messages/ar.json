@@ -2604,7 +2604,7 @@
     "selectUser": "اختر مستخدم",
     "sendMessageAccused": "إرسال رسالة للطرف المعني",
     "sendMessageReporter": "إرسال رسالة للمبلِّغ",
-    "sendToAccused": "إرسال للمتهم",
+    "sendToAccused": "إرسال للطرف المعني",
     "sendToReporter": "إرسال للمبلِّغ",
     "status": {
       "dismissed": "مرفوض",
