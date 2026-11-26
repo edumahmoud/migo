@@ -75,6 +75,14 @@ export default function AdminPaidServicesSection() {
   const [unlocks, setUnlocks] = useState<UnlockRow[]>([]);
   const [trials, setTrials] = useState<TrialRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [admins, setAdmins] = useState<Array<{ id: string; name: string | null; email: string }>>([]);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string | null; email: string; role: string }>>([]);
+  const [grantSearch, setGrantSearch] = useState('');
+  const [grantUser, setGrantUser] = useState('');
+  const [grantSection, setGrantSection] = useState('');
+  const [grantPlan, setGrantPlan] = useState<'monthly' | 'yearly' | 'manual_trial'>('monthly');
+  const [grantDays, setGrantDays] = useState('');
   const [reqFilter, setReqFilter] = useState<'pending' | 'all'>('pending');
 
   const fetchAll = useCallback(async () => {
@@ -103,6 +111,60 @@ export default function AdminPaidServicesSection() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/paid-services/assign', { headers: await getCachedAuthHeaders() });
+        const json = await res.json();
+        if (json.success) setAdmins(json.admins ?? []);
+      } catch { /* silent */ }
+    })();
+  }, [isSuperAdmin]);
+
+  const handleAssign = async (req: RequestRow, adminId: string) => {
+    try {
+      const res = await fetch('/api/admin/paid-services/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
+        body: JSON.stringify({ requestId: req.id, action: 'assign', assignedTo: adminId === 'none' ? null : adminId }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(t('paidServices.assigned'));
+        setRequests(prev => prev.map(x => x.id === req.id ? { ...x, assigned_to: adminId === 'none' ? null : adminId } : x));
+      } else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
+  };
+
+  const openGrant = async () => {
+    setGrantOpen(true);
+    if (allUsers.length > 0) return;
+    try {
+      const res = await fetch('/api/admin/users', { headers: await getCachedAuthHeaders() });
+      const json = await res.json();
+      if (json.success) setAllUsers((json.data ?? []).filter((u: { role: string }) => u.role === 'student' || u.role === 'teacher'));
+    } catch { /* silent */ }
+  };
+
+  const handleGrant = async () => {
+    const days = grantDays.trim() ? Number(grantDays) : undefined;
+    if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > 3660)) { toast.error(t('paidServices.invalidNumber')); return; }
+    try {
+      const res = await fetch('/api/admin/paid-services/unlocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...await getCachedAuthHeaders() },
+        body: JSON.stringify({ userId: grantUser, sectionKey: grantSection, planType: grantPlan, durationDays: days }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(t('paidServices.grantDone'));
+        setGrantOpen(false); setGrantUser(''); setGrantDays(''); setGrantSearch('');
+        fetchAll();
+      } else { toast.error(json.error || t('paidServices.failed')); }
+    } catch { toast.error(t('paidServices.error')); }
+  };
 
   // ─── Request actions ───
   const handleApprove = async (req: RequestRow) => {
@@ -321,6 +383,15 @@ export default function AdminPaidServicesSection() {
                             onClick={() => handleReject(r)}>
                             <X className="h-3 w-3 me-1" /> {t('paidServices.reject')}
                           </Button>
+                          {isSuperAdmin && admins.length > 0 && (
+                            <Select value={r.assigned_to ?? 'none'} onValueChange={(v) => handleAssign(r, v)}>
+                              <SelectTrigger className="h-7 text-[10px] w-40 ms-auto"><SelectValue placeholder={t('paidServices.assignTo')} /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">{t('paidServices.unassigned')}</SelectItem>
+                                {admins.map(a => <SelectItem key={a.id} value={a.id}>{a.name || a.email}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       )}
                     </div>
@@ -335,7 +406,12 @@ export default function AdminPaidServicesSection() {
         <TabsContent value="unlocks">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">{t('paidServices.unlocksTitle', { count: unlocks.length })}</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm">{t('paidServices.unlocksTitle', { count: unlocks.length })}</CardTitle>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openGrant}>
+                  <Plus className="h-3 w-3 me-1" /> {t('paidServices.grantBtn')}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {unlocks.length === 0 ? (
@@ -426,6 +502,48 @@ export default function AdminPaidServicesSection() {
           </TabsContent>
         )}
       </Tabs>
+
+      <Dialog open={grantOpen} onOpenChange={setGrantOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('paidServices.grantTitle')}</DialogTitle>
+            <DialogDescription>{t('paidServices.grantSearch')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            <Input value={grantSearch} onChange={(e) => { setGrantSearch(e.target.value); setGrantUser(''); }} placeholder={t('paidServices.grantSearch')} className="h-8 text-xs" />
+            <div className="max-h-36 overflow-y-auto rounded-md border divide-y">
+              {allUsers.filter(u => {
+                const q = grantSearch.trim().toLowerCase();
+                return q.length > 0 && ((u.name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+              }).slice(0, 8).map(u => (
+                <button key={u.id} type="button" onClick={() => setGrantUser(u.id)}
+                  className={`w-full text-start px-2 py-1.5 text-xs ${grantUser === u.id ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
+                  <span className="font-medium">{u.name || '—'}</span> <span className="text-muted-foreground" dir="ltr">{u.email}</span>
+                </button>
+              ))}
+            </div>
+            <Select value={grantSection} onValueChange={setGrantSection}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t('paidServices.selectSection')} /></SelectTrigger>
+              <SelectContent>
+                {configs.filter(c => c.is_active && c.section_key !== 'files').map(c => <SelectItem key={c.section_key} value={c.section_key}>{c.section_label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={grantPlan} onValueChange={(v) => setGrantPlan(v as 'monthly' | 'yearly' | 'manual_trial')}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">{t('paidServices.planMonthly')}</SelectItem>
+                <SelectItem value="yearly">{t('paidServices.planYearly')}</SelectItem>
+                <SelectItem value="manual_trial">{t('paidServices.planTrial')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="number" value={grantDays} onChange={(e) => setGrantDays(e.target.value)} placeholder={t('paidServices.grantDays')} className="h-8 text-xs" dir="ltr" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setGrantOpen(false)}>{t('common.cancel')}</Button>
+            <Button size="sm" disabled={!grantUser || !grantSection} onClick={handleGrant}>{t('paidServices.grantConfirm')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

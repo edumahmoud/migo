@@ -247,7 +247,8 @@ export async function GET(request: NextRequest) {
   const remaining = limit !== null ? Math.max(0, limit - used) : null;
   // canUse: if unlocked → always true (but counter still shows).
   // If not unlocked → depends on remaining.
-  const canUse = isUnlocked ? true : (limit === null ? true : (remaining !== null && remaining > 0));
+  // The plan's limit applies to paid users too (a fair-use cap), not only to locked ones.
+  const canUse = limit === null ? true : (remaining !== null && remaining > 0);
 
   return NextResponse.json({
     success: true,
