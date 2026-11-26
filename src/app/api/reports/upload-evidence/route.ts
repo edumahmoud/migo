@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate storage path
-    const ext = file.name.split('.').pop() || 'jpg';
+    const ext = (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'jpg';
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const storagePath = `${userId}/${timestamp}_${randomSuffix}.${ext}`;

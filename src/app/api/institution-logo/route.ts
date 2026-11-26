@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use a clean filename for storage — separate from user avatars
-    const ext = file.name.split('.').pop() || 'png';
+    const ext = (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'png';
     const storagePath = `institution/logos/logo_${Date.now()}.${ext}`;
 
     // Upload to Supabase Storage (user-files bucket, but in a separate folder)

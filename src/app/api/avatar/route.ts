@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use a clean filename for storage
-    const ext = file.name.split('.').pop() || 'jpg';
+    const ext = (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) || 'jpg';
     const storagePath = `${userId}/avatar_${Date.now()}.${ext}`;
 
     // Upload to Supabase Storage (user-files bucket)

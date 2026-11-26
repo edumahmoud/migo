@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
       // SECURITY: Mobile browsers often send application/octet-stream for known file types.
       // Fall back to extension-based validation when the MIME type is unrecognized.
-      const ext = file.name.includes('.') ? '.' + file.name.split('.').pop()?.toLowerCase() : '';
+      const ext = file.name.includes('.') ? '.' + (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)?.toLowerCase() : '';
       const isDangerous = DANGEROUS_EXTENSIONS.includes(ext);
       const isAllowedExt = ALLOWED_EXTENSIONS.includes(ext);
 
@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine the display name and storage file name
-    const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+    const originalExt = file.name.includes('.') ? '.' + (file.name.split('.').pop() ?? '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : '';
     const displayName = customName?.trim() ? customName.trim() + originalExt : file.name;
 
     // ── Duplicate name check for FormData mode ──
