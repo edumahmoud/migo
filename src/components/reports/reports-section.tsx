@@ -976,7 +976,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     {(report.reporter_count ?? 0) > 1 && isStaff && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
                         <Users className="h-3 w-3" />
-                        {report.reporter_count} {t('reports.reporterCountBadge', { count: report.reporter_count })}
+                        {report.reporter_count} {t('reports.reporterCountBadge')}
                       </span>
                     )}
                   </div>
