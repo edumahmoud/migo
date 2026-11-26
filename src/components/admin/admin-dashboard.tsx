@@ -779,6 +779,22 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // No need to refresh all data when returning to the tab.
   // Fallback polling below catches any missed events if Realtime disconnects.
 
+  // Keep the open user card in step with the refreshed list (it holds its own copy of the user).
+  useEffect(() => {
+    setSelectedUser(prev => {
+      if (!prev) return prev;
+      const fresh = allUsers.find(u => u.id === prev.id);
+      return fresh && fresh !== prev ? { ...prev, ...fresh } : prev;
+    });
+  }, [allUsers]);
+
+  // Refresh quietly when the admin returns to the app.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchAllData(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchAllData]);
+
   // ─── Fallback polling for admin dashboard ───
   // Poll every 60s as a fallback for Realtime disconnections.
   useEffect(() => {
@@ -824,6 +840,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           const oldRecord = payload.old as { id: string } | null;
           if (!oldRecord) return;
           setAllSubjects(prev => prev.filter(s => s.id !== oldRecord.id));
+          // Enrollment and course counts on the user cards depend on this course too.
+          fetchAllData(true);
         }
       )
       .subscribe();
