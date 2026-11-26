@@ -7,7 +7,7 @@ import { notifyUsers } from '@/lib/notifications-service';
  * never deleted. Over the quota the user can still open, download and delete files
  * but cannot upload new ones.
  */
-export const STORAGE_GRACE_DAYS = 7;
+export const STORAGE_GRACE_DAYS = 2;
 const DAY = 24 * 60 * 60 * 1000;
 
 export function upgradeStillApplies(expiresAt: string | null | undefined): boolean {
@@ -99,7 +99,7 @@ export async function syncStorageNotices(userId: string, baseMb: number, usedMb:
       if (!up.notified_end_at) {
         await mark('notified_end_at');
         await notifyUsers([userId], 'system', 'انتهى اشتراك مساحة التخزين',
-          `انتهى اشتراك التخزين. مساحتك (${total} ميجا) فاضلة ${STORAGE_GRACE_DAYS} أيام للتجديد، وبعدها بترجع ${baseMb} ميجا. ملفاتك مش هتتمسح.`, 'files');
+          `انتهى اشتراك التخزين. مساحتك (${total} ميجا) فاضلة يومين للتجديد، وبعدها بترجع ${baseMb} ميجا. ملفاتك مش هتتمسح.`, 'files');
       }
     } else if (exp - now <= DAY) {
       if (!up.notified_1d_at) {
