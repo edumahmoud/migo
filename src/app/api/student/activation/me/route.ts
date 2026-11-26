@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   // 2. Linked teachers (auto-approved links from the activation flow).
   const { data: links } = await supabaseServer
     .from('teacher_student_links')
-    .select('teacher_id, status, created_at, teacher:users!teacher_id(id, name, email, teacher_code)')
+    .select('teacher_id, status, created_at, teacher:users!teacher_id(id, name, teacher_code)')
     .eq('student_id', studentId)
     .eq('status', 'approved');
 
