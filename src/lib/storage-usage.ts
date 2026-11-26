@@ -93,25 +93,25 @@ export async function syncStorageNotices(userId: string, baseMb: number, usedMb:
         const over = usedMb > baseMb;
         await notifyUsers([userId], 'system', 'رجعت مساحة التخزين للأساسية',
           `انتهت مهلة التجديد ورجعت مساحتك إلى ${baseMb} ميجا. ملفاتك كلها محفوظة وتقدر تفتحها وتنزلها وتمسحها.` +
-          (over ? ' بما إنك مستخدم أكتر من المساحة، مش هتقدر ترفع ملفات جديدة لحد ما تمسح لتحت الحد أو تجدد الاشتراك.' : ''));
+          (over ? ' بما إنك مستخدم أكتر من المساحة، مش هتقدر ترفع ملفات جديدة لحد ما تمسح لتحت الحد أو تجدد الاشتراك.' : ''), 'files');
       }
     } else if (now >= exp) {
       if (!up.notified_end_at) {
         await mark('notified_end_at');
         await notifyUsers([userId], 'system', 'انتهى اشتراك مساحة التخزين',
-          `انتهى اشتراك التخزين. مساحتك (${total} ميجا) فاضلة ${STORAGE_GRACE_DAYS} أيام للتجديد، وبعدها بترجع ${baseMb} ميجا. ملفاتك مش هتتمسح.`);
+          `انتهى اشتراك التخزين. مساحتك (${total} ميجا) فاضلة ${STORAGE_GRACE_DAYS} أيام للتجديد، وبعدها بترجع ${baseMb} ميجا. ملفاتك مش هتتمسح.`, 'files');
       }
     } else if (exp - now <= DAY) {
       if (!up.notified_1d_at) {
         await mark('notified_1d_at');
         await notifyUsers([userId], 'system', 'اشتراك التخزين ينتهي غداً',
-          `اشتراك مساحة التخزين ينتهي خلال يوم. جدد الاشتراك لتحتفظ بمساحة ${total} ميجا. ملفاتك مش هتتمسح في كل الأحوال.`);
+          `اشتراك مساحة التخزين ينتهي خلال يوم. جدد الاشتراك لتحتفظ بمساحة ${total} ميجا. ملفاتك مش هتتمسح في كل الأحوال.`, 'files');
       }
     } else if (exp - now <= 7 * DAY) {
       if (!up.notified_7d_at) {
         await mark('notified_7d_at');
         await notifyUsers([userId], 'system', 'اشتراك التخزين قرب ينتهي',
-          `اشتراك مساحة التخزين ينتهي خلال 7 أيام. جدد الاشتراك لتحتفظ بمساحة ${total} ميجا.`);
+          `اشتراك مساحة التخزين ينتهي خلال 7 أيام. جدد الاشتراك لتحتفظ بمساحة ${total} ميجا.`, 'files');
       }
     }
   } catch (err) {
