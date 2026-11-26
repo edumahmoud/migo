@@ -2630,7 +2630,13 @@
     "writeReporterMessage": "Write a message to the reporter",
     "accusedContent": "Reported content ({type})",
     "forwardReport": "Report forwarded to {to}",
-    "reporterCountBadge": "reporters"
+    "reporterCountBadge": "reporters",
+    "targetType": {
+      "comment": "Comment",
+      "message": "Message",
+      "user": "User",
+      "other": "Other"
+    }
   },
   "admin": {
     "adminDashboard": "Admin Dashboard",

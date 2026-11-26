@@ -962,7 +962,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} t={t} />
-                    {report.reopen_count && report.reopen_count > 0 && (
+                    {(report.reopen_count ?? 0) > 0 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-800/30 text-violet-700 dark:text-violet-500 border border-violet-200 dark:border-violet-900/60">
                         <RotateCcw className="h-2.5 w-2.5" />
                         {t('reports.reopened')}
@@ -973,10 +973,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       {report.report_number}
                     </span>
                     <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type, t)}</span>
-                    {report.reporter_count && report.reporter_count > 1 && isStaff && (
+                    {(report.reporter_count ?? 0) > 1 && isStaff && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
                         <Users className="h-3 w-3" />
-                        {report.reporter_count} {t('reports.reporterCountBadge', { count: report.reporter_count })}
+                        {report.reporter_count} {t('reports.reporterCountBadge')}
                       </span>
                     )}
                   </div>
@@ -1046,7 +1046,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <Users className="h-3.5 w-3.5" />
                 <span className="text-lg font-bold">{targetUserStats?.total_reporters ?? reporterCount}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.reporterCount')}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.reporterCountBadge')}</p>
             </div>
             <div className="rounded-lg bg-background/80 p-2 text-center">
               <div className="flex items-center justify-center gap-1 text-sky-600 dark:text-sky-400">
@@ -1269,14 +1269,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const isReporter = selectedReport.reporter_id === profile.id;
     const canTakeAction = isActive && (isAssignedToMe || isAdmin);
     // Reopen count display
-    const isReopened = selectedReport.reopen_count && selectedReport.reopen_count > 0;
+    const isReopened = (selectedReport.reopen_count ?? 0) > 0;
 
     return (
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
-        className="space-y-4"
+        className="space-y-4 pb-28 md:pb-0"
       >
         {/* Back button */}
         <button
@@ -1305,10 +1305,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               {getTargetTypeLabel(selectedReport.target_type, t)}
             </span>
             <span className="text-sm font-bold text-foreground">{getReasonLabel(selectedReport.reason, t)}</span>
-            {isStaff && selectedReport.reporter_count && selectedReport.reporter_count > 1 && (
+            {isStaff && (selectedReport.reporter_count ?? 0) > 1 && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
                 <Users className="h-3 w-3" />
-                {selectedReport.reporter_count} {t('reports.reporterCountBadge', { count: selectedReport.reporter_count })}
+                {selectedReport.reporter_count} {t('reports.reporterCountBadge')}
               </span>
             )}
           </div>
@@ -1351,7 +1351,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           </div>
 
           {selectedReport.description && (
-            <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap bg-muted/50 rounded-lg p-2.5">{selectedReport.description}</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words bg-muted/50 rounded-lg p-2.5">{selectedReport.description}</p>
           )}
 
           {/* Report attachments */}

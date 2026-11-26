@@ -2630,7 +2630,13 @@
     "writeReporterMessage": "اكتب رسالة للمبلِّغ",
     "accusedContent": "المحتوى المُبلَّغ عنه ({type})",
     "forwardReport": "تم إحالة البلاغ إلى {to}",
-    "reporterCountBadge": "مُبلِّغ"
+    "reporterCountBadge": "مُبلِّغ",
+    "targetType": {
+      "comment": "تعليق",
+      "message": "رسالة",
+      "user": "مستخدم",
+      "other": "أخرى"
+    }
   },
   "admin": {
     "adminDashboard": "لوحة تحكم المدير",
