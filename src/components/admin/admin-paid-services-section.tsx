@@ -1108,96 +1108,57 @@ function SectionConfigCard({
             </label>
           </div>
 
-          {/* Pricing */}
-          <div className="border-t pt-3">
-            <p className="text-xs font-medium text-muted-foreground mb-2">{t('paidServices.prices', { currency: c.currency })}</p>
-            <div className={`grid gap-3 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {!teacherOnly && (
-                <div className="space-y-1.5">
-                  <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">{t('paidServices.student')}</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthly')}</Label>
-                      <Input type="number" defaultValue={c.student_monthly_price}
-                        onBlur={(e) => saveNumber(c, 'student_monthly_price', e.target, false)}
-                        className="h-8 text-xs" placeholder="0" dir="ltr" />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearly')}</Label>
-                      <Input type="number" defaultValue={c.student_yearly_price}
-                        onBlur={(e) => saveNumber(c, 'student_yearly_price', e.target, false)}
-                        className="h-8 text-xs" placeholder="0" dir="ltr" />
-                    </div>
+          {/* Plans: each role gets a monthly and a yearly block, price and cap side by side */}
+          <div className="border-t pt-3 space-y-3">
+            <p className="text-[11px] text-muted-foreground">{t('paidServices.howItWorks')}</p>
+            {(teacherOnly ? (['teacher'] as const) : (['student', 'teacher'] as const)).map((role) => {
+              const pre = role === 'student' ? 'student' : 'teacher';
+              const price = (p: 'monthly' | 'yearly') => (c as unknown as Record<string, number>)[`${pre}_${p}_price`];
+              const lim = (p: 'monthly' | 'yearly') => (c as unknown as Record<string, number | null>)[`${pre}_${p}_limit`];
+              const lm = lim('monthly'); const ly = lim('yearly');
+              return (
+                <div key={role} className={`rounded-lg border p-2.5 space-y-2 ${role === 'student' ? 'border-sky-200' : 'border-teal-200'}`}>
+                  <p className={`text-xs font-semibold ${role === 'student' ? 'text-sky-700 dark:text-sky-400' : 'text-teal-700 dark:text-teal-400'}`}>
+                    {role === 'student' ? t('paidServices.student') : t('paidServices.teacher')}
+                  </p>
+                  {hasMetric && (
+                    <p className="text-[10px] text-muted-foreground">
+                      {t('paidServices.summaryLine', {
+                        role: role === 'student' ? t('paidServices.student') : t('paidServices.teacher'),
+                        mp: price('monthly'), yp: price('yearly'), currency: c.currency,
+                        ml: lm == null ? t('paidServices.summaryUnlimited') : t('paidServices.summaryLimit', { n: lm }),
+                        yl: ly == null ? t('paidServices.summaryUnlimited') : t('paidServices.summaryLimit', { n: ly }),
+                      })}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['monthly', 'yearly'] as const).map((p) => (
+                      <div key={p} className="rounded-md bg-muted/40 p-2 space-y-1.5">
+                        <p className="text-[11px] font-medium">{p === 'monthly' ? t('paidServices.planMonthTitle') : t('paidServices.planYearTitle')}</p>
+                        <div>
+                          <Label className="text-[10px] text-muted-foreground">{t('paidServices.priceLabel', { currency: c.currency })}</Label>
+                          <Input type="number" min={0} defaultValue={price(p)}
+                            onBlur={(e) => saveNumber(c, `${pre}_${p}_price`, e.target, false)}
+                            className="h-8 text-xs" placeholder="0" dir="ltr" />
+                        </div>
+                        {hasMetric && (
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">{t('paidServices.limitLabel')}</Label>
+                            <Input type="number" min={0} defaultValue={lim(p) ?? ''}
+                              onBlur={(e) => saveNumber(c, `${pre}_${p}_limit`, e.target, true)}
+                              className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
+                            <p className="text-[9px] text-muted-foreground mt-0.5">
+                              {p === 'monthly' ? t('paidServices.windowMonthly') : t('paidServices.windowYearly')} · {t('paidServices.limitEmptyHint')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
-              <div className="space-y-1.5">
-                <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">{t('paidServices.teacher')}</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthly')}</Label>
-                    <Input type="number" defaultValue={c.teacher_monthly_price}
-                      onBlur={(e) => saveNumber(c, 'teacher_monthly_price', e.target, false)}
-                      className="h-8 text-xs" placeholder="0" dir="ltr" />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearly')}</Label>
-                    <Input type="number" defaultValue={c.teacher_yearly_price}
-                      onBlur={(e) => saveNumber(c, 'teacher_yearly_price', e.target, false)}
-                      className="h-8 text-xs" placeholder="0" dir="ltr" />
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
-
-          {/* Usage limits */}
-          {hasMetric && (
-            <div className="border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1">{t('paidServices.usageLimitTitle')}</p>
-              <p className="text-[10px] text-muted-foreground mb-2">
-                {t('paidServices.usageLimitDesc', { metric: metricLabel })}
-              </p>
-              <div className={`grid gap-3 ${teacherOnly ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                {!teacherOnly && (
-                  <div className="space-y-1.5">
-                    <p className="text-[11px] font-medium text-sky-700 dark:text-sky-400">{t('paidServices.student')}</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthlyLimit')}</Label>
-                        <Input type="number" defaultValue={c.student_monthly_limit ?? ''}
-                          onBlur={(e) => saveNumber(c, 'student_monthly_limit', e.target, true)}
-                          className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearlyLimit')}</Label>
-                        <Input type="number" defaultValue={c.student_yearly_limit ?? ''}
-                          onBlur={(e) => saveNumber(c, 'student_yearly_limit', e.target, true)}
-                          className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div className="space-y-1.5">
-                  <p className="text-[11px] font-medium text-teal-700 dark:text-teal-400">{t('paidServices.teacher')}</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.monthlyLimit')}</Label>
-                      <Input type="number" defaultValue={c.teacher_monthly_limit ?? ''}
-                        onBlur={(e) => saveNumber(c, 'teacher_monthly_limit', e.target, true)}
-                        className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">{t('paidServices.yearlyLimit')}</Label>
-                      <Input type="number" defaultValue={c.teacher_yearly_limit ?? ''}
-                        onBlur={(e) => saveNumber(c, 'teacher_yearly_limit', e.target, true)}
-                        className="h-8 text-xs" placeholder={t('paidServices.unlimited')} dir="ltr" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

@@ -6406,7 +6406,19 @@
     "grantPickUser": "Pick a user",
     "grantDays": "Duration in days (optional)",
     "grantDone": "Activated",
-    "grantConfirm": "Activate"
+    "grantConfirm": "Activate",
+    "planMonthTitle": "Monthly plan",
+    "planYearTitle": "Yearly plan",
+    "priceLabel": "Price ({currency})",
+    "limitLabel": "Usage cap",
+    "windowMonthly": "Counted over the last 30 days",
+    "windowYearly": "Counted over the last 365 days",
+    "limitEmptyHint": "Leave empty for no limit",
+    "summaryLine": "{role}: monthly {mp} {currency}{ml} · yearly {yp} {currency}{yl}",
+    "summaryLimit": " ({n} items)",
+    "summaryUnlimited": " (unlimited)",
+    "howItWorks": "Each plan has its own price and its own cap. The cap counts the last 30 days for monthly and the last 365 days for yearly, and frees up gradually as old items leave the window.",
+    "lockSectionTitle": "1) Who is locked out of this section"
   },
   "regAgents": {
     "title": "Agents",
