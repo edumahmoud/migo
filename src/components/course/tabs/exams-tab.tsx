@@ -382,7 +382,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     try {
       // Fetch quizzes and scores in parallel
       const quizzesPromise = supabase
-        .from('quizzes')
+        .from(role === 'student' ? 'quizzes_safe' : 'quizzes')
         .select('*')
         .eq('subject_id', subjectId)
         .order('created_at', { ascending: false });
