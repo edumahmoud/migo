@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * API route that provides database setup SQL and instructions.
@@ -68,7 +69,11 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 `.trim();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Setup SQL and configuration status are for the super admin only.
+  const adminResult = await requireSuperAdmin(request);
+  if (!adminResult.success) return authErrorResponse(adminResult);
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const isServiceKeyConfigured = !!serviceRoleKey && serviceRoleKey !== 'placeholder_needs_real_key';
@@ -166,3 +171,4 @@ export async function POST() {
     );
   }
 }
+
