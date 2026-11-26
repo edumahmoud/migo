@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 /**
  * POST /api/users/batch
