@@ -418,7 +418,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       }
     } catch {
       if (!hasValidDataRef.current) {
-        setError(t('common.unexpectedError'));
+        setError(t('quiz.unexpectedError'));
       }
     } finally {
       setLoading(false);
@@ -581,7 +581,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     const timer = setTimeout(() => {
       console.warn('[QuizView] Loading timeout (5min safety net) — forcing error state');
       setLoading(false);
-      setError(t('common.connectionError'));
+      setError(t('quiz.connectionError'));
     }, 300000); // 5 minutes — safety net only
     return () => clearTimeout(timer);
   }, [loading]);
@@ -999,7 +999,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) {
-        if (res.status === 429) toast.error(t('common.tooManyRequests'));
+        if (res.status === 429) toast.error(t('quiz.tooManyRequests'));
         return null;
       }
       if (json.hidden) return { isCorrect: false };
@@ -1023,7 +1023,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     checkingRef.current = false;
     if (!r) {
       setSelectedOption(null);
-      toast.error(t('common.connectionError'));
+      toast.error(t('quiz.connectionError'));
       return;
     }
     setIsCorrect(r.isCorrect);
@@ -1041,7 +1041,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     checkingRef.current = false;
     if (!r) {
       setSelectedOption(null);
-      toast.error(t('common.connectionError'));
+      toast.error(t('quiz.connectionError'));
       return;
     }
     setIsCorrect(r.isCorrect);
@@ -1072,13 +1072,13 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       // Guard: if user navigated away during evaluation, don't apply result to wrong question
       if (evaluatingQuestionIdxRef.current !== evaluatingIdx) return;
       if (!r) {
-        toast.error(t('common.connectionError'));
+        toast.error(t('quiz.connectionError'));
         return;
       }
       setIsCorrect(r.isCorrect);
       setAnswered(true);
     } catch {
-      toast.error(t('common.unexpectedError'));
+      toast.error(t('quiz.unexpectedError'));
     } finally {
       checkingRef.current = false;
       setEvaluatingCompletion(false);
@@ -1131,7 +1131,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     const r = await checkOnServer(matchedPairs);
     checkingRef.current = false;
     if (!r) {
-      toast.error(t('common.connectionError'));
+      toast.error(t('quiz.connectionError'));
       return;
     }
     setIsCorrect(r.isCorrect);
@@ -1400,7 +1400,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40">
           <XCircle className="h-8 w-8 text-rose-600 dark:text-rose-500" />
         </div>
-        <p className="text-lg font-semibold text-foreground">{error || t('common.unexpectedError')}</p>
+        <p className="text-lg font-semibold text-foreground">{error || t('quiz.unexpectedError')}</p>
         <div className="flex gap-2">
           <Button
             onClick={() => { setError(null); hasValidDataRef.current = false; fetchQuiz(); }}
@@ -2965,20 +2965,20 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                         if (res.ok || res.status === 400) break;
                         if (res.status === 429) {
                           const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10) * 1000;
-                          lastError = t('common.tooManyRequests');
+                          lastError = t('quiz.tooManyRequests');
                           if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000 * (attempt + 1))));
                           continue;
                         }
                         break;
                       } catch (fetchErr) {
-                        lastError = t('common.connectionError');
+                        lastError = t('quiz.connectionError');
                         if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
                         continue;
                       }
                     }
 
                     if (!res) {
-                      toast.error(lastError || t('common.connectionError'));
+                      toast.error(lastError || t('quiz.connectionError'));
                       return;
                     }
 
@@ -2986,12 +2986,12 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                     if (data.success && data.data?.explanation) {
                       setExplanation(data.data.explanation);
                     } else if (res.status === 429) {
-                      toast.error(t('common.tooManyRequests'));
+                      toast.error(t('quiz.tooManyRequests'));
                     } else {
-                      toast.error(data.error || t('common.unexpectedError'));
+                      toast.error(data.error || t('quiz.unexpectedError'));
                     }
                   } catch {
-                    toast.error(t('common.unexpectedError'));
+                    toast.error(t('quiz.unexpectedError'));
                   } finally {
                     setExplaining(false);
                   }
