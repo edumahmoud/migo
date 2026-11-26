@@ -1,4 +1,4 @@
-# AttenDo 
+# AttenDo
 
 Next.js 16 / React 19 learning platform with Supabase Auth, PostgreSQL, Storage and Realtime, Paymob payments, AI summaries and quizzes, and server-verified attendance.
 
