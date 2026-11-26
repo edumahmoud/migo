@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getFreeQuota } from '@/lib/storage-usage';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
@@ -45,10 +46,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'صيغة JSON غير صالحة' }, { status: 400 });
   }
 
-  const { userId, sectionKey, planType, durationDays, storagePlanId, storageSizeMb } = body as {
+  const { userId, sectionKey, planType, durationDays, storageTotalMb } = body as {
     userId?: string;
-    storagePlanId?: string;
-    storageSizeMb?: number;
+    storageTotalMb?: number;
     sectionKey?: string;
     planType?: 'monthly' | 'yearly' | 'manual_trial';
     durationDays?: number;
@@ -68,26 +68,16 @@ export async function POST(request: NextRequest) {
   if (!target || (target.role !== 'student' && target.role !== 'teacher')) {
     return NextResponse.json({ error: 'المستخدم غير موجود أو ليس طالباً/معلماً' }, { status: 400 });
   }
-  // ─── Storage: manual upgrade on top of the user's base quota (same as approving a request) ───
+  // ─── Storage: the admin enters the FINAL TOTAL space for the user (MB). ───
+  // The purchased part is total minus the user's base quota, so the user ends with exactly the total.
   if (sectionKey === 'files') {
-    const customMb = storageSizeMb !== undefined && storageSizeMb !== null ? Number(storageSizeMb) : undefined;
-    if (!storagePlanId && customMb === undefined) {
-      return NextResponse.json({ error: 'اختر باقة تخزين أو اكتب المساحة بالميجا' }, { status: 400 });
+    const totalMb = Number(storageTotalMb);
+    if (!Number.isInteger(totalMb) || totalMb < 1 || totalMb > 10485760) {
+      return NextResponse.json({ error: 'اكتب إجمالي المساحة النهائي بالميجا' }, { status: 400 });
     }
-    if (customMb !== undefined && (!Number.isFinite(customMb) || !Number.isInteger(customMb) || customMb < 1 || customMb > 10485760)) {
-      return NextResponse.json({ error: 'المساحة غير صالحة' }, { status: 400 });
-    }
-    let sizeMb = customMb as number | undefined;
-    let planId: string | null = null;
-    let price = 0;
-    let currency = 'EGP';
-    if (storagePlanId) {
-      const { data: plan } = await supabaseServer.from('storage_plans').select('id, size_mb, price, currency').eq('id', storagePlanId).maybeSingle();
-      if (!plan) return NextResponse.json({ error: 'باقة التخزين غير موجودة' }, { status: 400 });
-      sizeMb = plan.size_mb as number;
-      planId = plan.id as string;
-      price = Number(plan.price ?? 0);
-      currency = (plan.currency as string) || 'EGP';
+    const baseMb = await getFreeQuota(target.role as 'student' | 'teacher');
+    if (totalMb <= baseMb) {
+      return NextResponse.json({ error: `الإجمالي لازم يكون أكبر من المساحة الأساسية (${baseMb} ميجا)` }, { status: 400 });
     }
     const sDays = durationDays ?? (planType === 'yearly' ? 365 : planType === 'monthly' ? 30 : 7);
     const sExpires = new Date(Date.now() + sDays * 24 * 60 * 60 * 1000).toISOString();
@@ -95,10 +85,10 @@ export async function POST(request: NextRequest) {
     await supabaseServer.from('user_storage_upgrades').update({ is_active: false }).eq('user_id', userId).eq('is_active', true);
     const { error: upErr } = await supabaseServer.from('user_storage_upgrades').insert({
       user_id: userId,
-      plan_id: planId,
-      size_mb: sizeMb,
-      price: planId ? price : 0,
-      currency,
+      plan_id: null,
+      size_mb: totalMb - baseMb,
+      price: 0,
+      currency: 'EGP',
       is_active: true,
       duration_type: planType === 'yearly' ? 'yearly' : 'monthly',
       expires_at: sExpires,
@@ -107,7 +97,7 @@ export async function POST(request: NextRequest) {
       console.error('[paid-services/unlocks] storage upgrade insert error:', upErr);
       return NextResponse.json({ error: 'فشل تفعيل مساحة التخزين' }, { status: 500 });
     }
-    return NextResponse.json({ success: true, expiresAt: sExpires, storageMb: sizeMb });
+    return NextResponse.json({ success: true, expiresAt: sExpires, totalMb, baseMb });
   }
 
   const { data: sec } = await supabaseServer.from('locked_sections_config').select('section_key').eq('section_key', sectionKey).maybeSingle();
