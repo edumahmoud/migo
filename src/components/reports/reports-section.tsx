@@ -962,7 +962,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} t={t} />
-                    {report.reopen_count && report.reopen_count > 0 && (
+                    {(report.reopen_count ?? 0) > 0 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-800/30 text-violet-700 dark:text-violet-500 border border-violet-200 dark:border-violet-900/60">
                         <RotateCcw className="h-2.5 w-2.5" />
                         {t('reports.reopened')}
