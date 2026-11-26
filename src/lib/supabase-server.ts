@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { buildAuditHeaders } from '@/lib/audit-context';
 
 /**
  * Lazy-initialized Supabase server client with service role key.
@@ -28,6 +29,16 @@ function getSupabaseServerInternal(): SupabaseClient {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
+      },
+      global: {
+        // Audit log: tell the database who/where/which device is behind each call (see audit-context.ts).
+        fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+          const extra = await buildAuditHeaders();
+          if (!extra) return fetch(input, init);
+          const h = new Headers(init?.headers);
+          for (const [k, v] of Object.entries(extra)) h.set(k, v);
+          return fetch(input, { ...init, headers: h });
+        }) as typeof fetch,
       },
     });
   }
@@ -87,3 +98,4 @@ export async function getSupabaseServerClient() {
     },
   });
 }
+

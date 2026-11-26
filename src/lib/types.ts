@@ -595,7 +595,7 @@ export type AppPage =
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar' | 'subscriptionHistory' | 'grades';
 export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar' | 'scormLibrary' | 'registration' | 'pendingOrders' | 'financialManagement';
-export type AdminSection = 'scormLibrary' | 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications' | 'performanceTracking' | 'financialManagement' | 'dataManagement' | 'paidServices' | 'legalPolicies' | 'sendNotification';
+export type AdminSection = 'scormLibrary' | 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications' | 'performanceTracking' | 'financialManagement' | 'dataManagement' | 'paidServices' | 'legalPolicies' | 'sendNotification' | 'auditLog';
 
 // -------------------------------------------------------
 // Todo List
@@ -985,3 +985,4 @@ export interface StudentPerformance {
   average_score: number;
   submissions: Submission[];
 }
+

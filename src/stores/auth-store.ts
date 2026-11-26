@@ -3,6 +3,7 @@ import type { UserProfile } from '@/lib/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { registerSession, validateSession, endSession, startSessionValidation } from '@/lib/session-tracker';
 import { useLocaleStore } from '@/i18n/locale-store';
+import { ensureDeviceId } from '@/lib/device-id';
 
 // --- Input Sanitization Helpers ---
 
@@ -281,6 +282,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearPasswordRecovery: () => set({ passwordRecoveryMode: false }),
   
   initialize: async () => {
+    ensureDeviceId();
     // Prevent double initialization
     if (get().initialized) {
       console.log('[Auth] Already initialized, skipping');
@@ -667,11 +669,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { error: 'يرجى إدخال كلمة المرور' };
       }
 
+      ensureDeviceId();
       const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: sanitizedEmail, password });
-      if (error) return { error: getSafeErrorMessage(error) };
+      if (error) {
+        // Audit log: record the failed attempt (email + device only, never the password). Fire and forget.
+        const msg = (error.message || '').toLowerCase();
+        const reason = msg.includes('invalid') ? 'invalid_credentials' : msg.includes('rate') ? 'rate_limited' : msg.includes('confirm') ? 'unconfirmed' : 'unknown';
+        void fetch('/api/audit/login-failed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: sanitizedEmail, reason }),
+        }).catch(() => {});
+        return { error: getSafeErrorMessage(error) };
+      }
       
       const authUser = signInData?.user;
       if (!authUser) return { error: 'فشل في الحصول على بيانات المستخدم' };
+
+      // Audit log: record the successful login (needs the new session token). Fire and forget.
+      void fetch('/api/audit/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${signInData.session?.access_token || ''}` },
+        body: JSON.stringify({ method: 'password' }),
+      }).catch(() => {});
       
       // ─── Use server-side API to fetch profile (bypasses RLS) ───
       try {
@@ -1165,3 +1185,4 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 // Export helper for use in components
 export { getDashboardForRole };
+
