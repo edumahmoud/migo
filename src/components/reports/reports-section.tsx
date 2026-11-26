@@ -1010,6 +1010,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const renderTargetUserInfo = () => {
     const report = selectedReport;
     if (!report?.target_user) return null;
+    // The accused sees no card about themselves.
+    if (report.target_user.id === profile.id) return null;
 
     const tu = report.target_user;
     const reporterCount = report.reporter_count || 1;
