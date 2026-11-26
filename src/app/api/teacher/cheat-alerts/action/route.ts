@@ -69,10 +69,12 @@ export async function POST(request: NextRequest) {
         recipients = (admins || []).map((a) => a.id);
       }
       // Also open a report so it appears in the supervisor's reports inbox.
-      await supabaseServer.from('reports').insert({
+      const { data: createdReport } = await supabaseServer.from('reports').insert({
         reporter_id: auth.user.id, target_type: 'user', target_id: alert.account_id || null,
         reason: 'تنبيه جهاز مشتبه', description: text, status: 'pending',
-      });
+      }).select('id, report_number').maybeSingle();
+      reportId = createdReport?.id || null;
+      reportNumber = createdReport?.report_number || null;
     } else {
       kind = 'agent';
       if (alert.account_id && alert.subject_id) {
