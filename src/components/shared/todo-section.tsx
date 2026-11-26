@@ -501,7 +501,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
       // Fetch upcoming quizzes
       const { data: quizzes } = await supabase
-        .from('quizzes')
+        .from(profile.role === 'student' ? 'quizzes_safe' : 'quizzes')
         .select('*')
         .in('subject_id', allSubjectIds);
 

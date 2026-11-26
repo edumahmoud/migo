@@ -395,7 +395,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         }
 
         // 5. Quizzes
-        const { data: quizzes } = await supabase.from('quizzes').select('*').in('subject_id', subjectIds);
+        const { data: quizzes } = await supabase.from(profile.role === 'student' ? 'quizzes_safe' : 'quizzes').select('*').in('subject_id', subjectIds);
         // Fetch scores for the current student to check which quizzes they've already taken
         const studentCompletedQuizIds = new Set<string>();
         if (quizzes && quizzes.length > 0 && profile.role === 'student') {

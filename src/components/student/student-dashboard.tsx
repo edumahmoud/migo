@@ -795,7 +795,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     let teacherQuizzes: Quiz[] = [];
     if (teacherIds.length > 0) {
       const { data: tQuizzes, error: tError } = await supabase
-        .from('quizzes')
+        .from('quizzes_safe')
         .select('*')
         .in('user_id', teacherIds)
         .order('created_at', { ascending: false });

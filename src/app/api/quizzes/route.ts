@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { supabaseServer } from '@/lib/supabase-server';
+import { sanitizeQuestions } from '@/lib/quiz-sanitize';
+import type { QuizQuestion } from '@/lib/types';
 import { generateQuiz, isAiError } from '@/lib/ai';
 import type { QuizGenerationOptions, QuizMixCounts } from '@/lib/ai/types';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
@@ -647,7 +649,8 @@ export async function GET(request: NextRequest) {
         .in('user_id', teacherIds)
         .order('created_at', { ascending: false });
 
-      teacherQuizzes = tQuizzes || [];
+      // Teacher quizzes go to the student without the answer key (see /api/quizzes/take).
+      teacherQuizzes = (tQuizzes || []).map((q: { questions?: unknown }) => ({ ...q, questions: Array.isArray(q.questions) ? sanitizeQuestions(q.questions as QuizQuestion[]) : q.questions }));
     }
 
     // Merge and deduplicate
