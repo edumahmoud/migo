@@ -1372,6 +1372,10 @@ function AuthPageContent({
     <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
       {/* ── Left Panel: Announcement OR Branding ── */}
       <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden lg:sticky lg:top-0 lg:h-screen lg:self-start ${hasFullscreenAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
+        {/* Desktop language toggle: pinned in the stationary branding panel, top corner (start side: left in English, right in Arabic) */}
+        <div className="absolute start-4 top-4 z-30">
+          <AuthLanguageToggle />
+        </div>
         {hasFullscreenAnnouncement ? (
           /* Show announcement in the branding panel area (fullscreen mode) */
           <AnnouncementBrandingPanel />
@@ -1428,7 +1432,7 @@ function AuthPageContent({
           <div aria-hidden className="pointer-events-none absolute -bottom-8 -end-6 h-32 w-32 rounded-full bg-emerald-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute top-4 end-1/3 h-16 w-16 rounded-full bg-white/10 lg:hidden" />
           {/* Language toggle (login / register) */}
-          <div className="relative z-20 mx-auto flex w-full max-w-md justify-end md:fixed md:end-3 md:top-3 md:z-50 md:m-0 md:w-auto md:max-w-none">
+          <div className="relative z-20 mx-auto flex w-full max-w-md justify-end lg:hidden">
             <AuthLanguageToggle />
           </div>
           {/* Tagline + feature chips live inside the band (mobile only) */}
@@ -1538,4 +1542,5 @@ export default function Home() {
     </Suspense>
   );
 }
+
 
