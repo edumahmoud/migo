@@ -52,6 +52,7 @@ const TEXT = {
     open: 'Open', falseAlarm: 'False alarms', refresh: 'Refresh', none: 'No alerts',
     time: 'Time', session: 'Exam / session', account: 'Account used', device: 'Device', owner: 'Device owner', other: 'Other party',
     sev: 'Severity', what: 'What happened', action: 'Action', strong: 'Strong', review: 'Review', mark: 'False alarm', reopen: 'Reopen',
+    handedOff: 'Handed off to', agentWord: 'the agent', adminWord: 'the supervisor',
     take: 'Take action', takeDesc: 'Choose the action. Nothing happens automatically before you press a button.',
     direct: 'Direct action', suspendBtn: 'Suspend student from this subject', duration: 'Duration', h1: '1 hour', h24: '24 hours', d7: '7 days', open_: 'Until I lift it',
     reason: 'Reason / note', toAdmin: 'Escalate to my platform supervisor', toAgent: "Hand off to the student's registration agent",
