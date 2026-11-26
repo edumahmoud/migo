@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     const toLabel = (recUsers || []).map((u: any) => `${u.name || ''} (${roleAr[u.role] || (kind === 'agent' ? 'وكيل' : 'مشرف')})`).join('، ');
     const prev = Array.isArray((alert.details as Record<string, unknown> | null)?.escalations) ? ((alert.details as Record<string, unknown>).escalations as unknown[]) : [];
     await supabaseServer.from('cheat_alerts').update({
-      details: { ...(alert.details || {}), escalations: [...prev, { to: kind, by: auth.user.id, at: new Date().toISOString(), note: note || null }] },
+      details: { ...(alert.details || {}), escalations: [...prev, { to: kind, to_label: toLabel, by: auth.user.id, at: new Date().toISOString(), note: note || null }] },
     }).eq('id', id);
     return NextResponse.json({ success: true, notified: recipients.length, to: kind });
   } catch (e) {
