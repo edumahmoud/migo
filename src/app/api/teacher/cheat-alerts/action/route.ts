@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
     }
 
+    const prevEsc = (alert.details as Record<string, unknown> | null)?.escalations;
+    if (Array.isArray(prevEsc) && prevEsc.length > 0) {
+      return NextResponse.json({ success: false, error: 'تم تحويل هذا التنبيه بالفعل، ولم يعد القرار فيه لك' }, { status: 409 });
+    }
+
     const { data: acct } = alert.account_id
       ? await supabaseServer.from('users').select('name,email').eq('id', alert.account_id).maybeSingle()
       : { data: null };
