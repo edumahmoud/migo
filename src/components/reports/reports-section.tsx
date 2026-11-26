@@ -111,6 +111,11 @@ interface ReportsSectionProps {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
+function RoleBadge({ role, t }: { role?: string | null; t: (key: string) => string }) {
+  if (!role || !['superadmin', 'admin', 'supervisor', 'registration_agent', 'teacher', 'student'].includes(role)) return null;
+  return <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium text-foreground">{t('roles.' + role)}</span>;
+}
+
 export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const { t, direction } = useTranslations();
   const { setReportsUnreadCount, openProfile, pendingReportId, setPendingReportId } = useAppStore();
@@ -1026,7 +1031,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
           <div>
             <p className="text-sm font-semibold text-foreground">
-              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} />
+              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} /> <RoleBadge role={tu.role} t={t} />
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
               <Mail className="h-3 w-3" />
@@ -1176,7 +1181,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <div className="flex items-center gap-2">
                             {resp.responder && <UserAvatar name={resp.responder.name} avatarUrl={resp.responder.avatar_url} size="sm" />}
                             <span className="text-sm font-medium">
-                              {resp.responder ? <UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender, t)} /> : t('common.user')}
+                              {resp.responder ? <><UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender, t)} /> <RoleBadge role={resp.responder.role} t={t} /></> : t('common.user')}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
                               {getActionIcon(resp.action)}
@@ -1218,7 +1223,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                               <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />
                             ) : null}
                             <span className="text-sm font-medium">
-                              {isWarning ? t('reports.officialWarning') : msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} /> : t('common.user')}
+                              {isWarning ? t('reports.officialWarning') : msg.sender ? <><UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} /> <RoleBadge role={msg.sender.role} t={t} /></> : t('common.user')}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                               isWarning
@@ -1226,7 +1231,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                                 : 'text-sky-600 dark:text-sky-400'
                             }`}>
                               {isWarning ? (
-                                <><AlertTriangle className="h-3.5 w-3.5" /> {t('reports.warn')}</>
+                                <><AlertTriangle className="h-3.5 w-3.5" /> {t('reports.warningToUser')}</>
                               ) : (
                                 <><Mail className="h-3.5 w-3.5" /> {msg.recipient_type === 'reporter' ? t('reports.messageToReporter') : t('reports.messageToAccused')}</>
                               )}
@@ -1236,7 +1241,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         </div>
                         <p className={`text-sm whitespace-pre-wrap mt-1 ms-10 ${
                           isWarning ? 'text-orange-800 dark:text-orange-300' : 'text-foreground'
-                        }`}>{msg.content}</p>
+                        }`}>{isWarning && msg.content.trim() === t('reports.warn') ? t('reports.warningDefaultBody') : msg.content}</p>
                         {/* Message attachments in timeline */}
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5 ms-10">
@@ -1321,6 +1326,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <span className="text-muted-foreground">{t('reports.reporter')}:</span>
                 <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender, t)} />
+                <RoleBadge role={selectedReport.reporter.role} t={t} />
               </div>
             ) : (
               <span>{t('reports.reporter')}: {t('reports.unknown')}</span>
@@ -1332,6 +1338,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <span className="font-bold text-rose-600 dark:text-rose-500">{t('reports.against')}</span>
                   <UserAvatar name={selectedReport.target_user.name} avatarUrl={selectedReport.target_user.avatar_url} size="sm" />
                   <UserLink userId={selectedReport.target_user.id} name={formatNameWithTitle(selectedReport.target_user.name, selectedReport.target_user.role, selectedReport.target_user.title_id, selectedReport.target_user.gender, t)} />
+                  <RoleBadge role={selectedReport.target_user.role} t={t} />
                 </div>
               </>
             )}
@@ -1341,9 +1348,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <span className="text-muted-foreground">{t('reports.assignedTo')}:</span>
                 <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.assigned_user.id} name={formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender, t)} />
-                {['superadmin', 'admin', 'supervisor', 'registration_agent', 'teacher', 'student'].includes(selectedReport.assigned_user.role ?? '') && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium text-foreground">{t('roles.' + selectedReport.assigned_user.role)}</span>
-                )}
+                <RoleBadge role={selectedReport.assigned_user.role} t={t} />
               </div>
             ) : (
               <span>{t('reports.notAssigned')}</span>
