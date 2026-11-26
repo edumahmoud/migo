@@ -68,6 +68,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Baseline security headers for every route.
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(self), payment=(self)' },
+        ],
+      },
+      {
         source: '/sw.js',
         headers: [
           {
@@ -91,3 +101,4 @@ export default withSentryConfig(nextConfig, {
   project: process.env.SENTRY_PROJECT,
   telemetry: false,
 });
+
