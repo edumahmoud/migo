@@ -64,6 +64,13 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
+    if (dbError && String(dbError.message || '').includes('STORAGE_FULL')) {
+      return NextResponse.json(
+        { success: false, error: 'مساحة التخزين ممتلئة. امسح بعض الملفات أو جدد الاشتراك لرفع ملفات جديدة', code: 'STORAGE_FULL' },
+        { status: 403 }
+      );
+    }
+
     if (dbError) {
       console.error('DB insert error (create-record):', dbError);
       return NextResponse.json(

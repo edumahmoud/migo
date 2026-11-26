@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { upgradeStillApplies, syncStorageNotices, STORAGE_GRACE_DAYS } from '@/lib/storage-usage';
 import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 /**
@@ -67,8 +68,7 @@ export async function GET(request: NextRequest) {
 
   let activeUpgrade = upgrade as Record<string, unknown> | null ?? null;
   if (activeUpgrade && activeUpgrade.expires_at) {
-    const expiry = new Date(activeUpgrade.expires_at as string);
-    if (expiry.getTime() <= Date.now()) {
+    if (!upgradeStillApplies(activeUpgrade.expires_at as string)) {
       // Subscription expired → deactivate + treat as no upgrade.
       await supabaseServer
         .from('user_storage_upgrades')
@@ -109,6 +109,11 @@ export async function GET(request: NextRequest) {
   const pct = totalQuota > 0 ? Math.min(100, (usedMb / totalQuota) * 100) : 0;
   const isFull = usedMb >= totalQuota;
 
+  // Notices about the plan (7 days, 1 day, ended, back to base) — once each.
+  await syncStorageNotices(userId, freeQuota, usedMb);
+  const expiresAtIso = (activeUpgrade?.expires_at as string | null) ?? null;
+  const inGrace = !!expiresAtIso && new Date(expiresAtIso).getTime() <= Date.now();
+
   // 5. Get available upgrade plans.
   const { data: plans } = await supabaseServer
     .from('storage_plans')
@@ -126,6 +131,9 @@ export async function GET(request: NextRequest) {
     pct: Math.round(pct),
     is_full: isFull,
     active_upgrade: activeUpgrade ?? null,
+    in_grace: inGrace,
+    grace_ends_at: expiresAtIso ? new Date(new Date(expiresAtIso).getTime() + STORAGE_GRACE_DAYS * 86400000).toISOString() : null,
+    over_quota: usedMb > totalQuota,
     plans: plans ?? [],
   });
 }
