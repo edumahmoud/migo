@@ -365,6 +365,7 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
     subscriptionHistory: t('nav.subscriptionHistory'),
     grades: t('nav.grades'),
     pendingOrders: t('nav.pendingOrders'),
+    cheatAlerts: 'تنبيهات الأجهزة',
   };
 
   const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : role === 'registration_agent' ? 'registration' : 'dashboard';
@@ -432,3 +433,4 @@ function HeaderTitle() {
     </div>
   );
 }
+
