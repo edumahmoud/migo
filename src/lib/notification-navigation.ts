@@ -134,6 +134,13 @@ export function navigateNotification(
     }
   }
 
+  // ─── Device / cheating alerts — open the teacher's Device alerts section ───
+  if (notif.link === 'cheatAlerts' && userRole === 'teacher') {
+    setTeacherSection('cheatAlerts');
+    setCurrentPage('teacher-dashboard');
+    return 'handled';
+  }
+
   // ─── 1. Link request notifications — show modal (caller handles) ───
   if (notif.type === 'link_request' || notif.link?.startsWith('link_request:')) {
     return 'link_request';
@@ -376,3 +383,4 @@ function navigateToSection(
     }
   }
 }
+
