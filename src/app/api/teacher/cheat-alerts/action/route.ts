@@ -68,6 +68,11 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+    if (kind === 'agent' && recipients.length === 0) {
+      // Fallback: the teacher's own active registration agents (the delegates working under this teacher).
+      const { data: mine } = await supabaseServer.from('registration_agents').select('user_id').eq('teacher_id', auth.user.id).eq('is_active', true);
+      recipients = Array.from(new Set((mine || []).map((a) => a.user_id).filter(Boolean))) as string[];
+    }
     if (recipients.length === 0) {
       return NextResponse.json({ success: false, error: kind === 'agent' ? 'لا يوجد وكيل مرتبط بتسجيل هذا الطالب' : 'لا يوجد مشرف' }, { status: 404 });
     }
