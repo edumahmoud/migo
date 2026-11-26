@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getFreeQuota } from '@/lib/storage-usage';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
@@ -45,8 +46,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'صيغة JSON غير صالحة' }, { status: 400 });
   }
 
-  const { userId, sectionKey, planType, durationDays } = body as {
+  const { userId, sectionKey, planType, durationDays, storageTotalMb } = body as {
     userId?: string;
+    storageTotalMb?: number;
     sectionKey?: string;
     planType?: 'monthly' | 'yearly' | 'manual_trial';
     durationDays?: number;
@@ -66,6 +68,38 @@ export async function POST(request: NextRequest) {
   if (!target || (target.role !== 'student' && target.role !== 'teacher')) {
     return NextResponse.json({ error: 'المستخدم غير موجود أو ليس طالباً/معلماً' }, { status: 400 });
   }
+  // ─── Storage: the admin enters the FINAL TOTAL space for the user (MB). ───
+  // The purchased part is total minus the user's base quota, so the user ends with exactly the total.
+  if (sectionKey === 'files') {
+    const totalMb = Number(storageTotalMb);
+    if (!Number.isInteger(totalMb) || totalMb < 1 || totalMb > 10485760) {
+      return NextResponse.json({ error: 'اكتب إجمالي المساحة النهائي بالميجا' }, { status: 400 });
+    }
+    const baseMb = await getFreeQuota(target.role as 'student' | 'teacher');
+    if (totalMb <= baseMb) {
+      return NextResponse.json({ error: `الإجمالي لازم يكون أكبر من المساحة الأساسية (${baseMb} ميجا)` }, { status: 400 });
+    }
+    const sDays = durationDays ?? (planType === 'yearly' ? 365 : planType === 'monthly' ? 30 : 7);
+    const sExpires = new Date(Date.now() + sDays * 24 * 60 * 60 * 1000).toISOString();
+    // Only one active upgrade per user, as when a request is approved.
+    await supabaseServer.from('user_storage_upgrades').update({ is_active: false }).eq('user_id', userId).eq('is_active', true);
+    const { error: upErr } = await supabaseServer.from('user_storage_upgrades').insert({
+      user_id: userId,
+      plan_id: null,
+      size_mb: totalMb - baseMb,
+      price: 0,
+      currency: 'EGP',
+      is_active: true,
+      duration_type: planType === 'yearly' ? 'yearly' : 'monthly',
+      expires_at: sExpires,
+    });
+    if (upErr) {
+      console.error('[paid-services/unlocks] storage upgrade insert error:', upErr);
+      return NextResponse.json({ error: 'فشل تفعيل مساحة التخزين' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, expiresAt: sExpires, totalMb, baseMb });
+  }
+
   const { data: sec } = await supabaseServer.from('locked_sections_config').select('section_key').eq('section_key', sectionKey).maybeSingle();
   if (!sec) return NextResponse.json({ error: 'القسم غير موجود' }, { status: 400 });
 

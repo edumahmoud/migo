@@ -5,7 +5,8 @@ import { supabaseServer } from '@/lib/supabase-server';
  * Adding a file lowers the remaining space; deleting one gives it back.
  * Quota = free quota for the role (admin setting) + the active, unexpired purchased plan.
  */
-export async function getStorageUsage(userId: string, role: 'student' | 'teacher') {
+/** Base (free) quota for a role in MB, from the admin setting. */
+export async function getFreeQuota(role: 'student' | 'teacher'): Promise<number> {
   const { data: config } = await supabaseServer
     .from('locked_sections_config')
     .select('free_quota_mb_student, free_quota_mb_teacher, free_quota_mb, student_monthly_limit, teacher_monthly_limit')
@@ -15,6 +16,12 @@ export async function getStorageUsage(userId: string, role: 'student' | 'teacher
   const freeQuota = (role === 'student' ? cfg?.free_quota_mb_student : cfg?.free_quota_mb_teacher)
     ?? cfg?.free_quota_mb
     ?? (role === 'student' ? cfg?.student_monthly_limit ?? 100 : cfg?.teacher_monthly_limit ?? 500);
+
+  return freeQuota as number;
+}
+
+export async function getStorageUsage(userId: string, role: 'student' | 'teacher') {
+  const freeQuota = await getFreeQuota(role);
 
   const { data: upgrade } = await supabaseServer
     .from('user_storage_upgrades')
