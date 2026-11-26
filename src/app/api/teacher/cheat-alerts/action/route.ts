@@ -111,6 +111,9 @@ export async function POST(request: NextRequest) {
         await notifyUser(r, 'system', `تنبيه جهاز محوّل إليك من المعلم ${teacherName}`, msg, undefined);
       }
     }
+    const { data: recUsers } = await supabaseServer.from('users').select('name,role').in('id', recipients);
+    const roleAr: Record<string, string> = { superadmin: 'مدير المنصة', admin: 'مدير', supervisor: 'مشرف', registration_agent: 'وكيل', teacher: 'معلم' };
+    const toLabel = (recUsers || []).map((u: any) => `${u.name || ''} (${roleAr[u.role] || (kind === 'agent' ? 'وكيل' : 'مشرف')})`).join('، ');
     const prev = Array.isArray((alert.details as Record<string, unknown> | null)?.escalations) ? ((alert.details as Record<string, unknown>).escalations as unknown[]) : [];
     await supabaseServer.from('cheat_alerts').update({
       details: { ...(alert.details || {}), escalations: [...prev, { to: kind, by: auth.user.id, at: new Date().toISOString(), note: note || null }] },
