@@ -681,7 +681,7 @@ export default function StudentsTab({ profile, subjectId, subject }: StudentsTab
   const filteredStudents = enrolledSearchQuery.trim()
     ? students.filter((s) =>
         s.name.toLowerCase().includes(enrolledSearchQuery.trim().toLowerCase()) ||
-        s.email.toLowerCase().includes(enrolledSearchQuery.trim().toLowerCase())
+        (s.email || '').toLowerCase().includes(enrolledSearchQuery.trim().toLowerCase())
       )
     : students;
 
