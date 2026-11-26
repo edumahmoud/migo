@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ChevronDown,
   Mail,
+  Phone,
   Calendar,
   Shield,
   UserCircle,
@@ -1902,6 +1903,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="text-sm text-foreground">{selectedUser.email}</span>
                   </div>
+                  {selectedUser.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <a href={`tel:${selectedUser.phone}`} dir="ltr" className="text-sm text-foreground">{selectedUser.phone}</a>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="text-sm text-muted-foreground">
