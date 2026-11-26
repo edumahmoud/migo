@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
+import { getStorageUsage } from '@/lib/storage-usage';
 
 /**
  * GET /api/sections/check-usage?sectionKey=summaries
@@ -93,28 +94,12 @@ export async function GET(request: NextRequest) {
   //   - other metrics → no limit (return null)
   if (!isLocked) {
     if (metric === 'storage') {
-      // v134g: for storage, use monthly limit as the total quota.
-      const storageLimit = role === 'student'
-        ? (config.student_monthly_limit as number | null) ?? null
-        : (config.teacher_monthly_limit as number | null) ?? null;
-      if (storageLimit !== null) {
-        const periodStart2 = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString();
-        const { data: files } = await supabaseServer
-          .from('user_files')
-          .select('file_size')
-          .eq('user_id', auth.user.id);
-        const totalBytes = (files ?? []).reduce((sum: number, f: { file_size: number | null }) => {
-          return sum + (f.file_size ?? 0);
-        }, 0);
-        const usedForStorage = Math.round(totalBytes / (1024 * 1024));
-        const remainingForStorage = Math.max(0, storageLimit - usedForStorage);
-        return NextResponse.json({
-          success: true, sectionKey, metric, used: usedForStorage, limit: storageLimit,
-          remaining: remainingForStorage, periodDays,
-          periodStart: periodStart2,
-          locked: false, canUse: remainingForStorage > 0, isUnlocked: false,
-        });
-      }
+      const st = await getStorageUsage(auth.user.id, role);
+      return NextResponse.json({
+        success: true, sectionKey, metric, used: st.usedMb, limit: st.totalQuota,
+        remaining: st.remainingMb, periodDays,
+        locked: false, canUse: st.remainingMb > 0, isUnlocked: false,
+      });
     }
     return NextResponse.json({
       success: true, sectionKey, metric: null, used: 0, limit: null,
@@ -191,57 +176,25 @@ export async function GET(request: NextRequest) {
   const periodStart = new Date(Date.now() - effectivePeriodDays * 24 * 60 * 60 * 1000).toISOString();
   let used = 0;
 
-  if (metric === 'summaries' || metric === 'combined') {
+  // Counted from the usage ledger (v153), so deleting an item does not free a slot.
+  const countEvents = async (sources: string[]) => {
     const { count } = await supabaseServer
-      .from('summaries')
-      .select('*', { count: 'exact', head: true })
+      .from('usage_events')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', auth.user.id)
+      .in('source', sources)
       .gte('created_at', periodStart);
-    used += count ?? 0;
-  }
+    return count ?? 0;
+  };
+  if (metric === 'summaries') used = await countEvents(['summary']);
+  else if (metric === 'quiz_attempts') used = await countEvents(['quiz_attempt']);
+  else if (metric === 'combined') used = await countEvents(sectionKey === 'questionBankAI' ? ['ai_question'] : ['summary', 'summary_quiz']);
 
-  if (metric === 'quiz_attempts') {
-    const { count } = await supabaseServer
-      .from('scores')
-      .select('*', { count: 'exact', head: true })
-      .eq('student_id', auth.user.id)
-      .gte('completed_at', periodStart);
-    used += count ?? 0;
-  }
-
-  if (metric === 'combined') {
-    const { count } = await supabaseServer
-      .from('quizzes')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', auth.user.id)
-      .not('summary_id', 'is', null)
-      .gte('created_at', periodStart);
-    used += count ?? 0;
-  }
-
-  // v134e: storage metric — count total file size in bytes, convert to MB.
   if (metric === 'storage') {
-    const { data: files } = await supabaseServer
-      .from('user_files')
-      .select('file_size')
-      .eq('user_id', auth.user.id);
-    const totalBytes = (files ?? []).reduce((sum: number, f: { file_size: number | null }) => {
-      return sum + (f.file_size ?? 0);
-    }, 0);
-    used = Math.round(totalBytes / (1024 * 1024)); // convert to MB
-  }
-
-  // v134e: questionBankAI metric — count AI-generated question bank
-  // questions (bank_questions where is_ai_generated=true).
-  if (metric === 'combined' && sectionKey === 'questionBankAI') {
-    // Count AI-generated bank questions by this user.
-    const { count: aiQuestions } = await supabaseServer
-      .from('bank_questions')
-      .select('*', { count: 'exact', head: true })
-      .eq('created_by', auth.user.id)
-      .eq('is_ai_generated', true)
-      .gte('created_at', periodStart);
-    used = aiQuestions ?? 0;
+    // Only what is uploaded right now: adding lowers the space left, deleting gives it back.
+    const st = await getStorageUsage(auth.user.id, role);
+    used = st.usedMb;
+    limit = st.totalQuota;
   }
 
   const remaining = limit !== null ? Math.max(0, limit - used) : null;

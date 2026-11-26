@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { checkSectionUsage } from '@/lib/section-usage-check';
 import { useAppStore } from '@/stores/app-store';
 import { useAiGenerationStore } from '@/stores/ai-generation-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
@@ -701,9 +702,16 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // -------------------------------------------------------
   // Generate questions from file using AI
   // -------------------------------------------------------
-  const handleGenerateFromAiFile = () => {
+  const handleGenerateFromAiFile = async () => {
     if (!selectedCourseFile || !selectedBank) {
       toast.error(t('questionBank.selectFile'));
+      return;
+    }
+
+    // Usage limit (counts deleted AI questions too).
+    const usageCheck = await checkSectionUsage('questionBankAI');
+    if (!usageCheck.canUse) {
+      toast.error(usageCheck.limit !== null ? `وصلت للحد الأقصى (${usageCheck.used}/${usageCheck.limit}) من أسئلة الذكاء الاصطناعي` : 'غير متاح');
       return;
     }
 
@@ -910,6 +918,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             body: JSON.stringify({
               bankId: capturedBank.id,
               addQuestions: bankQuestions,
+              aiGenerated: true,
             }),
           });
 

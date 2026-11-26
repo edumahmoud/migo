@@ -369,7 +369,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { bankId, name, description, questions, addQuestions, removeQuestionIds } = body;
+    const { bankId, name, description, questions, addQuestions, removeQuestionIds, aiGenerated } = body;
 
     if (!bankId) {
       return NextResponse.json({ success: false, error: 'يرجى تحديد بنك الأسئلة' }, { status: 400 });
@@ -466,6 +466,11 @@ export async function PUT(req: NextRequest) {
 
         if (qError) {
           console.error('Error adding bank questions:', qError);
+        } else if (aiGenerated === true) {
+          // Usage ledger: AI questions count even if they are deleted later.
+          await supabaseServer.from('usage_events').insert(
+            toInsert.map(() => ({ user_id: user.id, source: 'ai_question' })),
+          );
         }
       }
 
