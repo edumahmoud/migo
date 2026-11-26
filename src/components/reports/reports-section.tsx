@@ -1341,6 +1341,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <span className="text-muted-foreground">{t('reports.assignedTo')}:</span>
                 <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.assigned_user.id} name={formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender, t)} />
+                {['superadmin', 'admin', 'supervisor', 'registration_agent', 'teacher', 'student'].includes(selectedReport.assigned_user.role) && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-muted text-[10px] font-medium text-foreground">{t('roles.' + selectedReport.assigned_user.role)}</span>
+                )}
               </div>
             ) : (
               <span>{t('reports.notAssigned')}</span>
