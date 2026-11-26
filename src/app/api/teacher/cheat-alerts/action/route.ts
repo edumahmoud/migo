@@ -38,9 +38,25 @@ export async function POST(request: NextRequest) {
     const { data: subj } = alert.subject_id
       ? await supabaseServer.from('subjects').select('name').eq('id', alert.subject_id).maybeSingle()
       : { data: null };
-    const text = `تنبيه جهاز (${alert.kind}) للحساب ${acct?.name || acct?.email || ''}` +
-      (subj?.name ? ` في مادة "${subj.name}"` : '') + (alert.context_label ? ` - ${alert.context_label}` : '') +
-      (alert.summary ? `. ${alert.summary}` : '') + (note ? `. ملاحظة المعلم: ${note}` : '');
+    const { data: me } = await supabaseServer.from('users').select('name').eq('id', auth.user.id).maybeSingle();
+    const teacherName = me?.name || 'معلم';
+    const kindLabels: Record<string, string> = {
+      device_owner_mismatch: 'جهاز صاحبه مختلف عن الحساب المستخدم',
+      device_shared_in_session: 'نفس الجهاز لحسابين في نفس الجلسة',
+      account_on_two_devices: 'نفس الحساب على جهازين',
+      unusual_device: 'جهاز غير معتاد للطالب',
+      many_devices_or_ips: 'تغيّر كثير في الأجهزة أو الـ IP',
+    };
+    const studentLabel = acct?.name ? (acct.email ? `${acct.name} (${acct.email})` : acct.name) : (acct?.email || 'غير معروف');
+    const detailLines = [
+      `الطالب: ${studentLabel}`,
+      subj?.name ? `المادة: ${subj.name}` : '',
+      `نوع التنبيه: ${kindLabels[alert.kind as string] || alert.kind}`,
+      alert.context_label ? `السياق: ${alert.context_label}` : '',
+      alert.summary ? `التفاصيل: ${alert.summary}` : '',
+      note ? `ملاحظة المعلم: ${note}` : '',
+    ].filter(Boolean);
+    const text = detailLines.join('\n');
 
     let recipients: string[] = [];
     let kind = '';
