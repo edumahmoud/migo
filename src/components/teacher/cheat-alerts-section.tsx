@@ -167,6 +167,9 @@ export default function CheatAlertsSection() {
                     <td className="p-2">{whoFull(a.device_owner)}</td>
                     <td className="p-2">{a.other_account ? whoFull(a.other_account) : '-'}</td>
                     <td className="p-2">
+                      {handedTo(a) ? (
+                        <div className="text-xs text-muted-foreground">{T.handedOff}: <span className="font-medium text-foreground">{handedTo(a)}</span></div>
+                      ) : (
                       <div className="flex flex-wrap gap-1">
                         <Button size="sm" variant="outline" disabled={busyId === a.id} onClick={() => void setStatus(a.id, a.status === 'open' ? 'false_alarm' : 'open')}>
                           {busyId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : a.status === 'open' ? T.mark : T.reopen}
