@@ -175,7 +175,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
         const uploaderMap = new Map<string, { name: string; title_id?: string | null; gender?: string | null; role?: string | null }>();
 
         const { data: uploaders } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id, name, title_id, gender, role')
           .in('id', uploaderIds);
 
@@ -291,7 +291,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       } else if (data && data.length > 0) {
         const userIds = [...new Set(data.map((c: VideoComment) => c.user_id))];
         const userMap = new Map<string, { name: string; title_id?: string | null; gender?: string | null; role?: string | null }>();
-        const { data: users } = await supabase.from('users').select('id, name, title_id, gender, role').in('id', userIds);
+        const { data: users } = await supabase.from('users_public').select('id, name, title_id, gender, role').in('id', userIds);
         if (users) {
           for (const u of users as { id: string; name: string; title_id?: string | null; gender?: string | null; role?: string | null }[]) {
             userMap.set(u.id, u);
