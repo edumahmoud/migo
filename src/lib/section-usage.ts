@@ -195,6 +195,6 @@ export async function computeSectionUsage(userId: string, role: 'student' | 'tea
     locked: !isUnlocked,
     canUse,
     isUnlocked,
-    expiresAt: (personalUnlock as Record<string, unknown> | null)?.expires_at ?? null,
+    expiresAt: ((personalUnlock as Record<string, unknown> | null)?.expires_at as string | null | undefined) ?? null,
   });
 }
