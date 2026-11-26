@@ -10,7 +10,7 @@ interface CapacitorLike {
 /**
  * Small "version" line for the login page.
  * - Inside the Android app: the installed APK version (e.g. 0.4.16), read from the native shell.
- * - In a browser: "Web" plus the short commit of the deployed build.
+ * - In a browser: nothing (hidden on the web).
  */
 export default function AppVersionLabel() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -30,10 +30,9 @@ export default function AppVersionLabel() {
     };
   }, []);
 
-  const build = process.env.NEXT_PUBLIC_APP_BUILD;
-  const text = appVersion
-    ? `AttenDo v${appVersion}`
-    : `AttenDo Web${build ? ` · ${build}` : ''}`;
+  // The version line is shown only inside the mobile app; the web page shows nothing.
+  if (!appVersion) return null;
+  const text = `AttenDo v${appVersion}`;
 
   return (
     <p dir="ltr" className="text-center text-[11px] text-muted-foreground/70 select-text">

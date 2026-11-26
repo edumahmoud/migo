@@ -1428,7 +1428,7 @@ function AuthPageContent({
           <div aria-hidden className="pointer-events-none absolute -bottom-8 -end-6 h-32 w-32 rounded-full bg-emerald-300/30 lg:hidden" />
           <div aria-hidden className="pointer-events-none absolute top-4 end-1/3 h-16 w-16 rounded-full bg-white/10 lg:hidden" />
           {/* Language toggle (login / register) */}
-          <div className="relative z-20 mx-auto flex w-full max-w-md justify-end lg:absolute lg:end-3 lg:top-3 lg:m-0 lg:w-auto lg:max-w-none">
+          <div className="relative z-20 mx-auto flex w-full max-w-md justify-end lg:fixed lg:end-3 lg:top-3 lg:z-50 lg:m-0 lg:w-auto lg:max-w-none">
             <AuthLanguageToggle />
           </div>
           {/* Tagline + feature chips live inside the band (mobile only) */}
