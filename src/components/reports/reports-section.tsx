@@ -1031,7 +1031,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
           <div>
             <p className="text-sm font-semibold text-foreground">
-              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} />
+              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} /> <RoleBadge role={tu.role} t={t} />
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
               <Mail className="h-3 w-3" />
