@@ -2,6 +2,7 @@
 // Question Bank API — CRUD for question banks and questions
 // =====================================================
 
+import { gateSection } from '@/lib/section-gate';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import {
@@ -459,6 +460,18 @@ export async function PUT(req: NextRequest) {
         }
       }
 
+      let limitReached = false;
+      if (aiGenerated === true && toInsert.length > 0) {
+        // Server-side limit: never store more AI questions than the plan has left.
+        const gate = await gateSection(user.id, 'questionBankAI');
+        if (gate.block) return gate.block;
+        const remaining = gate.usage?.remaining;
+        if (remaining !== null && remaining !== undefined && toInsert.length > remaining) {
+          toInsert = toInsert.slice(0, remaining);
+          limitReached = true;
+        }
+      }
+
       if (toInsert.length > 0) {
         const { error: qError } = await supabase
           .from('bank_questions')
@@ -478,6 +491,7 @@ export async function PUT(req: NextRequest) {
         success: true,
         addedCount: toInsert.length,
         duplicatesSkipped,
+        ...(limitReached ? { limitReached: true } : {}),
       });
     }
 

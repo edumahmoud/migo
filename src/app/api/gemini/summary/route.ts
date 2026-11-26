@@ -8,6 +8,7 @@ import { generateSummary, refineTranscribedText, isAiError, type AiProviderError
 export const maxDuration = 60;
 // Force Node.js runtime (Edge runtime has 30s limit)
 export const runtime = 'nodejs';
+import { gateSection } from '@/lib/section-gate';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 import { supabaseServer } from '@/lib/supabase-server';
@@ -47,6 +48,9 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.user.id;
+
+    const gate = await gateSection(userId, 'summaries');
+    if (gate.block) return gate.block;
 
     // Fetch user name for personalized AI responses
     let studentName: string | undefined;
