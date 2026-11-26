@@ -2626,7 +2626,7 @@
     "userWarned": "تم تحذير المستخدم",
     "viewRelatedReport": "عرض البلاغ ذي الصلة",
     "warn": "تحذير",
-    "writeAccusedMessage": "اكتب رسالة للمستخدم المتهم",
+    "writeAccusedMessage": "اكتب رسالة للمستخدم المعني",
     "writeReporterMessage": "اكتب رسالة للمبلِّغ",
     "accusedContent": "المحتوى المُبلَّغ عنه ({type})",
     "forwardReport": "تم إحالة البلاغ إلى {to}",
