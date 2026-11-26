@@ -2507,7 +2507,7 @@
     "evidenceUploaded": "تم رفع الدليل",
     "accused": "الطرف المعني",
     "accusedContentLabel": "رسالتك للطرف المعني",
-    "accusedMessageNotice": "سيتم إرسال رسالتك إلى المستخدم المتهم",
+    "accusedMessageNotice": "سيتم إرسال رسالتك إلى المستخدم المعني",
     "accusedMessagePlaceholder": "اكتب رسالتك للمتهم...",
     "actionFailed": "فشل الإجراء",
     "actionLog": "سجل الإجراءات",
