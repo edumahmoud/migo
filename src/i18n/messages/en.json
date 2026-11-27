@@ -2632,6 +2632,11 @@
     "forwardReport": "Report forwarded to {to}",
     "reporterCountBadge": "reporters",
     "warningToUser": "Sent to the user",
+    "accusedStatusPending": "This report is under review. No decision yet.",
+    "accusedStatusInProgress": "This report is currently being reviewed by the administration.",
+    "accusedStatusResolved": "This report was reviewed and closed by the administration. Anything sent to you is shown below.",
+    "accusedStatusDismissed": "This report was reviewed and closed with no action against you.",
+    "accusedWarned": "An official warning was sent to you about this report. Its text is in the action log below.",
     "warningDefaultBody": "An official warning was sent to the user with no extra text.",
     "accusedViewNote": "This report concerns you and is shown for information only. You cannot reply from this page. If the administration messages you, you will get a notification and can reply from your messages.",
     "targetType": {
