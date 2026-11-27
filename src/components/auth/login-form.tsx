@@ -46,6 +46,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     const user = useAuthStore.getState().user;
     if (user) {
       toast.success(t('auth.loginSuccess'));
+      bioOffer();
       if (user.role === 'superadmin' || user.role === 'admin') {
         setCurrentPage('admin-dashboard');
       } else if (user.role === 'teacher') {
