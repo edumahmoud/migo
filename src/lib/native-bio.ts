@@ -49,6 +49,11 @@ export async function bioProof(): Promise<string | null> {
   return r.ok && r.secret ? r.secret : null;
 }
 
+/** Synchronous, instant: erases the phone-side fingerprint secret. Call this first on logout, before any await. */
+export function bioClearLocal(): void {
+  try { bridge()?.clear(); } catch { /* ignore */ }
+}
+
 /** Turns fingerprint login off on this phone: erases the stored secret and revokes this device on the server. */
 export async function bioDisable(token?: string | null): Promise<void> {
   try { bridge()?.clear(); } catch { /* ignore */ }
