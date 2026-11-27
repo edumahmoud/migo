@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { bioProof } from '@/lib/native-bio';
 import { questionDir, textDir } from '@/lib/ai/language-utils';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -251,6 +252,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   // When returning from background, INITIAL_SESSION fires and previously would
   // reset the page to loading — causing the "infinity loading" crash.
   const hasValidDataRef = useRef(false);
+  const bioStartTriedRef = useRef(false);
+  const bioStartSecretRef = useRef<string | null>(null);
 
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -335,6 +338,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           setError(t('quiz.noQuizzes'));
         }
         return;
+      }
+
+      // Official exam: ask for the fingerprint once before the exam starts (flag only, never blocks).
+      if (!reviewMode && quizData.require_bio && !bioStartTriedRef.current) {
+        bioStartTriedRef.current = true;
+        bioStartSecretRef.current = await bioProof();
       }
 
       // ─── Check if scheduled quiz hasn't started yet ───
@@ -1204,10 +1213,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       // The server grades the raw answers and writes the score. The browser never sends a score.
       let scoreError: { message?: string; status?: number } | null = null;
       try {
+        // Official exam: fingerprint again at submit (flag only).
+        const bioSecret = quiz.require_bio ? await bioProof() : null;
         const res = await fetch('/api/quizzes/submit', {
           method: 'POST',
           headers: await getCachedAuthHeaders(),
-          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })) }),
+          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })), ...(bioSecret ? { bioSecret } : {}), ...(bioStartSecretRef.current ? { bioStartSecret: bioStartSecretRef.current } : {}) }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {

@@ -119,6 +119,7 @@ export default function QuizSettingsModal({
     quiz.pass_threshold != null ? String(quiz.pass_threshold) : ''
   );
   const [isGate, setIsGate] = useState<boolean>(quiz.is_gate ?? false);
+  const [requireBio, setRequireBio] = useState<boolean>(quiz.require_bio ?? false);
   const [questionsPerPage, setQuestionsPerPage] = useState<string>(quiz.questions_per_page != null ? String(quiz.questions_per_page) : '');
   const [saving, setSaving] = useState(false);
 
@@ -130,6 +131,7 @@ export default function QuizSettingsModal({
         show_results: showResults,
         show_review: showReview,
         is_gate: isGate,
+        require_bio: requireBio,
         questions_per_page: (() => { const n = parseInt(questionsPerPage, 10); return n > 1 ? Math.min(n, 50) : null; })(),
         // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
         // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
@@ -259,6 +261,16 @@ export default function QuizSettingsModal({
               icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
               checked={allowRetake}
               onChange={setAllowRetake}
+              disabled={saving}
+              dir={direction}
+            />
+
+            <ToggleSwitch
+              label="اختبار رسمي: تأكيد بالبصمة"
+              description="الطالب على التطبيق يأكّد ببصمته عند البدء وعند التسليم. لو مفيش بصمة بيتسجل غير مؤكد ومبيتمنعش."
+              icon={<span className="text-sm">🔐</span>}
+              checked={requireBio}
+              onChange={setRequireBio}
               disabled={saving}
               dir={direction}
             />
