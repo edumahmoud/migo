@@ -1213,10 +1213,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       // The server grades the raw answers and writes the score. The browser never sends a score.
       let scoreError: { message?: string; status?: number } | null = null;
       try {
+        // Official exam: fingerprint again at submit (flag only).
+        const bioSecret = quiz.require_bio ? await bioProof() : null;
         const res = await fetch('/api/quizzes/submit', {
           method: 'POST',
           headers: await getCachedAuthHeaders(),
-          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })) }),
+          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })), ...(bioSecret ? { bioSecret } : {}), ...(bioStartSecretRef.current ? { bioStartSecret: bioStartSecretRef.current } : {}) }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
