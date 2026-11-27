@@ -1,5 +1,6 @@
 // Fingerprint login for the Android app. The phone keeps a random device secret behind the fingerprint
 // (Android Keystore, see BioBridge.java); the server only stores its hash and trades it for a one-time login token.
+import { tr } from '@/lib/tr';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
@@ -66,14 +67,14 @@ export async function bioDisable(token?: string | null): Promise<void> {
 export async function bioEnable(): Promise<{ ok: boolean; error?: string }> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return { ok: false, error: 'سجّل الدخول أولاً' };
+  if (!token) return { ok: false, error: tr('سجّل الدخول أولاً', 'Sign in first') };
   const res = await fetch('/api/auth/bio/enroll', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok || !j.secret) return { ok: false, error: j.error || 'تعذر تفعيل البصمة' };
+  if (!res.ok || !j.secret) return { ok: false, error: j.error || tr('تعذر تفعيل البصمة', 'Could not enable fingerprint') };
   const r = await call((b, id) => b.enable(j.secret, id));
   if (!r.ok) {
     await fetch('/api/auth/bio/revoke', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
-    return { ok: false, error: r.error === 'cancel' ? undefined : 'تعذر تفعيل البصمة' };
+    return { ok: false, error: r.error === 'cancel' ? undefined : tr('تعذر تفعيل البصمة', 'Could not enable fingerprint') };
   }
   return { ok: true };
 }
@@ -85,8 +86,8 @@ export async function bioLogin(
   const r = await call((b, id) => b.unlock(id));
   if (!r.ok || !r.secret) {
     if (r.error === 'cancel') return { ok: false, error: null };
-    if (r.error === 'invalidated') return { ok: false, error: 'البصمة اتغيرت. سجّل دخول بالباسورد وفعّل البصمة من جديد' };
-    return { ok: false, error: 'فشل التحقق بالبصمة' };
+    if (r.error === 'invalidated') return { ok: false, error: tr('البصمة اتغيرت. سجّل دخول بالباسورد وفعّل البصمة من جديد', 'Your fingerprints changed. Sign in with your password and enable fingerprint again') };
+    return { ok: false, error: tr('فشل التحقق بالبصمة', 'Fingerprint check failed') };
   }
   const res = await fetch('/api/auth/bio/login', {
     method: 'POST',
@@ -96,7 +97,7 @@ export async function bioLogin(
   const j = await res.json().catch(() => ({}));
   if (!res.ok || !j.tokenHash || !j.email) {
     if (res.status === 401) bridge()?.clear();
-    return { ok: false, error: 'البصمة لم تعد صالحة. سجّل دخول بالباسورد وفعّلها من جديد' };
+    return { ok: false, error: tr('البصمة لم تعد صالحة. سجّل دخول بالباسورد وفعّلها من جديد', 'Fingerprint login is no longer valid. Sign in with your password and enable it again') };
   }
   const out = await signIn(j.email, '', { tokenHash: j.tokenHash });
   return out.error ? { ok: false, error: out.error } : { ok: true, error: null };
