@@ -16,7 +16,6 @@
  */
 
 import { dedupedGet } from '@/lib/dedupe-fetch';
-import { dedupedGet } from '@/lib/dedupe-fetch';
 import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Ban, Clock, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
