@@ -79,6 +79,8 @@ export interface Quiz {
   is_finished?: boolean;
   /** Students with a score older than this cannot retake (re-exam for those who did not take it). */
   reexam_only_new_since?: string | null;
+  /** Official exam: the student confirms with the phone fingerprint at start and submit (flag only, never blocks). */
+  require_bio?: boolean;
   subject_id?: string;
   // v63: LMS enhancements — quiz gating
   pass_threshold?: number | null; // 0-100 percentage required to pass; null = no gate
