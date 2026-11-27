@@ -1238,7 +1238,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         const res = await fetch('/api/quizzes/submit', {
           method: 'POST',
           headers: await getCachedAuthHeaders(),
-          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })), ...(bioSecret ? { bioSecret } : {}), ...(bioStartSecretRef.current ? { bioStartSecret: bioStartSecretRef.current } : {}) }),
+          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })), ...(bioSecret ? { bioSecret } : {}), ...(facePassRef.current ? { facePass: facePassRef.current } : {}), ...(bioStartSecretRef.current ? { bioStartSecret: bioStartSecretRef.current } : {}) }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
