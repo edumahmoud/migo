@@ -1069,6 +1069,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // State is already cleared, ignore signOut errors
     }
 
+    // Always wipe the stored session after logout so a killed/reopened app cannot restore a revoked one.
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.includes('-auth-token')) localStorage.removeItem(k);
+      document.cookie.split(';').forEach((c) => { const n = c.split('=')[0].trim(); if (n.startsWith('sb-')) document.cookie = `${n}=; Max-Age=0; path=/`; });
+    } catch { /* ignore */ }
+
     // Revoke the refresh tokens server-side in the background (same effect as the
     // previous global sign-out, without blocking the UI).
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
