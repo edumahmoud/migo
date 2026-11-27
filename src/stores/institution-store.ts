@@ -1,5 +1,6 @@
 'use client';
 
+import { dedupedGet } from '@/lib/dedupe-fetch';
 import { create } from 'zustand';
 
 // ─── Types ───
@@ -66,7 +67,7 @@ export const useInstitutionStore = create<InstitutionState>((set, get) => ({
 
     set({ loading: true });
     try {
-      const res = await fetch('/api/setup');
+      const res = await dedupedGet('/api/setup');
       if (res.ok) {
         const data = await res.json();
         if (data.institution) {
