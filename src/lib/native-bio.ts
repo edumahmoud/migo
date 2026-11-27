@@ -100,16 +100,6 @@ export async function bioLogin(
 /** After a password login inside the app: offer to turn fingerprint login on. */
 export function bioOffer() {
   if (!bioSupported() || bioHasLogin()) return;
-  toast('تفعّل الدخول بالبصمة؟', {
-    duration: 20000,
-    action: {
-      label: 'تفعيل',
-      onClick: () => {
-        void bioEnable().then((r) => {
-          if (r.ok) toast.success('تم تفعيل الدخول بالبصمة');
-          else if (r.error) toast.error(r.error);
-        });
-      },
-    },
-  });
+  // Shown as a dialog by BioOfferDialog (mounted in the root layout).
+  window.dispatchEvent(new Event('attendo-bio-offer'));
 }

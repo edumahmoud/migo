@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import AvatarCropDialog from '@/components/shared/avatar-crop-dialog';
+import { BioSettingsSection } from '@/components/shared/bio-settings';
 import { getRoleLabel } from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
@@ -640,6 +641,9 @@ export default function SettingsModal({
             </Button>
           </motion.div>
 
+          <Separator />
+
+          <BioSettingsSection />
           <Separator />
 
           {/* ── Danger zone ── */}
