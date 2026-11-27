@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
 import { gradeAnswer, cairoWallClockToMs } from '@/lib/quiz-grading';
 import type { QuizQuestion } from '@/lib/types';
+import { checkFacePass } from '@/lib/face-pass';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
