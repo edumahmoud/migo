@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, getUserRole } from '@/lib/auth-helpers';
+import { notifyUser } from '@/lib/notifications-service';
 
 
 // Resolve the user a report is about (the reported person), for any target type.
@@ -315,6 +316,21 @@ export async function PATCH(
         );
       }
       await supabaseServer.from('reports').update({ updated_at: new Date().toISOString() }).eq('id', id);
+      // Tell the assigned person (or the admins when nobody is assigned). Best effort.
+      try {
+        const recipients = new Set<string>();
+        if (report.assigned_to) {
+          recipients.add(report.assigned_to);
+        } else {
+          const { data: admins } = await supabaseServer.from('users').select('id').in('role', ['admin', 'superadmin']).limit(20);
+          (admins || []).forEach((a: any) => recipients.add(a.id));
+        }
+        recipients.delete(userId);
+        const num = report.report_number || '';
+        await Promise.all(Array.from(recipients).map((rid) =>
+          notifyUser(rid, 'report', 'اعتراض على بلاغ', `قدّم الطرف المعني اعتراضا على البلاغ رقم ${num}`.trim(), `/reports/${id}`)
+        ));
+      } catch {}
       return NextResponse.json({ success: true });
     }
 
