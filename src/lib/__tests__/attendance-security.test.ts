@@ -11,7 +11,7 @@ describe('attendance QR challenge', () => {
     const qr = issueAttendanceQr(session, started, secret, now);
     expect(verifyAttendanceQr(qr.token, session, started, secret, now)).toBe(true);
   });
-  it('expires after 30 seconds, including at the boundary', () => {
+  it('expires after 15 seconds, including at the boundary', () => {
     const qr = issueAttendanceQr(session, started, secret, now);
     expect(verifyAttendanceQr(qr.token, session, started, secret, now + 29000)).toBe(true);
     expect(verifyAttendanceQr(qr.token, session, started, secret, now + 30000)).toBe(false);
