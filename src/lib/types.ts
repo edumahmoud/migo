@@ -110,6 +110,8 @@ export interface Score {
   total: number;
   user_answers: UserAnswer[];
   completed_at: string;
+  bio_start_verified?: boolean | null;
+  bio_submit_verified?: boolean | null;
 }
 
 // =====================================================
