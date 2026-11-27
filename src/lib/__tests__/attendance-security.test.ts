@@ -13,8 +13,8 @@ describe('attendance QR challenge', () => {
   });
   it('expires after 15 seconds, including at the boundary', () => {
     const qr = issueAttendanceQr(session, started, secret, now);
-    expect(verifyAttendanceQr(qr.token, session, started, secret, now + 29000)).toBe(true);
-    expect(verifyAttendanceQr(qr.token, session, started, secret, now + 30000)).toBe(false);
+    expect(verifyAttendanceQr(qr.token, session, started, secret, now + 14000)).toBe(true);
+    expect(verifyAttendanceQr(qr.token, session, started, secret, now + 15000)).toBe(false);
   });
   it('rejects another session, session restart, and another key', () => {
     const qr = issueAttendanceQr(session, started, secret, now);
