@@ -52,6 +52,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Official exam: fingerprint proofs (flag only). Each proof is the device secret released by the phone after a fingerprint check.
+    const proofOk = async (secret: unknown) => {
+      if (typeof secret !== 'string' || !/^[0-9a-f]{64}$/.test(secret)) return false;
+      const { data: cred } = await supabaseServer.from('biometric_credentials').select('id')
+        .eq('user_id', uid).eq('secret_hash', createHash('sha256').update(secret).digest('hex')).is('revoked_at', null).maybeSingle();
+      return !!cred;
+    };
+    const startOk = quiz.require_bio === true ? await proofOk(body?.bioStartSecret) : false;
+    const submitOk = quiz.require_bio === true ? await proofOk(body?.bioSecret) : false;
+
     const questions: QuizQuestion[] = Array.isArray(quiz.questions) ? quiz.questions : [];
     if (questions.length === 0) return NextResponse.json({ success: false, error: 'لا توجد أسئلة' }, { status: 400 });
 
