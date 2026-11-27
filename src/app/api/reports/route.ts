@@ -542,9 +542,17 @@ async function enrichAndReturn(
     }
   }
 
+  // The reported person must never see who filed the complaint (or the internal assignee).
+  const isAdminRole = role === 'admin' || role === 'superadmin';
+  const safeReports = reports.map((r: any) =>
+    isAdminRole || r.reporter_id === userId || r.assigned_to === userId
+      ? r
+      : { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null }
+  );
+
   return NextResponse.json({
     success: true,
-    data: reports,
+    data: safeReports,
     pagination: {
       page,
       limit,
