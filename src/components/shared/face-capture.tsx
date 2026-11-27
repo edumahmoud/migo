@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/lib/tr';
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 
@@ -38,7 +39,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function FaceCapture({ mode, onDone }: { mode: 'enroll' | 'verify'; onDone: (embeddings: number[][] | null, error?: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [msg, setMsg] = useState('بنجهز الكاميرا...');
+  const [msg, setMsg] = useState(tr('بنجهز الكاميرا...', 'Starting the camera...'));
   const [busy, setBusy] = useState(true);
   const cancelled = useRef(false);
 
@@ -63,15 +64,15 @@ export function FaceCapture({ mode, onDone }: { mode: 'enroll' | 'verify'; onDon
         const out: number[][] = [];
 
         if (mode === 'enroll') {
-          setMsg('بصّ للكاميرا وخلي وشك واضح');
+          setMsg(tr('بصّ للكاميرا وخلي وشك واضح', 'Look at the camera and keep your face clear'));
           const t0 = Date.now();
           while (out.length < 3 && Date.now() - t0 < 60000 && !cancelled.current) {
             const r = await detect();
-            if (r && frontal(r)) { out.push(Array.from(r.descriptor as Float32Array)); setMsg(`تمام ${out.length}/3، ثبّت وشك`); await wait(900); }
+            if (r && frontal(r)) { out.push(Array.from(r.descriptor as Float32Array)); setMsg(tr(`تمام ${out.length}/3، ثبّت وشك`, `Good ${out.length}/3, hold still`)); await wait(900); }
             else await wait(250);
           }
         } else {
-          setMsg('بصّ للكاميرا');
+          setMsg(tr('بصّ للكاميرا', 'Look at the camera'));
           const t0 = Date.now();
           let turned = false;
           let ok = false;
@@ -80,8 +81,8 @@ export function FaceCapture({ mode, onDone }: { mode: 'enroll' | 'verify'; onDon
             if (!r) { await wait(200); continue; }
             const y = yaw(r);
             if (!turned) {
-              if (frontal(r)) setMsg('لف راسك ناحية اليمين شوية');
-              if (y < 0.33 || y > 0.67) { turned = true; setMsg('تمام، دلوقتي بصّ للكاميرا تاني'); }
+              if (frontal(r)) setMsg(tr('لف راسك ناحية اليمين شوية', 'Turn your head slightly to the right'));
+              if (y < 0.33 || y > 0.67) { turned = true; setMsg(tr('تمام، دلوقتي بصّ للكاميرا تاني', 'Good, now look at the camera again')); }
             } else if (frontal(r)) {
               out.push(Array.from(r.descriptor as Float32Array));
               ok = true;
@@ -93,12 +94,12 @@ export function FaceCapture({ mode, onDone }: { mode: 'enroll' | 'verify'; onDon
         }
         if (cancelled.current) return;
         stream?.getTracks().forEach((t) => t.stop());
-        if (out.length === 0) onDone(null, 'ماقدرناش نتحقق من الوجه، حاول تاني في إضاءة أحسن');
+        if (out.length === 0) onDone(null, tr('ماقدرناش نتحقق من الوجه، حاول تاني في إضاءة أحسن', 'We could not verify your face, try again in better light'));
         else onDone(out);
       } catch (e: any) {
         stream?.getTracks().forEach((t) => t.stop());
         const denied = e?.name === 'NotAllowedError' || e?.name === 'NotFoundError';
-        onDone(null, denied ? 'لازم تسمح للتطبيق باستخدام الكاميرا' : 'تعذر تشغيل الكاميرا أو تحميل التحقق. اتأكد من النت وحاول تاني');
+        onDone(null, denied ? tr('لازم تسمح للتطبيق باستخدام الكاميرا', 'You must allow the app to use the camera') : tr('تعذر تشغيل الكاميرا أو تحميل التحقق. اتأكد من النت وحاول تاني', 'Could not start the camera or load the check. Check your internet and try again'));
       }
     })();
     return () => { cancelled.current = true; stream?.getTracks().forEach((t) => t.stop()); };
@@ -109,8 +110,8 @@ export function FaceCapture({ mode, onDone }: { mode: 'enroll' | 'verify'; onDon
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4" dir="rtl">
       <div className="w-full max-w-sm rounded-2xl bg-card p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-semibold">{mode === 'enroll' ? 'تسجيل الوجه' : 'التحقق بالوجه'}</h3>
-          <button onClick={() => { cancelled.current = true; onDone(null); }} className="rounded-md p-1 hover:bg-muted" aria-label="إغلاق"><X className="h-4 w-4" /></button>
+          <h3 className="font-semibold">{mode === 'enroll' ? tr('تسجيل الوجه', 'Register face') : tr('التحقق بالوجه', 'Face check')}</h3>
+          <button onClick={() => { cancelled.current = true; onDone(null); }} className="rounded-md p-1 hover:bg-muted" aria-label={tr('إغلاق', 'Close')}><X className="h-4 w-4" /></button>
         </div>
         <div className="relative mx-auto aspect-square w-full overflow-hidden rounded-xl bg-black">
           <video ref={videoRef} playsInline muted className="h-full w-full -scale-x-100 object-cover" />
