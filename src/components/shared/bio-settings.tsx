@@ -202,7 +202,7 @@ export function BioSettingsSection() {
             <p className="text-xs text-muted-foreground">{faceOn ? tr('وجهك مسجّل (للاختبارات الرسمية)', 'Your face is registered (for official exams)') : tr('غير مسجّل', 'Not registered')}</p>
           </div>
           {faceOn ? (
-            <Button type="button" variant="outline" size="sm" onClick={async () => { setBusy(true); const ok = await faceDeleteAll(); setBusy(false); if (ok) { setFaceOn(false); setEnabled(false); await bioDisable(); toast.success(tr('تم حذف بيانات الوجه', 'Face data deleted')); } }} disabled={busy}>
+            <Button type="button" variant="outline" size="sm" onClick={async () => { setBusy(true); const ok = await faceDeleteAll(); setBusy(false); if (ok) { setFaceOn(false); toast.success(tr('تم حذف بيانات الوجه', 'Face data deleted')); } else toast.error(tr('تعذر الحذف، حاول تاني', 'Could not delete, try again')); }} disabled={busy}>
               {tr('حذف', 'Delete')}
             </Button>
           ) : (
