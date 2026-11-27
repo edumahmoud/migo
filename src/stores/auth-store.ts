@@ -683,7 +683,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!isValidEmail(sanitizedEmail)) {
         return { error: 'صيغة البريد الإلكتروني غير صالحة' };
       }
-      if (!password || password.length < 1) {
+      if (!opts?.tokenHash && (!password || password.length < 1)) {
         return { error: 'يرجى إدخال كلمة المرور' };
       }
 
