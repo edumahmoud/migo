@@ -22,7 +22,11 @@ export default function BioOfferDialog() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const h = () => { if (bioSupported() && !bioHasLogin()) setOpen(true); };
+    const h = () => {
+      let dismissed = false;
+      try { dismissed = localStorage.getItem('attendo_bio_offer_dismissed') === '1'; } catch { /* ignore */ }
+      if (!dismissed && bioSupported() && !bioHasLogin()) setOpen(true);
+    };
     window.addEventListener('attendo-bio-offer', h);
     return () => window.removeEventListener('attendo-bio-offer', h);
   }, []);
@@ -48,14 +52,14 @@ export default function BioOfferDialog() {
           </div>
           <AlertDialogTitle>تفعيل الدخول بالبصمة؟</AlertDialogTitle>
           <AlertDialogDescription>
-            ادخل للتطبيق وأكّد حضورك بالبصمة بدل كتابة الباسورد. بصمتك تفضل على موبايلك ومش بتتخزن عندنا. تقدر توقفها من الإعدادات في أي وقت.
+            ادخل للتطبيق وأكّد حضورك بالبصمة بدل كتابة الباسورد. بصمتك تفضل على موبايلك ومش بتتخزن عندنا. تقدر توقفها أو تفعلها من الإعدادات في أي وقت.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
           <Button onClick={enable} disabled={busy} className="w-full bg-gradient-to-l from-sky-700 to-teal-600 text-white">
             تفعيل
           </Button>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy} className="w-full">
+          <Button variant="ghost" onClick={() => { try { localStorage.setItem('attendo_bio_offer_dismissed', '1'); } catch { /* ignore */ } setOpen(false); }} disabled={busy} className="w-full">
             لاحقاً
           </Button>
         </AlertDialogFooter>
@@ -65,11 +69,14 @@ export default function BioOfferDialog() {
   );
 }
 
-/** Official exam with camera check: runs the live face check and hands the server's pass to the exam screen. */
+/** Official exam with camera check: runs the live face check and hands the server's pass to the exam screen.
+ *  First time (no face saved): asks for consent, records the face, then runs the check, all in one flow. */
 function FaceGateDialog() {
   const [quizId, setQuizId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<'verify' | 'consent' | 'enroll'>('verify');
+  const [agree, setAgree] = useState(false);
   useEffect(() => {
-    const h = (e: Event) => setQuizId((e as CustomEvent<{ quizId: string }>).detail?.quizId ?? null);
+    const h = (e: Event) => { setQuizId((e as CustomEvent<{ quizId: string }>).detail?.quizId ?? null); setPhase('verify'); setAgree(false); };
     window.addEventListener('attendo-face-gate', h);
     return () => window.removeEventListener('attendo-face-gate', h);
   }, []);
@@ -78,18 +85,54 @@ function FaceGateDialog() {
     window.dispatchEvent(new CustomEvent('attendo-face-pass', { detail: { quizId, pass, error } }));
     setQuizId(null);
   };
+
+  if (phase === 'consent') {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4" dir="rtl">
+        <div className="w-full max-w-sm space-y-3 rounded-2xl bg-card p-5 shadow-xl">
+          <h3 className="font-semibold">هذا اختبار رسمي بالتحقق من الوجه</h3>
+          <p className="text-sm text-muted-foreground">
+            لازم تسجّل وجهك مرة واحدة. بنحفظ أرقام بس (من غير صورة)، بنستخدمها للتحقق في الاختبارات الرسمية، وبتتحذف تلقائياً بعد 12 شهر. تقدر تحذفها أي وقت من الإعدادات.
+          </p>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
+            <span>أوافق على حفظ بصمة وجهي بالشكل ده</span>
+          </label>
+          <div className="flex gap-2">
+            <Button className="flex-1" disabled={!agree} onClick={() => setPhase('enroll')}>تسجيل وجهي</Button>
+            <Button variant="outline" className="flex-1" onClick={() => finish(null, 'لازم تتحقق بوشك عشان تفتح الاختبار')}>إلغاء</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'enroll') {
+    return (
+      <FaceCapture
+        key="enroll"
+        mode="enroll"
+        onDone={async (emb, err) => {
+          if (!emb) { if (err) toast.error(err); finish(null, err || 'لازم تسجّل وجهك عشان تفتح الاختبار'); return; }
+          const r = await faceEnroll(emb);
+          if (!r.ok) { toast.error(r.error); finish(null, r.error); return; }
+          toast.success('تم تسجيل وجهك، كمّل التحقق');
+          setPhase('verify');
+        }}
+      />
+    );
+  }
+
   return (
     <FaceCapture
+      key="verify"
       mode="verify"
       onDone={async (emb, err) => {
         if (!emb) { if (err) toast.error(err); finish(null, err); return; }
         const r = await faceVerifyForExam(quizId, emb[0]);
         if (r.ok) finish(r.pass);
-        else {
-          const msg = r.code === 'not_enrolled' ? 'سجّل وجهك الأول من الإعدادات ثم افتح الاختبار' : r.error;
-          toast.error(msg);
-          finish(null, msg);
-        }
+        else if (r.code === 'not_enrolled') setPhase('consent');
+        else { toast.error(r.error); finish(null, r.error); }
       }}
     />
   );
