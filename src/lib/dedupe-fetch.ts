@@ -14,3 +14,4 @@ export function dedupedGet(url: string, headers: Record<string, string> = {}): P
   }
   return p.then((r) => r.clone());
 }
+// Only GETs are shared; mutations are never deduplicated.
