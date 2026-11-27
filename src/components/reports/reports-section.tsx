@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/lib/tr';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -134,6 +135,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all' | 'forwarded'>('all');
   const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(isAdmin ? 'all' : 'submitted');
   const [replyText, setReplyText] = useState('');
+  const [objectionText, setObjectionText] = useState('');
+  const [objectionSending, setObjectionSending] = useState(false);
   const [forwardToId, setForwardToId] = useState('');
   const [availableForwardUsers, setAvailableForwardUsers] = useState<UserProfile[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -642,6 +645,37 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   // Handle action (reply, forward, resolve, dismiss, reopen, block, warn, message_reporter, message_reported)
   // -------------------------------------------------------
+  const submitObjection = async () => {
+    if (!selectedReport) return;
+    const text = objectionText.trim();
+    if (text.length < 5) {
+      toast.error(tr('اكتب نص الاعتراض (5 أحرف على الأقل)', 'Write your objection (at least 5 characters)'));
+      return;
+    }
+    setObjectionSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`/api/reports/${selectedReport.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'objection', content: text }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(tr('تم تسجيل اعتراضك', 'Your objection was recorded'));
+        setObjectionText('');
+      } else {
+        toast.error(result.error || t('reports.actionFailed'));
+      }
+      fetchReportDetail(selectedReport.id, false);
+    } catch {
+      toast.error(t('common.errorUnexpected'));
+    } finally {
+      setObjectionSending(false);
+    }
+  };
+
   const handleAction = async (action: ReportResponseAction) => {
     if (!selectedReport) return;
     if (action === 'reply' && !replyText.trim()) {
@@ -749,6 +783,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'block': return <Ban className="h-3.5 w-3.5" />;
       case 'warn': return <AlertTriangle className="h-3.5 w-3.5" />;
       case 'return': return <RotateCcw className="h-3.5 w-3.5" />;
+      case 'objection': return <AlertTriangle className="h-3.5 w-3.5" />;
+      case 'message_reporter':
+      case 'message_reported': return <Mail className="h-3.5 w-3.5" />;
       default: return null;
     }
   };
@@ -763,6 +800,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'block': return t('reports.blockUser');
       case 'warn': return t('reports.warn');
       case 'return': return t('reports.returnToTeacher');
+      case 'objection': return tr('اعتراض من المشكو منه', 'Objection by the reported person');
+      case 'message_reporter': return t('reports.messageToReporter');
+      case 'message_reported': return t('reports.messageToAccused');
       default: return action;
     }
   };
@@ -777,6 +817,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'block': return 'text-red-600 dark:text-red-500';
       case 'warn': return 'text-orange-600 dark:text-orange-400';
       case 'return': return 'text-violet-600 dark:text-violet-500';
+      case 'objection': return 'text-fuchsia-600 dark:text-fuchsia-400';
+      case 'message_reporter':
+      case 'message_reported': return 'text-sky-600 dark:text-sky-400';
       default: return 'text-muted-foreground';
     }
   };
@@ -784,7 +827,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   // UserLink helper — clickable user name that opens profile
   // -------------------------------------------------------
-  const UserLink = ({ userId, name }: { userId: string; name: string }) => (
+  const UserLink = ({ userId, name }: { userId: string; name: string }) => !userId ? (
+    <span className="text-sm font-medium">{name}</span>
+  ) : (
     <button
       onClick={(e) => { e.stopPropagation(); openProfile(userId); }}
       className="text-sm font-medium text-sky-700 dark:text-sky-400 hover:underline"
@@ -825,7 +870,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
       {/* Header */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-xl font-bold text-foreground">
+        <h2 className="text-lg font-bold text-foreground">
           {role === 'student' ? t('reports.myReports') : isAdmin ? t('reports.manageReports') : t('reports.reportsTitle')}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -951,13 +996,13 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <p className="mt-4 text-muted-foreground">{t('reports.noReports')}</p>
         </motion.div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {reports.map((report) => (
             <motion.button
               key={report.id}
               variants={itemVariants}
               onClick={() => fetchReportDetail(report.id)}
-              className={`w-full text-start rounded-xl border p-4 transition-all hover:shadow-md ${
+              className={`w-full text-start rounded-xl border p-3 transition-all hover:shadow-md ${
                 selectedReport?.id === report.id
                   ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/15'
                   : 'border-border bg-card hover:border-sky-200 dark:hover:border-sky-900/60'
@@ -1022,55 +1067,38 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const reporterCount = report.reporter_count || 1;
 
     return (
-      <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-900/20 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Flag className="h-4 w-4 text-rose-500" />
-          <h4 className="text-sm font-semibold text-foreground">{t('reports.accused')}</h4>
-        </div>
-        <div className="flex items-center gap-3 mb-3">
-          <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} /> <RoleBadge role={tu.role} t={t} />
-            </p>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-              <Mail className="h-3 w-3" />
-              <span>{tu.email}</span>
-            </div>
-          </div>
+      <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-900/20 p-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Flag className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+          <span className="text-xs font-semibold text-muted-foreground">{t('reports.accused')}:</span>
+          <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="sm" />
+          <span className="text-sm font-semibold text-foreground">
+            <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} /> <RoleBadge role={tu.role} t={t} />
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Mail className="h-3 w-3" />
+            {tu.email}
+          </span>
         </div>
         {isStaff ? (
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg bg-background/80 p-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-500">
-                <BarChart3 className="h-3.5 w-3.5" />
-                <span className="text-lg font-bold">{targetUserStats?.total_against ?? tu.report_count ?? 0}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.complaintCount')}</p>
-            </div>
-            <div className="rounded-lg bg-background/80 p-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-500">
-                <Users className="h-3.5 w-3.5" />
-                <span className="text-lg font-bold">{targetUserStats?.total_reporters ?? reporterCount}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.reporterCountBadge')}</p>
-            </div>
-            <div className="rounded-lg bg-background/80 p-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-sky-600 dark:text-sky-400">
-                <Flag className="h-3.5 w-3.5" />
-                <span className="text-lg font-bold">{targetUserStats?.total_filed ?? 0}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.filedReports')}</p>
-            </div>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
+            <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-rose-600 dark:text-rose-500">
+              <BarChart3 className="h-3 w-3" />
+              <b>{targetUserStats?.total_against ?? tu.report_count ?? 0}</b>
+              <span className="text-muted-foreground">{t('reports.complaintCount')}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-amber-600 dark:text-amber-500">
+              <Users className="h-3 w-3" />
+              <b>{targetUserStats?.total_reporters ?? reporterCount}</b>
+              <span className="text-muted-foreground">{t('reports.reporterCountBadge')}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-sky-600 dark:text-sky-400">
+              <Flag className="h-3 w-3" />
+              <b>{targetUserStats?.total_filed ?? 0}</b>
+              <span className="text-muted-foreground">{t('reports.filedReports')}</span>
+            </span>
           </div>
-        ) : (
-          <div className="rounded-lg bg-background/80 p-2 text-center inline-block">
-            <div className="flex items-center justify-center gap-1 text-muted-foreground">
-              <User className="h-3.5 w-3.5" />
-              <span className="text-sm font-medium">{getRoleLabel(tu.role)}</span>
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
     );
   };
@@ -1083,8 +1111,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     if (!report?.target_content) return null;
 
     return (
-      <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 p-4">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 p-3">
+        <div className="flex items-center gap-2 mb-1.5">
           <FileText className="h-4 w-4 text-amber-500" />
           <h4 className="text-sm font-semibold text-foreground">
             {t('reports.accusedContent', { type: getTargetTypeLabel(report.target_type, t) })}
@@ -1125,18 +1153,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         const msg = item.data as ReportMessage;
         return msg.sender_id === profile.id || (msg as any).recipient_id === profile.id;
       }
-      // For students: only show forward, block, warn actions
-      if (role === 'student') {
-        const resp = item.data as ReportResponse;
-        return ['forward', 'block', 'warn'].includes(resp.action);
-      }
+      // What each role may see is decided by the server (GET /api/reports/[id]).
       return true;
     });
 
     if (filteredActions.length === 0) return null;
 
     return (
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-border bg-card p-3">
         <button
           onClick={() => setShowActionsLog(!showActionsLog)}
           className="flex items-center justify-between w-full text-start"
@@ -1162,7 +1186,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="space-y-3 mt-4 max-h-96 overflow-y-auto">
+              <div className="space-y-2 mt-2 max-h-80 overflow-y-auto">
                 {filteredActions.map((item) => {
                   if (item.type === 'response') {
                     const resp = item.data as ReportResponse;
@@ -1170,12 +1194,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       ? (resp.action === 'forward' ? t('reports.forwardedToAdmin')
                         : resp.action === 'block' ? t('reports.userBlocked')
                         : resp.action === 'warn' ? t('reports.userWarned')
+                        : resp.action === 'resolve' ? t('reports.status.resolved')
+                        : resp.action === 'dismiss' ? t('reports.status.dismissed')
                         : getActionLabel(resp.action))
                       : getActionLabel(resp.action);
                     return (
                       <div
                         key={resp.id}
-                        className="rounded-lg border border-border bg-background p-3"
+                        className="rounded-lg border border-border bg-background p-2.5"
                       >
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <div className="flex items-center gap-2">
@@ -1183,6 +1209,16 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                             <span className="text-sm font-medium">
                               {resp.responder ? <><UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender, t)} /> <RoleBadge role={resp.responder.role} t={t} /></> : t('common.user')}
                             </span>
+                            {(() => {
+                              const ar = resp.actor_role || resp.responder?.role;
+                              const txt = ar === 'reporter' ? tr('الشاكي', 'Reporter')
+                                : ar === 'reported' ? tr('المشكو منه', 'Reported person')
+                                : ar === 'student' ? tr('طالب', 'Student')
+                                : ar === 'teacher' ? tr('معلم', 'Teacher')
+                                : ar === 'admin' ? tr('مشرف', 'Admin')
+                                : ar === 'superadmin' ? tr('مدير', 'Super admin') : null;
+                              return txt ? <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{txt}</span> : null;
+                            })()}
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
                               {getActionIcon(resp.action)}
                               {studentActionLabel}
@@ -1207,7 +1243,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     return (
                       <div
                         key={msg.id}
-                        className={`rounded-lg border p-3 ${
+                        className={`rounded-lg border p-2.5 ${
                           isWarning
                             ? 'border-orange-300 dark:border-orange-900/60 bg-orange-50/50 dark:bg-orange-900/20'
                             : 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/10'
@@ -1283,7 +1319,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
-        className="space-y-4 pb-28 md:pb-0"
+        className="space-y-3 pb-28 md:pb-0"
       >
         {/* Back button */}
         <button
@@ -1295,7 +1331,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         </button>
 
         {/* ─── Report Header Card ─── */}
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400">
               <Hash className="h-3 w-3" />
@@ -1321,7 +1357,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           </div>
 
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-            {selectedReport.reporter ? (
+            {(selectedReport as any).accused_view ? null : selectedReport.reporter ? (
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">{t('reports.reporter')}:</span>
                 <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
@@ -1385,6 +1421,34 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </p>
             {messages.some((m: any) => m.message_type === 'warning') && <p className="mb-1 text-orange-700 dark:text-orange-400">{t('reports.accusedWarned')}</p>}
             <p>{t('reports.accusedViewNote')}</p>
+          </div>
+        )}
+
+        {(selectedReport as any).accused_view && (
+          <div className="rounded-xl border border-fuchsia-200 dark:border-fuchsia-900/60 bg-fuchsia-50/40 dark:bg-fuchsia-900/10 p-3 space-y-2">
+            <p className="text-sm font-semibold text-foreground">{tr('اعتراض', 'Objection')}</p>
+            {(selectedReport as any).has_objection ? (
+              <p className="text-xs text-muted-foreground">{tr('قدّمت اعتراضا على هذه الشكوى وتم تسجيله في سجل الإجراءات. لا يمكن تقديم أكثر من اعتراض واحد.', 'You already filed an objection on this complaint and it is recorded in the activity log. Only one objection is allowed.')}</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">{tr('يمكنك تقديم اعتراض واحد فقط على هذه الشكوى. سيظهر في سجل الإجراءات.', 'You can file only one objection on this complaint. It will appear in the activity log.')}</p>
+                <textarea
+                  value={objectionText}
+                  onChange={(e) => setObjectionText(e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder={tr('اكتب اعتراضك هنا...', 'Write your objection here...')}
+                  className="w-full rounded-lg border border-border bg-background p-2 text-sm"
+                />
+                <button
+                  onClick={submitObjection}
+                  disabled={objectionSending || objectionText.trim().length < 5}
+                  className="px-4 py-2 rounded-lg bg-fuchsia-600 text-white text-sm font-medium hover:bg-fuchsia-700 disabled:opacity-50"
+                >
+                  {objectionSending ? <Loader2 className="h-4 w-4 animate-spin" /> : tr('إرسال الاعتراض', 'Submit objection')}
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -1711,7 +1775,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const renderInbox = () => (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
       <motion.div variants={itemVariants}>
-        <h2 className="text-xl font-bold text-foreground">{t('reports.inboxTitle')}</h2>
+        <h2 className="text-lg font-bold text-foreground">{t('reports.inboxTitle')}</h2>
         <p className="text-sm text-muted-foreground mt-1">{t('reports.inboxDesc')}</p>
       </motion.div>
 
@@ -1958,7 +2022,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const renderAgainstReports = () => (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
       <motion.div variants={itemVariants}>
-        <h2 className="text-xl font-bold text-foreground">{t('reports.tabs.against')}</h2>
+        <h2 className="text-lg font-bold text-foreground">{t('reports.tabs.against')}</h2>
         <p className="text-sm text-muted-foreground mt-1">{t('reports.reportsDescStudent')}</p>
       </motion.div>
 
