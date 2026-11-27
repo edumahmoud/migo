@@ -870,22 +870,15 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
       {/* Header */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-lg font-bold text-foreground">
+        <h2 className="text-base font-bold text-foreground">
           {role === 'student' ? t('reports.myReports') : isAdmin ? t('reports.manageReports') : t('reports.reportsTitle')}
         </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {role === 'student'
-            ? t('reports.reportsDescStudent')
-            : isAdmin
-            ? t('reports.reportsDescAdmin')
-            : t('reports.reportsDescTeacher')}
-        </p>
       </motion.div>
 
       {/* Clear completed + info */}
       {reports.some(r => r.status === 'resolved' || r.status === 'dismissed') && (
-        <motion.div variants={itemVariants} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
-          <p className="text-xs text-muted-foreground">
+        <motion.div variants={itemVariants} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-1.5">
+          <p className="text-[11px] text-muted-foreground">
             {t('reports.autoDeleteNotice')}
           </p>
           <div className="flex items-center gap-2">
@@ -991,8 +984,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <MascotLoader kind="ai" size={96} />
         </div>
       ) : reports.length === 0 ? (
-        <motion.div variants={itemVariants} className="text-center py-16">
-          <ShieldAlert className="h-16 w-16 mx-auto text-muted-foreground/30" />
+        <motion.div variants={itemVariants} className="text-center py-8">
+          <ShieldAlert className="h-10 w-10 mx-auto text-muted-foreground/30" />
           <p className="mt-4 text-muted-foreground">{t('reports.noReports')}</p>
         </motion.div>
       ) : (
@@ -1775,8 +1768,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const renderInbox = () => (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
       <motion.div variants={itemVariants}>
-        <h2 className="text-lg font-bold text-foreground">{t('reports.inboxTitle')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{t('reports.inboxDesc')}</p>
+        <h2 className="text-base font-bold text-foreground">{t('reports.inboxTitle')}</h2>
       </motion.div>
 
       {loadingInbox ? (
@@ -1784,8 +1776,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <MascotLoader kind="ai" size={96} />
         </div>
       ) : inboxMessages.length === 0 ? (
-        <motion.div variants={itemVariants} className="text-center py-16">
-          <Inbox className="h-16 w-16 mx-auto text-muted-foreground/30" />
+        <motion.div variants={itemVariants} className="text-center py-8">
+          <Inbox className="h-10 w-10 mx-auto text-muted-foreground/30" />
           <p className="mt-4 text-muted-foreground">{t('reports.noInboxMessages')}</p>
         </motion.div>
       ) : (
@@ -1796,7 +1788,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             <motion.div
               key={msg.id}
               variants={itemVariants}
-              className={`rounded-xl border p-4 hover:shadow-sm transition-shadow ${
+              className={`rounded-xl border p-3 hover:shadow-sm transition-shadow ${
                 isWarning
                   ? 'border-orange-300 dark:border-orange-900/60 bg-orange-50 dark:bg-orange-900/20'
                   : 'border-border bg-card'
@@ -1806,13 +1798,13 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   {isWarning ? (
-                    <div className="h-10 w-10 rounded-full bg-orange-200 dark:bg-orange-800/60 flex items-center justify-center">
+                    <div className="h-8 w-8 rounded-full bg-orange-200 dark:bg-orange-800/60 flex items-center justify-center">
                       <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-300" />
                     </div>
                   ) : msg.sender ? (
-                    <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="md" />
+                    <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />
                   ) : (
-                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
                       <User className="h-5 w-5 text-muted-foreground" />
                     </div>
                   )}
@@ -1845,12 +1837,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         <><ShieldAlert className="h-3 w-3" /> {t('reports.regardingComplaintReturned')}</>
                       )}
                     </span>
-                    {msg.report?.report_number && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400">
-                        <Hash className="h-2.5 w-2.5" />
-                        {msg.report.report_number}
-                      </span>
-                    )}
+                    
                   </div>
                   <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <Clock className="h-3 w-3" />
@@ -1861,7 +1848,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
               {/* Report info (reporter, reported user, report number) */}
               {msg.report && (
-                <div className="mt-2 ms-13 bg-muted/50 rounded-lg p-2 flex items-center gap-3 flex-wrap text-xs">
+                <div className="mt-1.5 ms-11 bg-muted/50 rounded-md px-2 py-1 flex items-center gap-3 flex-wrap text-xs">
                   <span className="inline-flex items-center gap-1 font-mono font-medium bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full text-[10px]">
                     <Hash className="h-2.5 w-2.5" />
                     {msg.report.report_number}
@@ -1880,10 +1867,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               )}
 
               {/* Message body */}
-              <div className="mt-3 ms-13">
+              <div className="mt-2 ms-11">
                 {isWarning ? (
                   // Structured warning details
-                  <div className="text-sm rounded-lg p-3 border text-orange-800 dark:text-orange-300 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-900/60/50 space-y-1.5">
+                  <div className="text-xs rounded-lg p-2 border text-orange-800 dark:text-orange-300 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-900/60/50 space-y-1.5">
                     {msg.content.split('\n').map((line: string, i: number) => {
                       if (line.startsWith('⚠️')) return <p key={i} className="font-bold text-base">{line}</p>;
                       const colonIdx = line.indexOf(':');
@@ -1896,7 +1883,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed rounded-lg p-3 border text-foreground bg-muted/30 border-border/50">
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed rounded-lg p-2 border text-foreground bg-muted/30 border-border/50">
                     {msg.content}
                   </p>
                 )}
@@ -2022,8 +2009,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const renderAgainstReports = () => (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
       <motion.div variants={itemVariants}>
-        <h2 className="text-lg font-bold text-foreground">{t('reports.tabs.against')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">{t('reports.reportsDescStudent')}</p>
+        <h2 className="text-base font-bold text-foreground">{t('reports.tabs.against')}</h2>
       </motion.div>
 
       {loadingAgainst ? (
@@ -2031,7 +2017,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <MascotLoader kind="ai" size={96} />
         </div>
       ) : againstReports.length === 0 ? (
-        <motion.div variants={itemVariants} className="text-center py-16">
+        <motion.div variants={itemVariants} className="text-center py-8">
           <ShieldAlert className="h-16 w-16 mx-auto text-muted-foreground/30" />
           <p className="mt-4 text-muted-foreground">{t('reports.noReports')}</p>
         </motion.div>
@@ -2042,7 +2028,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               key={report.id}
               variants={itemVariants}
               onClick={() => fetchReportDetail(report.id)}
-              className="w-full text-start rounded-xl border p-4 transition-all hover:shadow-md border-border bg-card hover:border-rose-200 dark:hover:border-rose-800"
+              className="w-full text-start rounded-xl border p-3 transition-all hover:shadow-md border-border bg-card hover:border-rose-200 dark:hover:border-rose-800"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">

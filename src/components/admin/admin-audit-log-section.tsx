@@ -25,6 +25,34 @@ interface AuditEvent {
 }
 interface Stats { total: number; last24h: number; critical24h: number; failedLogins24h: number; newDeviceLogins24h: number }
 
+// Readable names for audit action codes. Unknown codes fall back to "entity verb" words, then to the raw code.
+const ACTION_AR: Record<string, string> = {
+  'auth.login_success': 'تسجيل دخول ناجح', 'auth.login_failed': 'محاولة دخول فاشلة', 'auth.logout': 'تسجيل خروج',
+  'user.created': 'إنشاء مستخدم', 'user.deleted': 'حذف مستخدم', 'user.updated': 'تعديل مستخدم', 'user.role_changed': 'تغيير دور مستخدم',
+  'user.status_changed': 'تغيير حالة مستخدم', 'user.banned': 'حظر مستخدم', 'user.unbanned': 'رفع الحظر عن مستخدم',
+  'audit.retention_purge': 'تنظيف السجلات القديمة',
+  'gateway.created': 'إضافة بوابة دفع', 'gateway.updated': 'تعديل بوابة دفع', 'gateway.enabled': 'تفعيل بوابة دفع', 'gateway.disabled': 'تعطيل بوابة دفع',
+  'gateway.default_changed': 'تغيير بوابة الدفع الافتراضية', 'gateway.connection_tested': 'اختبار اتصال بوابة دفع',
+  'payout.created': 'إنشاء طلب سحب', 'payout.processing': 'سحب قيد المعالجة', 'payout.completed': 'اكتمال السحب', 'payout.failed': 'فشل السحب', 'payout.cancelled': 'إلغاء السحب',
+  'payout_method.created': 'إضافة وسيلة سحب', 'payout_method.updated': 'تعديل وسيلة سحب', 'payout_method.deleted': 'حذف وسيلة سحب', 'payout_method.disabled': 'تعطيل وسيلة سحب',
+  'payout_method.reenabled': 'إعادة تفعيل وسيلة سحب', 'payout_method.set_default': 'تعيين وسيلة سحب افتراضية', 'payout_method.verified': 'توثيق وسيلة سحب',
+};
+const ACTION_EN: Record<string, string> = {
+  'auth.login_success': 'Successful sign-in', 'auth.login_failed': 'Failed sign-in', 'auth.logout': 'Sign-out',
+  'user.created': 'User created', 'user.deleted': 'User deleted', 'user.updated': 'User updated', 'user.role_changed': 'User role changed',
+  'user.status_changed': 'User status changed', 'user.banned': 'User banned', 'user.unbanned': 'User unbanned',
+  'audit.retention_purge': 'Old logs purged',
+  'gateway.created': 'Payment gateway added', 'gateway.updated': 'Payment gateway updated', 'gateway.enabled': 'Payment gateway enabled', 'gateway.disabled': 'Payment gateway disabled',
+  'gateway.default_changed': 'Default gateway changed', 'gateway.connection_tested': 'Gateway connection tested',
+  'payout.created': 'Payout requested', 'payout.processing': 'Payout processing', 'payout.completed': 'Payout completed', 'payout.failed': 'Payout failed', 'payout.cancelled': 'Payout cancelled',
+  'payout_method.created': 'Payout method added', 'payout_method.updated': 'Payout method updated', 'payout_method.deleted': 'Payout method deleted', 'payout_method.disabled': 'Payout method disabled',
+  'payout_method.reenabled': 'Payout method re-enabled', 'payout_method.set_default': 'Default payout method set', 'payout_method.verified': 'Payout method verified',
+};
+function actionLabel(code: string, locale: string): string {
+  const map = locale === 'en' ? ACTION_EN : ACTION_AR;
+  return map[code] || code;
+}
+
 const TEXT = {
   ar: {
     title: 'سجل التدقيق', desc: 'سجل لا يمكن تعديله أو حذفه لكل الأحداث الحساسة، محفوظ 12 شهرًا. للسوبر أدمن فقط.',
@@ -211,22 +239,22 @@ export default function AdminAuditLogSection() {
           ) : events.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">{T.none}</div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full table-fixed text-sm md:table-auto">
               <thead className="bg-muted/50 text-xs">
                 <tr className="text-start">
-                  {[T.severity, T.time, T.who, T.action, T.target, T.ip, T.dev].map((h) => <th key={h} className="p-2 text-start font-medium">{h}</th>)}
+                  {[T.severity, T.time, T.who, T.action, T.target, T.ip, T.dev].map((h, i) => <th key={h} className={`p-2 text-start font-medium ${i >= 5 ? 'hidden lg:table-cell' : ''}`}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {events.map((ev) => (
                   <tr key={ev.id} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSelected(ev)}>
                     <td className="p-2"><span className={`rounded px-2 py-0.5 text-xs ${SEV_STYLE[ev.severity] || SEV_STYLE.info}`}>{T.sev[ev.severity] || ev.severity}</span></td>
-                    <td className="whitespace-nowrap p-2">{fmt(ev.occurred_at)}</td>
+                    <td className="p-2 text-xs md:whitespace-nowrap">{fmt(ev.occurred_at)}</td>
                     <td className="p-2">{ev.actor_name || ev.actor_email || (ev.actor_id ? ev.actor_id.slice(0, 8) : T.system)}</td>
-                    <td className="p-2"><div className="font-mono text-xs">{ev.action}</div><div className="text-xs text-muted-foreground">{T.outcomes[ev.outcome] || ev.outcome}</div></td>
-                    <td className="max-w-[200px] truncate p-2">{ev.target_label || ev.target_type || '-'}</td>
-                    <td className="p-2 font-mono text-xs">{ev.ip_address || '-'}</td>
-                    <td className="p-2 text-xs">{[ev.device_type, ev.os_name, ev.browser_name].filter(Boolean).join(' / ') || '-'}</td>
+                    <td className="p-2"><div className="text-xs font-medium" title={ev.action}>{actionLabel(ev.action, locale)}</div><div className="font-mono text-[10px] text-muted-foreground" dir="ltr">{ev.action}</div><div className="text-xs text-muted-foreground">{T.outcomes[ev.outcome] || ev.outcome}</div></td>
+                    <td className="max-w-[120px] truncate p-2 md:max-w-[200px]">{ev.target_label || ev.target_type || '-'}</td>
+                    <td className="hidden p-2 font-mono text-xs lg:table-cell">{ev.ip_address || '-'}</td>
+                    <td className="hidden p-2 text-xs lg:table-cell">{[ev.device_type, ev.os_name, ev.browser_name].filter(Boolean).join(' / ') || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -251,7 +279,7 @@ export default function AdminAuditLogSection() {
             <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-1 text-sm">
               {([
                 [T.time, fmt(selected.occurred_at)],
-                [T.action, selected.action],
+                [T.action, `${actionLabel(selected.action, locale)} (${selected.action})`],
                 [T.outcome, T.outcomes[selected.outcome] || selected.outcome],
                 [T.severity, T.sev[selected.severity] || selected.severity],
                 [T.who, [selected.actor_name, selected.actor_email, selected.actor_id].filter(Boolean).join(' | ') || T.system],

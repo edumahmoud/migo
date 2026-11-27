@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
+import { dedupedGet } from '@/lib/dedupe-fetch';
 
 // ─── Types ───
 
@@ -110,7 +111,7 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
 
   // Check if the institution_settings table exists on mount
   useEffect(() => {
-    fetch('/api/setup')
+    dedupedGet('/api/setup')
       .then(async (res) => {
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('json')) {
