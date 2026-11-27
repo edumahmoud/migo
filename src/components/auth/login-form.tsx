@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
+import { bioSupported, bioHasLogin, bioLogin, bioOffer } from '@/lib/native-bio';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -45,6 +46,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     const user = useAuthStore.getState().user;
     if (user) {
       toast.success(t('auth.loginSuccess'));
+      bioOffer();
       if (user.role === 'superadmin' || user.role === 'admin') {
         setCurrentPage('admin-dashboard');
       } else if (user.role === 'teacher') {
@@ -126,6 +128,29 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     }
   };
 
+  // Fingerprint login (Android app only). Prompts once automatically when the app opens, and via the button.
+  const [bioReady, setBioReady] = useState(false);
+  const runBio = async () => {
+    setIsLoading(true);
+    try {
+      const r = await bioLogin(signInWithEmail);
+      if (r.ok) routeAfterLogin();
+      else if (r.error) toast.error(r.error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  useEffect(() => {
+    const ok = bioSupported() && bioHasLogin();
+    setBioReady(ok);
+    const w = window as unknown as { __attendoBioAuto?: boolean };
+    if (ok && !w.__attendoBioAuto) {
+      w.__attendoBioAuto = true;
+      void runBio();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // The submit handler depends on the active mode.
   const handleSubmit = mode === 'email' ? handleEmailSubmit : handleCodeSubmit;
 
@@ -187,6 +212,16 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               ))}
             </div>
 
+            {bioReady && (
+              <button
+                type="button"
+                onClick={runBio}
+                disabled={isLoading}
+                className="w-full h-11 mb-4 rounded-md border border-teal-600 text-teal-700 font-semibold hover:bg-teal-50 disabled:opacity-50 transition-colors"
+              >
+                الدخول بالبصمة
+              </button>
+            )}
             <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
               <AnimatePresence mode="wait" initial={false}>
               {mode === 'email' ? (

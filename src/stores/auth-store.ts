@@ -232,7 +232,7 @@ interface AuthState {
   setUser: (user: UserProfile | null) => void;
   setLoginInProgress: (inProgress: boolean) => void;
   initialize: () => Promise<void>;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithEmail: (email: string, password: string, opts?: { tokenHash?: string }) => Promise<{ error: string | null }>;
   signUpWithEmail: (email: string, password: string, name: string, phone?: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -666,7 +666,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  signInWithEmail: async (email, password) => {
+  signInWithEmail: async (email, password, opts) => {
     // Set login-in-progress flag to prevent onAuthStateChange from
     // interfering (overwriting user with fallback, or processing SIGNED_OUT)
     _loginInProgress = true;
@@ -683,12 +683,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!isValidEmail(sanitizedEmail)) {
         return { error: 'صيغة البريد الإلكتروني غير صالحة' };
       }
-      if (!password || password.length < 1) {
+      if (!opts?.tokenHash && (!password || password.length < 1)) {
         return { error: 'يرجى إدخال كلمة المرور' };
       }
 
       ensureDeviceId();
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: sanitizedEmail, password });
+      const { data: signInData, error } = opts?.tokenHash
+        ? await supabase.auth.verifyOtp({ token_hash: opts.tokenHash, type: 'magiclink' })
+        : await supabase.auth.signInWithPassword({ email: sanitizedEmail, password });
       if (error) {
         // Audit log: record the failed attempt (email + device only, never the password). Fire and forget.
         const msg = (error.message || '').toLowerCase();
@@ -708,7 +710,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       void fetch('/api/audit/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${signInData.session?.access_token || ''}` },
-        body: JSON.stringify({ method: 'password' }),
+        body: JSON.stringify({ method: opts?.tokenHash ? 'biometric' : 'password' }),
       }).catch(() => {});
       
       // ─── Use server-side API to fetch profile (bypasses RLS) ───
