@@ -4,7 +4,6 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { registerSession, validateSession, endSession, startSessionValidation } from '@/lib/session-tracker';
 import { useLocaleStore } from '@/i18n/locale-store';
 import { ensureDeviceId } from '@/lib/device-id';
-import { bioClearLocal } from '@/lib/native-bio';
 
 // --- Input Sanitization Helpers ---
 
@@ -978,8 +977,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   signOut: async () => {
     const currentUser = get().user;
-    // Logout removes fingerprint login: erase the phone-side secret right now (the server revoke follows below).
-    bioClearLocal();
     // Sign-out must never wait on side calls. Read the token with a short cap, send the push unlinks
     // fire-and-forget with that explicit token (keepalive), and carry on immediately.
     const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> =>
@@ -998,8 +995,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .then(({ unregisterNativeDevice, unregisterWebPush }) => Promise.all([unregisterNativeDevice(earlyToken), unregisterWebPush(earlyToken)]))
         .catch(() => {});
     }
-    // Fingerprint login is removed on logout: secret erased on the phone, this device revoked on the server.
-    void import('@/lib/native-bio').then(({ bioDisable }) => bioDisable(earlyToken)).catch(() => {});
+    // Fingerprint login stays on this phone across logout (cleared only from Settings, on a server 401, or when fingerprints change).
     // Attendance is a historical classroom event, not a login-state indicator.
 
     // Immediately clear user state for instant UI feedback
