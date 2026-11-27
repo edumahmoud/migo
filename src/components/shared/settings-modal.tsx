@@ -642,6 +642,9 @@ export default function SettingsModal({
 
           <Separator />
 
+          <BioSettingsSection />
+          <Separator />
+
           {/* ── Danger zone ── */}
           <motion.div
             className="space-y-4"
