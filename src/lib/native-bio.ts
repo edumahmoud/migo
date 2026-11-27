@@ -23,6 +23,10 @@ function bridge(): Bridge | null {
 export function bioSupported(): boolean {
   try { return bridge()?.isAvailable() === 'yes'; } catch { return false; }
 }
+/** True inside the app (the native bridge exists), whether or not a fingerprint is set up yet. */
+export function bioInApp(): boolean {
+  return bridge() !== null;
+}
 export function bioHasLogin(): boolean {
   try { return !!bridge()?.hasLogin(); } catch { return false; }
 }
