@@ -2,7 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export const GPS_RADIUS_METERS = 20;
 export const GPS_MAX_ACCURACY_METERS = 50;
-export const QR_LIFETIME_SECONDS = 30;
+export const QR_LIFETIME_SECONDS = 15; // shown QR rotates every 10s; 15s leaves time for the fingerprint prompt
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Server-only module. Never import into a client component.
