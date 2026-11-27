@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { supabaseServer } from '@/lib/supabase-server';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
