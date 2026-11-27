@@ -248,6 +248,26 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 الدخول بالبصمة
               </button>
             )}
+            <div className="mb-4 space-y-2">
+              {tgStep === 1 && (
+                <input
+                  value={tgCode}
+                  onChange={(e) => setTgCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  inputMode="numeric"
+                  placeholder="كود تليجرام (6 أرقام)"
+                  dir="ltr"
+                  className="w-full h-11 rounded-md border px-3 text-center tracking-widest bg-background"
+                />
+              )}
+              <button
+                type="button"
+                onClick={runTg}
+                disabled={isLoading || (tgStep === 1 && tgCode.length !== 6)}
+                className="w-full h-10 rounded-md border text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+              >
+                {tgStep === 0 ? 'الدخول بكود على تليجرام' : 'تأكيد الكود'}
+              </button>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
               <AnimatePresence mode="wait" initial={false}>
               {mode === 'email' ? (
