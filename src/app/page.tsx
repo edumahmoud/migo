@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'reac
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut, Search, Clock, UserCircle, Layers, DollarSign, ShieldAlert } from 'lucide-react';
+import { bioClearLocal } from '@/lib/native-bio';
 import SettingsSection from '@/components/shared/settings-section';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -865,6 +866,9 @@ function HomeContent() {
   // MUST be defined before any early returns to obey React's Rules of Hooks.
   // Previously this was after early returns, causing hook count mismatch.
   const handleSignOut = useCallback(async () => {
+    // 0. Fingerprint login is removed on logout. Erase the phone-side secret BEFORE the login screen mounts,
+    //    otherwise it still sees a stored secret and auto-prompts the fingerprint.
+    bioClearLocal();
     // 1. Immediately switch UI to auth page (instant feedback)
     setHasPersistedSession(false); // explicit sign-out: never show the restore loader
     setCurrentPage('auth');
