@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/lib/tr';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -268,8 +269,8 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
-              label="التحقق بالكاميرا (الوجه)"
-              description="الطالب لازم يتحقق بوشه قبل فتح الاختبار. بدون تحقق مفيش دخول، ومفيش استثناء."
+              label={tr('التحقق بالكاميرا (الوجه)', 'Camera check (face)')}
+              description={tr('الطالب لازم يتحقق بوشه قبل فتح الاختبار. بدون تحقق مفيش دخول، ومفيش استثناء.', 'Students must verify their face before opening the exam. No check, no entry, no exceptions.')}
               icon={<span className="text-sm">🙂</span>}
               checked={requireFace}
               onChange={setRequireFace}
@@ -278,8 +279,8 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
-              label="اختبار رسمي: تأكيد بالبصمة"
-              description="الطالب على التطبيق يأكّد ببصمته عند البدء وعند التسليم. لو مفيش بصمة بيتسجل غير مؤكد ومبيتمنعش."
+              label={tr('اختبار رسمي: تأكيد بالبصمة', 'Official exam: fingerprint confirmation')}
+              description={tr('الطالب على التطبيق يأكّد ببصمته عند البدء وعند التسليم. لو مفيش بصمة بيتسجل غير مؤكد ومبيتمنعش.', 'Students on the app confirm with their fingerprint at start and submit. Without a fingerprint it is recorded as unconfirmed and not blocked.')}
               icon={<span className="text-sm">🔐</span>}
               checked={requireBio}
               onChange={setRequireBio}

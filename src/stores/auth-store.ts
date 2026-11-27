@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { registerSession, validateSession, endSession, startSessionValidation } from '@/lib/session-tracker';
 import { useLocaleStore } from '@/i18n/locale-store';
 import { ensureDeviceId } from '@/lib/device-id';
+import { bioClearLocal } from '@/lib/native-bio';
 
 // --- Input Sanitization Helpers ---
 
@@ -977,6 +978,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   signOut: async () => {
     const currentUser = get().user;
+    // Logout removes fingerprint login: erase the phone-side secret right now (the server revoke follows below).
+    bioClearLocal();
     // Sign-out must never wait on side calls. Read the token with a short cap, send the push unlinks
     // fire-and-forget with that explicit token (keepalive), and carry on immediately.
     const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> =>
