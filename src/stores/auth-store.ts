@@ -666,7 +666,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  signInWithEmail: async (email, password) => {
+  signInWithEmail: async (email, password, opts) => {
     // Set login-in-progress flag to prevent onAuthStateChange from
     // interfering (overwriting user with fallback, or processing SIGNED_OUT)
     _loginInProgress = true;
