@@ -1,5 +1,6 @@
 'use client';
 
+import { dedupedGet } from '@/lib/dedupe-fetch';
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -369,9 +370,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
 
     const checkSuspension = async () => {
       try {
-        const res = await fetch('/api/student/suspensions', {
-          headers: await getCachedAuthHeaders(),
-        });
+        const res = await dedupedGet('/api/student/suspensions', await getCachedAuthHeaders());
         const json = await res.json();
         if (cancelled) return;
         if (json.success && json.by_course) {
