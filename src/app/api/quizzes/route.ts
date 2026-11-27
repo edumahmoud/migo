@@ -273,7 +273,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Build the update payload from allowed fields
-      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title', 'pass_threshold', 'lesson_id', 'unit_id', 'is_gate', 'difficulty_mode', 'content_scope', 'questions_per_page'];
+      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title', 'pass_threshold', 'lesson_id', 'unit_id', 'is_gate', 'difficulty_mode', 'content_scope', 'questions_per_page', 'require_bio'];
       // NOTE: shuffle_questions is NOT in the DB schema — it's a client-side-only feature
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
