@@ -986,6 +986,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .then(({ unregisterNativeDevice, unregisterWebPush }) => Promise.all([unregisterNativeDevice(earlyToken), unregisterWebPush(earlyToken)]))
         .catch(() => {});
     }
+    // Fingerprint login is removed on logout: secret erased on the phone, this device revoked on the server.
+    void import('@/lib/native-bio').then(({ bioDisable }) => bioDisable(earlyToken)).catch(() => {});
     // Attendance is a historical classroom event, not a login-state indicator.
 
     // Immediately clear user state for instant UI feedback

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
@@ -40,7 +41,22 @@ export async function POST(request: NextRequest) {
       const code = Object.keys(messages).find(key => insertError.message.includes(key));
       return NextResponse.json({ error: code ? messages[code] : 'تعذر تسجيل الحضور. حاول مجدداً.' }, { status: code ? 409 : 500 });
     }
-    return NextResponse.json({ success: true, alreadyRegistered: data?.already_registered === true });
+    // Fingerprint proof (flag only, never blocks): the phone releases a device secret only after a fingerprint check.
+    let bioVerified = false;
+    if (typeof body.bioSecret === 'string' && /^[0-9a-f]{64}$/.test(body.bioSecret)) {
+      const { data: cred } = await supabaseServer
+        .from('biometric_credentials')
+        .select('id')
+        .eq('user_id', auth.user.id)
+        .eq('secret_hash', createHash('sha256').update(body.bioSecret).digest('hex'))
+        .is('revoked_at', null)
+        .maybeSingle();
+      bioVerified = !!cred;
+    }
+    if (data?.already_registered !== true) {
+      await supabaseServer.from('attendance_records').update({ bio_verified: bioVerified }).eq('session_id', sessionId).eq('student_id', auth.user.id);
+    }
+    return NextResponse.json({ success: true, alreadyRegistered: data?.already_registered === true, bioVerified });
   } catch {
     return NextResponse.json({ error: 'طلب حضور غير صالح' }, { status: 400 });
   }

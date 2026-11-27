@@ -42,6 +42,21 @@ function call(start: (b: Bridge, id: string) => void): Promise<BioResult> {
   });
 }
 
+/** Attendance/exam proof: asks for the fingerprint and returns the device secret, or null (no fingerprint set up, cancelled, failed). */
+export async function bioProof(): Promise<string | null> {
+  if (!bioSupported() || !bioHasLogin()) return null;
+  const r = await call((b, id) => b.unlock(id));
+  return r.ok && r.secret ? r.secret : null;
+}
+
+/** Turns fingerprint login off on this phone: erases the stored secret and revokes this device on the server. */
+export async function bioDisable(token?: string | null): Promise<void> {
+  try { bridge()?.clear(); } catch { /* ignore */ }
+  let t = token ?? null;
+  if (!t) { try { t = (await supabase.auth.getSession()).data.session?.access_token ?? null; } catch { /* ignore */ } }
+  if (t) await fetch('/api/auth/bio/revoke', { method: 'POST', headers: { Authorization: `Bearer ${t}` }, keepalive: true }).catch(() => {});
+}
+
 /** Signed-in user turns fingerprint login on for this phone. */
 export async function bioEnable(): Promise<{ ok: boolean; error?: string }> {
   const { data } = await supabase.auth.getSession();

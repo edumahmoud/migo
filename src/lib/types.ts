@@ -459,6 +459,7 @@ export interface AttendanceRecord {
   student_latitude?: number | null;
   student_longitude?: number | null;
   check_in_method?: 'qr' | 'gps' | 'manual' | null;
+  bio_verified?: boolean | null; // true: passed fingerprint on an enrolled phone; false: checked in without it; null: n/a
   created_at: string;
 }
 
