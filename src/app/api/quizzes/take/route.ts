@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
 import { sanitizeQuestions } from '@/lib/quiz-sanitize';
 import type { QuizQuestion } from '@/lib/types';
+import { checkFacePass } from '@/lib/face-pass';
 
 export const runtime = 'nodejs';
 
@@ -38,6 +39,10 @@ export async function POST(request: NextRequest) {
       const { data: link } = await supabaseServer
         .from('teacher_student_links').select('id').eq('teacher_id', quiz.user_id).eq('student_id', uid).eq('status', 'approved').maybeSingle();
       if (!link) return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
+      // Official exam with camera check: no questions without a pass the server issued after a live face match.
+      if (!review && quiz.require_face === true && !checkFacePass(body?.facePass, uid, `exam:${quizId}`)) {
+        return NextResponse.json({ success: false, code: 'face_required', error: 'هذا الاختبار يحتاج التحقق بالوجه' }, { status: 403 });
+      }
       if (review && quiz.show_review !== false && quiz.show_results !== false) {
         const { count } = await supabaseServer.from('scores').select('id', { count: 'exact', head: true }).eq('quiz_id', quizId).eq('student_id', uid);
         if ((count || 0) > 0) full = true;

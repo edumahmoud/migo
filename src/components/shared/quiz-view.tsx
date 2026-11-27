@@ -254,6 +254,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const hasValidDataRef = useRef(false);
   const bioStartTriedRef = useRef(false);
   const bioStartSecretRef = useRef<string | null>(null);
+  const facePassRef = useRef<string | null>(null);
 
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -311,17 +312,24 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       // The server sends the questions without the answer key (the key comes back one question at a time).
       let data: Quiz | null = null;
       let fetchError: unknown = null;
+      let faceNeeded = false;
       try {
         const res = await fetch('/api/quizzes/take', {
           method: 'POST',
           headers: await getCachedAuthHeaders(),
-          body: JSON.stringify({ quizId, review: !!reviewMode }),
+          body: JSON.stringify({ quizId, review: !!reviewMode, facePass: facePassRef.current }),
         });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.success && json.quiz) data = json.quiz as Quiz;
-        else fetchError = json?.error || res.status;
+        else { fetchError = json?.error || res.status; if (json?.code === 'face_required') faceNeeded = true; }
       } catch (e) {
         fetchError = e;
+      }
+
+      // Official exam with camera check: the global face dialog runs the live check, then sends the pass back.
+      if (faceNeeded) {
+        window.dispatchEvent(new CustomEvent('attendo-face-gate', { detail: { quizId } }));
+        return;
       }
 
       if (fetchError || !data) {
@@ -665,6 +673,18 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   useEffect(() => {
     fetchQuiz();
   }, [fetchQuiz]);
+
+  // Result of the official-exam face check (see FaceGateDialog): a server-issued pass, or null if cancelled / failed.
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<{ quizId: string; pass: string | null; error?: string }>).detail;
+      if (!d || d.quizId !== quizId) return;
+      if (d.pass) { facePassRef.current = d.pass; hasValidDataRef.current = false; void fetchQuiz(); }
+      else { setError(d.error || 'التحقق بالوجه مطلوب لفتح هذا الاختبار'); setLoading(false); }
+    };
+    window.addEventListener('attendo-face-pass', h);
+    return () => window.removeEventListener('attendo-face-pass', h);
+  }, [quizId, fetchQuiz]);
 
   // ─── Shuffle questions on first load (Feature 8) — with progress restore ───
   useEffect(() => {
@@ -1218,7 +1238,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         const res = await fetch('/api/quizzes/submit', {
           method: 'POST',
           headers: await getCachedAuthHeaders(),
-          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })), ...(bioSecret ? { bioSecret } : {}), ...(bioStartSecretRef.current ? { bioStartSecret: bioStartSecretRef.current } : {}) }),
+          body: JSON.stringify({ quizId, answers: finalAnswers.map((a) => ({ questionIndex: a.questionIndex, answer: a.answer })), ...(bioSecret ? { bioSecret } : {}), ...(facePassRef.current ? { facePass: facePassRef.current } : {}), ...(bioStartSecretRef.current ? { bioStartSecret: bioStartSecretRef.current } : {}) }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {

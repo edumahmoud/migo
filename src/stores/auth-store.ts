@@ -398,6 +398,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
               }
             } else {
+              // A rejected token (logged out elsewhere / revoked on logout) must show the login screen, not an empty dashboard.
+              if (res.status === 401) {
+                try {
+                  await supabase.auth.signOut({ scope: 'local' });
+                  for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.includes('-auth-token')) localStorage.removeItem(k);
+                } catch { /* ignore */ }
+                set({ user: null, loading: false, initialized: true, banInfo: null });
+                return;
+              }
               // API call failed — use fallback from auth metadata
               const fallbackProfile = createFallbackProfile(session.user);
               set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
@@ -1059,6 +1068,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // State is already cleared, ignore signOut errors
     }
+
+    // Always wipe the stored session after logout so a killed/reopened app cannot restore a revoked one.
+    try {
+      for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.includes('-auth-token')) localStorage.removeItem(k);
+      document.cookie.split(';').forEach((c) => { const n = c.split('=')[0].trim(); if (n.startsWith('sb-')) document.cookie = `${n}=; Max-Age=0; path=/`; });
+    } catch { /* ignore */ }
 
     // Revoke the refresh tokens server-side in the background (same effect as the
     // previous global sign-out, without blocking the UI).

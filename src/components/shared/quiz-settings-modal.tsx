@@ -120,6 +120,7 @@ export default function QuizSettingsModal({
   );
   const [isGate, setIsGate] = useState<boolean>(quiz.is_gate ?? false);
   const [requireBio, setRequireBio] = useState<boolean>(quiz.require_bio ?? false);
+  const [requireFace, setRequireFace] = useState<boolean>(quiz.require_face ?? false);
   const [questionsPerPage, setQuestionsPerPage] = useState<string>(quiz.questions_per_page != null ? String(quiz.questions_per_page) : '');
   const [saving, setSaving] = useState(false);
 
@@ -132,6 +133,7 @@ export default function QuizSettingsModal({
         show_review: showReview,
         is_gate: isGate,
         require_bio: requireBio,
+        require_face: requireFace,
         questions_per_page: (() => { const n = parseInt(questionsPerPage, 10); return n > 1 ? Math.min(n, 50) : null; })(),
         // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
         // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
@@ -261,6 +263,16 @@ export default function QuizSettingsModal({
               icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
               checked={allowRetake}
               onChange={setAllowRetake}
+              disabled={saving}
+              dir={direction}
+            />
+
+            <ToggleSwitch
+              label="التحقق بالكاميرا (الوجه)"
+              description="الطالب لازم يتحقق بوشه قبل فتح الاختبار. بدون تحقق مفيش دخول، ومفيش استثناء."
+              icon={<span className="text-sm">🙂</span>}
+              checked={requireFace}
+              onChange={setRequireFace}
               disabled={saving}
               dir={direction}
             />

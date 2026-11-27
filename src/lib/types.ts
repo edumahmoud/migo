@@ -81,6 +81,7 @@ export interface Quiz {
   reexam_only_new_since?: string | null;
   /** Official exam: the student confirms with the phone fingerprint at start and submit (flag only, never blocks). */
   require_bio?: boolean;
+  require_face?: boolean;
   subject_id?: string;
   // v63: LMS enhancements — quiz gating
   pass_threshold?: number | null; // 0-100 percentage required to pass; null = no gate
@@ -112,6 +113,7 @@ export interface Score {
   completed_at: string;
   bio_start_verified?: boolean | null;
   bio_submit_verified?: boolean | null;
+  face_verified?: boolean | null;
 }
 
 // =====================================================

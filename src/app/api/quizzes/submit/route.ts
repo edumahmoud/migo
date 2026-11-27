@@ -5,6 +5,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
 import { gradeAnswer, cairoWallClockToMs } from '@/lib/quiz-grading';
 import type { QuizQuestion } from '@/lib/types';
+import { checkFacePass } from '@/lib/face-pass';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -53,6 +54,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Official exam with camera check: the pass comes from a server-side face match; without it nothing is saved.
+    const faceOk = quiz.require_face === true && !isOwner ? checkFacePass(body?.facePass, uid, `exam:${quizId}`) : null;
+    if (faceOk === false) return NextResponse.json({ success: false, code: 'face_required', error: 'التحقق بالوجه مطلوب لتسليم هذا الاختبار' }, { status: 403 });
+
     // Official exam: fingerprint proofs (flag only). Each proof is the device secret released by the phone after a fingerprint check.
     const proofOk = async (secret: unknown) => {
       if (typeof secret !== 'string' || !/^[0-9a-f]{64}$/.test(secret)) return false;
@@ -80,6 +85,7 @@ export async function POST(request: NextRequest) {
     const { data: row, error: insErr } = await supabaseServer.from('scores').insert({
       student_id: uid, teacher_id: quiz.user_id, quiz_id: quizId, quiz_title: quiz.title,
       score, total: questions.length, user_answers: userAnswers,
+      ...(faceOk === true ? { face_verified: true } : {}),
       ...(quiz.require_bio === true ? { bio_start_verified: startOk, bio_submit_verified: submitOk } : {}),
     }).select('id').single();
     if (insErr) return NextResponse.json({ success: false, error: 'فشل حفظ الدرجة' }, { status: 500 });
