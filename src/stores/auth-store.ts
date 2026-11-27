@@ -232,7 +232,7 @@ interface AuthState {
   setUser: (user: UserProfile | null) => void;
   setLoginInProgress: (inProgress: boolean) => void;
   initialize: () => Promise<void>;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithEmail: (email: string, password: string, opts?: { tokenHash?: string }) => Promise<{ error: string | null }>;
   signUpWithEmail: (email: string, password: string, name: string, phone?: string) => Promise<{ error: string | null; needsConfirmation?: boolean }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
