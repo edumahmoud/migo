@@ -212,6 +212,24 @@ export async function GET(
       ? responses
       : responses.filter((r: any) => !REPORTER_HIDDEN_ACTIONS.includes(r.action));
 
+    // The reported person never sees the reporter's identity, even when they are also the
+    // assigned handler (complaints against a teacher are assigned to that teacher).
+    if (isTargetUser && !isAdmin && report.reporter_id !== userId) {
+      const anon = (r: any) => r.responder_id === report.reporter_id
+        ? { ...r, responder_id: null, responder: { id: '', name: 'الشاكي', email: '', role: 'reporter' }, actor_role: 'reporter' }
+        : r;
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...report,
+          reporter: null,
+          reporter_id: null,
+          responses: timelineForViewer.map(anon),
+          messages: visibleMessages.map((m: any) => m.sender_id === report.reporter_id ? { ...m, sender: null, sender_id: null } : m),
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: { ...report, responses: timelineForViewer, messages: visibleMessages },
