@@ -544,11 +544,19 @@ async function enrichAndReturn(
 
   // The reported person must never see who filed the complaint (or the internal assignee).
   const isAdminRole = role === 'admin' || role === 'superadmin';
-  const safeReports = reports.map((r: any) =>
-    isAdminRole || r.reporter_id === userId || r.assigned_to === userId
+  const safeReports = reports.map((r: any) => {
+    if (isAdminRole || r.reporter_id === userId) return r;
+    const isReported = (r.target_type === 'user' && r.target_id === userId) || r.target_user?.id === userId;
+    if (isReported) {
+      // also hidden when the reported person is the assignee (complaints against a teacher are assigned to them)
+      return r.assigned_to === userId
+        ? { ...r, reporter: null, reporter_id: null }
+        : { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null };
+    }
+    return r.assigned_to === userId
       ? r
-      : { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null }
-  );
+      : { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null };
+  });
 
   return NextResponse.json({
     success: true,
