@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/lib/tr';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User } from 'lucide-react';
@@ -132,6 +133,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   // Fingerprint login (Android app only). Prompts once automatically when the app opens, and via the button.
   const [bioReady, setBioReady] = useState(false);
   const runBio = async () => {
+    // Stale state guard: no stored fingerprint login on this phone (e.g. just logged out) means no prompt and no button.
+    if (!bioSupported() || !bioHasLogin()) { setBioReady(false); return; }
     setIsLoading(true);
     try {
       const r = await bioLogin(signInWithEmail);
@@ -139,6 +142,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
       else if (r.error) toast.error(r.error);
     } finally {
       setIsLoading(false);
+      setBioReady(bioSupported() && bioHasLogin());
     }
   };
   useEffect(() => {
@@ -222,7 +226,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 disabled={isLoading}
                 className="w-full h-11 mb-4 rounded-md border border-teal-600 text-teal-700 font-semibold hover:bg-teal-50 disabled:opacity-50 transition-colors"
               >
-                الدخول بالبصمة
+                {tr('الدخول بالبصمة', 'Fingerprint login')}
               </button>
             )}
             {tgOpen && (
@@ -389,7 +393,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 disabled={isLoading}
                 className="mt-3 w-full text-center text-sm font-medium text-sky-700 hover:text-sky-800 disabled:opacity-50"
               >
-                نسيت الباسورد؟ ادخل بكود على تليجرام
+                {tr('نسيت الباسورد؟ ادخل بكود على تليجرام', 'Forgot your password? Log in with a Telegram code')}
               </button>
             )}
 
