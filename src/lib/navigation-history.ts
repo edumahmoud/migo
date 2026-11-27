@@ -35,6 +35,12 @@ export interface NavigationHistoryOptions {
   /** Window (ms) during which a second back press exits. Default 2500. */
   exitWindowMs?: number;
   now?: () => number;
+  /**
+   * Native exit (Capacitor App.exitApp). When given, the second back press
+   * inside the window calls it instead of relying on the WebView's own history
+   * (which can hold earlier pages from login, so a plain back would not leave).
+   */
+  exit?: () => void;
   /** setTimeout-like; must return a cancel function. */
   schedule?: (fn: () => void, ms: number) => () => void;
 }
@@ -68,6 +74,9 @@ export class NavigationHistory {
   private readonly onRestore: (snapshot: string) => void;
   private readonly onExitWarning: () => void;
   private readonly exitWindowMs: number;
+  private readonly exitFn?: () => void;
+  private readonly nowFn: () => number;
+  private lastWarnAt = 0;
   private readonly scheduleFn: (fn: () => void, ms: number) => () => void;
 
   private stack: string[] = [];
@@ -81,6 +90,8 @@ export class NavigationHistory {
     this.onRestore = options.onRestore;
     this.onExitWarning = options.onExitWarning;
     this.exitWindowMs = options.exitWindowMs ?? DEFAULT_EXIT_WINDOW_MS;
+    this.exitFn = options.exit;
+    this.nowFn = options.now ?? (() => Date.now());
     const schedule = options.schedule;
     this.scheduleFn =
       schedule ??
@@ -147,7 +158,21 @@ export class NavigationHistory {
       // window exits through the platform's default behavior (the current
       // entry is now the first one, so back leaves the app). When the
       // window expires, re-arm the guard.
+      if (this.exitFn && this.lastWarnAt > 0 && this.nowFn() - this.lastWarnAt < this.exitWindowMs) {
+        // Second press inside the window: leave natively. Keep a guard in place
+        // in case the platform refuses, so back never lands on a stale page.
+        this.lastWarnAt = 0;
+        this.pushGuard();
+        this.exitFn();
+        return;
+      }
+      this.lastWarnAt = this.nowFn();
       this.onExitWarning();
+      if (this.exitFn) {
+        // Native exit available: keep the guard so the second press is seen here.
+        this.pushGuard();
+        return;
+      }
       this.cancelGuardRearm?.();
       this.cancelGuardRearm = this.scheduleFn(() => {
         this.cancelGuardRearm = null;

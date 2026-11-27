@@ -17,6 +17,16 @@ export interface UseNavigationHistoryOptions {
   onExitWarning: () => void;
 }
 
+/** In the Android app (Capacitor), the App plugin can close the app; returns undefined in a browser. */
+function nativeExit(): (() => void) | undefined {
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { App?: { exitApp?: () => void } } } }).Capacitor;
+    const app = cap?.Plugins?.App;
+    if (cap?.isNativePlatform?.() && app?.exitApp) return () => { app.exitApp!(); };
+  } catch { /* not native */ }
+  return undefined;
+}
+
 /**
  * Mirrors the app's logical navigation onto the browser history stack so the
  * system back button steps back through screens instead of exiting the
@@ -44,6 +54,7 @@ export function useNavigationHistory({
       },
       onRestore: (snap) => callbacksRef.current.onRestore(snap),
       onExitWarning: () => callbacksRef.current.onExitWarning(),
+      exit: nativeExit(),
     });
     core.start(snapshot);
     coreRef.current = core;
