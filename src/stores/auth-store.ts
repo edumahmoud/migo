@@ -688,7 +688,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       ensureDeviceId();
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: sanitizedEmail, password });
+      const { data: signInData, error } = opts?.tokenHash
+        ? await supabase.auth.verifyOtp({ token_hash: opts.tokenHash, type: 'magiclink' })
+        : await supabase.auth.signInWithPassword({ email: sanitizedEmail, password });
       if (error) {
         // Audit log: record the failed attempt (email + device only, never the password). Fire and forget.
         const msg = (error.message || '').toLowerCase();
