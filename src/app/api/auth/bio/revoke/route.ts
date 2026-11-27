@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest } from '@/lib/auth-helpers';
+import { describeRequestDevice } from '@/lib/audit-context';
 
 /** POST /api/auth/bio/revoke (signed in): turns off fingerprint login for this account on all devices. */
 export async function POST(request: NextRequest) {
