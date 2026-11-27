@@ -475,6 +475,8 @@ export async function PATCH(
         spam: 'رسائل مزعجة',
         misinformation: 'معلومات مضللة',
         cheating: 'غش أكاديمي',
+        inappropriateContent: 'محتوى غير لائق',
+        impersonation: 'حساب مزيف / انتحال شخصية',
         other: 'سبب آخر',
       };
       const targetTypeLabel: Record<string, string> = {
@@ -493,7 +495,7 @@ export async function PATCH(
       const reportNum = report.report_number || id;
 
       // Build comprehensive warning message (each field on its own line)
-      let warnMessage = `⚠️ تحذير\nالسبب: ${warnReason}\nالنوع: ${warnTargetType}\nتاريخ الشكوى: ${warnDate}`;
+      let warnMessage = `⚠️ تحذير\nالسبب: ${warnReason}${report.target_type === 'user' ? '' : `\nالنوع: ${warnTargetType}`}\nتاريخ الشكوى: ${warnDate}`;
       if (warnSubjectName) {
         warnMessage += `\nالمقرر: ${warnSubjectName}`;
       }
