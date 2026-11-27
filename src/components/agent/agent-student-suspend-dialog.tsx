@@ -388,7 +388,7 @@ export default function AgentStudentSuspendDialog({
               </div>
 
               <div className="space-y-1">
-                <Label>{t('agentSuspendDialog.reasonLabel')}</Label>
+                <Label>{t('agentSuspendDialog.reasonLabel')} (مطلوب)</Label>
                 <Textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
