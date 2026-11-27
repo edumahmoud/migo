@@ -197,6 +197,7 @@ export default function RootLayout({
             </SocketErrorBoundary>
             <InstitutionHead />
             <Toaster />
+            <BioOfferDialog />
             <ResumeGuard />
             <ServiceWorkerRegistration />
             <NativePushRegistrar />
