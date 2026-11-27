@@ -212,6 +212,16 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               ))}
             </div>
 
+            {bioReady && (
+              <button
+                type="button"
+                onClick={runBio}
+                disabled={isLoading}
+                className="w-full h-11 mb-4 rounded-md border border-teal-600 text-teal-700 font-semibold hover:bg-teal-50 disabled:opacity-50 transition-colors"
+              >
+                الدخول بالبصمة
+              </button>
+            )}
             <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
               <AnimatePresence mode="wait" initial={false}>
               {mode === 'email' ? (
