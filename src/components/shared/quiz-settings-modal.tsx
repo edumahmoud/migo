@@ -266,6 +266,16 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
+              label="اختبار رسمي: تأكيد بالبصمة"
+              description="الطالب على التطبيق يأكّد ببصمته عند البدء وعند التسليم. لو مفيش بصمة بيتسجل غير مؤكد ومبيتمنعش."
+              icon={<span className="text-sm">🔐</span>}
+              checked={requireBio}
+              onChange={setRequireBio}
+              disabled={saving}
+              dir={direction}
+            />
+
+            <ToggleSwitch
               label={t('quiz.shuffleQuestions')}
               description={t('quiz.shuffleOptions')}
               icon={<Shuffle className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
