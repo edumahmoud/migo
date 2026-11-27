@@ -186,7 +186,7 @@ export async function GET(
       const visibleMessages = messages.filter((m: any) => m.recipient_id === userId || m.sender_id === userId);
       const safe: any = { ...report, assigned_user: null, assigned_to: null, responses: [], messages: visibleMessages, accused_view: true };
       if (report.reason === 'تنبيه جهاز مشتبه') {
-        safe.description = 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك أثناء استخدام المنصة، وتم رفعه للمراجعة. لا يوجد إجراء مطلوب منك الآن. قد تتواصل معك الإدارة أو المعلم إذا لزم الأمر.';
+        safe.description = 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك أثناء استخدام المنصة، وتم رفعه للمراجعة.';
         safe.target_content = null;
       }
       return NextResponse.json({ success: true, data: safe });
