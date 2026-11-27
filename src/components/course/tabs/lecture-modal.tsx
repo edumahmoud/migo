@@ -1542,6 +1542,12 @@ export default function LectureModal({
                                     {record.check_in_method === 'qr' ? 'QR' : record.check_in_method === 'gps' ? 'GPS' : record.check_in_method === 'manual' ? t('lecture.manualMethod') : '—'}
                                   </Badge>
                                 )}
+                                {record.bio_verified === true && (
+                                  <Badge variant="outline" className="text-[9px] border-emerald-300 text-emerald-700">بصمة ✓</Badge>
+                                )}
+                                {record.bio_verified === false && (
+                                  <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-700">غير مؤكد بالبصمة</Badge>
+                                )}
                                 <span className="text-xs text-muted-foreground whitespace-nowrap">{formatTime(record.checked_in_at, locale)}</span>
                               </div>
                             </div>
