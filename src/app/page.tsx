@@ -45,12 +45,34 @@ function RouteLoading() {
     </div>
   );
 }
+// Dashboard placeholder: shows the page layout (top bar, cards) instead of a blank spinner while the dashboard code loads.
+function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-background" aria-busy="true">
+      <div className="h-14 border-b bg-white dark:bg-card px-4 flex items-center gap-3">
+        <div className="h-8 w-8 rounded-lg bg-gray-200 dark:bg-muted animate-pulse" />
+        <div className="h-4 w-32 rounded bg-gray-200 dark:bg-muted animate-pulse" />
+        <div className="ms-auto h-8 w-8 rounded-full bg-gray-200 dark:bg-muted animate-pulse" />
+      </div>
+      <div className="p-4 space-y-4 max-w-5xl mx-auto">
+        <div className="h-6 w-48 rounded bg-gray-200 dark:bg-muted animate-pulse" />
+        <div className="grid grid-cols-2 gap-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-24 rounded-xl bg-white dark:bg-card border animate-pulse" />
+          ))}
+        </div>
+        <div className="h-40 rounded-xl bg-white dark:bg-card border animate-pulse" />
+        <div className="h-40 rounded-xl bg-white dark:bg-card border animate-pulse" />
+      </div>
+    </div>
+  );
+}
 const RegisterForm = dynamic(() => import('@/components/auth/register-form'), { loading: () => <RouteLoading />, ssr: false });
 const ForgotPasswordForm = dynamic(() => import('@/components/auth/forgot-password-form'), { loading: () => <RouteLoading />, ssr: false });
 const UpdatePasswordForm = dynamic(() => import('@/components/auth/update-password-form'), { loading: () => <RouteLoading />, ssr: false });
-const StudentDashboard = dynamic(() => import('@/components/student/student-dashboard'), { loading: () => <RouteLoading />, ssr: false });
-const TeacherDashboard = dynamic(() => import('@/components/teacher/teacher-dashboard'), { loading: () => <RouteLoading />, ssr: false });
-const AdminDashboard = dynamic(() => import('@/components/admin/admin-dashboard'), { loading: () => <RouteLoading />, ssr: false });
+const StudentDashboard = dynamic(() => import('@/components/student/student-dashboard'), { loading: () => <DashboardSkeleton />, ssr: false });
+const TeacherDashboard = dynamic(() => import('@/components/teacher/teacher-dashboard'), { loading: () => <DashboardSkeleton />, ssr: false });
+const AdminDashboard = dynamic(() => import('@/components/admin/admin-dashboard'), { loading: () => <DashboardSkeleton />, ssr: false });
 const AgentPortal = dynamic(() => import('@/components/agent/agent-portal'), { loading: () => <RouteLoading />, ssr: false });
 const StudentActivationPage = dynamic(() => import('@/components/auth/student-activation-page'), { loading: () => <RouteLoading />, ssr: false });
 const OtpVerificationPage = dynamic(() => import('@/components/auth/otp-verification-page'), { loading: () => <RouteLoading />, ssr: false });
@@ -196,6 +218,12 @@ interface NavSnapshotFields {
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo, passwordRecoveryMode, clearPasswordRecovery } = useAuthStore();
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, setQuizReviewMode, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode, previousStudentSection, selectedSubjectId, courseTab, selectedVideoId, selectedStudentId } = useAppStore();
+  // While the login screen is showing, start downloading the student dashboard code so it is already there after login.
+  useEffect(() => {
+    if (user) return;
+    const id = setTimeout(() => { void import('@/components/student/student-dashboard').catch(() => {}); }, 1200);
+    return () => clearTimeout(id);
+  }, [user]);
   // v113: agent portal section state
   const [agentSection, setAgentSection] = useState<string>('search');
   // v132: agent's allowed_sections (fetched from /api/agent/me).
