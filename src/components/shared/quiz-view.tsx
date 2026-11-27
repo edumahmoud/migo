@@ -674,6 +674,18 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     fetchQuiz();
   }, [fetchQuiz]);
 
+  // Result of the official-exam face check (see FaceGateDialog): a server-issued pass, or null if cancelled / failed.
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<{ quizId: string; pass: string | null; error?: string }>).detail;
+      if (!d || d.quizId !== quizId) return;
+      if (d.pass) { facePassRef.current = d.pass; hasValidDataRef.current = false; void fetchQuiz(); }
+      else { setError(d.error || 'التحقق بالوجه مطلوب لفتح هذا الاختبار'); setLoading(false); }
+    };
+    window.addEventListener('attendo-face-pass', h);
+    return () => window.removeEventListener('attendo-face-pass', h);
+  }, [quizId, fetchQuiz]);
+
   // ─── Shuffle questions on first load (Feature 8) — with progress restore ───
   useEffect(() => {
     if (!quiz?.questions?.length) return;
