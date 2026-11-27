@@ -2403,6 +2403,12 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             </div>
           </div>
 
+          {quiz.require_bio && (
+            <div className="mb-2 text-xs text-muted-foreground">
+              🔐 بصمة عند البدء والتسليم: {qScores.filter((s) => s.bio_start_verified && s.bio_submit_verified).length} من {qScores.length} مؤكدين
+            </div>
+          )}
+
           {/* Quiz info */}
           <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
             {quiz.duration && (
