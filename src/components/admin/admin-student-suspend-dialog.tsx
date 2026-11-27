@@ -327,7 +327,7 @@ export default function AdminStudentSuspendDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label>{t('adminSuspendDialog.reasonLabel')}</Label>
+                  <Label>{t('adminSuspendDialog.reasonLabel')} (مطلوب)</Label>
                   <Textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
