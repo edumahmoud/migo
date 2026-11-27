@@ -312,6 +312,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       // The server sends the questions without the answer key (the key comes back one question at a time).
       let data: Quiz | null = null;
       let fetchError: unknown = null;
+      let faceNeeded = false;
       try {
         const res = await fetch('/api/quizzes/take', {
           method: 'POST',
