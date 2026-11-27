@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { checkRateLimit, validateRequest } from '@/lib/api-security';
 import { sanitizeQuestions } from '@/lib/quiz-sanitize';
 import type { QuizQuestion } from '@/lib/types';
+import { checkFacePass } from '@/lib/face-pass';
 
 export const runtime = 'nodejs';
 
