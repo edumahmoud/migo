@@ -5,6 +5,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, getUserRole } from '@/lib/auth-helpers';
 
+
+// Resolve the user a report is about (the reported person), for any target type.
+async function resolveReportedUserId(report: any): Promise<string | null> {
+  if (!report.target_id) return null;
+  try {
+    if (report.target_type === 'user') return report.target_id;
+    if (report.target_type === 'comment') {
+      const { data } = await supabaseServer.from('video_comments').select('user_id').eq('id', report.target_id).single();
+      return data?.user_id || null;
+    }
+    if (report.target_type === 'message') {
+      const { data } = await supabaseServer.from('chat_messages').select('sender_id').eq('id', report.target_id).single();
+      return data?.sender_id || null;
+    }
+  } catch {}
+  return null;
+}
+
+// Timeline actions each audience may see. Staff (admin / assigned) see everything.
+const REPORTER_HIDDEN_ACTIONS = ['message_reported'];
+const ACCUSED_VISIBLE_ACTIONS = ['reply', 'resolve', 'dismiss', 'reopen', 'warn', 'block', 'message_reported', 'objection'];
+
 // GET /api/reports/[id] — Get report detail with responses and messages
 export async function GET(
   request: NextRequest,
@@ -40,29 +62,8 @@ export async function GET(
 
     // Check access: reporter, assigned user, target (reported person), or admin/superadmin
     const isAdmin = role === 'admin' || role === 'superadmin';
-    // Check if user is the target (reported person) of this report
-    let isTargetUser = false;
-    if (report.target_type === 'user' && report.target_id === userId) {
-      isTargetUser = true;
-    } else if (report.target_type === 'comment' && report.target_id) {
-      try {
-        const { data: comment } = await supabaseServer
-          .from('video_comments')
-          .select('user_id')
-          .eq('id', report.target_id)
-          .single();
-        if (comment?.user_id === userId) isTargetUser = true;
-      } catch {}
-    } else if (report.target_type === 'message' && report.target_id) {
-      try {
-        const { data: message } = await supabaseServer
-          .from('chat_messages')
-          .select('sender_id')
-          .eq('id', report.target_id)
-          .single();
-        if (message?.sender_id === userId) isTargetUser = true;
-      } catch {}
-    }
+    const reportedUserId = await resolveReportedUserId(report);
+    const isTargetUser = reportedUserId === userId;
 
     if (report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin && !isTargetUser) {
       return NextResponse.json(
@@ -182,9 +183,23 @@ export async function GET(
     // no internal assignee, and device alerts are shown as a plain notice
     // (the description names other accounts and devices).
     const accusedOnly = isTargetUser && report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin;
+    const isStaff = isAdmin || report.assigned_to === userId;
+    const hasObjection = responses.some((r: any) => r.action === 'objection');
+    // Private messages: only the sender and the recipient (admins see all)
+    const visibleMessages = isAdmin || isStaff
+      ? messages
+      : messages.filter((m: any) => m.recipient_id === userId || m.sender_id === userId);
+
     if (accusedOnly) {
-      const visibleMessages = messages.filter((m: any) => m.recipient_id === userId || m.sender_id === userId);
-      const safe: any = { ...report, assigned_user: null, assigned_to: null, responses: [], messages: visibleMessages, accused_view: true };
+      // The reported person sees the action timeline (notes, status changes, warnings,
+      // their own objection) but never the reporter's identity or internal staff names of
+      // forwarding. Entries written by the reporter show as "reporter" only.
+      const timeline = responses
+        .filter((r: any) => ACCUSED_VISIBLE_ACTIONS.includes(r.action))
+        .map((r: any) => r.responder_id === report.reporter_id
+          ? { ...r, responder_id: null, responder: { id: '', name: 'الشاكي', email: '', role: 'reporter' }, actor_role: 'reporter' }
+          : r);
+      const safe: any = { ...report, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null, responses: timeline, messages: visibleMessages.map((m: any) => m.sender_id === report.reporter_id ? { ...m, sender: null, sender_id: null } : m), accused_view: true, can_object: !hasObjection, has_objection: hasObjection };
       if (report.reason === 'تنبيه جهاز مشتبه') {
         safe.description = 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك أثناء استخدام المنصة، وتم رفعه للمراجعة.';
         safe.target_content = null;
@@ -192,9 +207,13 @@ export async function GET(
       return NextResponse.json({ success: true, data: safe });
     }
 
+    const timelineForViewer = isStaff
+      ? responses
+      : responses.filter((r: any) => !REPORTER_HIDDEN_ACTIONS.includes(r.action));
+
     return NextResponse.json({
       success: true,
-      data: { ...report, responses, messages },
+      data: { ...report, responses: timelineForViewer, messages: visibleMessages },
     });
   } catch (error) {
     console.error('[Reports] GET detail error:', error);
@@ -237,7 +256,7 @@ export async function PATCH(
     const body = await request.json();
     const { action, content, forwarded_to, message_to, message_content } = body;
 
-    const validActions = ['reply', 'forward', 'resolve', 'dismiss', 'reopen', 'block', 'warn', 'message_reporter', 'message_reported', 'return'];
+    const validActions = ['reply', 'forward', 'resolve', 'dismiss', 'reopen', 'block', 'warn', 'message_reporter', 'message_reported', 'return', 'objection'];
     if (!action || !validActions.includes(action)) {
       return NextResponse.json(
         { success: false, error: 'إجراء غير صالح' },
@@ -249,6 +268,55 @@ export async function PATCH(
     const isAdmin = role === 'admin' || role === 'superadmin';
     const isAssigned = report.assigned_to === userId;
     const isReporter = report.reporter_id === userId;
+
+    // Objection: only the reported person (not the reporter / assignee / admin), once per report
+    if (action === 'objection') {
+      const reportedUserId = await resolveReportedUserId(report);
+      if (!reportedUserId || reportedUserId !== userId || isReporter || isAssigned || isAdmin) {
+        return NextResponse.json(
+          { success: false, error: 'فقط المشكو منه يمكنه تقديم اعتراض' },
+          { status: 403 }
+        );
+      }
+      const objectionText = typeof content === 'string' ? content.trim() : '';
+      if (objectionText.length < 5) {
+        return NextResponse.json(
+          { success: false, error: 'اكتب نص الاعتراض (5 أحرف على الأقل)' },
+          { status: 400 }
+        );
+      }
+      if (objectionText.length > 2000) {
+        return NextResponse.json(
+          { success: false, error: 'نص الاعتراض طويل جدا' },
+          { status: 400 }
+        );
+      }
+      const { data: existing } = await supabaseServer
+        .from('report_responses')
+        .select('id')
+        .eq('report_id', id)
+        .eq('action', 'objection')
+        .limit(1);
+      if (existing && existing.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'تم تقديم اعتراض على هذه الشكوى من قبل ولا يمكن تقديم اعتراض آخر' },
+          { status: 409 }
+        );
+      }
+      // The unique index report_responses_one_objection enforces this even under a race.
+      const { error: objError } = await supabaseServer
+        .from('report_responses')
+        .insert({ report_id: id, responder_id: userId, action: 'objection', content: objectionText, actor_role: 'reported' });
+      if (objError) {
+        const dup = (objError as any).code === '23505';
+        return NextResponse.json(
+          { success: false, error: dup ? 'تم تقديم اعتراض على هذه الشكوى من قبل ولا يمكن تقديم اعتراض آخر' : 'فشل تسجيل الاعتراض' },
+          { status: dup ? 409 : 500 }
+        );
+      }
+      await supabaseServer.from('reports').update({ updated_at: new Date().toISOString() }).eq('id', id);
+      return NextResponse.json({ success: true });
+    }
 
     if (!isAdmin && !isAssigned && !isReporter) {
       return NextResponse.json(
@@ -569,16 +637,18 @@ export async function PATCH(
       );
     }
 
-    // Create response record (skip for message actions — they create messages instead)
-    if (!['message_reporter', 'message_reported'].includes(action)) {
+    // Every action is recorded in the complaint timeline (message actions record only
+    // the fact, the private message text stays in report_messages).
+    {
       const { error: responseError } = await supabaseServer
         .from('report_responses')
         .insert({
           report_id: id,
           responder_id: userId,
           action,
-          content: content || null,
+          content: ['message_reporter', 'message_reported'].includes(action) ? null : (content || null),
           forwarded_to: action === 'forward' ? forwarded_to : null,
+          actor_role: isReporter && !isAdmin && !isAssigned ? 'reporter' : (role || null),
         });
 
       if (responseError) {

@@ -1,5 +1,6 @@
 'use client';
 
+import { dedupedGet } from '@/lib/dedupe-fetch';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -338,9 +339,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     let cancelled = false;
     const fetchSuspensions = async () => {
       try {
-        const res = await fetch('/api/student/suspensions', {
-          headers: await getCachedAuthHeaders(),
-        });
+        const res = await dedupedGet('/api/student/suspensions', await getCachedAuthHeaders());
         const json = await res.json();
         if (cancelled) return;
         if (json.success && json.by_course) {
