@@ -1380,7 +1380,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
         {selectedReport.target_user?.id === profile.id && !isReporter && !isAssignedToMe && !isAdmin && (
           <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            {t('reports.accusedViewNote')}
+            <p className="font-medium text-foreground mb-1">
+              {selectedReport.status === 'resolved' ? t('reports.accusedStatusResolved') : selectedReport.status === 'dismissed' ? t('reports.accusedStatusDismissed') : selectedReport.status === 'in_progress' ? t('reports.accusedStatusInProgress') : t('reports.accusedStatusPending')}
+            </p>
+            {messages.some((m: any) => m.message_type === 'warning') && <p className="mb-1 text-orange-700 dark:text-orange-400">{t('reports.accusedWarned')}</p>}
+            <p>{t('reports.accusedViewNote')}</p>
           </div>
         )}
 
