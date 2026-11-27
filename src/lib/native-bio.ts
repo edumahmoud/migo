@@ -42,6 +42,13 @@ function call(start: (b: Bridge, id: string) => void): Promise<BioResult> {
   });
 }
 
+/** Attendance/exam proof: asks for the fingerprint and returns the device secret, or null (no fingerprint set up, cancelled, failed). */
+export async function bioProof(): Promise<string | null> {
+  if (!bioSupported() || !bioHasLogin()) return null;
+  const r = await call((b, id) => b.unlock(id));
+  return r.ok && r.secret ? r.secret : null;
+}
+
 /** Signed-in user turns fingerprint login on for this phone. */
 export async function bioEnable(): Promise<{ ok: boolean; error?: string }> {
   const { data } = await supabase.auth.getSession();
