@@ -400,7 +400,7 @@ export default function AgentStudentSuspendDialog({
 
               <Button
                 onClick={handleSuspend}
-                disabled={submitting || !selectedSubjectId}
+                disabled={submitting || !selectedSubjectId || reason.trim().length < 3}
                 className="w-full bg-amber-600 hover:bg-amber-700 text-white"
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Ban className="h-4 w-4 me-1" />}
