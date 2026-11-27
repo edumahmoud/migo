@@ -112,6 +112,7 @@ export interface Score {
   completed_at: string;
   bio_start_verified?: boolean | null;
   bio_submit_verified?: boolean | null;
+  face_verified?: boolean | null;
 }
 
 // =====================================================
