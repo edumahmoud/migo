@@ -105,6 +105,52 @@ function prunePendingDeletions(): void {
   }
 }
 
+/** IDs just marked read here: a poll that was already in flight must not flip them back to unread. */
+const recentlyRead = new Map<string, number>();
+function markRecentlyRead(id: string): void { recentlyRead.set(id, Date.now()); }
+function wasRecentlyRead(id: string): boolean {
+  const ts = recentlyRead.get(id);
+  if (!ts) return false;
+  if (Date.now() - ts > 20000) { recentlyRead.delete(id); return false; }
+  return true;
+}
+
+/** Same notification written twice (different ids): same type, title, message and link. */
+function contentKey(n: Notification): string {
+  return [n.type, n.title, n.message, n.link ?? ''].join('\u0001');
+}
+/** Collapse identical notifications created within 2 minutes of each other (keeps the newest). */
+function collapseTwins(list: Notification[]): Notification[] {
+  const out: Notification[] = [];
+  const lastAt = new Map<string, number>();
+  for (const n of list) {
+    const k = contentKey(n);
+    const t = new Date(n.createdAt).getTime();
+    const prev = lastAt.get(k);
+    if (prev !== undefined && Math.abs(prev - t) < 120000) continue;
+    lastAt.set(k, t);
+    out.push(n);
+  }
+  return out;
+}
+/** Ids of every stored notification that is a twin of this one (including itself). */
+function twinIdsOf(list: Notification[], id: string): string[] {
+  const me = list.find((n) => n.id === id);
+  if (!me) return [id];
+  const k = contentKey(me);
+  const t = new Date(me.createdAt).getTime();
+  return list.filter((n) => n.id === id || (contentKey(n) === k && Math.abs(new Date(n.createdAt).getTime() - t) < 120000)).map((n) => n.id);
+}
+
+/** DB side of "twins": identical rows created within 2 minutes of this one (a hidden duplicate must not pop up after read/delete). */
+function twinFilter(q: any, n: Notification, userId: string | null) {
+  const t = new Date(n.createdAt).getTime();
+  let r = q.eq('type', n.type).eq('title', n.title).eq('message', n.message)
+    .gte('created_at', new Date(t - 120000).toISOString()).lte('created_at', new Date(t + 120000).toISOString());
+  if (userId) r = r.eq('user_id', userId);
+  return r;
+}
+
 /** Reset all global dedup structures (called on cleanup / sign-out) */
 function resetDedupStructures(): void {
   seenNotificationIds.clear();
@@ -321,8 +367,8 @@ function mergeNotifications(
     }
   }
 
-  return [...uniqueDb, ...survivingLocal]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  return collapseTwins([...uniqueDb, ...survivingLocal]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()))
     .slice(0, 100);
 }
 
@@ -365,7 +411,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return;
       }
 
-      const dbNotifications = (data || []).map(dbToNotification);
+      const dbNotifications = (data || []).map(dbToNotification).map((n) => (wasRecentlyRead(n.id) ? { ...n, read: true } : n));
 
       // Prune expired pending deletions periodically
       prunePendingDeletions();
@@ -549,6 +595,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                 return state;
               }
 
+              // Identical notification (different id) created moments ago: do not show it twice.
+              const nt = new Date(newNotif.createdAt).getTime();
+              if (state.notifications.some((n) => contentKey(n) === contentKey(newNotif) && Math.abs(new Date(n.createdAt).getTime() - nt) < 120000)) {
+                return state;
+              }
+
               // Check if a local-only notification with matching content already exists
               // (added by addNotification before the Realtime event arrived)
               // Replace it with the DB version (which is authoritative)
@@ -592,11 +644,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (payload) => {
             const updated = dbToNotification(payload.new as DBNotification);
             // Mark as seen in case we get an INSERT after an UPDATE
+            const wasSeen = seenNotificationIds.has(updated.id);
             seenNotificationIds.add(updated.id);
             set((state) => {
               const existed = state.notifications.find((n) => n.id === updated.id);
               if (!existed) {
-                // Notification not in store yet — add it (might have been missed)
+                // Not in the store: it was deleted here (or is a twin). Never bring it back from an UPDATE echo.
+                if (wasSeen || isPendingDeletion(updated.id) || getDeletedIdsFromStorage().has(updated.id)) return state;
                 return {
                   notifications: [updated, ...state.notifications].slice(0, 100),
                   unreadCount: state.unreadCount + (updated.read ? 0 : 1),
@@ -794,6 +848,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const state = get();
     const notif = state.notifications.find((n) => n.id === id);
 
+    markRecentlyRead(id);
+    if (notif && !notif.id.startsWith('notif-') && state.currentUserId) {
+      void twinFilter(supabase.from('notifications').update({ read: true }), notif, state.currentUserId).then(() => {});
+    }
+
     // Update in store immediately
     set((s) => ({
       notifications: s.notifications.map((n) =>
@@ -821,6 +880,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const state = get();
     const dbNotifIds = state.notifications.filter((n) => !n.read && !n.id.startsWith('notif-')).map((n) => n.id);
 
+    for (const n of state.notifications) markRecentlyRead(n.id);
     // Update in store immediately
     set((s) => ({
       notifications: s.notifications.map((n) => ({ ...n, read: true })),
@@ -832,7 +892,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       supabase
         .from('notifications')
         .update({ read: true })
-        .in('id', dbNotifIds)
+        .eq('read', false)
         .eq('user_id', state.currentUserId)
         .then(({ error }) => {
           if (error) {
@@ -865,6 +925,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     // Delete from DB (only for DB-persisted notifications)
     if (notif && !notif.id.startsWith('notif-')) {
+      if (state.currentUserId) {
+        void twinFilter(supabase.from('notifications').delete(), notif, state.currentUserId).then(() => {});
+      }
       supabase
         .from('notifications')
         .delete()
