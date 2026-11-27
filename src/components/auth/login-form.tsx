@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction } from '@/components/ui/alert-dialog';
 import TelegramLogin from '@/components/auth/telegram-login';
 
 interface LoginFormProps {
@@ -134,13 +135,11 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   // The device login survives logout; it is erased only by turning fingerprint off in Settings, by a server rejection,
   // or when the phone's fingerprints change.
   const [inApp, setInApp] = useState(false);
+  const [bioNote, setBioNote] = useState(false);
   useEffect(() => { setInApp(bioInApp()); }, []);
   const runBio = async () => {
-    if (!bioSupported()) { toast.error(tr('البصمة غير متاحة على هذا الجهاز', 'Fingerprint is not available on this device')); return; }
-    if (!bioHasLogin()) {
-      toast.info(tr('سجّل الدخول بالباسورد وفعّل البصمة من الإعدادات', 'Sign in with your password and turn on fingerprint in Settings'));
-      return;
-    }
+    // Not set up on this phone (nothing enrolled, no sensor, or never turned on): explain how to enable it.
+    if (!bioSupported() || !bioHasLogin()) { setBioNote(true); return; }
     setIsLoading(true);
     try {
       const r = await bioLogin(signInWithEmail);
@@ -158,6 +157,22 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <AlertDialog open={bioNote} onOpenChange={setBioNote}>
+        <AlertDialogContent dir={isRTL ? 'rtl' : 'ltr'}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr('الدخول بالبصمة غير مفعّل', 'Fingerprint login is not set up')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr(
+                'لم يتم تفعيل الدخول بالبصمة على هذا الجهاز بعد. سجّل الدخول بالبريد وكلمة المرور، ثم فعّلها من الإعدادات ثم الأمان. بعدها تقدر تدخل بلمسة واحدة.',
+                'Fingerprint login has not been set up on this device yet. Sign in with your email and password, then turn it on under Settings, then Security. After that you can sign in with one touch.',
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>{tr('حسناً', 'OK')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
