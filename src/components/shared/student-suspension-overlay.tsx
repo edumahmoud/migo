@@ -15,6 +15,8 @@
  * subjects section when the student tries to open a suspended course.
  */
 
+import { dedupedGet } from '@/lib/dedupe-fetch';
+import { dedupedGet } from '@/lib/dedupe-fetch';
 import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Ban, Clock, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
@@ -43,9 +45,7 @@ export default function StudentSuspensionOverlay({ children }: StudentSuspension
 
   const fetchSuspensions = useCallback(async () => {
     try {
-      const res = await fetch('/api/student/suspensions', {
-        headers: await getCachedAuthHeaders(),
-      });
+      const res = await dedupedGet('/api/student/suspensions', await getCachedAuthHeaders());
       const json = await res.json();
       if (json.success) {
         setGlobalSuspension(json.global ?? null);
