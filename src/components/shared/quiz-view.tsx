@@ -254,6 +254,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const hasValidDataRef = useRef(false);
   const bioStartTriedRef = useRef(false);
   const bioStartSecretRef = useRef<string | null>(null);
+  const facePassRef = useRef<string | null>(null);
 
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
