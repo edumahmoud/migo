@@ -268,6 +268,16 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
+              label="التحقق بالكاميرا (الوجه)"
+              description="الطالب لازم يتحقق بوشه قبل فتح الاختبار. بدون تحقق مفيش دخول، ومفيش استثناء."
+              icon={<span className="text-sm">🙂</span>}
+              checked={requireFace}
+              onChange={setRequireFace}
+              disabled={saving}
+              dir={direction}
+            />
+
+            <ToggleSwitch
               label="اختبار رسمي: تأكيد بالبصمة"
               description="الطالب على التطبيق يأكّد ببصمته عند البدء وعند التسليم. لو مفيش بصمة بيتسجل غير مؤكد ومبيتمنعش."
               icon={<span className="text-sm">🔐</span>}
