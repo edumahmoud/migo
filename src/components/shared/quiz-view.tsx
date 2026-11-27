@@ -252,6 +252,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   // When returning from background, INITIAL_SESSION fires and previously would
   // reset the page to loading — causing the "infinity loading" crash.
   const hasValidDataRef = useRef(false);
+  const bioStartTriedRef = useRef(false);
+  const bioStartSecretRef = useRef<string | null>(null);
 
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
