@@ -133,6 +133,7 @@ export default function QuizSettingsModal({
         show_review: showReview,
         is_gate: isGate,
         require_bio: requireBio,
+        require_face: requireFace,
         questions_per_page: (() => { const n = parseInt(questionsPerPage, 10); return n > 1 ? Math.min(n, 50) : null; })(),
         // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
         // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
