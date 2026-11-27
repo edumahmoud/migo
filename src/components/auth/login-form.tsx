@@ -3,13 +3,13 @@
 import { tr } from '@/lib/tr';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2, KeyRound, User, Fingerprint } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
-import { bioSupported, bioHasLogin, bioLogin, bioOffer } from '@/lib/native-bio';
+import { bioSupported, bioHasLogin, bioInApp, bioLogin, bioOffer } from '@/lib/native-bio';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -130,11 +130,17 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     }
   };
 
-  // Fingerprint login (Android app only). Prompts once automatically when the app opens, and via the button.
-  const [bioReady, setBioReady] = useState(false);
+  // Fingerprint login (Android app only). The button sits next to the login button and only prompts when tapped.
+  // The device login survives logout; it is erased only by turning fingerprint off in Settings, by a server rejection,
+  // or when the phone's fingerprints change.
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => { setInApp(bioInApp()); }, []);
   const runBio = async () => {
-    // Stale state guard: no stored fingerprint login on this phone (e.g. just logged out) means no prompt and no button.
-    if (!bioSupported() || !bioHasLogin()) { setBioReady(false); return; }
+    if (!bioSupported()) { toast.error(tr('البصمة غير متاحة على هذا الجهاز', 'Fingerprint is not available on this device')); return; }
+    if (!bioHasLogin()) {
+      toast.info(tr('سجّل الدخول بالباسورد وفعّل البصمة من الإعدادات', 'Sign in with your password and turn on fingerprint in Settings'));
+      return;
+    }
     setIsLoading(true);
     try {
       const r = await bioLogin(signInWithEmail);
@@ -142,19 +148,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
       else if (r.error) toast.error(r.error);
     } finally {
       setIsLoading(false);
-      setBioReady(bioSupported() && bioHasLogin());
     }
   };
-  useEffect(() => {
-    const ok = bioSupported() && bioHasLogin();
-    setBioReady(ok);
-    const w = window as unknown as { __attendoBioAuto?: boolean };
-    if (ok && !w.__attendoBioAuto) {
-      w.__attendoBioAuto = true;
-      void runBio();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const [tgOpen, setTgOpen] = useState(false);
 
@@ -219,16 +214,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               ))}
             </div>
 
-            {bioReady && (
-              <button
-                type="button"
-                onClick={runBio}
-                disabled={isLoading}
-                className="w-full h-11 mb-4 rounded-md border border-teal-600 text-teal-700 font-semibold hover:bg-teal-50 disabled:opacity-50 transition-colors"
-              >
-                {tr('الدخول بالبصمة', 'Fingerprint login')}
-              </button>
-            )}
             {tgOpen && (
               <TelegramLogin
                 initialEmail={email}
@@ -368,11 +353,12 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
+                className="flex items-stretch gap-2"
               >
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
+                  className="flex-1 h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                 >
                   {isLoading ? (
                     <>
@@ -383,6 +369,17 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     t('auth.login')
                   )}
                 </Button>
+                {inApp && (
+                  <button
+                    type="button"
+                    onClick={runBio}
+                    disabled={isLoading}
+                    aria-label={tr('الدخول بالبصمة', 'Fingerprint login')}
+                    className="h-11 w-11 shrink-0 flex items-center justify-center rounded-md border border-teal-600 text-teal-700 hover:bg-teal-50 disabled:opacity-50 transition-colors"
+                  >
+                    <Fingerprint className="h-6 w-6" />
+                  </button>
+                )}
               </motion.div>
             </form>
 
