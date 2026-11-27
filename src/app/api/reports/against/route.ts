@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     console.log('[Reports Against] Found', uniqueReports.length, 'reports against user', userId);
 
     const safeReports = uniqueReports.map((r: any) => r.reason === 'تنبيه جهاز مشتبه'
-      ? { ...r, description: 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك، وتم رفعه للمراجعة. لا يوجد إجراء مطلوب منك الآن.' }
+      ? { ...r, description: 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك، وتم رفعه للمراجعة.' }
       : r);
 
     return NextResponse.json({
