@@ -68,6 +68,7 @@ const REPORT_REASONS: { value: string; labelKey: string }[] = [
 
 /** Map an English reason value to its translated label */
 function getReasonLabel(value: string, t: (key: string) => string): string {
+  if (value === 'impersonation') return tr('حساب مزيف / انتحال شخصية', 'Fake account / impersonation');
   const reason = REPORT_REASONS.find((r) => r.value === value);
   return reason ? t(reason.labelKey) : value;
 }
@@ -1015,7 +1016,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       <Hash className="h-2.5 w-2.5" />
                       {report.report_number}
                     </span>
-                    <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type, t)}</span>
+                    {report.target_type !== 'user' && <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type, t)}</span>}
                     {(report.reporter_count ?? 0) > 1 && isStaff && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
                         <Users className="h-3 w-3" />
@@ -1337,9 +1338,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 {t('reports.reopened')}
               </span>
             )}
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-              {getTargetTypeLabel(selectedReport.target_type, t)}
-            </span>
+            {selectedReport.target_type !== 'user' && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {getTargetTypeLabel(selectedReport.target_type, t)}
+              </span>
+            )}
             <span className="text-sm font-bold text-foreground">{getReasonLabel(selectedReport.reason, t)}</span>
             {isStaff && (selectedReport.reporter_count ?? 0) > 1 && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
@@ -1618,7 +1621,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         <div className="rounded-lg bg-muted/50 border border-border p-3 text-xs text-muted-foreground space-y-1">
                           <p>{t('reports.accusedMessageNotice')}</p>
                           <p>• {t('reports.reportType')}: {getReasonLabel(selectedReport.reason, t)}</p>
-                          <p>• {t('reports.contentType')}: {getTargetTypeLabel(selectedReport.target_type, t)}</p>
+                          {selectedReport.target_type !== 'user' && <p>• {t('reports.contentType')}: {getTargetTypeLabel(selectedReport.target_type, t)}</p>}
                           {selectedReport.target_content && (
                             <p>• {t('reports.accusedContentLabel')}: {selectedReport.target_content.substring(0, 80)}...</p>
                           )}
@@ -2038,7 +2041,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       <Hash className="h-2.5 w-2.5" />
                       {report.report_number}
                     </span>
-                    <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type, t)}</span>
+                    {report.target_type !== 'user' && <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type, t)}</span>}
                   </div>
                   <p className="text-sm font-medium text-foreground truncate">{getReasonLabel(report.reason, t)}</p>
                   {report.description && (
