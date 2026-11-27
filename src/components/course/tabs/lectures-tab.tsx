@@ -1882,11 +1882,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         if (position.coords.accuracy > 50) { toast.error(t('gpsAccuracyPoorStudent', { accuracy: Math.round(position.coords.accuracy) }), { duration: 9000 }); return; }
         if (Date.now() - position.timestamp > 30000) { toast.error(t('gpsTimeout')); return; }
       }
+      // Fingerprint confirmation (app only). Flag-only: without it the check-in still works but shows as unconfirmed to the teacher.
+      if (bioSupported() && !bioHasLogin()) bioOffer();
+      const bioSecret = await bioProof();
       const headers = await getCachedAuthHeaders();
       const response = await fetch('/api/attendance/check-in', {
         method: 'POST', headers,
         body: JSON.stringify({
-          sessionId, method, token,
+          sessionId, method, token, ...(bioSecret ? { bioSecret } : {}),
           ...(position ? { latitude: position.coords.latitude, longitude: position.coords.longitude,
             accuracy: position.coords.accuracy, ageMs: Math.max(0, Date.now() - position.timestamp) } : {}),
         }),
