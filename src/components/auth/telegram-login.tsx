@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/lib/tr';
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -45,13 +46,13 @@ export default function TelegramLogin({
         body: JSON.stringify({ email: email.trim() }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error || 'تعذر الإرسال، حاول تاني'); return; }
+      if (!res.ok) { setError(j.error || tr('تعذر الإرسال، حاول تاني', 'Could not send, try again')); return; }
       setStep(1);
       setCode('');
       setWait(RESEND_SECONDS);
       sentRef.current = true;
     } catch {
-      setError('مفيش اتصال بالنت، تأكد وحاول تاني');
+      setError(tr('مفيش اتصال بالنت، تأكد وحاول تاني', 'No internet connection, check and try again'));
     } finally {
       setBusy(false);
     }
@@ -69,13 +70,13 @@ export default function TelegramLogin({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.tokenHash) {
-        setError(j.error || 'الكود غير صحيح');
+        setError(j.error || tr('الكود غير صحيح', 'Incorrect code'));
         setCode('');
         return;
       }
       await onLoggedIn(j.email, j.tokenHash);
     } catch {
-      setError('مفيش اتصال بالنت، تأكد وحاول تاني');
+      setError(tr('مفيش اتصال بالنت، تأكد وحاول تاني', 'No internet connection, check and try again'));
     } finally {
       setBusy(false);
     }
@@ -84,17 +85,17 @@ export default function TelegramLogin({
   return (
     <div className="space-y-4" dir="rtl">
       <div>
-        <h3 className="text-base font-semibold">الدخول بكود تليجرام</h3>
+        <h3 className="text-base font-semibold">{tr('الدخول بكود تليجرام', 'Login with a Telegram code')}</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           {step === 0
-            ? 'هنبعتلك كود من بوت AttenDo على تليجرام. بيشتغل بس لو ربطت حسابك بالبوت وقت التسجيل.'
-            : 'لو حسابك مربوط بالبوت هيوصلك كود من 6 أرقام خلال ثواني. افتح تليجرام وانسخه هنا.'}
+            ? tr('هنبعتلك كود من بوت AttenDo على تليجرام. بيشتغل بس لو ربطت حسابك بالبوت وقت التسجيل.', 'We will send you a code from the AttenDo Telegram bot. It only works if you linked your account to the bot when you signed up.')
+            : tr('لو حسابك مربوط بالبوت هيوصلك كود من 6 أرقام خلال ثواني. افتح تليجرام وانسخه هنا.', 'If your account is linked to the bot you will get a 6-digit code in a few seconds. Open Telegram and enter it here.')}
         </p>
       </div>
 
       {step === 0 ? (
         <div className="space-y-2">
-          <Label htmlFor="tg-email" className="text-xs sm:text-sm">الإيميل</Label>
+          <Label htmlFor="tg-email" className="text-xs sm:text-sm">{tr('الإيميل', 'Email')}</Label>
           <Input
             id="tg-email"
             type="email"
@@ -133,26 +134,26 @@ export default function TelegramLogin({
 
       {step === 0 ? (
         <Button type="button" onClick={send} disabled={!validEmail || busy} className="w-full h-11 bg-gradient-to-l from-sky-700 to-teal-600 text-white">
-          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : 'ابعت الكود'}
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : tr('ابعت الكود', 'Send code')}
         </Button>
       ) : (
         <div className="space-y-2">
           <Button type="button" onClick={() => verify(code)} disabled={code.length !== 6 || busy} className="w-full h-11 bg-gradient-to-l from-sky-700 to-teal-600 text-white">
-            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : 'دخول'}
+            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : tr('دخول', 'Login')}
           </Button>
           <div className="flex items-center justify-between text-sm">
             <button type="button" onClick={send} disabled={wait > 0 || busy} className="font-medium text-sky-700 disabled:text-muted-foreground">
-              {wait > 0 ? `إعادة الإرسال بعد ${wait} ثانية` : 'إعادة إرسال الكود'}
+              {wait > 0 ? tr(`إعادة الإرسال بعد ${wait} ثانية`, `Resend in ${wait}s`) : tr('إعادة إرسال الكود', 'Resend code')}
             </button>
             <button type="button" onClick={() => { setStep(0); setError(null); setCode(''); }} disabled={busy} className="text-muted-foreground">
-              تغيير الإيميل
+              {tr('تغيير الإيميل', 'Change email')}
             </button>
           </div>
         </div>
       )}
 
       <button type="button" onClick={onBack} disabled={busy} className="w-full text-center text-sm text-muted-foreground hover:text-foreground">
-        الرجوع للدخول بالباسورد
+        {tr('الرجوع للدخول بالباسورد', 'Back to password login')}
       </button>
     </div>
   );
