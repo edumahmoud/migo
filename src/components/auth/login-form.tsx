@@ -128,6 +128,29 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     }
   };
 
+  // Fingerprint login (Android app only). Prompts once automatically when the app opens, and via the button.
+  const [bioReady, setBioReady] = useState(false);
+  const runBio = async () => {
+    setIsLoading(true);
+    try {
+      const r = await bioLogin(signInWithEmail);
+      if (r.ok) routeAfterLogin();
+      else if (r.error) toast.error(r.error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  useEffect(() => {
+    const ok = bioSupported() && bioHasLogin();
+    setBioReady(ok);
+    const w = window as unknown as { __attendoBioAuto?: boolean };
+    if (ok && !w.__attendoBioAuto) {
+      w.__attendoBioAuto = true;
+      void runBio();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // The submit handler depends on the active mode.
   const handleSubmit = mode === 'email' ? handleEmailSubmit : handleCodeSubmit;
 
