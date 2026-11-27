@@ -1123,7 +1123,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       if (item.type === 'message') {
         // Messages in actions log are only visible to the sender
         const msg = item.data as ReportMessage;
-        return msg.sender_id === profile.id;
+        return msg.sender_id === profile.id || (msg as any).recipient_id === profile.id;
       }
       // For students: only show forward, block, warn actions
       if (role === 'student') {
