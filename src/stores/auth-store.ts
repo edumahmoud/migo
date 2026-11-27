@@ -710,7 +710,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       void fetch('/api/audit/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${signInData.session?.access_token || ''}` },
-        body: JSON.stringify({ method: 'password' }),
+        body: JSON.stringify({ method: opts?.tokenHash ? 'biometric' : 'password' }),
       }).catch(() => {});
       
       // ─── Use server-side API to fetch profile (bypasses RLS) ───
