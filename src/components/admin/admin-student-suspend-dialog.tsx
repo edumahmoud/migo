@@ -327,7 +327,7 @@ export default function AdminStudentSuspendDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label>{t('adminSuspendDialog.reasonLabel')}</Label>
+                  <Label>{t('adminSuspendDialog.reasonLabel')} (مطلوب)</Label>
                   <Textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
@@ -339,7 +339,7 @@ export default function AdminStudentSuspendDialog({
 
                 <Button
                   onClick={handleSuspend}
-                  disabled={submitting}
+                  disabled={submitting || reason.trim().length < 3}
                   className="w-full bg-amber-600 hover:bg-amber-700 text-white"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Ban className="h-4 w-4 me-1" />}

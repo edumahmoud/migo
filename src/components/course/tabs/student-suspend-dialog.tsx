@@ -292,7 +292,12 @@ export default function StudentSuspendDialog({
             </div>
 
             <div className="space-y-1">
-              <Label>{t('suspendDialog.reasonOptional')}</Label>
+              <Label>سبب الإيقاف (مطلوب)</Label>
+              <div className="flex flex-wrap gap-1">
+                {['غش في الامتحان', 'تزييف الحضور', 'مشاركة الحساب أو الجهاز', 'سلوك غير لائق', 'أخرى'].map((c) => (
+                  <button key={c} type="button" onClick={() => setReason(c + ': ')} className="rounded-full border px-2 py-0.5 text-xs hover:bg-muted">{c}</button>
+                ))}
+              </div>
               <Textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -304,7 +309,7 @@ export default function StudentSuspendDialog({
 
             <Button
               onClick={handleSuspend}
-              disabled={submitting}
+              disabled={submitting || reason.trim().length < 3}
               className="w-full bg-amber-600 hover:bg-amber-700 text-white"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin me-1" /> : <Ban className="h-4 w-4 me-1" />}

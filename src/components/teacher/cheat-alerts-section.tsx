@@ -122,7 +122,7 @@ export default function CheatAlertsSection() {
         if (!active.account_id || !active.subject_id) throw new Error();
         res = await fetch(`/api/teacher/students/${active.account_id}/suspend`, {
           method: 'POST', headers,
-          body: JSON.stringify({ scope: 'course', subjectId: active.subject_id, durationHours: hours === 'open' ? null : Number(hours), reason: note || undefined }),
+          body: JSON.stringify({ scope: 'course', subjectId: active.subject_id, durationHours: hours === 'open' ? null : Number(hours), reason: `مخالفة غش: ${T.kinds[active.kind] || active.kind}` + (note ? ` - ${note}` : '') }),
         });
       } else {
         res = await fetch('/api/teacher/cheat-alerts/action', { method: 'POST', headers, body: JSON.stringify({ id: active.id, action: kind, note: note || undefined }) });

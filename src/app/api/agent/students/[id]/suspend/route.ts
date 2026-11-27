@@ -28,7 +28,7 @@ import { requireAgent, authErrorResponse } from '@/lib/auth-helpers';
 const SuspendSchema = z.object({
   subjectId: z.string().uuid(),
   durationHours: z.number().positive().max(24 * 365).nullable().optional(),
-  reason: z.string().trim().max(500).optional(),
+  reason: z.string().trim().min(3, 'سبب الإيقاف مطلوب').max(500),
 });
 
 interface RouteContext {

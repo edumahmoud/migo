@@ -20,7 +20,7 @@ const SuspendSchema = z.object({
   scope: z.enum(['global', 'course']),
   subjectId: z.string().uuid().optional(),
   durationHours: z.number().positive().max(24 * 365 * 5).nullable().optional(),
-  reason: z.string().trim().max(500).optional(),
+  reason: z.string().trim().min(3, 'سبب الإيقاف مطلوب').max(500),
 });
 
 interface RouteContext {
