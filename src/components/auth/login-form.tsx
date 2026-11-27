@@ -13,6 +13,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
+import TelegramLogin from '@/components/auth/telegram-login';
 
 interface LoginFormProps {
   onSwitchToRegister?: () => void;
@@ -151,31 +152,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Login with a code sent to the Telegram chat linked through the bot (only for accounts that completed that step).
-  const [tgStep, setTgStep] = useState<0 | 1>(0);
-  const [tgCode, setTgCode] = useState('');
-  const runTg = async () => {
-    const mail = email.trim();
-    if (!mail.includes('@')) { toast.error('اكتب الإيميل الأول'); return; }
-    setIsLoading(true);
-    try {
-      if (tgStep === 0) {
-        const res = await fetch('/api/auth/tg-login/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail }) });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) { toast.error(j.error || 'تعذر الإرسال'); return; }
-        toast.success(j.message || 'تم الإرسال');
-        setTgStep(1);
-      } else {
-        const res = await fetch('/api/auth/tg-login/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail, code: tgCode }) });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok || !j.tokenHash) { toast.error(j.error || 'الكود غير صحيح'); return; }
-        const { error } = await signInWithEmail(j.email, '', { tokenHash: j.tokenHash });
-        if (error) toast.error(error); else routeAfterLogin();
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [tgOpen, setTgOpen] = useState(false);
 
   // The submit handler depends on the active mode.
   const handleSubmit = mode === 'email' ? handleEmailSubmit : handleCodeSubmit;
@@ -248,27 +225,16 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 الدخول بالبصمة
               </button>
             )}
-            <div className="mb-4 space-y-2">
-              {tgStep === 1 && (
-                <input
-                  value={tgCode}
-                  onChange={(e) => setTgCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  inputMode="numeric"
-                  placeholder="كود تليجرام (6 أرقام)"
-                  dir="ltr"
-                  className="w-full h-11 rounded-md border px-3 text-center tracking-widest bg-background"
-                />
-              )}
-              <button
-                type="button"
-                onClick={runTg}
-                disabled={isLoading || (tgStep === 1 && tgCode.length !== 6)}
-                className="w-full h-10 rounded-md border text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-              >
-                {tgStep === 0 ? 'الدخول بكود على تليجرام' : 'تأكيد الكود'}
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
+            {tgOpen && (
+              <TelegramLogin
+                initialEmail={email}
+                onBack={() => setTgOpen(false)}
+                onLoggedIn={(mail, tokenHash) => signInWithEmail(mail, '', { tokenHash }).then(({ error }) => {
+                  if (error) toast.error(error); else routeAfterLogin();
+                })}
+              />
+            )}
+            <form onSubmit={handleSubmit} className={tgOpen ? 'hidden' : 'space-y-3 sm:space-y-5'}>
               <AnimatePresence mode="wait" initial={false}>
               {mode === 'email' ? (
                 /* Email Field */
@@ -415,6 +381,17 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 </Button>
               </motion.div>
             </form>
+
+            {!tgOpen && (
+              <button
+                type="button"
+                onClick={() => setTgOpen(true)}
+                disabled={isLoading}
+                className="mt-3 w-full text-center text-sm font-medium text-sky-700 hover:text-sky-800 disabled:opacity-50"
+              >
+                نسيت الباسورد؟ ادخل بكود على تليجرام
+              </button>
+            )}
 
             {/* Register Link - uses onSwitchToRegister prop */}
             {onSwitchToRegister && (
