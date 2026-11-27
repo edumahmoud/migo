@@ -398,6 +398,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
               }
             } else {
+              // A rejected token (logged out elsewhere / revoked on logout) must show the login screen, not an empty dashboard.
+              if (res.status === 401) {
+                try {
+                  await supabase.auth.signOut({ scope: 'local' });
+                  for (const k of Object.keys(localStorage)) if (k.startsWith('sb-') && k.includes('-auth-token')) localStorage.removeItem(k);
+                } catch { /* ignore */ }
+                set({ user: null, loading: false, initialized: true, banInfo: null });
+                return;
+              }
               // API call failed — use fallback from auth metadata
               const fallbackProfile = createFallbackProfile(session.user);
               set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
