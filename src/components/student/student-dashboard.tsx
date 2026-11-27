@@ -1,5 +1,6 @@
 'use client';
 
+import { dedupedGet } from '@/lib/dedupe-fetch';
 import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -703,9 +704,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       // Wait for auth session with progressive backoff (critical on mobile)
       const token = await waitForSession(8000);
 
-      const res = await fetch('/api/summaries', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
+      const res = await dedupedGet('/api/summaries', token ? { 'Authorization': `Bearer ${token}` } : {});
 
       if (res.ok) {
         const { data } = await res.json();
