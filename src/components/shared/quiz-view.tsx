@@ -316,7 +316,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         const res = await fetch('/api/quizzes/take', {
           method: 'POST',
           headers: await getCachedAuthHeaders(),
-          body: JSON.stringify({ quizId, review: !!reviewMode }),
+          body: JSON.stringify({ quizId, review: !!reviewMode, facePass: facePassRef.current }),
         });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.success && json.quiz) data = json.quiz as Quiz;
