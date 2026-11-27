@@ -2651,24 +2651,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         activeQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-8"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
-              <ClipboardList className="h-8 w-8 text-sky-700 dark:text-sky-400" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-2">
+              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             </div>
-            <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noActiveQuizzes')}</p>
+            <p className="text-base font-semibold text-foreground mb-1">{t('exams.noActiveQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
               {role === 'teacher' ? t('exams.startQuizTeacher') : t('exams.noActiveQuizzesStudent')}
             </p>
-            {role === 'teacher' && (
-              <button
-                onClick={handleOpenCreateModal}
-                className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800 mt-4"
-              >
-                <Plus className="h-4 w-4" />
-                {t('exams.createQuiz')}
-              </button>
-            )}
           </motion.div>
         ) : (
           <AnimatePresence>
@@ -2686,24 +2677,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         scheduledQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15 py-8"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40 mb-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40 mb-4">
               <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noScheduledQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
               {role === 'teacher' ? t('exams.noScheduledQuizzesHintTeacher') : t('exams.noScheduledQuizzesHintStudent')}
             </p>
-            {role === 'teacher' && (
-              <button
-                onClick={handleOpenCreateModal}
-                className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 mt-4"
-              >
-                <Plus className="h-4 w-4" />
-                {t('exams.createQuiz')}
-              </button>
-            )}
           </motion.div>
         ) : (
           <AnimatePresence>
@@ -2721,9 +2703,9 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         finishedQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-8"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted-100 mb-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted-100 mb-4">
               <ClipboardList className="h-8 w-8 text-muted-400" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noFinishedQuizzes')}</p>
