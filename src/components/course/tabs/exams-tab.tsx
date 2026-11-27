@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/lib/tr';
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 // xlsx is dynamically imported in handleExportQuizResults to reduce initial bundle size
@@ -280,6 +281,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const [quizPassThreshold, setQuizPassThreshold] = useState('');
   const [quizIsGate, setQuizIsGate] = useState(false);
   const [quizAllowRetake, setQuizAllowRetake] = useState(true);
+  const [quizRequireFace, setQuizRequireFace] = useState(false);
+  const [quizRequireBio, setQuizRequireBio] = useState(false);
   const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [quizQuestionsPerPage, setQuizQuestionsPerPage] = useState(''); // v145: '' = one question at a time
 
@@ -542,6 +545,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizPassThreshold('');
     setQuizIsGate(false);
     setQuizAllowRetake(true);
+    setQuizRequireFace(false);
+    setQuizRequireBio(false);
     setQuizShuffleQuestions(true);
     setQuizQuestionsPerPage('');
     resetQuestionForm();
@@ -673,6 +678,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         show_results: quizShowResults,
         show_review: quizShowReview,
         allow_retake: quizAllowRetake,
+        require_face: quizRequireFace,
+        require_bio: quizRequireBio,
         // v136: difficulty strategy metadata (from AI generation or preserved on edit)
         difficulty_mode: quizDifficultyMode ?? null,
         content_scope: quizContentScopeMeta ?? null,
@@ -833,6 +840,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     setQuizPassThreshold(quiz.pass_threshold != null ? String(quiz.pass_threshold) : '');
     setQuizIsGate(quiz.is_gate ?? false);
     setQuizAllowRetake(quiz.allow_retake ?? true);
+    setQuizRequireFace(quiz.require_face ?? false);
+    setQuizRequireBio(quiz.require_bio ?? false);
     setQuizShuffleQuestions(quiz.shuffle_questions ?? true);
     setQuizQuestionsPerPage(quiz.questions_per_page && quiz.questions_per_page > 1 ? String(quiz.questions_per_page) : '');
     // v136: preserve difficulty metadata through the edit
@@ -1879,6 +1888,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                     { key: 'results', icon: <EyeIcon className="h-4 w-4" />, label: t('quiz.showResults'), desc: t('quiz.showResultsDesc'), checked: quizShowResults, set: setQuizShowResults },
                     { key: 'review', icon: <Eye className="h-4 w-4" />, label: t('quiz.showReview'), desc: t('quiz.showReviewDesc'), checked: quizShowReview, set: setQuizShowReview },
                     { key: 'retake', icon: <RotateCcw className="h-4 w-4" />, label: t('quiz.allowRetake'), desc: t('quiz.allowRetakeDesc'), checked: quizAllowRetake, set: setQuizAllowRetake },
+                    { key: 'face', icon: <span className="text-sm">🙂</span>, label: tr('التحقق بالكاميرا (الوجه)', 'Camera check (face)'), desc: tr('الطالب لازم يتحقق بوشه قبل فتح الاختبار وعند التسليم. بدون تحقق مفيش دخول، ومفيش استثناء.', 'Students must verify their face before opening the quiz and when submitting. No check, no entry, no exceptions.'), checked: quizRequireFace, set: setQuizRequireFace },
+                    { key: 'bio', icon: <span className="text-sm">🔐</span>, label: tr('التأكيد بالبصمة', 'Fingerprint confirmation'), desc: tr('الطالب على التطبيق يأكّد ببصمته عند البدء وعند التسليم. لو مفيش بصمة بيتسجل غير مؤكد ومبيتمنعش.', 'Students on the app confirm with their fingerprint at start and submit. Without a fingerprint it is recorded as unconfirmed and not blocked.'), checked: quizRequireBio, set: setQuizRequireBio },
                     { key: 'shuffle', icon: <Shuffle className="h-4 w-4" />, label: t('quiz.shuffleQuestions'), desc: t('quiz.shuffleOptions'), checked: quizShuffleQuestions, set: setQuizShuffleQuestions },
                   ] as Array<{ key: string; icon: ReactNode; label: string; desc: string; checked: boolean; set: (v: boolean) => void }>).map((row) => (
                     <div key={row.key} className="flex items-start gap-3 rounded-lg border p-3" dir={direction}>
