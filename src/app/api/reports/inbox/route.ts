@@ -124,11 +124,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const hideReporter = !!report && recipientRole === 'reported' && msg.sender_id === report.reporter_id;
       return {
         ...msg,
+        ...(hideReporter ? { sender: null, sender_id: null } : {}),
         is_auto: msg.message_type === 'auto',
         recipient_role: recipientRole,
-        report: report || null,
+        report: report ? (recipientRole === 'reported' ? { ...report, reporter: null, reporter_id: null } : report) : null,
       };
     });
 
