@@ -61,6 +61,7 @@ import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
 import ThemeToggle from '@/components/shared/theme-toggle';
+import { BioSettingsSection } from '@/components/shared/bio-settings';
 import { useTranslations } from '@/i18n/use-translations';
 import { useLocaleStore } from '@/i18n/locale-store';
 
@@ -1559,6 +1560,17 @@ export default function SettingsSection({
                 )}
               </Button>
             </div>
+          </motion.div>
+
+          {/* Fingerprint / camera login and biometric data (Android app) */}
+          <motion.div
+            className="rounded-xl border border-border bg-card shadow-sm overflow-hidden p-4"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            custom={2}
+          >
+            <BioSettingsSection />
           </motion.div>
 
           {/* Danger Zone Card - hidden for superadmin */}
