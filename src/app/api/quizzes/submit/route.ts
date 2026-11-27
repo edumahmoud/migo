@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Official exam with camera check: the pass comes from a server-side face match; without it nothing is saved.
+    const faceOk = quiz.require_face === true && !isOwner ? checkFacePass(body?.facePass, uid, `exam:${quizId}`) : null;
+    if (faceOk === false) return NextResponse.json({ success: false, code: 'face_required', error: 'التحقق بالوجه مطلوب لتسليم هذا الاختبار' }, { status: 403 });
+
     // Official exam: fingerprint proofs (flag only). Each proof is the device secret released by the phone after a fingerprint check.
     const proofOk = async (secret: unknown) => {
       if (typeof secret !== 'string' || !/^[0-9a-f]{64}$/.test(secret)) return false;
