@@ -856,7 +856,7 @@ export interface ChatMessage {
 
 export type ReportTargetType = 'comment' | 'message' | 'user' | 'other';
 export type ReportStatus = 'pending' | 'in_progress' | 'resolved' | 'dismissed';
-export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen' | 'block' | 'warn' | 'message_reporter' | 'message_reported' | 'return';
+export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen' | 'block' | 'warn' | 'message_reporter' | 'message_reported' | 'return' | 'objection';
 
 export interface Report {
   id: string;
@@ -912,6 +912,7 @@ export interface ReportResponse {
   report_id: string;
   responder_id: string;
   action: ReportResponseAction;
+  actor_role?: string | null;
   content?: string | null;
   forwarded_to?: string | null;
   created_at: string;
