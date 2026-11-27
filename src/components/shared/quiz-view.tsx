@@ -320,9 +320,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.success && json.quiz) data = json.quiz as Quiz;
-        else fetchError = json?.error || res.status;
+        else { fetchError = json?.error || res.status; if (json?.code === 'face_required') faceNeeded = true; }
       } catch (e) {
         fetchError = e;
+      }
+
+      // Official exam with camera check: the global face dialog runs the live check, then sends the pass back.
+      if (faceNeeded) {
+        window.dispatchEvent(new CustomEvent('attendo-face-gate', { detail: { quizId } }));
+        return;
       }
 
       if (fetchError || !data) {
