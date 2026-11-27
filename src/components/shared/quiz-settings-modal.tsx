@@ -119,6 +119,7 @@ export default function QuizSettingsModal({
     quiz.pass_threshold != null ? String(quiz.pass_threshold) : ''
   );
   const [isGate, setIsGate] = useState<boolean>(quiz.is_gate ?? false);
+  const [requireBio, setRequireBio] = useState<boolean>(quiz.require_bio ?? false);
   const [questionsPerPage, setQuestionsPerPage] = useState<string>(quiz.questions_per_page != null ? String(quiz.questions_per_page) : '');
   const [saving, setSaving] = useState(false);
 
