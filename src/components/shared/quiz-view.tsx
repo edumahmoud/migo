@@ -340,6 +340,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         return;
       }
 
+      // Official exam: ask for the fingerprint once before the exam starts (flag only, never blocks).
+      if (!reviewMode && quizData.require_bio && !bioStartTriedRef.current) {
+        bioStartTriedRef.current = true;
+        bioStartSecretRef.current = await bioProof();
+      }
+
       // ─── Check if scheduled quiz hasn't started yet ───
       // If the quiz has a scheduled date/time that is in the future,
       // block access — student must wait until the scheduled time.
