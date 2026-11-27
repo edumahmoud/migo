@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { bioProof, bioSupported, bioHasLogin, bioOffer } from '@/lib/native-bio';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as QRCode from 'qrcode';
 import { usePWALifecycle } from '@/hooks/use-pwa-lifecycle';
