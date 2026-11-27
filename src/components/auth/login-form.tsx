@@ -151,6 +151,32 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Login with a code sent to the Telegram chat linked through the bot (only for accounts that completed that step).
+  const [tgStep, setTgStep] = useState<0 | 1>(0);
+  const [tgCode, setTgCode] = useState('');
+  const runTg = async () => {
+    const mail = email.trim();
+    if (!mail.includes('@')) { toast.error('اكتب الإيميل الأول'); return; }
+    setIsLoading(true);
+    try {
+      if (tgStep === 0) {
+        const res = await fetch('/api/auth/tg-login/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail }) });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) { toast.error(j.error || 'تعذر الإرسال'); return; }
+        toast.success(j.message || 'تم الإرسال');
+        setTgStep(1);
+      } else {
+        const res = await fetch('/api/auth/tg-login/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail, code: tgCode }) });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || !j.tokenHash) { toast.error(j.error || 'الكود غير صحيح'); return; }
+        const { error } = await signInWithEmail(j.email, '', { tokenHash: j.tokenHash });
+        if (error) toast.error(error); else routeAfterLogin();
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // The submit handler depends on the active mode.
   const handleSubmit = mode === 'email' ? handleEmailSubmit : handleCodeSubmit;
 
