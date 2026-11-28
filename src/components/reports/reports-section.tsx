@@ -1117,6 +1117,28 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       <div className="text-xs text-muted-foreground">{tr('المشكو منه', 'Reported')}: {r.target_name}</div>
                     ) : null}
                     {r.description ? <div className="text-xs text-foreground line-clamp-2">{r.description}</div> : null}
+                    <div className="mt-1.5 border-s-2 border-border ps-2 space-y-0.5">
+                      <div className="text-[11px] font-semibold text-muted-foreground">{tr('الإجراءات المتخذة', 'Actions taken')}</div>
+                      {(r.actions || []).length === 0 ? (
+                        <div className="text-[11px] text-muted-foreground">{tr('لا توجد إجراءات بعد', 'No actions yet')}</div>
+                      ) : (r.actions || []).map((a: any, i: number) => {
+                        const labels: Record<string, [string, string]> = {
+                          reply: ['رد', 'Reply'], forward: ['تحويل', 'Forwarded'], resolve: ['حل الشكوى', 'Resolved'],
+                          dismiss: ['رفض الشكوى', 'Dismissed'], reopen: ['إعادة فتح', 'Reopened'], warn: ['تحذير', 'Warning'],
+                          block: ['حظر', 'Block'], return: ['إرجاع', 'Returned'], objection: ['اعتراض', 'Objection'],
+                          note: ['ملاحظة', 'Note'], assign: ['إسناد', 'Assigned'],
+                        };
+                        const l = labels[a.action];
+                        return (
+                          <div key={i} className="text-[11px] text-foreground">
+                            <span className="font-semibold">{l ? tr(l[0], l[1]) : a.action}</span>
+                            {a.by ? <span className="text-muted-foreground"> · {a.by}</span> : null}
+                            <span className="text-muted-foreground"> · {formatDate(a.at)}</span>
+                            {a.note ? <div className="text-muted-foreground line-clamp-1">{a.note}</div> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground mt-1">{tr('ملخص فقط، التفاصيل لغير المعين', 'Summary only: details are limited to the assigned handler')}</div>
