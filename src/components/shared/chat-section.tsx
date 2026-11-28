@@ -1770,7 +1770,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
               {/* Hover report button for other users' messages */}
               {!isOwn && !isDeleted && (
-                <div className="absolute -top-1 start-full opacity-0 group-hover:opacity-100 transition-opacity ms-1">
+                <div className="absolute -top-1 start-full opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity ms-1">
                   <ReportButton targetType="message" targetId={msg.id} compact />
                 </div>
               )}
@@ -2316,6 +2316,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   )}
                 </div>
 
+                {activeConvInfo.type === 'individual' && activeConvInfo.otherParticipant?.id && (
+                  <ReportButton
+                    targetType="user"
+                    targetId={activeConvInfo.otherParticipant.id}
+                    compact
+                    className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted"
+                  />
+                )}
                 {/* More actions menu */}
                 <div className="relative" ref={headerMenuRef}>
                   <button
@@ -2356,7 +2364,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               {/* ─── Messages area ─── */}
               <div
                 ref={messagesContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 sm:static"
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3 space-y-1.5 sm:static"
                 style={{ scrollbarGutter: 'stable' }}
               >
                 {messagesLoading ? (
