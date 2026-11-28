@@ -111,6 +111,16 @@ export async function GET(request: NextRequest) {
     // unlike recipient_type which only stores 'reporter' or 'reported' as the message context.
     // This fixes the bug where a teacher/handler sees "بخصوص شكوى ضدك" when they're
     // not the accused party — just the handler.
+    // Which of these messages already have a reply
+    const repliedSet = new Set<string>();
+    if (messages.length > 0) {
+      const { data: replies } = await supabaseServer
+        .from('report_messages')
+        .select('reply_to_id')
+        .in('reply_to_id', messages.map((m: any) => m.id));
+      (replies || []).forEach((r: any) => { if (r.reply_to_id) repliedSet.add(r.reply_to_id); });
+    }
+
     const enrichedMessages = messages.map((msg: any) => {
       const report = reportMap.get(msg.report_id);
       let recipientRole: 'reporter' | 'reported' | 'handler' = 'handler';
@@ -130,6 +140,8 @@ export async function GET(request: NextRequest) {
         ...msg,
         ...(hideReporter ? { sender: null, sender_id: null } : {}),
         is_auto: msg.message_type === 'auto',
+        replied: repliedSet.has(msg.id),
+        from_party: report && msg.sender_id === report.reporter_id ? 'reporter' : (report && report.target_user && msg.sender_id === report.target_user.id ? 'reported' : 'staff'),
         recipient_role: recipientRole,
         report: report ? (recipientRole === 'reported' ? { ...report, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null } : report) : null,
       };

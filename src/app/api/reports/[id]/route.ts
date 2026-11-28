@@ -199,9 +199,10 @@ export async function GET(
     const isStaff = isStaffRole || (report.assigned_to === userId && !isTargetUser);
     const hasObjection = responses.some((r: any) => r.action === 'objection');
     // Private messages: only the sender and the recipient (admins see all)
+    // The automatic notice to the reported person is for them only: staff and the reporter never see it.
     const visibleMessages = isStaff
-      ? messages
-      : messages.filter((m: any) => m.recipient_id === userId || m.sender_id === userId);
+      ? messages.filter((m: any) => m.message_type !== 'auto' || m.recipient_id === userId)
+      : messages.filter((m: any) => m.recipient_id === userId || (m.sender_id === userId && m.message_type !== 'auto'));
 
     if (accusedOnly) {
       // The reported person sees the action timeline (notes, status changes, warnings,
