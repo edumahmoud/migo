@@ -67,7 +67,8 @@ export async function GET(
     const isTargetUser = reportedUserId === userId;
 
     // Nobody handles a complaint about themselves: a reported admin or teacher is treated as the accused.
-    const isStaffRole = (role === 'admin' || role === 'superadmin') && !isTargetUser;
+    // Admins see complaints assigned to them or unassigned; the platform owner sees all.
+    const isStaffRole = (role === 'superadmin' || (role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) && !isTargetUser;
     if (report.reporter_id !== userId && report.assigned_to !== userId && !isStaffRole && !isTargetUser) {
       return NextResponse.json(
         { success: false, error: 'غير مصرح بالوصول' },
@@ -289,7 +290,7 @@ export async function PATCH(
     // The reported person can never handle the complaint, even as assignee or admin.
     const reportedUserIdAll = await resolveReportedUserId(report);
     const isReportedSelf = !!reportedUserIdAll && reportedUserIdAll === userId;
-    const isAdmin = (role === 'admin' || role === 'superadmin') && !isReportedSelf;
+    const isAdmin = (role === 'superadmin' || (role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) && !isReportedSelf;
     const isAssigned = report.assigned_to === userId && !isReportedSelf;
     const isReporter = report.reporter_id === userId;
 
