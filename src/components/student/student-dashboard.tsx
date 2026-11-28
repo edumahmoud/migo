@@ -1009,10 +1009,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         .eq('status', 'approved');
       const subIds = (enr ?? []).map((e: { subject_id: string }) => e.subject_id);
       if (subIds.length > 0) {
-        const [pa, ps] = await Promise.all([
+        const loadPerf = () => Promise.all([
           supabase.from('assignments').select('id, subject_id, teacher_id, title, max_score, show_grade, due_date').in('subject_id', subIds),
           supabase.from('submissions').select('id, assignment_id, student_id, score, status, submitted_at, graded_at').eq('student_id', profile.id),
         ]);
+        let [pa, ps] = await loadPerf();
+        if (pa.error || ps.error) {
+          // one retry after a short pause (flaky mobile network)
+          await new Promise((r) => setTimeout(r, 1500));
+          [pa, ps] = await loadPerf();
+        }
         if (!pa.error && !ps.error && pa.data && ps.data) {
           const allAssignments = pa.data as Assignment[];
           const hidden = new Set(allAssignments.filter((a) => a.show_grade === false).map((a) => a.id));
@@ -1120,6 +1126,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // away (e.g., to "Subjects") and comes back to "dashboard", the data
   // is stale. This effect triggers a lightweight refresh on section change.
   useEffect(() => {
+    if (activeSection === 'tracking') {
+      // Tracking must not depend on the first load: refetch its inputs on entry
+      fetchSubmissionsAndAssignments();
+      fetchAttendance();
+      fetchScores();
+    }
     if (activeSection === 'dashboard') {
       fetchSummaries();
       fetchQuizzes();
