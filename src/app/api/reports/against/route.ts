@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     console.log('[Reports Against] Found', uniqueReports.length, 'reports against user', userId);
 
     // The reported person never sees who filed the complaint
-    const safeReports = uniqueReports.map((r: any) => ({ ...r, reporter: null })).map((r: any) => r.reason === 'تنبيه جهاز مشتبه'
+    const safeReports = uniqueReports.map((r: any) => ({ ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null })).map((r: any) => r.reason === 'تنبيه جهاز مشتبه'
       ? { ...r, description: 'تم رصد نشاط غير معتاد على جهاز أو حساب مرتبط بك، وتم رفعه للمراجعة.' }
       : r);
 

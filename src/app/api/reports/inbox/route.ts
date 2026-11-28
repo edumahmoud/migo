@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
         ...(hideReporter ? { sender: null, sender_id: null } : {}),
         is_auto: msg.message_type === 'auto',
         recipient_role: recipientRole,
-        report: report ? (recipientRole === 'reported' ? { ...report, reporter: null, reporter_id: null } : report) : null,
+        report: report ? (recipientRole === 'reported' ? { ...report, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null } : report) : null,
       };
     });
 

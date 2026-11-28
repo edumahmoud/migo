@@ -31,6 +31,43 @@ export type AuthResponse = AuthResult | AuthError;
 
 // ─── Core Auth Functions ───
 
+
+const BAN_EXEMPT_PATHS = ['/api/auth/me', '/api/check-ban', '/api/auth/logout', '/api/auth/signout'];
+function isBanExemptPath(request: NextRequest): boolean {
+  try {
+    const p = new URL(request.url).pathname;
+    return BAN_EXEMPT_PATHS.some((x) => p === x || p.startsWith(x + '/'));
+  } catch {
+    return true;
+  }
+}
+
+// Short cache so a ban or unban takes effect within ~20 seconds without a query per request.
+const banCache = new Map<string, { banned: boolean; at: number }>();
+async function isEmailBanned(email: string): Promise<boolean> {
+  const key = email.toLowerCase();
+  const hit = banCache.get(key);
+  if (hit && Date.now() - hit.at < 20_000) return hit.banned;
+  let banned = false;
+  try {
+    const { data } = await supabaseServer
+      .from('banned_users')
+      .select('is_active, ban_until')
+      .eq('email', email)
+      .maybeSingle();
+    if (data) {
+      const active = data.is_active === undefined || data.is_active === null || data.is_active === true;
+      const expired = data.ban_until ? new Date(data.ban_until as string) <= new Date() : false;
+      banned = active && !expired;
+    }
+  } catch {
+    banned = false; // fail open: a database hiccup must not lock everyone out
+  }
+  if (banCache.size > 5000) banCache.clear();
+  banCache.set(key, { banned, at: Date.now() });
+  return banned;
+}
+
 /**
  * Authenticate a request by verifying the user's identity.
  * Checks Bearer token first, then falls back to cookie-based auth.
@@ -78,6 +115,18 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
       error: 'يرجى تسجيل الدخول أولاً',
       status: 401,
     };
+  }
+
+  // A banned account is locked out of every API (the app also shows the ban screen).
+  // Only the endpoints that report the ban status stay reachable.
+  if (authUser.email && !isBanExemptPath(request)) {
+    if (await isEmailBanned(authUser.email)) {
+      return {
+        success: false,
+        error: 'تم حظر حسابك من استخدام المنصة',
+        status: 403,
+      };
+    }
   }
 
   // Audit log: from here on database writes for this request carry the verified actor.
