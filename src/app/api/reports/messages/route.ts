@@ -94,69 +94,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine the user's role in this report and the recipient
-    let recipientType: 'reporter' | 'reported' = 'reporter';
-    let recipientId: string | null = null;
+    // Who receives this message. Staff reply to whoever wrote the message they answer;
+    // the reporter and the reported person write to the handler (or to every admin when nobody is assigned).
+    let recipientType: 'reporter' | 'reported' = isReported && !isReporter ? 'reported' : 'reporter';
+    let recipientIds: string[] = [];
 
-    // Note: isReporter, reportedUserId, and assignedReport were already resolved above
-    // during the authorization check — no need to re-resolve them.
-
-    if (isReporter) {
-      // الشاكي replies → message goes to the assigned reviewer
-      if (assignedReport?.assigned_to) {
-        recipientId = assignedReport.assigned_to;
-        recipientType = 'reporter'; // The reporter is sending, so recipient_type marks the conversation context
+    if (isReporter || isReported) {
+      if (assignedReport?.assigned_to && assignedReport.assigned_to !== userId) {
+        recipientIds = [assignedReport.assigned_to];
       } else {
-        return NextResponse.json(
-          { success: false, error: 'لا يوجد مراجع مُعيَّن لهذه الشكوى بعد' },
-          { status: 400 }
-        );
-      }
-    } else if (isReported) {
-      // المشكو ضده replies → message goes to the assigned reviewer
-      if (assignedReport?.assigned_to) {
-        recipientId = assignedReport.assigned_to;
-        recipientType = 'reported';
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'لا يوجد مراجع مُعيَّن لهذه الشكوى بعد' },
-          { status: 400 }
-        );
+        const { data: admins } = await supabaseServer.from('users').select('id').in('role', ['admin', 'superadmin']).limit(20);
+        recipientIds = (admins || []).map((a: any) => a.id).filter((id: string) => id !== userId && id !== reportedUserId);
+        if (recipientIds.length === 0) {
+          return NextResponse.json(
+            { success: false, error: 'لا يوجد مراجع مُعيَّن لهذه الشكوى بعد' },
+            { status: 400 }
+          );
+        }
       }
     } else {
-      // Staff (assigned/admin) replying — determine which party to send to
-      // Default: send to the reporter (can be overridden with recipient_type in body)
-      const bodyRecipientType = body.recipient_type as 'reporter' | 'reported' | undefined;
-      if (bodyRecipientType === 'reported') {
-        recipientId = reportedUserId;
-        recipientType = 'reported';
-      } else {
-        recipientId = report.reporter_id;
-        recipientType = 'reporter';
+      // Staff (assigned/admin) replying: to the author of the message being answered, else the chosen party, else the reporter.
+      let target: 'reporter' | 'reported' | null = null;
+      const replyTo = typeof body.reply_to === 'string' ? body.reply_to : null;
+      if (replyTo) {
+        const { data: orig } = await supabaseServer.from('report_messages').select('sender_id, report_id').eq('id', replyTo).maybeSingle();
+        if (orig && orig.report_id === report_id) {
+          if (orig.sender_id === report.reporter_id) target = 'reporter';
+          else if (reportedUserId && orig.sender_id === reportedUserId) target = 'reported';
+        }
       }
+      if (!target) target = body.recipient_type === 'reported' ? 'reported' : 'reporter';
+      recipientType = target;
+      const rid = target === 'reported' ? reportedUserId : report.reporter_id;
+      if (rid) recipientIds = [rid];
     }
 
-    if (!recipientId) {
+    if (recipientIds.length === 0) {
       return NextResponse.json(
         { success: false, error: 'لم يتم تحديد المستلم' },
         { status: 400 }
       );
     }
 
-    // Insert the reply message
-    const { data: message, error: msgError } = await supabaseServer
+    // Insert the reply message (one row per recipient)
+    const rows = recipientIds.map((rid) => ({
+      report_id,
+      sender_id: userId,
+      recipient_type: recipientType,
+      recipient_id: rid,
+      content: content.trim(),
+      attachments: attachments || [],
+      message_type: 'info',
+    }));
+    const { data: inserted, error: msgError } = await supabaseServer
       .from('report_messages')
-      .insert({
-        report_id,
-        sender_id: userId,
-        recipient_type: recipientType,
-        recipient_id: recipientId,
-        content: content.trim(),
-        attachments: attachments || [],
-        message_type: 'info',
-      })
-      .select()
-      .single();
+      .insert(rows)
+      .select();
+    const message = inserted && inserted[0];
 
     if (msgError) {
       console.error('[Reports Messages] Insert error:', msgError.message);
