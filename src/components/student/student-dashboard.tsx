@@ -3091,7 +3091,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       })),
       studentId: profile.id,
     });
-    return Math.round(metrics.overallPerformance);
+    return Number(metrics.overallPerformance.toFixed(2));
   }, [scores, attendanceSessions, attendanceRecords, perfSubmissions, perfAssignments, profile.id]);
 
   // -------------------------------------------------------
