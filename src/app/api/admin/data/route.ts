@@ -210,7 +210,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'banned') {
-      const { data: banned, error: bannedError } = await supabaseServer
+      const { data: bannedAll, error: bannedError } = await supabaseServer
         .from('banned_users')
         .select('*')
         .order('banned_at', { ascending: false });
@@ -219,6 +219,10 @@ export async function GET(request: NextRequest) {
         console.error('Error fetching banned users:', bannedError);
         errors.push(`banned: ${bannedError.message}`);
       } else {
+        // Accounts deleted by an admin are kept as blocks (email + phone) but are listed separately from real bans.
+        const banned = (bannedAll || []).filter((b: Record<string, unknown>) => b.source !== 'deleted');
+        const deletedAll = (bannedAll || []).filter((b: Record<string, unknown>) => b.source === 'deleted' && b.is_active !== false);
+        results.deleted = deletedAll.map((d: Record<string, unknown>) => ({ id: d.id, email: d.email, phone: d.phone ?? null, banned_at: d.banned_at }));
         // Batch enrichment: get all user names in one query
         const bannedUserIds = (banned || [])
           .map((ban: Record<string, unknown>) => ban.user_id as string)
