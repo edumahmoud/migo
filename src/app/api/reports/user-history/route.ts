@@ -31,8 +31,7 @@ export async function GET(request: NextRequest) {
 
     let q = supabaseServer
       .from('reports')
-      .select('id, report_number, created_at, reason, status, target_type, target_id, reporter_id, assigned_to, description')
-      .is('archived_at', null)
+      .select('id, report_number, created_at, reason, status, target_type, target_id, reporter_id, assigned_to, description, archived_at, archived_by')
       .order('created_at', { ascending: false })
       .limit(200);
     q = type === 'filed'
@@ -59,6 +58,11 @@ export async function GET(request: NextRequest) {
         || r.assigned_to === viewerId
         || (role === 'admin' && !r.assigned_to);
       if (!inScope) { hidden++; continue; }
+      // Archived complaints stay hidden from the people they involve; staff in scope still see them (flagged) so totals match.
+      if ((r as any).archived_at) {
+        const staffInScope = !viewerIsAccused && !viewerIsReporter && (role === 'superadmin' || r.assigned_to === viewerId || (role === 'admin' && !r.assigned_to));
+        if (!staffInScope) { hidden++; continue; }
+      }
       const full = true;
       const base: any = {
         id: r.id,
@@ -67,6 +71,7 @@ export async function GET(request: NextRequest) {
         reason: r.reason,
         status: r.status,
         target_type: r.target_type,
+        archived: !!(r as any).archived_at,
         full,
       };
       if (full) {
