@@ -30,9 +30,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate attachments if provided
+    const ALLOWED_REASONS = ['inappropriate', 'harassment', 'spam', 'misinformation', 'cheating', 'inappropriateContent', 'impersonation', 'other'];
+    if (typeof reason !== 'string' || !ALLOWED_REASONS.includes(reason)) {
+      return NextResponse.json({ success: false, error: 'سبب الإبلاغ غير صالح' }, { status: 400 });
+    }
+    const cleanDescription = typeof description === 'string' ? description.trim() : '';
+    if (cleanDescription.length > 2000) {
+      return NextResponse.json({ success: false, error: 'الوصف طويل جدا (الحد الأقصى 2000 حرف)' }, { status: 400 });
+    }
+    const reporterId = authResult.user.id;
+
+    // The target must exist (except the generic "other" type) and cannot be the reporter themselves
+    let targetOwnerId: string | null = null;
+    if (target_type !== 'other') {
+      if (!target_id || typeof target_id !== 'string') {
+        return NextResponse.json({ success: false, error: 'الهدف مطلوب' }, { status: 400 });
+      }
+      try {
+        if (target_type === 'user') {
+          const { data } = await supabaseServer.from('users').select('id').eq('id', target_id).maybeSingle();
+          targetOwnerId = data?.id || null;
+        } else if (target_type === 'comment') {
+          const { data } = await supabaseServer.from('video_comments').select('user_id').eq('id', target_id).maybeSingle();
+          targetOwnerId = data?.user_id || null;
+        } else if (target_type === 'message') {
+          const { data } = await supabaseServer.from('chat_messages').select('sender_id').eq('id', target_id).maybeSingle();
+          targetOwnerId = (data as any)?.sender_id || null;
+        }
+      } catch {}
+      if (!targetOwnerId) {
+        return NextResponse.json({ success: false, error: 'الهدف غير موجود' }, { status: 404 });
+      }
+      if (targetOwnerId === reporterId) {
+        return NextResponse.json({ success: false, error: 'لا يمكنك تقديم شكوى ضد نفسك' }, { status: 400 });
+      }
+      // One open complaint per reporter and target
+      const { data: dup } = await supabaseServer
+        .from('reports')
+        .select('id')
+        .eq('reporter_id', reporterId)
+        .eq('target_type', target_type)
+        .eq('target_id', target_id)
+        .in('status', ['pending', 'in_progress'])
+        .limit(1);
+      if (dup && dup.length > 0) {
+        return NextResponse.json({ success: false, error: 'لديك شكوى مفتوحة بالفعل ضد نفس الهدف' }, { status: 409 });
+      }
+    }
+    // Rate limit: 5 per hour, 20 per day per reporter
+    {
+      const hourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+      const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const [{ count: h }, { count: d }] = await Promise.all([
+        supabaseServer.from('reports').select('id', { count: 'exact', head: true }).eq('reporter_id', reporterId).gte('created_at', hourAgo),
+        supabaseServer.from('reports').select('id', { count: 'exact', head: true }).eq('reporter_id', reporterId).gte('created_at', dayAgo),
+      ]);
+      if ((h || 0) >= 5 || (d || 0) >= 20) {
+        return NextResponse.json({ success: false, error: 'تجاوزت الحد المسموح من الشكاوى. حاول لاحقا' }, { status: 429 });
+      }
+    }
+
+    // Validate attachments: only files uploaded through the evidence endpoint
     const validAttachments = Array.isArray(attachments) && attachments.length > 0
-      ? attachments.filter((a: any) => a.url && a.name).slice(0, 3)
+      ? attachments
+          .filter((a: any) => a && typeof a.url === 'string' && typeof a.name === 'string' && a.url.includes('/storage/v1/object/public/report-evidence/'))
+          .slice(0, 3)
+          .map((a: any) => ({ ...a, name: String(a.name).slice(0, 120) }))
       : [];
 
     // Create the report — the DB trigger auto_assign_report() will set assigned_to
@@ -43,7 +106,7 @@ export async function POST(request: NextRequest) {
         target_type,
         target_id: target_id || null,
         reason,
-        description: description || null,
+        description: cleanDescription || null,
         attachments: validAttachments.length > 0 ? validAttachments : [],
         status: 'pending',
       })
@@ -552,14 +615,11 @@ async function enrichAndReturn(
   // The reported person must never see who filed the complaint (or the internal assignee).
   const isAdminRole = role === 'admin' || role === 'superadmin';
   const safeReports = reports.map((r: any) => {
-    if (isAdminRole || r.reporter_id === userId) return r;
+    if (r.reporter_id === userId) return r;
     const isReported = (r.target_type === 'user' && r.target_id === userId) || r.target_user?.id === userId;
-    if (isReported) {
-      // also hidden when the reported person is the assignee (complaints against a teacher are assigned to them)
-      return r.assigned_to === userId
-        ? { ...r, reporter: null, reporter_id: null }
-        : { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null };
-    }
+    // The accused (even an admin, or the assignee) never sees the reporter or the internal assignee.
+    if (isReported) return { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null };
+    if (isAdminRole) return r;
     return r.assigned_to === userId
       ? r
       : { ...r, reporter: null, reporter_id: null, assigned_user: null, assigned_to: null };
