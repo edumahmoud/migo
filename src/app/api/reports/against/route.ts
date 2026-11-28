@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
         .from('reports')
         .select(selectFields)
         .eq('target_type', 'user')
-        .eq('target_id', userId),
+        .eq('target_id', userId)
+        .is('archived_at', null),
     ];
 
     // Reports targeting this user's comments
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
           .select(selectFields)
           .eq('target_type', 'comment')
           .in('target_id', cIds)
+          .is('archived_at', null)
       );
     }
 
@@ -56,6 +58,7 @@ export async function GET(request: NextRequest) {
           .select(selectFields)
           .eq('target_type', 'message')
           .in('target_id', mIds)
+          .is('archived_at', null)
       );
     }
 
