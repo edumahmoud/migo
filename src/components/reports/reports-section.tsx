@@ -503,7 +503,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   // Handle sending reply to inbox message
   // -------------------------------------------------------
-  const handleSendReply = async (reportId: string) => {
+  const handleSendReply = async (reportId: string, replyToId?: string) => {
     if (!replyContent.trim() && replyAttachments.length === 0) {
       toast.error(t('reports.replyRequired'));
       return;
@@ -522,6 +522,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         },
         body: JSON.stringify({
           report_id: reportId,
+          reply_to: replyToId,
           content: replyContent.trim(),
           attachments: replyAttachments.length > 0 ? replyAttachments : undefined,
         }),
@@ -1279,27 +1280,17 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const report = selectedReport;
     if (!report) return null;
 
-    // Combine responses and messages into a unified timeline
+    // The action log lists actions and notes only. Private messages (including warnings and auto notices) live in the inbox.
     const allActions = [
-      ...responses.map(r => ({
+      ...responses.filter(r => r.action !== 'message_reporter' && r.action !== 'message_reported').map(r => ({
         type: 'response' as const,
         date: r.created_at,
         data: r,
-      })),
-      ...messages.map(m => ({
-        type: 'message' as const,
-        date: m.created_at,
-        data: m,
       })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Filter actions: messages only visible to the sender; students see limited actions
     const filteredActions = allActions.filter(item => {
-      if (item.type === 'message') {
-        // Messages in actions log are only visible to the sender
-        const msg = item.data as ReportMessage;
-        return msg.sender_id === profile.id || (msg as any).recipient_id === profile.id;
-      }
       // What each role may see is decided by the server (GET /api/reports/[id]).
       return true;
     });
@@ -1384,62 +1375,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         )}
                       </div>
                     );
-                  } else {
-                    const msg = item.data as ReportMessage;
-                    const isWarning = msg.message_type === 'warning';
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`rounded-lg border p-2.5 ${
-                          isWarning
-                            ? 'border-orange-300 dark:border-orange-900/60 bg-orange-50/50 dark:bg-orange-900/20'
-                            : 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/10'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <div className="flex items-center gap-2">
-                            {isWarning ? (
-                              <div className="h-6 w-6 rounded-full bg-orange-200 dark:bg-orange-800/60 flex items-center justify-center">
-                                <AlertTriangle className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" />
-                              </div>
-                            ) : msg.sender ? (
-                              <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />
-                            ) : null}
-                            <span className="text-sm font-medium">
-                              {isWarning ? t('reports.officialWarning') : msg.sender ? <><UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} /> <RoleBadge role={msg.sender.role} t={t} /></> : t('common.user')}
-                            </span>
-                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                              isWarning
-                                ? 'text-orange-600 dark:text-orange-400'
-                                : 'text-sky-600 dark:text-sky-400'
-                            }`}>
-                              {isWarning ? (
-                                <><AlertTriangle className="h-3.5 w-3.5" /> {t('reports.warningToUser')}</>
-                              ) : (
-                                <><Mail className="h-3.5 w-3.5" /> {msg.recipient_type === 'reporter' ? t('reports.messageToReporter') : t('reports.messageToAccused')}</>
-                              )}
-                            </span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
-                        </div>
-                        <p className={`text-sm whitespace-pre-wrap mt-1 ms-10 ${
-                          isWarning ? 'text-orange-800 dark:text-orange-300' : 'text-foreground'
-                        }`}>{isWarning && msg.content.trim() === t('reports.warn') ? t('reports.warningDefaultBody') : msg.content}</p>
-                        {/* Message attachments in timeline */}
-                        {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-1.5 ms-10">
-                            {msg.attachments.map((att: any, ai: number) => (
-                              <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
-                                <div className="rounded overflow-hidden border border-border h-10 w-10 hover:opacity-80 transition-opacity">
-                                  <img src={att.url} alt={att.name || t('common.preview')} className="h-full w-full object-cover" />
-                                </div>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
                   }
+                  return null;
                 })}
               </div>
             </motion.div>
@@ -1609,6 +1546,31 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
         {/* Actions Log */}
         {renderActionsLog()}
+
+        {/* ─── The reporter can add a note to the complaint (answers the handler or an objection) ─── */}
+        {isReporter && !canTakeAction && isActive && (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              {tr('أضف ملحوظة أو رد على الشكوى', 'Add a note or reply on the complaint')}
+            </h4>
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder={t('reports.replyPlaceholder')}
+              rows={3}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <button
+              onClick={() => handleAction('reply')}
+              disabled={submitting || !replyText.trim()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-700 text-white text-sm font-medium hover:bg-sky-800 disabled:opacity-50 transition-colors"
+            >
+              <Send className="h-4 w-4" />
+              {t('reports.reply')}
+            </button>
+          </div>
+        )}
 
         {/* ─── Action Panel (only for staff who can take action) ─── */}
         {canTakeAction && (
@@ -1885,6 +1847,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       return;
     }
 
+    if (banDuration === 'custom') {
+      const when = banCustomDate ? new Date(banCustomDate) : null;
+      if (!when || isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        toast.error(tr('اختر تاريخ ووقت انتهاء الحظر في المستقبل', 'Pick a ban end date and time in the future'));
+        return;
+      }
+    }
+
     setSubmitting(true);
     setBanModalOpen(false);
     try {
@@ -2095,7 +2065,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     {t('reports.viewRelatedReport')}
                   </button>
                 )}
-                {msg.message_type !== 'auto' && (
+                {(
                   <button
                     onClick={() => {
                       if (replyingTo === msg.id) {
@@ -2161,7 +2131,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       {replyUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                     </button>
                     <button
-                      onClick={() => handleSendReply(msg.report_id)}
+                      onClick={() => handleSendReply(msg.report_id, msg.id)}
                       disabled={replySending || (!replyContent.trim() && replyAttachments.length === 0)}
                       className="ms-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors"
                     >
@@ -2264,11 +2234,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 { id: '1day' as const, label: t('reports.banModal.oneDay') },
                 { id: '1week' as const, label: t('reports.banModal.oneWeek') },
                 { id: '1month' as const, label: t('reports.banModal.oneMonth') },
+                { id: 'custom' as const, label: t('reports.banModal.customDate') },
               ].map((d) => (
                 <button
                   key={d.id}
                   onClick={() => setBanDuration(d.id)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  className={`${d.id === 'custom' ? 'col-span-2 ' : ''}px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                     banDuration === d.id
                       ? 'border-red-300 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-500'
                       : 'border-border text-muted-foreground hover:bg-muted'
@@ -2282,16 +2253,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <input
                 type="datetime-local"
                 value={banCustomDate}
+                min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 60000).toISOString().slice(0, 16)}
                 onChange={(e) => setBanCustomDate(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             )}
-            <button
-              onClick={() => setBanDuration('custom')}
-              className={`text-xs font-medium hover:underline ${banDuration === 'custom' ? 'text-red-600' : 'text-muted-foreground'}`}
-            >
-              t('reports.banModal.customDate')
-            </button>
           </div>
 
           {/* Reason */}
