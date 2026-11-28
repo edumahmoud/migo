@@ -103,6 +103,9 @@ const itemVariants = {
 // -------------------------------------------------------
 // Helper: format date to Arabic-friendly string
 // -------------------------------------------------------
+// Whole values show as 62, fractional ones as 50.69 (max 2 decimals, no trailing zeros)
+const fmtPct = (n: number): number => (Number.isFinite(n) ? Number(n.toFixed(2)) : 0);
+
 function formatDate(dateStr: string): string {
   try {
     const date = new Date(dateStr);
@@ -234,7 +237,7 @@ export default function StudentTrackingSection({
       .slice(-12)
       .map(([month, data]) => ({
         month,
-        performance: data.count > 0 ? Math.round(data.totalPct / data.count) : 0,
+        performance: data.count > 0 ? fmtPct(data.totalPct / data.count) : 0,
       }));
   }, [scores]);
 
@@ -427,7 +430,7 @@ export default function StudentTrackingSection({
         date: new Date().toISOString(),
         type: 'achievement',
         title: t('student.trackingTimelineAchievement'),
-        detail: `${Math.round(metrics.overallPerformance)}%`,
+        detail: `${fmtPct(metrics.overallPerformance)}%`,
         importance: 'high',
       });
     }
@@ -543,7 +546,7 @@ export default function StudentTrackingSection({
         />
       </div>
       <span className="text-[10px] font-medium text-muted-foreground min-w-[28px] text-end">
-        {Math.round(value)}%
+        {fmtPct(value)}%
       </span>
     </div>
   );
@@ -806,7 +809,7 @@ export default function StudentTrackingSection({
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   <span className={`text-2xl font-bold ${performanceConfig.textColor}`}>
-                    {Math.round(metrics.overallPerformance)}%
+                    {fmtPct(metrics.overallPerformance)}%
                   </span>
                   <Badge variant="outline" className={`${riskConfig.bgColor} ${riskConfig.textColor} ${riskConfig.borderColor} text-xs`}>
                     {getRiskLevelLabel(metrics.riskLevel)}
@@ -858,7 +861,7 @@ export default function StudentTrackingSection({
               </div>
               <p className="text-[10px] font-medium text-teal-600 dark:text-teal-400">{t('student.trackingOverallProgress')}</p>
             </div>
-            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(metrics.overallPerformance)}<span className="text-sm">%</span></p>
+            <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{fmtPct(metrics.overallPerformance)}<span className="text-sm">%</span></p>
             <Badge className={`mt-1 text-[8px] px-1.5 py-0 border-0 ${performanceConfig.bgColor} ${performanceConfig.textColor}`}>
               {performanceConfig.icon} {t(`student.trackingLevel${metrics.performanceLevel.charAt(0).toUpperCase() + metrics.performanceLevel.slice(1)}` as Parameters<typeof t>[0])}
             </Badge>
@@ -882,7 +885,7 @@ export default function StudentTrackingSection({
               </>
             ) : (
               <>
-                <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{Math.round(metrics.efficiency)}<span className="text-sm">%</span></p>
+                <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{fmtPct(metrics.efficiency)}<span className="text-sm">%</span></p>
                 <Badge className={`mt-1 text-[8px] px-1.5 py-0 border-0 ${efficiencyConfig.bgColor} ${efficiencyConfig.textColor}`}>
                   {metrics.efficiencyLevel === 'high' ? '⚡' : metrics.efficiencyLevel === 'medium' ? '●' : '▼'} {t(`student.trackingEfficiency${metrics.efficiencyLevel.charAt(0).toUpperCase() + metrics.efficiencyLevel.slice(1)}` as Parameters<typeof t>[0])}
                 </Badge>
@@ -901,7 +904,7 @@ export default function StudentTrackingSection({
               </div>
               <p className="text-[10px] font-medium text-violet-600 dark:text-violet-400">{t('student.trackingDisciplineScore')}</p>
             </div>
-            <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{Math.round(metrics.disciplineScore)}<span className="text-sm">%</span></p>
+            <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{fmtPct(metrics.disciplineScore)}<span className="text-sm">%</span></p>
             <p className="text-[9px] text-muted-foreground mt-1">{t('student.trackingDisciplineTooltip')}</p>
           </div>
 
@@ -953,11 +956,16 @@ export default function StudentTrackingSection({
             )}
             {metrics.riskReasons.length > 0 ? (
               <div className="mt-2 space-y-0.5">
+                {metrics.riskLevel === 'healthy' && (
+                  <p className="text-[9px] text-emerald-700 dark:text-emerald-400">
+                    {locale === 'ar' ? 'لا توجد عوامل خطر مؤثرة. ملاحظة بسيطة لا ترفع الخطر:' : 'No significant risk factors. Minor note, not enough to raise risk:'}
+                  </p>
+                )}
                 {metrics.riskReasons.slice(0, 2).map((reason, idx) => {
                   const ev = metrics.riskEvidence?.find(e => e.key === reason);
                   return (
                     <p key={idx} className="text-[9px] text-muted-foreground/80 truncate">
-                      • {getRiskReasonLabel(reason)}{ev && ev.value !== null ? ` (${Math.round(ev.value)}%)` : ''}
+                      • {getRiskReasonLabel(reason)}{ev && ev.value !== null ? ` (${fmtPct(ev.value)}%)` : ''}
                     </p>
                   );
                 })}
@@ -1051,7 +1059,7 @@ export default function StudentTrackingSection({
                           <span className={`text-[11px] flex-1 ${entry.isCurrent ? 'text-foreground font-bold' : 'text-muted-foreground'}`}>{entry.name}</span>
                           {entry.isCurrent && (
                             <Badge className="text-[8px] px-1.5 py-0" style={{ backgroundColor: entry.color, color: '#fff' }}>
-                              {Math.round(metrics.overallPerformance)}%
+                              {fmtPct(metrics.overallPerformance)}%
                             </Badge>
                           )}
                         </div>
@@ -1084,7 +1092,7 @@ export default function StudentTrackingSection({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-gray-900 dark:text-foreground">{t('student.trackingExamPerformance')}</p>
-                    <span className="text-sm font-bold text-sky-700 dark:text-sky-400">{Math.round(metrics.examPerformance)}%</span>
+                    <span className="text-sm font-bold text-sky-700 dark:text-sky-400">{fmtPct(metrics.examPerformance)}%</span>
                   </div>
                   <Progress value={metrics.examPerformance} className="h-2.5" />
                   <p className="text-[10px] text-muted-foreground/70">{t('student.trackingWeightedExamNote')}</p>
@@ -1094,7 +1102,7 @@ export default function StudentTrackingSection({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-gray-900 dark:text-foreground">{t('student.trackingAttendanceScore')}</p>
-                    <span className="text-sm font-bold text-teal-700 dark:text-teal-400">{Math.round(metrics.attendanceScore)}%</span>
+                    <span className="text-sm font-bold text-teal-700 dark:text-teal-400">{fmtPct(metrics.attendanceScore)}%</span>
                   </div>
                   <Progress value={metrics.attendanceScore} className="h-2.5" />
                   <p className="text-[10px] text-muted-foreground/70">{t('student.trackingAttendancePointsNote')}</p>
@@ -1104,7 +1112,7 @@ export default function StudentTrackingSection({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-gray-900 dark:text-foreground">{t('student.trackingAssignCompliance')}</p>
-                    <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{Math.round(metrics.assignmentCompliance)}%</span>
+                    <span className="text-sm font-bold text-amber-700 dark:text-amber-400">{fmtPct(metrics.assignmentCompliance)}%</span>
                   </div>
                   <Progress value={metrics.assignmentCompliance} className="h-2.5" />
                   <p className="text-[10px] text-muted-foreground/70">{metrics.completedAssignments}/{metrics.totalAssignments}</p>
@@ -1114,7 +1122,7 @@ export default function StudentTrackingSection({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-gray-900 dark:text-foreground">{t('student.trackingAssignQuality')}</p>
-                    <span className="text-sm font-bold text-violet-700 dark:text-violet-400">{Math.round(metrics.assignmentQuality)}%</span>
+                    <span className="text-sm font-bold text-violet-700 dark:text-violet-400">{fmtPct(metrics.assignmentQuality)}%</span>
                   </div>
                   <Progress value={metrics.assignmentQuality} className="h-2.5" />
                   <p className="text-[10px] text-muted-foreground/70">{metrics.totalEarnedPoints}/{metrics.totalPossiblePoints} pts</p>
@@ -1125,25 +1133,25 @@ export default function StudentTrackingSection({
                   <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('student.trackingOverallProgress')}</p>
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <div>
-                      <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{Math.round(metrics.examPerformance)}%</p>
+                      <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{fmtPct(metrics.examPerformance)}%</p>
                       <p className="text-[10px] text-muted-foreground">×35%</p>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{Math.round(metrics.attendanceScore)}%</p>
+                      <p className="text-sm font-bold text-teal-700 dark:text-teal-400">{fmtPct(metrics.attendanceScore)}%</p>
                       <p className="text-[10px] text-muted-foreground">×20%</p>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{Math.round(metrics.assignmentCompliance)}%</p>
+                      <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{fmtPct(metrics.assignmentCompliance)}%</p>
                       <p className="text-[10px] text-muted-foreground">×15%</p>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-violet-700 dark:text-violet-400">{Math.round(metrics.assignmentQuality)}%</p>
+                      <p className="text-sm font-bold text-violet-700 dark:text-violet-400">{fmtPct(metrics.assignmentQuality)}%</p>
                       <p className="text-[10px] text-muted-foreground">×30%</p>
                     </div>
                   </div>
                   <div className="mt-2 pt-2 border-t border-sky-100/50 dark:border-sky-900/30 text-center">
                     <p className="text-lg font-bold text-gray-900 dark:text-foreground">
-                      {Math.round(metrics.overallPerformance)}%
+                      {fmtPct(metrics.overallPerformance)}%
                     </p>
                   </div>
                 </div>
@@ -1188,7 +1196,7 @@ export default function StudentTrackingSection({
                         <div className="flex items-center gap-2 mt-1">
                           <Progress value={item.rate} className="h-2 flex-1" />
                           <span className="text-xs font-medium text-sky-700 dark:text-sky-400 min-w-[40px] text-start">
-                            {Math.round(item.rate)}%
+                            {fmtPct(item.rate)}%
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -1297,7 +1305,7 @@ export default function StudentTrackingSection({
                               />
                             </div>
                             <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
-                              {Math.round(subject.overallPerformance)}%
+                              {fmtPct(subject.overallPerformance)}%
                             </span>
                           </div>
                         </div>
