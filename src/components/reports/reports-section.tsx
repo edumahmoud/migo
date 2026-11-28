@@ -167,6 +167,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [loadingAgainst, setLoadingAgainst] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ReportResponseAction | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [historyView, setHistoryView] = useState<{ type: 'against' | 'filed'; userName: string; loading: boolean; rows: any[]; hidden: number } | null>(null);
   const [targetUserStats, setTargetUserStats] = useState<{total_filed: number, total_against: number, total_reporters: number} | null>(null);
 
   // -------------------------------------------------------
@@ -1051,6 +1052,86 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   // Render: Target User Info Card
   // -------------------------------------------------------
+  const openHistory = async (type: 'against' | 'filed', userId: string, userName: string) => {
+    setHistoryView({ type, userName, loading: true, rows: [], hidden: 0 });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`/api/reports/user-history?user_id=${userId}&type=${type}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        setHistoryView({ type, userName, loading: false, rows: result.data.rows || [], hidden: result.data.hidden_count || 0 });
+      } else {
+        setHistoryView(null);
+        toast.error(result.error || tr('تعذر تحميل السجل', 'Could not load the history'));
+      }
+    } catch {
+      setHistoryView(null);
+      toast.error(tr('تعذر تحميل السجل', 'Could not load the history'));
+    }
+  };
+
+  const renderHistoryModal = () => {
+    if (!historyView) return null;
+    const h = historyView;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setHistoryView(null)}>
+        <div className="bg-card rounded-2xl border border-border p-4 w-full max-w-lg mx-4 shadow-xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-base font-bold text-foreground">
+              {h.type === 'against'
+                ? tr(`الشكاوى المقدمة ضد ${h.userName}`, `Complaints against ${h.userName}`)
+                : tr(`الشكاوى التي قدمها ${h.userName}`, `Complaints filed by ${h.userName}`)}
+            </h3>
+            <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setHistoryView(null)}>
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto space-y-2">
+            {h.loading ? (
+              <p className="text-sm text-muted-foreground text-center py-6">{tr('جار التحميل...', 'Loading...')}</p>
+            ) : h.rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">{tr('لا توجد شكاوى', 'No complaints')}</p>
+            ) : h.rows.map((r: any) => (
+              <button
+                key={r.id}
+                type="button"
+                disabled={!r.full}
+                onClick={() => { setHistoryView(null); fetchReportDetail(r.id, true); }}
+                className="w-full text-start rounded-xl border border-border p-3 hover:bg-muted/50 disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-mono text-muted-foreground">{r.report_number}</span>
+                  <StatusBadge status={r.status} t={t} />
+                </div>
+                <div className="text-sm font-semibold text-foreground mt-1">{getReasonLabel(r.reason, t)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{formatDate(r.created_at)}</div>
+                {r.full ? (
+                  <div className="mt-1 space-y-0.5">
+                    {h.type === 'against' && r.reporter_name ? (
+                      <div className="text-xs text-muted-foreground">{tr('الشاكي', 'Reporter')}: {r.reporter_name}</div>
+                    ) : null}
+                    {h.type === 'filed' && r.target_name ? (
+                      <div className="text-xs text-muted-foreground">{tr('المشكو منه', 'Reported')}: {r.target_name}</div>
+                    ) : null}
+                    {r.description ? <div className="text-xs text-foreground line-clamp-2">{r.description}</div> : null}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground mt-1">{tr('ملخص فقط، التفاصيل لغير المعين', 'Summary only: details are limited to the assigned handler')}</div>
+                )}
+              </button>
+            ))}
+            {h.hidden > 0 ? (
+              <p className="text-xs text-muted-foreground text-center">{tr(`${h.hidden} شكوى خارج نطاق صلاحياتك`, `${h.hidden} complaint(s) outside your scope`)}</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderTargetUserInfo = () => {
     const report = selectedReport;
     if (!report?.target_user) return null;
@@ -1076,21 +1157,21 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         </div>
         {isStaff ? (
           <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
-            <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-rose-600 dark:text-rose-500">
+            <button type="button" onClick={() => openHistory('against', tu.id, tu.name)} className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-rose-600 dark:text-rose-500 underline-offset-2 hover:underline">
               <BarChart3 className="h-3 w-3" />
               <b>{targetUserStats?.total_against ?? tu.report_count ?? 0}</b>
               <span className="text-muted-foreground">{t('reports.complaintCount')}</span>
-            </span>
+            </button>
             <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-amber-600 dark:text-amber-500">
               <Users className="h-3 w-3" />
               <b>{targetUserStats?.total_reporters ?? reporterCount}</b>
               <span className="text-muted-foreground">{t('reports.reporterCountBadge')}</span>
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-sky-600 dark:text-sky-400">
+            <button type="button" onClick={() => openHistory('filed', tu.id, tu.name)} className="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-sky-600 dark:text-sky-400 underline-offset-2 hover:underline">
               <Flag className="h-3 w-3" />
               <b>{targetUserStats?.total_filed ?? 0}</b>
               <span className="text-muted-foreground">{t('reports.filedReports')}</span>
-            </span>
+            </button>
           </div>
         ) : null}
       </div>
@@ -2156,6 +2237,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     <div className="min-h-[50vh]">
       {/* Ban Modal */}
       {renderBanModal()}
+      {renderHistoryModal()}
 
       {/* Confirmation Dialog */}
       <AnimatePresence>
