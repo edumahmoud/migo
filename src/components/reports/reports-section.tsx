@@ -2079,6 +2079,30 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 </div>
               )}
 
+              {/* Replies in this thread, compact, directly under the original message */}
+              {Array.isArray(msg.replies) && msg.replies.length > 0 && (
+                <div className="mt-2 ms-11 space-y-1.5 border-s-2 border-sky-200 dark:border-sky-800 ps-3">
+                  {msg.replies.map((rp: any) => (
+                    <div key={rp.id} className={`rounded-lg px-2.5 py-1.5 text-xs ${rp.mine ? 'bg-sky-50 dark:bg-sky-900/20 text-foreground' : 'bg-muted/40 text-foreground'}`}>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mb-0.5">
+                        <span className="font-semibold">{rp.mine ? tr('ردك', 'Your reply') : tr('رد', 'Reply')}</span>
+                        <span>{formatDate(rp.created_at)}</span>
+                      </div>
+                      <p className="whitespace-pre-wrap leading-relaxed">{rp.content}</p>
+                      {Array.isArray(rp.attachments) && rp.attachments.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {rp.attachments.map((att: any, i: number) => (
+                            <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block h-10 w-10 rounded overflow-hidden border border-border">
+                              <img src={att.url} alt="" className="h-full w-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Actions: Reply button */}
               <div className="mt-2 ms-13 flex items-center gap-2">
                 {msg.report_id && msg.recipient_type === 'reporter' && msg.message_type !== 'auto' && (
