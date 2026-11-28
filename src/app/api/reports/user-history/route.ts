@@ -79,9 +79,25 @@ export async function GET(request: NextRequest) {
       visible.push(base);
     }
 
+    // Every action taken on each complaint (timeline summary), for the rows the viewer may see.
+    const actionsBy = new Map<string, any[]>();
+    if (visible.length > 0) {
+      const { data: acts } = await supabaseServer
+        .from('report_responses')
+        .select('report_id, action, content, actor_role, responder_id, created_at')
+        .in('report_id', visible.map((r) => r.id))
+        .order('created_at', { ascending: true });
+      (acts || []).forEach((a: any) => {
+        const list = actionsBy.get(a.report_id) || [];
+        list.push(a);
+        actionsBy.set(a.report_id, list);
+      });
+    }
+
     // Names for rows the viewer may see in full
     const ids = new Set<string>();
     visible.forEach((r) => { if (r.full) { if (r.reporter_id) ids.add(r.reporter_id); if (r.target_id) ids.add(r.target_id); } });
+    actionsBy.forEach((list) => list.forEach((a) => { if (a.responder_id) ids.add(a.responder_id); }));
     const names = new Map<string, { name: string; role: string }>();
     if (ids.size > 0) {
       const { data: users } = await supabaseServer.from('users').select('id, name, role').in('id', Array.from(ids));
@@ -92,7 +108,16 @@ export async function GET(request: NextRequest) {
       const reporter = r.reporter_id ? names.get(r.reporter_id) : null;
       const target = r.target_id ? names.get(r.target_id) : null;
       const { reporter_id, target_id, ...rest } = r;
-      return { ...rest, reporter_name: reporter?.name || null, target_name: target?.name || null };
+      const viewerIsAccused = r.target_type === 'user' && r.target_id === viewerId;
+      const actions = (actionsBy.get(r.id) || []).map((a: any) => ({
+        action: a.action,
+        at: a.created_at,
+        actor_role: a.actor_role || names.get(a.responder_id)?.role || null,
+        // The reported person never learns who filed; they only see staff actions, without private notes.
+        by: a.responder_id === r.reporter_id && viewerIsAccused ? null : (names.get(a.responder_id)?.name || null),
+        note: viewerIsAccused ? null : (a.content ? String(a.content).slice(0, 160) : null),
+      })).filter((a: any) => !(viewerIsAccused && a.actor_role === 'reporter'));
+      return { ...rest, reporter_name: reporter?.name || null, target_name: target?.name || null, actions };
     });
 
     return NextResponse.json({ success: true, data: { rows: out, hidden_count: hidden, type } });
