@@ -10,7 +10,7 @@ function worker(offline = false) {
   const context = {
     self: { location: { origin: 'https://app.test' }, clients: { claim: async () => {} }, skipWaiting: () => {}, addEventListener: (name: string, fn: any) => { handlers[name] = fn; } },
     caches: {
-      keys: async () => ['atendo-static-v9', 'atendo-dynamic-v9', 'atendo-api-v9', 'atendo-static-v10'],
+      keys: async () => ['atendo-static-v10', 'atendo-dynamic-v10', 'atendo-api-v10', 'atendo-static-v11'],
       delete: async (key: string) => { deleted.push(key); return true; },
       open: async () => ({ add: async (url: string) => { added.push(url); } }),
       match: async (url: string) => { reads++; return new Response(url === '/offline' ? 'offline page' : 'stale shell'); },
@@ -34,10 +34,15 @@ describe('deployment-safe service worker', () => {
     w.handlers.fetch({ request: new Request('https://app.test/', { headers: { accept: 'text/html' } }), respondWith: (r: Promise<Response>) => { response = r; } });
     expect(await (await response!).text()).toBe('offline page');
   });
-  it('deletes all v9 caches on activation', async () => {
+  it('deletes all v10 caches on activation', async () => {
     const w = worker(); let work: Promise<unknown>;
     w.handlers.activate({ waitUntil: (p: Promise<unknown>) => { work = p; } }); await work!;
-    expect(w.deleted).toEqual(['atendo-static-v9', 'atendo-dynamic-v9', 'atendo-api-v9']);
+    expect(w.deleted).toEqual(['atendo-static-v10', 'atendo-dynamic-v10', 'atendo-api-v10']);
+  });
+  it('does not intercept hashed /_next/static assets', async () => {
+    const w = worker(true); let called = false;
+    w.handlers.fetch({ request: new Request('https://app.test/_next/static/chunks/a.css'), respondWith: () => { called = true; } });
+    expect(called).toBe(false);
   });
   it('does not precache the root document', async () => {
     const w = worker(); let work: Promise<unknown>;

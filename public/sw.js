@@ -1,12 +1,12 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v10';
-const STATIC_CACHE = 'atendo-static-v10';
-const DYNAMIC_CACHE = 'atendo-dynamic-v10';
-const API_CACHE = 'atendo-api-v10';
+const CACHE_NAME = 'atendo-v11';
+const STATIC_CACHE = 'atendo-static-v11';
+const DYNAMIC_CACHE = 'atendo-dynamic-v11';
+const API_CACHE = 'atendo-api-v11';
 
 // Build version — update this comment to force SW cache bust
-// BUILD_VERSION: 2.3.1-v10 (network-first HTML, discard legacy app shells)
+// BUILD_VERSION: 2.3.2-v11 (network-first HTML; /_next/static/ is left to the browser, no synthetic 503 for CSS/JS)
 
 // Static assets to precache
 // NOTE: /manifest.json is removed — the app uses the dynamic manifest at /api/manifest
@@ -144,6 +144,12 @@ self.addEventListener('fetch', (event) => {
           })
       )
     );
+    return;
+  }
+
+  // Hashed build assets (CSS/JS chunks) are immutable and already cached by the browser/CDN.
+  // Never intercept them: a synthetic 503 for a failed CSS/JS request leaves the page unstyled and stuck on the loader.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')) {
     return;
   }
 
