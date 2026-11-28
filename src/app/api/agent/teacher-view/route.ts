@@ -1388,6 +1388,7 @@ async function handleReports(teacherId: string, limit: number, offset: number) {
   const { count: totalCount } = await supabaseServer
     .from('reports')
     .select('id', { count: 'exact', head: true })
+    .is('archived_at', null)
     .in('reporter_id', studentIds);
 
   // 4. Fetch the paginated report list.
@@ -1395,6 +1396,7 @@ async function handleReports(teacherId: string, limit: number, offset: number) {
     .from('reports')
     .select('id, report_number, reporter_id, target_type, reason, description, status, created_at, reporter_count')
     .in('reporter_id', studentIds)
+    .is('archived_at', null)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 

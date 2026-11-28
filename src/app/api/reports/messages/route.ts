@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       .from('reports')
       .select('id, reporter_id, target_type, target_id, status')
       .eq('id', report_id)
+      .is('archived_at', null)
       .single();
 
     if (reportError || !report) {

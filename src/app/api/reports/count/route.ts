@@ -28,11 +28,13 @@ export async function GET(request: NextRequest) {
         supabaseServer
           .from('reports')
           .select('id', { count: 'exact', head: true })
+          .is('archived_at', null)
           .in('status', ['pending', 'in_progress'])
           .eq('assigned_to', userId),
         supabaseServer
           .from('reports')
           .select('id', { count: 'exact', head: true })
+          .is('archived_at', null)
           .eq('target_type', 'user')
           .eq('target_id', userId)
           .in('status', ['pending', 'in_progress']),
@@ -54,11 +56,13 @@ export async function GET(request: NextRequest) {
         supabaseServer
           .from('reports')
           .select('id', { count: 'exact', head: true })
+          .is('archived_at', null)
           .eq('reporter_id', userId)
           .in('status', ['in_progress', 'resolved']),
         supabaseServer
           .from('reports')
           .select('id', { count: 'exact', head: true })
+          .is('archived_at', null)
           .eq('target_type', 'user')
           .eq('target_id', userId)
           .in('status', ['pending', 'in_progress']),

@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     let q = supabaseServer
       .from('reports')
       .select('id, report_number, created_at, reason, status, target_type, target_id, reporter_id, assigned_to, description')
+      .is('archived_at', null)
       .order('created_at', { ascending: false })
       .limit(200);
     q = type === 'filed'

@@ -68,7 +68,8 @@ export async function GET(request: NextRequest) {
           id, report_number, reporter_id, target_type, target_id, reason, status,
           reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id)
         `)
-        .in('id', reportIds);
+        .in('id', reportIds)
+        .is('archived_at', null);
 
       (reportsData || []).forEach((r: any) => reportMap.set(r.id, r));
 

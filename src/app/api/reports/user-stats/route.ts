@@ -41,15 +41,18 @@ export async function GET(request: NextRequest) {
       supabaseServer
         .from('reports')
         .select('id', { count: 'exact', head: true })
+        .is('archived_at', null)
         .eq('reporter_id', targetUserId),
       supabaseServer
         .from('reports')
         .select('id', { count: 'exact', head: true })
+        .is('archived_at', null)
         .eq('target_type', 'user')
         .eq('target_id', targetUserId),
       supabaseServer
         .from('reports')
         .select('reporter_id')
+        .is('archived_at', null)
         .eq('target_type', 'user')
         .eq('target_id', targetUserId)
         .in('status', ['pending', 'in_progress']),
@@ -59,10 +62,10 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         user_id: targetUserId,
-        // From persistent stats (survives report deletion)
-        total_filed: stats?.complaints_filed_count ?? filedResult.count ?? 0,
-        total_against: stats?.complaints_against_count ?? againstResult.count ?? 0,
-        total_reporters: stats?.total_reporters_count ?? new Set((reportersResult.data || []).map((r: any) => r.reporter_id)).size,
+        // Live counts: archived and deleted complaints are not counted
+        total_filed: filedResult.count ?? 0,
+        total_against: againstResult.count ?? 0,
+        total_reporters: new Set((reportersResult.data || []).map((r: any) => r.reporter_id)).size,
         // Live counts from reports table
         live_filed: filedResult.count ?? 0,
         live_against: againstResult.count ?? 0,

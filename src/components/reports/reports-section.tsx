@@ -32,6 +32,7 @@ import {
   Search,
   Hash,
   ImagePlus,
+  Archive,
   X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -134,7 +135,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [messages, setMessages] = useState<ReportMessage[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all' | 'forwarded'>('all');
-  const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(isAdmin ? 'all' : 'submitted');
+  const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all' | 'archive'>(isAdmin ? 'all' : 'submitted');
   const [replyText, setReplyText] = useState('');
   const [objectionText, setObjectionText] = useState('');
   const [objectionSending, setObjectionSending] = useState(false);
@@ -616,6 +617,34 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   // Delete a single completed report
   // -------------------------------------------------------
+  const handleArchiveAction = async (reportId: string, action: 'archive' | 'restore') => {
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`/api/reports/${reportId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(action === 'archive' ? tr('تمت أرشفة الشكوى', 'Complaint archived') : tr('تمت استعادة الشكوى', 'Complaint restored'));
+        setSelectedReport(null);
+        setResponses([]);
+        setMessages([]);
+        fetchReports();
+        fetchReportsCount();
+      } else {
+        toast.error(result.error || tr('تعذر تنفيذ العملية', 'Operation failed'));
+      }
+    } catch {
+      toast.error(t('common.errorUnexpected'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleDeleteReport = async (reportId: string) => {
     setSubmitting(true);
     try {
@@ -878,10 +907,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       </motion.div>
 
       {/* Clear completed + info */}
-      {reports.some(r => r.status === 'resolved' || r.status === 'dismissed') && (
+      {isAdmin && viewMode === 'archive' && reports.length > 0 && (
         <motion.div variants={itemVariants} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-1.5">
           <p className="text-[11px] text-muted-foreground">
-            {t('reports.autoDeleteNotice')}
+            {tr('الشكاوى المؤرشفة مخفية عن كل الحسابات. الحذف يدوي من هنا فقط.', 'Archived complaints are hidden from all accounts. Deleting is manual and only from here.')}
           </p>
           <div className="flex items-center gap-2">
             {!showClearConfirm ? (
@@ -918,6 +947,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               { id: 'all' as const, label: t('reports.allReports') },
               { id: 'assigned' as const, label: t('reports.assignedToMe') },
               { id: 'submitted' as const, label: t('reports.submittedByMe') },
+              { id: 'archive' as const, label: tr('الأرشيف', 'Archive') },
             ].map((mode) => (
               <button
                 key={mode.id}
@@ -1781,8 +1811,34 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           </button>
         )}
 
-        {/* Delete button for completed reports */}
-        {(selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (isReporter || isAssignedToMe || isAdmin) && (
+        {/* Manual archive / restore (supervisor or superadmin) */}
+        {isAdmin && (selectedReport as any).archived_at && (
+          <div className="pt-2">
+            <button
+              onClick={() => handleArchiveAction(selectedReport.id, 'restore')}
+              disabled={submitting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            >
+              <RotateCcw className="h-4 w-4" />
+              {tr('استعادة من الأرشيف', 'Restore from archive')}
+            </button>
+          </div>
+        )}
+        {isAdmin && !(selectedReport as any).archived_at && (selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (
+          <div className="pt-2">
+            <button
+              onClick={() => handleArchiveAction(selectedReport.id, 'archive')}
+              disabled={submitting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-600 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
+            >
+              <Archive className="h-4 w-4" />
+              {tr('أرشفة الشكوى', 'Archive complaint')}
+            </button>
+          </div>
+        )}
+
+        {/* Delete is manual and only from the archive */}
+        {isAdmin && (selectedReport as any).archived_at && (
           <div className="pt-2">
             <button
               onClick={() => setConfirmDeleteId(selectedReport.id)}

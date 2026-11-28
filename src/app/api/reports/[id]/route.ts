@@ -69,6 +69,13 @@ export async function GET(
     // Nobody handles a complaint about themselves: a reported admin or teacher is treated as the accused.
     // Admins see complaints assigned to them or unassigned; the platform owner sees all.
     const isStaffRole = (role === 'superadmin' || (role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) && !isTargetUser;
+    // Archived complaints are hidden from everyone except a supervisor in scope or the superadmin (archive view).
+    if ((report as any).archived_at && !(isStaffRole && (role === 'admin' || role === 'superadmin'))) {
+      return NextResponse.json(
+        { success: false, error: 'الإبلاغ غير موجود' },
+        { status: 404 }
+      );
+    }
     if (report.reporter_id !== userId && report.assigned_to !== userId && !isStaffRole && !isTargetUser) {
       return NextResponse.json(
         { success: false, error: 'غير مصرح بالوصول' },
@@ -278,7 +285,7 @@ export async function PATCH(
     const body = await request.json();
     const { action, content, forwarded_to, message_to, message_content } = body;
 
-    const validActions = ['reply', 'forward', 'resolve', 'dismiss', 'reopen', 'block', 'warn', 'message_reporter', 'message_reported', 'return', 'objection'];
+    const validActions = ['reply', 'forward', 'resolve', 'dismiss', 'reopen', 'block', 'warn', 'message_reporter', 'message_reported', 'return', 'objection', 'archive', 'restore'];
     if (!action || !validActions.includes(action)) {
       return NextResponse.json(
         { success: false, error: 'إجراء غير صالح' },
@@ -293,6 +300,41 @@ export async function PATCH(
     const isAdmin = (role === 'superadmin' || (role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) && !isReportedSelf;
     const isAssigned = report.assigned_to === userId && !isReportedSelf;
     const isReporter = report.reporter_id === userId;
+
+    // ─── Manual archive / restore (supervisor in scope or superadmin) ───
+    const isArchived = !!(report as any).archived_at;
+    if (isArchived && action !== 'restore') {
+      return isAdmin
+        ? NextResponse.json({ success: false, error: 'الإبلاغ مؤرشف' }, { status: 409 })
+        : NextResponse.json({ success: false, error: 'الإبلاغ غير موجود' }, { status: 404 });
+    }
+    if (action === 'archive' || action === 'restore') {
+      if (!isAdmin || (role !== 'admin' && role !== 'superadmin')) {
+        return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
+      }
+      if (action === 'archive' && !['resolved', 'dismissed'].includes(report.status)) {
+        return NextResponse.json({ success: false, error: 'يمكن أرشفة الشكاوى المقفولة فقط' }, { status: 400 });
+      }
+      if (action === 'restore' && !isArchived) {
+        return NextResponse.json({ success: false, error: 'الإبلاغ غير مؤرشف' }, { status: 409 });
+      }
+      const patch = action === 'archive'
+        ? { archived_at: new Date().toISOString(), archived_by: userId }
+        : { archived_at: null, archived_by: null };
+      const { error: archErr } = await supabaseServer.from('reports').update(patch).eq('id', id);
+      if (archErr) {
+        return NextResponse.json({ success: false, error: 'تعذر تنفيذ العملية' }, { status: 500 });
+      }
+      await supabaseServer.from('report_audit_log').insert({
+        report_id: id,
+        report_number: (report as any).report_number,
+        action,
+        actor_id: userId,
+        actor_role: role,
+        details: { status: report.status },
+      });
+      return NextResponse.json({ success: true, data: { archived: action === 'archive' } });
+    }
 
     // Objection: only the reported person (not the reporter / assignee / admin), once per report
     if (action === 'objection') {
