@@ -1,3 +1,4 @@
+import { isPhoneBlocked, BLOCKED_PHONE_MESSAGE } from '@/lib/blocked-phone';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { scryptSync, timingSafeEqual } from 'crypto';
@@ -71,6 +72,10 @@ export async function POST(request: NextRequest) {
   }
 
   const p = profile as { id: string; account_status: string; phone: string | null; phone_verified: boolean };
+
+  if (p.phone && await isPhoneBlocked(p.phone)) {
+    return NextResponse.json({ success: false, error: BLOCKED_PHONE_MESSAGE }, { status: 403 });
+  }
 
   // 2. Resilient OTP gate
   const needsOtp =
