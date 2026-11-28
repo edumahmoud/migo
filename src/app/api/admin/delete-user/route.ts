@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { normalizePhoneToE164 } from '@/lib/phone-utils';
 import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     // Fetch user's email and role before deleting
     const { data: userRecord } = await supabaseServer
       .from('users')
-      .select('email, role, name')
+      .select('email, role, name, phone')
       .eq('id', userId)
       .maybeSingle();
 
@@ -189,6 +190,10 @@ export async function POST(request: NextRequest) {
           email: userEmail,
           reason: 'تم الحذف بواسطة المشرف',
           banned_by: authUserId,
+          source: 'deleted',
+          is_active: true,
+          ban_until: null,
+          phone: normalizePhoneToE164(userRecord?.phone as string | null) ?? null,
         }, { onConflict: 'email' });
       } catch { /* non-fatal */ }
     }
