@@ -48,9 +48,48 @@ const ACTION_EN: Record<string, string> = {
   'payout_method.created': 'Payout method added', 'payout_method.updated': 'Payout method updated', 'payout_method.deleted': 'Payout method deleted', 'payout_method.disabled': 'Payout method disabled',
   'payout_method.reenabled': 'Payout method re-enabled', 'payout_method.set_default': 'Default payout method set', 'payout_method.verified': 'Payout method verified',
 };
+// Generic fallback: every DB-trigger event is "<noun>.<verb>", so the label is built from a noun and a verb.
+// Nouns/entities here cover every audit_attach() table and every code path that writes audit_events.
+const NOUN: Record<string, [string, string]> = {
+  user: ['مستخدم', 'User'], ban: ['حظر', 'Ban'], suspension: ['إيقاف طالب', 'Student suspension'], agent: ['مندوب تسجيل', 'Registration agent'],
+  subject: ['مادة', 'Subject'], subject_teacher: ['ربط معلم بمادة', 'Subject-teacher link'],
+  order: ['طلب', 'Order'], order_force_activate: ['تفعيل طلب يدويًا', 'Forced order activation'], ledger: ['قيد مالي', 'Ledger entry'], ledger_entry: ['قيد مالي', 'Ledger entry'],
+  payment: ['دفعة', 'Payment'], gateway: ['بوابة دفع', 'Payment gateway'], gateway_audit: ['سجل بوابة دفع', 'Gateway log'],
+  payout: ['طلب سحب', 'Payout'], payout_method: ['وسيلة سحب', 'Payout method'], commission: ['عمولة', 'Commission'], fee: ['رسوم', 'Fee'],
+  storage_plan: ['باقة تخزين', 'Storage plan'], storage_upgrade: ['ترقية تخزين', 'Storage upgrade'], storage_subscription: ['اشتراك تخزين', 'Storage subscription'], storage_sub: ['اشتراك تخزين', 'Storage subscription'],
+  section_unlock: ['فتح قسم', 'Section unlock'], user_section_unlock: ['فتح قسم لمستخدم', 'User section unlock'], section_config: ['إعداد قسم مدفوع', 'Paid section setting'],
+  activation_request: ['طلب تفعيل قسم', 'Section activation request'], subject_plan: ['خطة اشتراك مادة', 'Subject plan'], plan: ['خطة اشتراك مادة', 'Subject plan'],
+  legal_document: ['مستند قانوني', 'Legal document'], legal_version: ['نسخة مستند قانوني', 'Legal document version'], legal_settings: ['إعدادات قانونية', 'Legal settings'],
+  platform_announcement: ['إعلان المنصة', 'Platform announcement'], announcement: ['إعلان المنصة', 'Platform announcement'], institution: ['إعدادات المؤسسة', 'Institution settings'],
+  app_config: ['إعداد التطبيق', 'App setting'], config: ['إعداد التطبيق', 'App setting'], admin_notification: ['إشعار إداري', 'Admin notification'], notification: ['إشعار إداري', 'Admin notification'],
+  lab: ['معمل مشترك', 'Shared lab'], shared_lab: ['معمل مشترك', 'Shared lab'], audit: ['سجل التدقيق', 'Audit log'], audit_events: ['سجل التدقيق', 'Audit log'],
+  auth: ['حساب', 'Account'], connection: ['اتصال', 'Connection'],
+};
+const VERB: Record<string, [string, string]> = {
+  created: ['إضافة', 'created'], updated: ['تعديل', 'updated'], deleted: ['حذف', 'deleted'],
+  processing: ['قيد المعالجة', 'processing'], completed: ['اكتمال', 'completed'], failed: ['فشل', 'failed'], cancelled: ['إلغاء', 'cancelled'],
+  enabled: ['تفعيل', 'enabled'], disabled: ['تعطيل', 'disabled'], reenabled: ['إعادة تفعيل', 're-enabled'], set_default: ['تعيين كافتراضي', 'set as default'],
+  default_changed: ['تغيير الافتراضي', 'default changed'], verified: ['توثيق', 'verified'], connection_tested: ['اختبار اتصال', 'connection tested'],
+  role_changed: ['تغيير دور', 'role changed'], status_changed: ['تغيير حالة', 'status changed'], banned: ['حظر', 'banned'], unbanned: ['رفع حظر', 'unbanned'],
+  retention_purge: ['تنظيف قديم', 'old records purged'], device_registered: ['تسجيل جهاز', 'device registered'], device_removed: ['إزالة جهاز', 'device removed'],
+  login_success: ['دخول ناجح', 'successful sign-in'], login_failed: ['دخول فاشل', 'failed sign-in'], logout: ['خروج', 'sign-out'],
+};
+function humanize(code: string): string { return code.replace(/[._]+/g, ' ').trim(); }
 function actionLabel(code: string, locale: string): string {
-  const map = locale === 'en' ? ACTION_EN : ACTION_AR;
-  return map[code] || code;
+  const en = locale === 'en';
+  const exact = (en ? ACTION_EN : ACTION_AR)[code];
+  if (exact) return exact;
+  const i = code.indexOf('.');
+  if (i < 0) return humanize(code);
+  const noun = NOUN[code.slice(0, i)]; const verb = VERB[code.slice(i + 1)];
+  if (noun && verb) return en ? `${noun[1]} ${verb[1]}` : `${verb[0]} ${noun[0]}`;
+  if (noun) return en ? `${noun[1]}: ${humanize(code.slice(i + 1))}` : `${noun[0]}: ${humanize(code.slice(i + 1))}`;
+  return humanize(code);
+}
+function entityLabel(type: string | null | undefined, locale: string): string {
+  if (!type) return '';
+  const n = NOUN[type];
+  return n ? (locale === 'en' ? n[1] : n[0]) : humanize(type);
 }
 
 const TEXT = {
@@ -252,7 +291,7 @@ export default function AdminAuditLogSection() {
                     <td className="p-2 text-xs md:whitespace-nowrap">{fmt(ev.occurred_at)}</td>
                     <td className="p-2">{ev.actor_name || ev.actor_email || (ev.actor_id ? ev.actor_id.slice(0, 8) : T.system)}</td>
                     <td className="p-2"><div className="text-xs font-medium" title={ev.action}>{actionLabel(ev.action, locale)}</div><div className="font-mono text-[10px] text-muted-foreground" dir="ltr">{ev.action}</div><div className="text-xs text-muted-foreground">{T.outcomes[ev.outcome] || ev.outcome}</div></td>
-                    <td className="max-w-[120px] truncate p-2 md:max-w-[200px]">{ev.target_label || ev.target_type || '-'}</td>
+                    <td className="max-w-[120px] truncate p-2 md:max-w-[200px]">{ev.target_label || entityLabel(ev.target_type, locale) || '-'}</td>
                     <td className="hidden p-2 font-mono text-xs lg:table-cell">{ev.ip_address || '-'}</td>
                     <td className="hidden p-2 text-xs lg:table-cell">{[ev.device_type, ev.os_name, ev.browser_name].filter(Boolean).join(' / ') || '-'}</td>
                   </tr>
@@ -283,7 +322,7 @@ export default function AdminAuditLogSection() {
                 [T.outcome, T.outcomes[selected.outcome] || selected.outcome],
                 [T.severity, T.sev[selected.severity] || selected.severity],
                 [T.who, [selected.actor_name, selected.actor_email, selected.actor_id].filter(Boolean).join(' | ') || T.system],
-                [T.target, [selected.target_type, selected.target_label, selected.target_id].filter(Boolean).join(' | ') || '-'],
+                [T.target, [entityLabel(selected.target_type, locale), selected.target_label, selected.target_id].filter(Boolean).join(' | ') || '-'],
                 [T.ip, selected.ip_address || '-'],
                 [T.dev, [selected.device_type, selected.os_name, selected.browser_name, selected.client_type].filter(Boolean).join(' / ') || '-'],
                 [T.device, selected.device_id || '-'],
