@@ -177,7 +177,8 @@ export async function GET(
       })(),
     ]);
 
-    const responses = responsesResult?.data || [];
+    // Private messages live in the inbox only; the action log shows actions and notes (older rows that logged a message action are hidden too).
+    const responses = (responsesResult?.data || []).filter((r: any) => r.action !== 'message_reporter' && r.action !== 'message_reported');
     const messages = messagesResult?.data || [];
 
     // Apply enrichment
@@ -519,6 +520,7 @@ export async function PATCH(
     // Block is now handled via the ban modal which calls /api/admin/ban-user directly.
     // When the ban modal confirms, it also calls handleAction('block') to record the action
     // in report_responses. We just record the action here — no direct ban creation.
+    let blockNote: string | null = null;
     if (action === 'block') {
       // A block is a real app ban. The ban modal creates the ban first through
       // /api/admin/ban-user; here we refuse to log a "block" unless an active ban exists.
@@ -534,6 +536,12 @@ export async function PATCH(
           .eq('email', blockedUser.email)
           .maybeSingle();
         activeBan = !!ban && ban.is_active !== false && (!ban.ban_until || new Date(ban.ban_until) > new Date());
+        // The action log must say how long the ban lasts.
+        if (activeBan) {
+          blockNote = ban && ban.ban_until
+            ? `حظر المستخدم. مدة الحظر: حتى ${new Date(ban.ban_until).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+            : 'حظر المستخدم. مدة الحظر: دائم';
+        }
       }
       if (!activeBan) {
         return NextResponse.json(
@@ -644,7 +652,7 @@ export async function PATCH(
           sender_id: userId,
           recipient_type: 'reported',
           recipient_id: warnUserId,
-          content: content || warnMessage,
+          content: warnMessage,
           message_type: 'warning',
         });
     }
@@ -786,14 +794,15 @@ export async function PATCH(
 
     // Every action is recorded in the complaint timeline (message actions record only
     // the fact, the private message text stays in report_messages).
-    {
+    // Message actions are private inbox messages: they are not written to the action log.
+    if (action !== 'message_reporter' && action !== 'message_reported') {
       const { error: responseError } = await supabaseServer
         .from('report_responses')
         .insert({
           report_id: id,
           responder_id: userId,
           action,
-          content: ['message_reporter', 'message_reported'].includes(action) ? null : (content || null),
+          content: action === 'block' && blockNote ? blockNote : (content || null),
           forwarded_to: action === 'forward' ? forwarded_to : null,
           actor_role: isReporter && !isAdmin && !isAssigned ? 'reporter' : (role || null),
         });
