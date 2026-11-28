@@ -58,6 +58,9 @@ import {
   DollarSign,
   Package,
   FileText,
+  Send,
+  Database,
+  Monitor,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -156,12 +159,12 @@ const adminNavItemDefs = [
   { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
   { id: 'financialManagement', labelKey: 'nav.financialManagement', icon: <DollarSign className="h-5 w-5" /> },
   { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
-  { id: 'dataManagement', labelKey: 'nav.dataManagement', icon: <ShieldAlert className="h-5 w-5" />, superadminOnly: true },
-  { id: 'paidServices', labelKey: 'nav.paidServices', icon: <DollarSign className="h-5 w-5" /> },
-  { id: 'sendNotification', labelKey: 'nav.sendNotification', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dataManagement', labelKey: 'nav.dataManagement', icon: <Database className="h-5 w-5" />, superadminOnly: true },
+  { id: 'paidServices', labelKey: 'nav.paidServices', icon: <Wallet className="h-5 w-5" /> },
+  { id: 'sendNotification', labelKey: 'nav.sendNotification', icon: <Send className="h-5 w-5" /> },
   { id: 'legalPolicies', labelKey: 'nav.legalPolicies', icon: <FileText className="h-5 w-5" />, superadminOnly: true },
-  { id: 'auditLog', labelKey: 'nav.auditLog', icon: <ShieldAlert className="h-5 w-5" />, superadminOnly: true },
-  { id: 'sharedLabs', labelKey: 'nav.auditLog', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
+  { id: 'auditLog', labelKey: 'nav.auditLog', icon: <ClipboardList className="h-5 w-5" />, superadminOnly: true },
+  { id: 'sharedLabs', labelKey: 'nav.auditLog', icon: <Monitor className="h-5 w-5" />, superadminOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -572,6 +575,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
   // ─── Banned users state ───
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
+  const [deletedBlocks, setDeletedBlocks] = useState<{ id: string; email: string; phone: string | null; banned_at: string }[]>([]);
   const [loadingBanned, setLoadingBanned] = useState(false);
   const [unbanningEmail, setUnbanningEmail] = useState<string | null>(null);
 
@@ -763,6 +767,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       if (result.success && result.data) {
         const bannedData = result.data.banned || result.data.data || result.data;
         setBannedUsers(Array.isArray(bannedData) ? bannedData as BannedUser[] : []);
+        setDeletedBlocks(Array.isArray(result.data.deleted) ? result.data.deleted : []);
       } else {
         setBannedUsers([]);
       }
@@ -2923,6 +2928,33 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <p className="text-xs text-muted-foreground">{t('admin.expiredBans')}</p>
         </div>
       </motion.div>
+
+      {deletedBlocks.length > 0 && (
+        <motion.div variants={itemVariants}>
+          <details className="rounded-xl border bg-card">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold">
+              {locale === 'en' ? 'Deleted accounts (email and phone stay blocked from signing up)' : 'حسابات محذوفة (الإيميل والهاتف ممنوعين من التسجيل)'} ({deletedBlocks.length})
+            </summary>
+            <div className="divide-y border-t">
+              {deletedBlocks.map((d) => (
+                <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium" dir="ltr">{d.email}</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">{d.phone || (locale === 'en' ? 'no phone saved' : 'لا يوجد رقم هاتف محفوظ')} · {formatDate(d.banned_at)}</p>
+                  </div>
+                  <button
+                    onClick={() => handleUnbanUser(d.email, d.id)}
+                    disabled={unbanningEmail === d.email}
+                    className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                  >
+                    {locale === 'en' ? 'Allow again' : 'السماح مرة أخرى'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </details>
+        </motion.div>
+      )}
 
       {bannedUsers.length === 0 ? (
         <motion.div
