@@ -154,6 +154,15 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* No page ever scrolls sideways; wide content scrolls inside its own container only. */
+  html, body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+  /* Long unbroken words/URLs wrap instead of widening a bubble or card */
+  p, h1, h2, h3, h4, li, label, blockquote {
+    overflow-wrap: anywhere;
+  }
 }
 
 /* ─── Direction-Aware Typography for Summary View ─── */
