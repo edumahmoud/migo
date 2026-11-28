@@ -212,7 +212,14 @@ export async function GET(request: NextRequest) {
     // ─── Admin view mode filter ───
     if (role === 'admin' || role === 'superadmin') {
       const viewMode = url.searchParams.get('view') || 'all';
-      if (viewMode === 'submitted') {
+      if (viewMode === 'all') {
+        // Admins see every complaint, including unassigned ones (previously only their own,
+        // reports against them, or reports assigned to them were listed).
+        let allQ = supabaseServer.from('reports').select('id').order('created_at', { ascending: false }).limit(1000);
+        if (validStatus) allQ = allQ.eq('status', validStatus);
+        const { data: allRows } = await allQ;
+        (allRows || []).forEach((r: any) => visibleIds.add(r.id));
+      } else if (viewMode === 'submitted') {
         const submittedIdSet = new Set(submittedIds.map((r: any) => r.id));
         for (const id of visibleIds) {
           if (!submittedIdSet.has(id)) visibleIds.delete(id);
