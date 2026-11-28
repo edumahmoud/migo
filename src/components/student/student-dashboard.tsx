@@ -1002,7 +1002,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
       // Performance tracking needs every assignment of the student's courses (with due dates)
       // and all of the student's submissions, not only the graded ones.
-      const { data: enr } = await supabase
+      const { data: enr, error: enrError } = await supabase
         .from('subject_students')
         .select('subject_id')
         .eq('student_id', profile.id)
@@ -1020,6 +1020,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           // A grade the teacher keeps hidden must not leak into the performance numbers
           setPerfSubmissions((ps.data as Submission[]).map((s) => (hidden.has(s.assignment_id) ? { ...s, score: undefined, status: 'submitted' as const } : s)));
         }
+      } else if (!enrError) {
+        // No approved courses left: clear stale performance data
+        setPerfAssignments([]);
+        setPerfSubmissions([]);
       }
     } catch (err) {
       console.warn('[fetchSubmissionsAndAssignments] Error:', err);
