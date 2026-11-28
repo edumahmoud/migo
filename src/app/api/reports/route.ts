@@ -280,6 +280,8 @@ export async function GET(request: NextRequest) {
         // reports against them, or reports assigned to them were listed).
         let allQ = supabaseServer.from('reports').select('id').order('created_at', { ascending: false }).limit(1000);
         if (validStatus) allQ = allQ.eq('status', validStatus);
+        // An admin sees what is assigned to them or unassigned; only the platform owner sees everything.
+        if (role === 'admin') allQ = allQ.or(`assigned_to.is.null,assigned_to.eq.${userId}`);
         const { data: allRows } = await allQ;
         (allRows || []).forEach((r: any) => visibleIds.add(r.id));
       } else if (viewMode === 'submitted') {
@@ -659,7 +661,7 @@ export async function DELETE(request: NextRequest) {
       // First verify it exists and is completed
       const { data: report, error: fetchError } = await supabaseServer
         .from('reports')
-        .select('id, status, reporter_id, assigned_to')
+        .select('id, status, reporter_id, assigned_to, target_type, target_id')
         .eq('id', reportId)
         .single();
 
@@ -681,6 +683,13 @@ export async function DELETE(request: NextRequest) {
       const isAdmin = role === 'admin' || role === 'superadmin';
       const isReporter = report.reporter_id === userId;
       const isAssigned = report.assigned_to === userId;
+      // Never by the person the complaint is about.
+      if (report.target_type === 'user' && report.target_id === userId) {
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح بحذف هذا الإبلاغ' },
+          { status: 403 }
+        );
+      }
       if (!isAdmin && !isReporter && !isAssigned) {
         return NextResponse.json(
           { success: false, error: 'غير مصرح بحذف هذا الإبلاغ' },
