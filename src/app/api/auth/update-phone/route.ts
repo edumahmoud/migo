@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabaseServer } from '@/lib/supabase-server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { normalizePhoneToE164, isValidE164 } from '@/lib/phone-utils';
+import { isPhoneBlocked, BLOCKED_PHONE_MESSAGE } from '@/lib/blocked-phone';
 
 /**
  * POST /api/auth/update-phone
@@ -82,6 +83,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+  }
+
+  if (await isPhoneBlocked(normalizedPhone)) {
+    return NextResponse.json({ success: false, error: BLOCKED_PHONE_MESSAGE }, { status: 403 });
   }
 
   // v110: DUPLICATE PHONE CHECK — prevent two users from sharing the same phone number.
