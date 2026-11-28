@@ -50,6 +50,15 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // The declared type can be spoofed: check the real file signature too.
+    const isJpeg = buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isPng = buffer.length > 8 && buffer.subarray(0, 8).toString('hex') === '89504e470d0a1a0a';
+    const isGif = buffer.length > 6 && ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('latin1'));
+    const isWebp = buffer.length > 12 && buffer.subarray(0, 4).toString('latin1') === 'RIFF' && buffer.subarray(8, 12).toString('latin1') === 'WEBP';
+    if (!(isJpeg || isPng || isGif || isWebp)) {
+      return NextResponse.json({ success: false, error: 'الملف ليس صورة صالحة' }, { status: 400 });
+    }
+
     const { error: uploadError } = await supabaseServer.storage
       .from('report-evidence')
       .upload(storagePath, buffer, {
