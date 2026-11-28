@@ -70,7 +70,8 @@ export async function GET(
     // Admins see complaints assigned to them or unassigned; the platform owner sees all.
     const isStaffRole = (role === 'superadmin' || (role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) && !isTargetUser;
     // Archived complaints are hidden from everyone except a supervisor in scope or the superadmin (archive view).
-    if ((report as any).archived_at && !(isStaffRole && (role === 'admin' || role === 'superadmin'))) {
+    const teacherOwnsArchive = role === 'teacher' && report.assigned_to === userId && (report as any).archived_by === userId && !isTargetUser;
+    if ((report as any).archived_at && !(isStaffRole && (role === 'admin' || role === 'superadmin')) && !teacherOwnsArchive) {
       return NextResponse.json(
         { success: false, error: 'الإبلاغ غير موجود' },
         { status: 404 }
@@ -304,12 +305,29 @@ export async function PATCH(
     // ─── Manual archive / restore (supervisor in scope or superadmin) ───
     const isArchived = !!(report as any).archived_at;
     if (isArchived && action !== 'restore') {
-      return isAdmin
+      return (isAdmin || (role === 'teacher' && isAssigned && (report as any).archived_by === userId))
         ? NextResponse.json({ success: false, error: 'الإبلاغ مؤرشف' }, { status: 409 })
         : NextResponse.json({ success: false, error: 'الإبلاغ غير موجود' }, { status: 404 });
     }
     if (action === 'archive' || action === 'restore') {
-      if (!isAdmin || (role !== 'admin' && role !== 'superadmin')) {
+      const staffAdmin = isAdmin && (role === 'admin' || role === 'superadmin');
+      let teacherOk = false;
+      if (role === 'teacher' && isAssigned && !isReportedSelf) {
+        if (action === 'restore') {
+          teacherOk = (report as any).archived_by === userId;
+        } else {
+          // A teacher can archive a closed complaint that is assigned to him (not forwarded away) and where he took the closing action himself.
+          const { data: mine } = await supabaseServer
+            .from('report_responses')
+            .select('id')
+            .eq('report_id', id)
+            .eq('responder_id', userId)
+            .in('action', ['resolve', 'dismiss'])
+            .limit(1);
+          teacherOk = !!(mine && mine.length > 0);
+        }
+      }
+      if (!staffAdmin && !teacherOk) {
         return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
       }
       if (action === 'archive' && !['resolved', 'dismissed'].includes(report.status)) {
