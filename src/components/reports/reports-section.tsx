@@ -184,7 +184,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       if (statusFilter !== 'all') {
         params.set('status', statusFilter);
       }
-      if (isAdmin) params.set('view', viewMode);
+      if (isAdmin || viewMode === 'archive') params.set('view', viewMode);
 
       const res = await fetch(`/api/reports?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -561,7 +561,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const params = new URLSearchParams();
       params.set('report_number', term);
       if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (isAdmin) params.set('view', viewMode);
+      if (isAdmin || viewMode === 'archive') params.set('view', viewMode);
 
       const res = await fetch(`/api/reports?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -907,7 +907,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       </motion.div>
 
       {/* Clear completed + info */}
-      {isAdmin && viewMode === 'archive' && reports.length > 0 && (
+      {viewMode === 'archive' && (isAdmin || role === 'teacher') && reports.length > 0 && (
         <motion.div variants={itemVariants} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-1.5">
           <p className="text-[11px] text-muted-foreground">
             {tr('الشكاوى المؤرشفة مخفية عن كل الحسابات. الحذف يدوي من هنا فقط.', 'Archived complaints are hidden from all accounts. Deleting is manual and only from here.')}
@@ -956,6 +956,26 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   viewMode === mode.id
                     ? 'bg-sky-700 text-white'
                     : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Teacher: switch between the normal list and his own archive */}
+        {!isAdmin && role === 'teacher' && (
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            {[
+              { id: 'submitted' as const, label: tr('الشكاوى', 'Complaints') },
+              { id: 'archive' as const, label: tr('الأرشيف', 'Archive') },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setViewMode(mode.id)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === mode.id ? 'bg-sky-700 text-white' : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 {mode.label}
@@ -1133,7 +1153,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 className="w-full text-start rounded-xl border border-border p-3 hover:bg-muted/50 disabled:cursor-default disabled:hover:bg-transparent"
               >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-xs font-mono text-muted-foreground">{r.report_number}</span>
+                  <span className="text-xs font-mono text-muted-foreground">{r.report_number}{r.archived ? ` · ${tr('مؤرشفة', 'Archived')}` : ''}</span>
                   <StatusBadge status={r.status} t={t} />
                 </div>
                 <div className="text-sm font-semibold text-foreground mt-1">{getReasonLabel(r.reason, t)}</div>
@@ -1812,7 +1832,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         )}
 
         {/* Manual archive / restore (supervisor or superadmin) */}
-        {isAdmin && (selectedReport as any).archived_at && (
+        {(isAdmin || (role === 'teacher' && isAssignedToMe)) && (selectedReport as any).archived_at && (
           <div className="pt-2">
             <button
               onClick={() => handleArchiveAction(selectedReport.id, 'restore')}
@@ -1824,7 +1844,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </button>
           </div>
         )}
-        {isAdmin && !(selectedReport as any).archived_at && (selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (
+        {(isAdmin || (role === 'teacher' && isAssignedToMe)) && !(selectedReport as any).archived_at && (selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (
           <div className="pt-2">
             <button
               onClick={() => handleArchiveAction(selectedReport.id, 'archive')}
@@ -1838,7 +1858,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         )}
 
         {/* Delete is manual and only from the archive */}
-        {isAdmin && (selectedReport as any).archived_at && (
+        {(isAdmin || (role === 'teacher' && isAssignedToMe)) && (selectedReport as any).archived_at && (
           <div className="pt-2">
             <button
               onClick={() => setConfirmDeleteId(selectedReport.id)}
