@@ -387,6 +387,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     return { score: quizScore.score, total: quizScore.total, percentage };
   }, [quizzes, scores]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  // Performance tracking inputs: every assignment of the student's courses (with due dates) and all of the student's submissions
+  const [perfAssignments, setPerfAssignments] = useState<Assignment[]>([]);
+  const [perfSubmissions, setPerfSubmissions] = useState<Submission[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string; checked_in_at: string; attendance_status?: 'present' | 'late' | 'partial' | 'absent' }[]>([]);
   const [attendanceSessions, setAttendanceSessions] = useState<{ id: string; subject_id: string; status: string }[]>([]);
   const [linkedTeachers, setLinkedTeachers] = useState<UserProfile[]>([]);
@@ -995,6 +998,27 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           if (!assignError && assignData) {
             setAssignments(assignData as Assignment[]);
           }
+        }
+      }
+      // Performance tracking needs every assignment of the student's courses (with due dates)
+      // and all of the student's submissions, not only the graded ones.
+      const { data: enr } = await supabase
+        .from('subject_students')
+        .select('subject_id')
+        .eq('student_id', profile.id)
+        .eq('status', 'approved');
+      const subIds = (enr ?? []).map((e: { subject_id: string }) => e.subject_id);
+      if (subIds.length > 0) {
+        const [pa, ps] = await Promise.all([
+          supabase.from('assignments').select('id, subject_id, teacher_id, title, max_score, show_grade, due_date').in('subject_id', subIds),
+          supabase.from('submissions').select('id, assignment_id, student_id, score, status, submitted_at, graded_at').eq('student_id', profile.id),
+        ]);
+        if (!pa.error && !ps.error && pa.data && ps.data) {
+          const allAssignments = pa.data as Assignment[];
+          const hidden = new Set(allAssignments.filter((a) => a.show_grade === false).map((a) => a.id));
+          setPerfAssignments(allAssignments);
+          // A grade the teacher keeps hidden must not leak into the performance numbers
+          setPerfSubmissions((ps.data as Submission[]).map((s) => (hidden.has(s.assignment_id) ? { ...s, score: undefined, status: 'submitted' as const } : s)));
         }
       }
     } catch (err) {
@@ -3037,14 +3061,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         student_id: r.student_id,
         attendance_status: r.attendance_status,
       })),
-      submissions: submissions.map(s => ({
+      submissions: perfSubmissions.map(s => ({
         assignment_id: s.assignment_id,
         student_id: s.student_id,
         score: s.score ?? null,
         status: s.status,
         submitted_at: s.submitted_at,
       })),
-      assignments: assignments.map(a => ({
+      assignments: perfAssignments.map(a => ({
         id: a.id,
         max_score: a.max_score,
         due_date: a.due_date,
@@ -3052,7 +3076,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       studentId: profile.id,
     });
     return Math.round(metrics.overallPerformance);
-  }, [scores, attendanceSessions, attendanceRecords, submissions, assignments, profile.id]);
+  }, [scores, attendanceSessions, attendanceRecords, perfSubmissions, perfAssignments, profile.id]);
 
   // -------------------------------------------------------
   // Render: Dashboard Section
@@ -5033,8 +5057,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               attendanceSessions={attendanceSessions}
               quizzes={quizzes}
               scores={scores}
-              submissions={submissions}
-              assignments={assignments}
+              submissions={perfSubmissions}
+              assignments={perfAssignments}
             />
           </SectionErrorBoundary>
         );
