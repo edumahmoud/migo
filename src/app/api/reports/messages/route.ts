@@ -145,6 +145,7 @@ export async function POST(request: NextRequest) {
       content: content.trim(),
       attachments: attachments || [],
       message_type: 'info',
+      reply_to_id: typeof body.reply_to === 'string' ? body.reply_to : null,
     }));
     const { data: inserted, error: msgError } = await supabaseServer
       .from('report_messages')
