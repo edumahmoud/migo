@@ -1947,6 +1947,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         </motion.div>
       ) : (
         <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+          {inboxMessages.filter((m: any) => inboxFilter === 'all' || (inboxFilter === 'replied' ? m.replied : !m.replied)).length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">{inboxFilter === 'replied' ? tr('لا توجد رسائل تم الرد عليها', 'No replied messages') : tr('لا توجد رسائل جديدة', 'No new messages')}</p>
+          )}
           {inboxMessages.filter((m: any) => inboxFilter === 'all' || (inboxFilter === 'replied' ? m.replied : !m.replied)).map((msg: any) => {
             const isWarning = msg.message_type === 'warning';
             return (
