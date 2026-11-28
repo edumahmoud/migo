@@ -79,6 +79,15 @@ export {
   type RiskSuggestedAction,
 };
 
+// assignments.due_date is a DATE column (no time). A date-only value means
+// "until the end of that day", not midnight at its start, otherwise a
+// same-day submission is wrongly counted as late.
+export function deadlineOf(due: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(due);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+  return new Date(due);
+}
+
 // -------------------------------------------------------
 // Performance Level Classification
 // Uses centralized config thresholds
@@ -276,7 +285,7 @@ export function calculateAssignmentCompliance(params: {
   // Only count assignments that have a deadline AND whose deadline has passed.
   // Assignments with no due_date are excluded (optional / practice).
   const dueAssignments = assignments.filter(a =>
-    a.due_date && new Date(a.due_date) <= now
+    a.due_date && deadlineOf(a.due_date) <= now
   );
   const dueAssignmentIds = new Set(dueAssignments.map(a => a.id));
 
@@ -328,7 +337,7 @@ export function calculateAssignmentQuality(params: {
   // Only process assignments that have a deadline AND whose deadline has passed.
   // Assignments with no due_date are excluded (optional / practice).
   const dueAssignments = assignments.filter(a =>
-    a.due_date && new Date(a.due_date) <= now
+    a.due_date && deadlineOf(a.due_date) <= now
   );
 
   dueAssignments.forEach(assignment => {
@@ -339,7 +348,7 @@ export function calculateAssignmentQuality(params: {
       totalEarned += sub.score;
       totalPossible += assignment.max_score || 0;
       if (assignment.due_date && sub.submitted_at) {
-        if (new Date(sub.submitted_at) > new Date(assignment.due_date)) {
+        if (new Date(sub.submitted_at) > deadlineOf(assignment.due_date)) {
           missedDeadlines++;
         }
       }
@@ -349,7 +358,7 @@ export function calculateAssignmentQuality(params: {
       // does NOT contribute to quality (no valid graded score).
       // Also does NOT count as missed deadline since student did submit.
       if (assignment.due_date && sub.submitted_at) {
-        if (new Date(sub.submitted_at) > new Date(assignment.due_date)) {
+        if (new Date(sub.submitted_at) > deadlineOf(assignment.due_date)) {
           missedDeadlines++;
         }
       }
@@ -841,12 +850,12 @@ export function computeAllMetrics(params: {
   // FIX: Use only assignments with a past deadline for totalAssignments in
   //      discipline. Assignments with no due_date are excluded.
   const dueAssignmentsForDiscipline = assignments.filter(a =>
-    a.due_date && new Date(a.due_date) <= new Date()
+    a.due_date && deadlineOf(a.due_date) <= new Date()
   );
   const onTimeSubmissions = submissions.filter(
     s => s.student_id === studentId &&
       (s.status === 'graded' || s.status === 'submitted' || s.status === 'returned') &&
-      dueAssignmentsForDiscipline.some(a => a.id === s.assignment_id && (!a.due_date || !s.submitted_at || new Date(s.submitted_at) <= new Date(a.due_date)))
+      dueAssignmentsForDiscipline.some(a => a.id === s.assignment_id && (!a.due_date || !s.submitted_at || new Date(s.submitted_at) <= deadlineOf(a.due_date)))
   ).length;
 
   const disciplineScore = calculateDisciplineScore({
@@ -866,7 +875,7 @@ export function computeAllMetrics(params: {
   //      Assignments with no due_date are excluded.
   const now = new Date();
   const dueAssignmentsForRisk = assignments.filter(a =>
-    a.due_date && new Date(a.due_date) <= now
+    a.due_date && deadlineOf(a.due_date) <= now
   );
   const recentAssignments = [...dueAssignmentsForRisk]
     .sort((a, b) => {
