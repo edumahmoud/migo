@@ -150,6 +150,32 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
     const validStatus = status && ['pending', 'in_progress', 'resolved', 'dismissed'].includes(status) ? status : null;
 
+    // ─── Archive view (supervisor / superadmin only): manually archived complaints ───
+    if (url.searchParams.get('view') === 'archive') {
+      if (role !== 'admin' && role !== 'superadmin') {
+        return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
+      }
+      let aq = supabaseServer
+        .from('reports')
+        .select(`
+          *,
+          reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id),
+          assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
+        `)
+        .not('archived_at', 'is', null)
+        .order('archived_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+      // A supervisor only sees archived complaints that were assigned to them or unassigned; the owner sees all.
+      if (role === 'admin') aq = aq.or(`assigned_to.is.null,assigned_to.eq.${userId}`);
+      // Never show the archive entry to the person it is about.
+      const { data: archived, error: archErr } = await aq;
+      if (archErr) {
+        return NextResponse.json({ success: false, error: 'فشل جلب الأرشيف' }, { status: 500 });
+      }
+      const rows = (archived || []).filter((r: any) => !(r.target_type === 'user' && r.target_id === userId));
+      return await enrichAndReturn(rows, rows.length, page, limit, userId, role);
+    }
+
     // ─── Search by report_number (fast path — bypasses complex visibility logic) ───
     if (reportNumber) {
       let numQuery = supabaseServer
@@ -159,6 +185,7 @@ export async function GET(request: NextRequest) {
           reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id),
           assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
         `)
+        .is('archived_at', null)
         .ilike('report_number', `%${reportNumber}%`)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -209,6 +236,7 @@ export async function GET(request: NextRequest) {
           assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
         `)
         .in('id', forwardedIds)
+        .is('archived_at', null)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -314,6 +342,7 @@ export async function GET(request: NextRequest) {
         assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
       `)
       .in('id', Array.from(visibleIds))
+      .is('archived_at', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -661,7 +690,7 @@ export async function DELETE(request: NextRequest) {
       // First verify it exists and is completed
       const { data: report, error: fetchError } = await supabaseServer
         .from('reports')
-        .select('id, status, reporter_id, assigned_to, target_type, target_id')
+        .select('id, status, reporter_id, assigned_to, target_type, target_id, archived_at, report_number, reason')
         .eq('id', reportId)
         .single();
 
@@ -672,6 +701,19 @@ export async function DELETE(request: NextRequest) {
         );
       }
 
+      // Deletion is manual and only from the archive, by a supervisor (in scope) or the superadmin.
+      if (!(report as any).archived_at) {
+        return NextResponse.json(
+          { success: false, error: 'الحذف متاح من الأرشيف فقط. أرشف الشكوى أولا' },
+          { status: 400 }
+        );
+      }
+      if (role !== 'superadmin' && !(role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) {
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح بحذف هذا الإبلاغ' },
+          { status: 403 }
+        );
+      }
       if (!['resolved', 'dismissed'].includes(report.status)) {
         return NextResponse.json(
           { success: false, error: 'لا يمكن حذف إبلاغ قيد المعالجة' },
@@ -710,26 +752,35 @@ export async function DELETE(request: NextRequest) {
         );
       }
 
+      await supabaseServer.from('report_audit_log').insert({
+        report_id: reportId,
+        report_number: (report as any).report_number,
+        action: 'delete',
+        actor_id: userId,
+        actor_role: role,
+        details: { reason: (report as any).reason, status: report.status },
+      });
       return NextResponse.json({ success: true, data: { deleted: 1 } });
     }
 
     // ─── Bulk delete all resolved/dismissed reports ───
-    let deleteQuery = supabaseServer
+    // Complaints are only ever deleted by hand from the archive, by a supervisor or the superadmin.
+    if (role !== 'admin' && role !== 'superadmin') {
+      return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
+    }
+    let victimQ = supabaseServer.from('reports').select('id, report_number, reason, status').not('archived_at', 'is', null);
+    if (role === 'admin') victimQ = victimQ.or(`assigned_to.is.null,assigned_to.eq.${userId}`);
+    const { data: victims } = await victimQ;
+    const victimIds = (victims || []).map((v: any) => v.id);
+    if (victimIds.length > 0) {
+      await supabaseServer.from('report_audit_log').insert(
+        (victims || []).map((v: any) => ({ report_id: v.id, report_number: v.report_number, action: 'delete', actor_id: userId, actor_role: role, details: { reason: v.reason, status: v.status, bulk: true } }))
+      );
+    }
+    const deleteQuery = supabaseServer
       .from('reports')
       .delete()
-      .in('status', ['resolved', 'dismissed']);
-
-    // Role-based scope
-    if (role === 'admin' || role === 'superadmin') {
-      // Admin: delete ALL resolved/dismissed on the platform
-      // No additional filter needed — RLS allows admin to delete any completed report
-    } else if (role === 'teacher') {
-      // Teacher: delete their own submitted + assigned to them
-      deleteQuery = deleteQuery.or(`reporter_id.eq.${userId},assigned_to.eq.${userId}`);
-    } else {
-      // Student: delete only their own submitted reports
-      deleteQuery = deleteQuery.eq('reporter_id', userId);
-    }
+      .in('id', victimIds.length > 0 ? victimIds : ['00000000-0000-0000-0000-000000000000']);
 
     const { error: deleteError } = await deleteQuery;
 
