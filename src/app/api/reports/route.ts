@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
 
     // ─── Archive view (supervisor / superadmin only): manually archived complaints ───
     if (url.searchParams.get('view') === 'archive') {
-      if (role !== 'admin' && role !== 'superadmin') {
+      if (role !== 'admin' && role !== 'superadmin' && role !== 'teacher') {
         return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
       }
       let aq = supabaseServer
@@ -167,6 +167,8 @@ export async function GET(request: NextRequest) {
         .range(offset, offset + limit - 1);
       // A supervisor only sees archived complaints that were assigned to them or unassigned; the owner sees all.
       if (role === 'admin') aq = aq.or(`assigned_to.is.null,assigned_to.eq.${userId}`);
+      // A teacher sees only the complaints he archived himself (assigned to him).
+      if (role === 'teacher') aq = aq.eq('archived_by', userId).eq('assigned_to', userId);
       // Never show the archive entry to the person it is about.
       const { data: archived, error: archErr } = await aq;
       if (archErr) {
@@ -690,7 +692,7 @@ export async function DELETE(request: NextRequest) {
       // First verify it exists and is completed
       const { data: report, error: fetchError } = await supabaseServer
         .from('reports')
-        .select('id, status, reporter_id, assigned_to, target_type, target_id, archived_at, report_number, reason')
+        .select('id, status, reporter_id, assigned_to, target_type, target_id, archived_at, archived_by, report_number, reason')
         .eq('id', reportId)
         .single();
 
@@ -708,7 +710,8 @@ export async function DELETE(request: NextRequest) {
           { status: 400 }
         );
       }
-      if (role !== 'superadmin' && !(role === 'admin' && (!report.assigned_to || report.assigned_to === userId))) {
+      const teacherOwns = role === 'teacher' && report.assigned_to === userId && (report as any).archived_by === userId;
+      if (role !== 'superadmin' && !(role === 'admin' && (!report.assigned_to || report.assigned_to === userId)) && !teacherOwns) {
         return NextResponse.json(
           { success: false, error: 'غير مصرح بحذف هذا الإبلاغ' },
           { status: 403 }
@@ -765,11 +768,12 @@ export async function DELETE(request: NextRequest) {
 
     // ─── Bulk delete all resolved/dismissed reports ───
     // Complaints are only ever deleted by hand from the archive, by a supervisor or the superadmin.
-    if (role !== 'admin' && role !== 'superadmin') {
+    if (role !== 'admin' && role !== 'superadmin' && role !== 'teacher') {
       return NextResponse.json({ success: false, error: 'غير مصرح' }, { status: 403 });
     }
     let victimQ = supabaseServer.from('reports').select('id, report_number, reason, status').not('archived_at', 'is', null);
     if (role === 'admin') victimQ = victimQ.or(`assigned_to.is.null,assigned_to.eq.${userId}`);
+    if (role === 'teacher') victimQ = victimQ.eq('archived_by', userId).eq('assigned_to', userId);
     const { data: victims } = await victimQ;
     const victimIds = (victims || []).map((v: any) => v.id);
     if (victimIds.length > 0) {
