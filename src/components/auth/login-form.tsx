@@ -201,6 +201,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
           <CardContent className="pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6">
             {/* Mode switcher — by email / by student code */}
+            {!tgOpen && (
             <div className="relative grid grid-cols-2 gap-1 p-1 mb-4 rounded-lg bg-gray-100 dark:bg-muted/40 text-sm">
               {([
                 { key: 'email', label: t('auth.byEmail'), Icon: Mail },
@@ -228,6 +229,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 </button>
               ))}
             </div>
+            )}
 
             {tgOpen && (
               <TelegramLogin
@@ -238,7 +240,8 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 })}
               />
             )}
-            <form onSubmit={handleSubmit} className={tgOpen ? 'hidden' : 'space-y-3 sm:space-y-5'}>
+            {!tgOpen && (
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
               <AnimatePresence mode="wait" initial={false}>
               {mode === 'email' ? (
                 /* Email Field */
@@ -397,6 +400,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 )}
               </motion.div>
             </form>
+            )}
 
             {!tgOpen && (
               <button

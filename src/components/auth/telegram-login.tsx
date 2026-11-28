@@ -3,6 +3,7 @@
 import { tr } from '@/lib/tr';
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -112,21 +113,47 @@ export default function TelegramLogin({
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground" dir="ltr">{email.trim()}</p>
-          <Input
-            dir="ltr"
-            autoFocus
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="______"
-            value={code}
-            onChange={(e) => {
-              const v = e.target.value.replace(/\D/g, '').slice(0, 6);
-              setCode(v);
-              if (v.length === 6) void verify(v);
-            }}
-            disabled={busy}
-            className="h-12 text-center text-xl tracking-[0.5em]"
-          />
+          <div className="relative" dir="ltr">
+            <div className="flex items-center justify-center gap-2 sm:gap-3" aria-hidden="true">
+              {Array.from({ length: 6 }).map((_, i) => {
+                const ch = code[i];
+                const active = !busy && i === Math.min(code.length, 5);
+                return (
+                  <motion.div
+                    key={i}
+                    animate={{ scale: ch ? 1.06 : 1, backgroundColor: active ? 'rgba(14,165,233,0.14)' : ch ? 'rgba(14,165,233,0.08)' : 'rgba(148,163,184,0.16)' }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 26 }}
+                    className="h-12 w-10 sm:h-14 sm:w-12 rounded-xl flex items-center justify-center text-xl sm:text-2xl font-semibold text-foreground"
+                  >
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      {ch ? (
+                        <motion.span key={ch + i} initial={{ y: 10, opacity: 0, scale: 0.6 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }} transition={{ duration: 0.16 }}>
+                          {ch}
+                        </motion.span>
+                      ) : active ? (
+                        <motion.span key="caret" className="h-6 w-0.5 rounded bg-sky-600" animate={{ opacity: [1, 0, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+                      ) : null}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </div>
+            <input
+              dir="ltr"
+              autoFocus
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              aria-label={tr('كود التحقق', 'Verification code')}
+              value={code}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setCode(v);
+                if (v.length === 6) void verify(v);
+              }}
+              disabled={busy}
+              className="absolute inset-0 h-full w-full opacity-0 cursor-text caret-transparent border-0 outline-none bg-transparent"
+            />
+          </div>
         </div>
       )}
 
