@@ -151,6 +151,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [showMessageReported, setShowMessageReported] = useState(false);
   const [activeTab, setActiveTab] = useState<'reports' | 'inbox' | 'against'>('reports');
   const [inboxMessages, setInboxMessages] = useState<any[]>([]);
+  const [inboxFilter, setInboxFilter] = useState<'new' | 'replied' | 'all'>('new');
   const [loadingInbox, setLoadingInbox] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
@@ -1923,6 +1924,18 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         <h2 className="text-base font-bold text-foreground">{t('reports.inboxTitle')}</h2>
       </motion.div>
 
+      <div className="flex items-center gap-2 flex-wrap">
+        {([['new', tr('الجديدة', 'New'), inboxMessages.filter((m: any) => !m.replied).length], ['replied', tr('تم الرد عليها', 'Replied'), inboxMessages.filter((m: any) => m.replied).length], ['all', tr('الكل', 'All'), inboxMessages.length]] as const).map(([k, label, n]) => (
+          <button
+            key={k}
+            onClick={() => setInboxFilter(k)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${inboxFilter === k ? 'bg-sky-600 text-white border-sky-600' : 'bg-card text-muted-foreground border-border hover:text-foreground'}`}
+          >
+            {label} ({n})
+          </button>
+        ))}
+      </div>
+
       {loadingInbox ? (
         <div className="flex items-center justify-center py-16">
           <MascotLoader kind="ai" size={96} />
@@ -1934,7 +1947,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         </motion.div>
       ) : (
         <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-          {inboxMessages.map((msg: any) => {
+          {inboxMessages.filter((m: any) => inboxFilter === 'all' || (inboxFilter === 'replied' ? m.replied : !m.replied)).map((msg: any) => {
             const isWarning = msg.message_type === 'warning';
             return (
             <motion.div
@@ -1966,6 +1979,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <span className="text-sm font-semibold text-foreground">
                       {isWarning ? (
                         t('reports.officialWarning')
+                      ) : msg.is_auto ? (
+                        tr('إشعار تلقائي من المنصة (موجه إليك)', 'Automatic platform notice (addressed to you)')
                       ) : msg.sender ? (
                         <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} />
                       ) : t('common.user')}
@@ -1995,6 +2010,16 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <Clock className="h-3 w-3" />
                     {formatDate(msg.created_at)}
                   </span>
+                  {msg.replied && (
+                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 dark:bg-emerald-800/30 text-emerald-700 dark:text-emerald-400">
+                      {tr('تم الرد', 'Replied')}
+                    </span>
+                  )}
+                  {msg.recipient_role === 'handler' && msg.from_party !== 'staff' && (
+                    <span className="inline-flex items-center gap-1 mt-1 ms-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-100 dark:bg-violet-800/30 text-violet-700 dark:text-violet-400">
+                      {msg.from_party === 'reporter' ? tr('محادثة المبلغ', "Reporter's thread") : tr('محادثة المشكو منه', "Reported person's thread")}
+                    </span>
+                  )}
                 </div>
               </div>
 
