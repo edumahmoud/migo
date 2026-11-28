@@ -66,7 +66,9 @@ export async function GET(
     const reportedUserId = await resolveReportedUserId(report);
     const isTargetUser = reportedUserId === userId;
 
-    if (report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin && !isTargetUser) {
+    // Nobody handles a complaint about themselves: a reported admin or teacher is treated as the accused.
+    const isStaffRole = (role === 'admin' || role === 'superadmin') && !isTargetUser;
+    if (report.reporter_id !== userId && report.assigned_to !== userId && !isStaffRole && !isTargetUser) {
       return NextResponse.json(
         { success: false, error: 'غير مصرح بالوصول' },
         { status: 403 }
@@ -183,11 +185,11 @@ export async function GET(
     // The accused only sees what concerns them: no internal staff thread,
     // no internal assignee, and device alerts are shown as a plain notice
     // (the description names other accounts and devices).
-    const accusedOnly = isTargetUser && report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin;
-    const isStaff = isAdmin || report.assigned_to === userId;
+    const accusedOnly = isTargetUser && report.reporter_id !== userId;
+    const isStaff = isStaffRole || (report.assigned_to === userId && !isTargetUser);
     const hasObjection = responses.some((r: any) => r.action === 'objection');
     // Private messages: only the sender and the recipient (admins see all)
-    const visibleMessages = isAdmin || isStaff
+    const visibleMessages = isStaff
       ? messages
       : messages.filter((m: any) => m.recipient_id === userId || m.sender_id === userId);
 
@@ -214,7 +216,7 @@ export async function GET(
 
     // The reported person never sees the reporter's identity, even when they are also the
     // assigned handler (complaints against a teacher are assigned to that teacher).
-    if (isTargetUser && !isAdmin && report.reporter_id !== userId) {
+    if (isTargetUser && report.reporter_id !== userId) {
       const anon = (r: any) => r.responder_id === report.reporter_id
         ? { ...r, responder_id: null, responder: { id: '', name: 'الشاكي', email: '', role: 'reporter' }, actor_role: 'reporter' }
         : r;
@@ -284,14 +286,17 @@ export async function PATCH(
     }
 
     // Access check
-    const isAdmin = role === 'admin' || role === 'superadmin';
-    const isAssigned = report.assigned_to === userId;
+    // The reported person can never handle the complaint, even as assignee or admin.
+    const reportedUserIdAll = await resolveReportedUserId(report);
+    const isReportedSelf = !!reportedUserIdAll && reportedUserIdAll === userId;
+    const isAdmin = (role === 'admin' || role === 'superadmin') && !isReportedSelf;
+    const isAssigned = report.assigned_to === userId && !isReportedSelf;
     const isReporter = report.reporter_id === userId;
 
     // Objection: only the reported person (not the reporter / assignee / admin), once per report
     if (action === 'objection') {
       const reportedUserId = await resolveReportedUserId(report);
-      if (!reportedUserId || reportedUserId !== userId || isReporter || isAssigned || isAdmin) {
+      if (!reportedUserId || reportedUserId !== userId || isReporter) {
         return NextResponse.json(
           { success: false, error: 'فقط المشكو منه يمكنه تقديم اعتراض' },
           { status: 403 }
@@ -361,6 +366,19 @@ export async function PATCH(
 
     // ─── Action-specific permission checks ───
 
+    // A plain reporter (not staff) can only reply or reopen their own complaint.
+    if (isReporter && !isAdmin && !isAssigned && !['reply', 'reopen'].includes(action)) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
+
+    // Free text limit on every action
+    if (typeof content === 'string' && content.length > 3000) {
+      return NextResponse.json({ success: false, error: 'النص طويل جدا' }, { status: 400 });
+    }
+
     // Forward: only assigned or admin
     if (action === 'forward' && !isAdmin && !isAssigned) {
       return NextResponse.json(
@@ -399,7 +417,7 @@ export async function PATCH(
     }
 
     // Warn: only teacher, admin, superadmin (not students)
-    if (action === 'warn' && role === 'student') {
+    if (action === 'warn' && (role === 'student' || (!isAdmin && !isAssigned))) {
       return NextResponse.json(
         { success: false, error: 'غير مصرح بتوجيه تحذير' },
         { status: 403 }
@@ -420,14 +438,48 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    if (action === 'forward') {
+      if (forwarded_to === reportedUserIdAll) {
+        return NextResponse.json(
+          { success: false, error: 'لا يمكن تحويل الشكوى إلى الشخص المشكو منه' },
+          { status: 400 }
+        );
+      }
+      const fwdRole = await getUserRole(forwarded_to);
+      if (!fwdRole || fwdRole === 'student') {
+        return NextResponse.json(
+          { success: false, error: 'يمكن التحويل إلى معلم أو مشرف فقط' },
+          { status: 400 }
+        );
+      }
+    }
 
     // ─── Handle block action ───
     // Block is now handled via the ban modal which calls /api/admin/ban-user directly.
     // When the ban modal confirms, it also calls handleAction('block') to record the action
     // in report_responses. We just record the action here — no direct ban creation.
     if (action === 'block') {
-      // The actual ban is handled by the ban-user API called from the modal.
-      // This just records the block action in the report.
+      // A block is a real app ban. The ban modal creates the ban first through
+      // /api/admin/ban-user; here we refuse to log a "block" unless an active ban exists.
+      const blockedId = reportedUserIdAll;
+      const { data: blockedUser } = blockedId
+        ? await supabaseServer.from('users').select('email').eq('id', blockedId).single()
+        : { data: null as any };
+      let activeBan = false;
+      if (blockedUser?.email) {
+        const { data: ban } = await supabaseServer
+          .from('banned_users')
+          .select('is_active, ban_until')
+          .eq('email', blockedUser.email)
+          .maybeSingle();
+        activeBan = !!ban && ban.is_active !== false && (!ban.ban_until || new Date(ban.ban_until) > new Date());
+      }
+      if (!activeBan) {
+        return NextResponse.json(
+          { success: false, error: 'لا يوجد حظر فعلي على المشكو منه. نفّذ الحظر أولا ثم سجّله' },
+          { status: 409 }
+        );
+      }
     }
 
     // ─── Handle warn action ───
@@ -620,6 +672,7 @@ export async function PATCH(
     else if (action === 'dismiss') newStatus = 'dismissed';
     else if (action === 'reopen') newStatus = 'pending';
     else if (action === 'block' || action === 'warn') newStatus = 'resolved'; // Auto-resolve on block/warn
+    else if (action === 'reply' && (report.status === 'resolved' || report.status === 'dismissed')) newStatus = report.status;
     else if (action === 'reply' || action === 'forward') newStatus = 'in_progress';
     else if (action === 'return') newStatus = 'in_progress'; // Return to teacher
 
@@ -651,12 +704,9 @@ export async function PATCH(
         .order('created_at', { ascending: false })
         .limit(1);
       
-      if (forwardResponse && forwardResponse.length > 0) {
-        updateData.assigned_to = forwardResponse[0].responder_id;
-      } else {
-        // Fallback: return to reporter if no forward response found
-        updateData.assigned_to = report.reporter_id;
-      }
+      const backTo = forwardResponse && forwardResponse.length > 0 ? forwardResponse[0].responder_id : null;
+      // Never hand it to the reported person; with no valid forwarder it goes back to the admins (unassigned).
+      updateData.assigned_to = backTo && backTo !== reportedUserIdAll ? backTo : null;
       updateData.status = 'in_progress';
     }
 
@@ -692,6 +742,42 @@ export async function PATCH(
         // Don't fail — report is already updated
       }
     }
+
+    // Status-change notifications (best effort). The reporter and the reported person get
+    // a generic text; the reporter's identity is never part of what the reported person sees.
+    try {
+      const num = report.report_number || '';
+      const actionText: Record<string, string> = {
+        reply: 'تم الرد على',
+        resolve: 'تم حل',
+        dismiss: 'تم رفض',
+        reopen: 'أعيد فتح',
+        warn: 'صدر قرار بشأن',
+        block: 'صدر قرار بشأن',
+      };
+      const verb = actionText[action];
+      if (verb) {
+        const title = 'تحديث على شكوى';
+        const msg = `${verb} الشكوى رقم ${num}`.trim();
+        const targets = new Set<string>();
+        const reporterOnly = isReporter && !isAdmin && !isAssigned;
+        if (reporterOnly) {
+          // The reporter wrote: tell the handler (or the admins when nobody is assigned).
+          if (report.assigned_to) targets.add(report.assigned_to);
+          else {
+            const { data: admins } = await supabaseServer.from('users').select('id').in('role', ['admin', 'superadmin']).limit(20);
+            (admins || []).forEach((a: any) => { if (a.id !== reportedUserIdAll) targets.add(a.id); });
+          }
+          targets.delete(userId);
+          await Promise.all(Array.from(targets).map((rid) => notifyUser(rid, 'report', title, `${action === 'reopen' ? 'أعاد المبلّغ فتح' : 'رد المبلّغ على'} الشكوى رقم ${num}`.trim(), `/reports/${id}`)));
+          targets.clear();
+        }
+        if (!reporterOnly && report.reporter_id) targets.add(report.reporter_id);
+        if (!reporterOnly && action !== 'reopen' && reportedUserIdAll && (action === 'resolve' || action === 'dismiss' || action === 'reply')) targets.add(reportedUserIdAll);
+        targets.delete(userId);
+        await Promise.all(Array.from(targets).map((rid) => notifyUser(rid, 'report', title, msg, `/reports/${id}`)));
+      }
+    } catch {}
 
     return NextResponse.json({ success: true });
   } catch (error) {
