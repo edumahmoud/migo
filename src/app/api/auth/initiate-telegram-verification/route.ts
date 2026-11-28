@@ -6,6 +6,7 @@ import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { getRateLimitHeaders } from '@/lib/api-security';
 import { checkRateLimitDistributed } from '@/lib/rate-limit-server';
 import { normalizePhoneToE164 } from '@/lib/phone-utils';
+import { isPhoneBlocked, BLOCKED_PHONE_MESSAGE } from '@/lib/blocked-phone';
 import { isBotConfigured, getBotUsername } from '@/lib/telegram-bot';
 
 /**
@@ -121,6 +122,9 @@ export async function POST(request: NextRequest) {
   if (bodyPhone) {
     const normalized = normalizePhoneToE164(bodyPhone);
     if (normalized) {
+      if (await isPhoneBlocked(normalized)) {
+        return NextResponse.json({ success: false, error: BLOCKED_PHONE_MESSAGE }, { status: 403 });
+      }
       phoneToUse = normalized;
       await supabaseServer
         .from('users')

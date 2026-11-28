@@ -158,87 +158,109 @@ export default function AdminSendNotificationSection() {
   const canSend = title.trim() && message.trim() && count !== null && count > 0;
 
   return (
-    <div className="space-y-4 max-w-2xl">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">{L.title}</h2>
-        <p className="text-muted-foreground mt-1">{L.desc}</p>
+    <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Send className="h-5 w-5" /></div>
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold text-foreground leading-tight">{L.title}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">{L.desc}</p>
+        </div>
       </div>
-      <div className="flex gap-2 border-b">
+      <div className="inline-flex rounded-lg bg-muted p-1 text-sm">
         {([['send', L.tabSend], ['history', L.tabHistory]] as const).map(([id, label]) => (
           <button
             key={id}
             type="button"
             onClick={() => { setTab(id); if (id === 'history') loadLog(); }}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}
+            className={`rounded-md px-4 py-1.5 font-medium transition-colors ${tab === id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             {label}
           </button>
         ))}
       </div>
-      {tab === 'send' && (<>
+      {tab === 'send' && (
       <Card>
-        <CardHeader><CardTitle className="text-base">{L.audience}</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {audiences.map((a) => (
-              <Button key={a.id} type="button" size="sm" variant={audience === a.id ? 'default' : 'outline'} onClick={() => setAudience(a.id)}>
-                {a.label}
-              </Button>
-            ))}
-          </div>
-
-          {audience === 'subject' && (
-            <select
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-            >
-              <option value="">{L.pickSubject}</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}{s.level ? ` - ${s.level}` : ''}</option>
+        <CardContent className="space-y-5 p-4 sm:p-6">
+          <section className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">{L.audience}</h3>
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
+                {L.recipients}: <span className="font-semibold text-foreground">{count === null ? '-' : count}</span>
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {audiences.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setAudience(a.id)}
+                  aria-pressed={audience === a.id}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${audience === a.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                >
+                  {a.label}
+                </button>
               ))}
-            </select>
-          )}
+            </div>
 
-          {audience === 'users' && (
-            <div className="space-y-2">
-              <div className="relative">
-                <Search className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input className="ps-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={L.search} />
-              </div>
-              {found.length > 0 && (
-                <div className="rounded-md border divide-y max-h-48 overflow-auto">
-                  {found.filter((u) => !picked.some((p) => p.id === u.id)).map((u) => (
-                    <button key={u.id} type="button" className="w-full text-start px-3 py-2 text-sm hover:bg-muted"
-                      onClick={() => { setPicked((p) => [...p, u]); setQuery(''); setFound([]); }}>
-                      {u.name} <span className="text-muted-foreground">({u.role}) {u.email}</span>
-                    </button>
+            {audience === 'subject' && (
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+              >
+                <option value="">{L.pickSubject}</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}{s.level ? ` - ${s.level}` : ''}</option>
+                ))}
+              </select>
+            )}
+
+            {audience === 'users' && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute start-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input className="ps-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={L.search} />
+                </div>
+                {found.length > 0 && (
+                  <div className="rounded-md border divide-y max-h-48 overflow-auto">
+                    {found.filter((u) => !picked.some((p) => p.id === u.id)).map((u) => (
+                      <button key={u.id} type="button" className="w-full text-start px-3 py-2 text-sm hover:bg-muted"
+                        onClick={() => { setPicked((p) => [...p, u]); setQuery(''); setFound([]); }}>
+                        {u.name} <span className="text-muted-foreground">({u.role}) {u.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {picked.map((u) => (
+                    <span key={u.id} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs">
+                      {u.name}
+                      <button type="button" aria-label="remove" onClick={() => setPicked((p) => p.filter((x) => x.id !== u.id))}><X className="h-3 w-3" /></button>
+                    </span>
                   ))}
                 </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {picked.map((u) => (
-                  <span key={u.id} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs">
-                    {u.name}
-                    <button type="button" aria-label="remove" onClick={() => setPicked((p) => p.filter((x) => x.id !== u.id))}><X className="h-3 w-3" /></button>
-                  </span>
-                ))}
               </div>
+            )}
+          </section>
+
+          <div className="border-t" />
+
+          <section className="space-y-3">
+            <div className="space-y-1.5">
+              <label htmlFor="notif-title" className="text-sm font-semibold">{L.ttl}</label>
+              <Input id="notif-title" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
             </div>
-          )}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="notif-message" className="text-sm font-semibold">{L.msg}</label>
+                <span className="text-xs text-muted-foreground" dir="ltr">{message.length} / 1000</span>
+              </div>
+              <Textarea id="notif-message" value={message} maxLength={1000} rows={5} onChange={(e) => setMessage(e.target.value)} />
+            </div>
+          </section>
 
-          <p className="text-sm text-muted-foreground">
-            {L.recipients}: <span className="font-semibold text-foreground">{count === null ? '-' : count}</span>
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-3 pt-6">
-          <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} placeholder={L.ttl} />
-          <Textarea value={message} maxLength={1000} rows={4} onChange={(e) => setMessage(e.target.value)} placeholder={L.msg} />
           {!confirming ? (
-            <Button type="button" disabled={!canSend} onClick={() => (canSend ? setConfirming(true) : toast.error(count === 0 ? L.none : L.fill))}>
+            <Button type="button" className="w-full sm:w-auto" disabled={!canSend} onClick={() => (canSend ? setConfirming(true) : toast.error(count === 0 ? L.none : L.fill))}>
               <Send className="h-4 w-4 me-2" /> {L.send}
             </Button>
           ) : (
@@ -254,8 +276,7 @@ export default function AdminSendNotificationSection() {
           )}
         </CardContent>
       </Card>
-
-      </>)}
+      )}
 
       {tab === 'history' && (
       <Card>

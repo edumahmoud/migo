@@ -892,6 +892,17 @@ export async function POST(request: NextRequest) {
           .eq('id', senderId)
           .single();
 
+        // A new message in a group brings the chat back for members who hid it (hiding is reversible).
+        if (convInfo?.type === 'group') {
+          try {
+            await supabaseServer
+              .from('conversation_participants')
+              .update({ is_hidden: false })
+              .eq('conversation_id', conversationId)
+              .eq('is_hidden', true);
+          } catch { /* non-critical */ }
+        }
+
         // ── Notify Socket.IO server to broadcast the message ──
         // This is critical for real-time delivery when the sender's
         // browser socket is disconnected (e.g., in Realtime/fallback mode).
@@ -1257,6 +1268,37 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         if (existing) {
+          // Opening the course Chat tab brings a hidden course chat back, and re-adds an enrolled student who is missing.
+          try {
+            const { data: mine } = await supabaseServer
+              .from('conversation_participants')
+              .select('user_id, is_hidden')
+              .eq('conversation_id', existing.id)
+              .eq('user_id', authUserId)
+              .maybeSingle();
+            if (mine) {
+              if (mine.is_hidden) {
+                await supabaseServer
+                  .from('conversation_participants')
+                  .update({ is_hidden: false })
+                  .eq('conversation_id', existing.id)
+                  .eq('user_id', authUserId);
+              }
+            } else {
+              const { data: enrolled } = await supabaseServer
+                .from('subject_students')
+                .select('student_id')
+                .eq('subject_id', subjectId)
+                .eq('student_id', authUserId)
+                .or('status.eq.approved,status.is.null')
+                .maybeSingle();
+              if (enrolled) {
+                await supabaseServer
+                  .from('conversation_participants')
+                  .insert({ conversation_id: existing.id, user_id: authUserId });
+              }
+            }
+          } catch { /* non-critical */ }
           return NextResponse.json({ conversation: existing, existed: true });
         }
 

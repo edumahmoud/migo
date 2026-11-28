@@ -55,6 +55,7 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 import MascotLoader from '@/components/shared/mascot-loader';
+import ReportButton from '@/components/reports/report-button';
 
 // ─── Props ───────────────────────────────────────────────
 interface UserProfilePageProps {
@@ -454,6 +455,17 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           <ArrowRight className="h-4 w-4" />
           <span className="hidden sm:inline">{tc("back")}</span>
         </Button>
+
+        {/* Report this user (any visitor, never on your own profile) */}
+        {!isOwnProfile && (
+          <div className="absolute top-4 start-4 z-10">
+            <ReportButton
+              targetType="user"
+              targetId={userId}
+              className="!text-white/90 hover:!text-white bg-black/20 backdrop-blur-sm !px-3 !py-1.5 text-sm"
+            />
+          </div>
+        )}
 
         {/* Banner gradient */}
         <div className="h-40 sm:h-52 rounded-b-2xl bg-gradient-to-bl from-sky-700 via-teal-500 to-sky-800 relative overflow-hidden">
